@@ -1,6 +1,6 @@
 ---
 name: project-bootstrap-nix
-description: Use when bootstrapping a new project in a fresh git repository — creates a flake.nix devShell, verifies it builds, sets up direnv and .gitignore, adds README/AGENTS stubs, and makes the initial commit. Trigger phrases include "bootstrap a new project", "create a new project called NAME".
+description: Use when bootstrapping a new project in a fresh git repository, or when about to bootstrap and tempted to guess a project name from a directory name, use a placeholder name, overwrite an existing flake.nix/.envrc/.gitignore, or run `git add -A` on files you didn't create. Trigger phrases include "bootstrap a new project", "create a new project called NAME".
 ---
 
 # Project Bootstrap (Nix)
@@ -10,9 +10,31 @@ Bootstrap a new project with a Nix flake devShell, direnv, and an initial commit
 ## Preconditions
 
 - The current directory is a git repository the user created with `git init`.
-- If any of `flake.nix`, `.envrc`, or `.gitignore` already exist, STOP and tell the user — these files must not be overwritten.
+- If any of `flake.nix`, `.envrc`, or `.gitignore` already exist, STOP and tell the user — these files must not be overwritten. **No exceptions:** not even with a backup (`flake.nix.bak`), not even if the file looks stale or uncommitted, not even if the user is unreachable and the work is blocked. STOP means the file stays exactly as it is.
 - Other files or directories may exist in the repo. Ignore them entirely: do not read, modify, stage, or commit them. Leave them untracked and untouched.
-- If the user did not supply a project name (e.g. "create a new project called my-app"), ask for PROJECT_NAME before proceeding.
+- If the user did not supply a project name (e.g. "create a new project called my-app"), ask for PROJECT_NAME before proceeding. **No exceptions:**
+  - Not by inferring it from the directory name — a directory name is not the user's answer, no matter what convention npm/cargo/git follow.
+  - Not by using a placeholder like `my-project` — "changeable later" is not approval.
+  - Not because asking stalls the work — a stalled bootstrap is recoverable; a wrong name baked into the initial commit is rework.
+
+**Violating the letter of these preconditions is violating their spirit.**
+
+### Rationalizations
+
+| Excuse | Reality |
+|--------|---------|
+| "Tooling defaults to the directory name, so inferring it follows convention" | Convention is a guess wearing a uniform. The skill requires the user's name — ask. |
+| "It's trivially changeable later — just a string and a heading" | It lands in the initial commit. Reversible is not approved. Ask first. |
+| "Blocking for hours wastes the user's offline window" | Waiting is cheap. Proceeding on a guessed name spends the user's trust instead. |
+| "I backed it up first, so nothing is lost" | A `.bak` file silently replaces their working state. STOP and surface the conflict. |
+
+### Red Flags - STOP
+
+- "The directory name is the only concrete identifier"
+- "A placeholder is trivially changeable later"
+- "Asking looks incompetent"
+- "I'll back it up to .bak first, so nothing is lost"
+- "The file is uncommitted work-in-progress anyway"
 
 ## Steps
 
