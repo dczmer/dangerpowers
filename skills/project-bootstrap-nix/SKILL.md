@@ -37,7 +37,7 @@ Bootstrap a new project with a Nix flake devShell, direnv, and an initial commit
         }
       }
       ```
-    - **Add additional nix packages to the devShell?** Ask using the `question` tool (Yes/No). If yes, ask which packages, then run `nix search nixpkgs PACKAGE_NAME --json` for each requested package to find the correct attribute name, and add it to `packages` in `flake.nix`. If a requested name is ambiguous or returns no results, skip that package and report the failures to the user.
+    - **Add additional nix packages to the devShell?** Ask using the `question` tool (Yes/No). If yes, ask which packages. For each requested package, first try an exact match: `nix eval nixpkgs#PACKAGE_NAME.meta.description --raw 2>&1` — if it succeeds, the attribute name is valid. If it fails, fall back to `nix search nixpkgs PACKAGE_NAME --json` to find the correct attribute name. Add validated packages to `packages` in `flake.nix`. If a requested name is ambiguous or returns no results, skip that package and report the failures to the user.
     - **Any initial instructions for AGENTS.md?** Ask using the `question` tool (Yes/No). If no, continue. If yes, ask for the instructions, translate the user's response into agent instructions, and write them to `AGENTS.md`.
 4. Rebuild the devShell to validate any added packages: `nix build .#devShells.$(nix eval --impure --expr 'builtins.currentSystem' --raw).default`.
 5. Stage only the files created by this skill: `git add flake.nix flake.lock .envrc .gitignore README.md AGENTS.md` (plus `.opencode/opencode.jsonc` if it was created). Do NOT use `git add -A` or `git add .`. Then make the initial commit: `git commit -m "Initial commit: bootstrap nix devshell"`.
