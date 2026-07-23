@@ -20,6 +20,7 @@ Learning and experimenting with context and harness engineering by building my o
     * stop when you cant find an expected command in PATH instead of thrashing
     * don't ever try to install dependencies on your own; prompt the user
     * global rules of operation (like karpathy's rules)
+    * run all tests and do a review with a subagent before making a commit
 
 ## things what belong in a project AGENTS.md (or subfolder rules file)
 
