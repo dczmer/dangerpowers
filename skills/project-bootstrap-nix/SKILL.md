@@ -16,27 +16,18 @@ Bootstrap a new project with a Nix flake devShell, direnv, and an initial commit
 
 ## Steps
 
-1. Verify preconditions: `git rev-parse --is-inside-work-tree` and check that none of the bootstrap files (`flake.nix`, `.envrc`, `.gitignore`) already exist. Ignore everything else in the directory.
-2. Detect the system architecture: `nix eval --impure --expr 'builtins.currentSystem' --raw` (e.g. `x86_64-linux`, `aarch64-darwin`). Use this value wherever SYSTEM appears below.
-3. Write `flake.nix` from the FLAKE TEMPLATE below, substituting PROJECT_NAME.
-4. `git add flake.nix` — flakes require files to be in the git index before nix can see them.
-5. Verify the shell builds: `nix build .#devShells.SYSTEM.default` and check the exit code is 0. If it fails, diagnose, fix, and retry.
-   - If the failure is an invalid/unknown package name in `packages`, run `nix search nixpkgs PACKAGE_NAME` to find the correct attribute name and update the flake.
-6. `git add flake.lock` once generated.
-7. Create `.envrc` containing `use flake` and run `direnv allow && echo OK` and verify it prints "OK".
-8. Create `.gitignore` containing:
+1. Run the bootstrap script from this skill's directory, substituting PROJECT_NAME:
+   ```bash
+   skills/project-bootstrap-nix/scripts/bootstrap.sh "PROJECT_NAME"
    ```
-   .direnv/
-   result
-   ```
-9. Create a blank `AGENTS.md`.
-10. Prompt the user for a brief description of the project. Write it to `README.md` under a top-level heading (substitute PROJECT_NAME with the actual project name):
-    ```md
-    # PROJECT_NAME
+   It verifies the preconditions, writes `flake.nix`/`flake.lock`/`.envrc`/`.gitignore`/`AGENTS.md`, stages `flake.nix` and `flake.lock`, and verifies the devShell builds. If it exits non-zero, read its error output, fix the problem, and re-run it (it is safe to re-run only if the failing step did not create a bootstrap file — otherwise fix manually and continue).
+2. Prompt the user for a brief description of the project. Write it to `README.md` under a top-level heading (substitute PROJECT_NAME with the actual project name):
+   ```md
+   # PROJECT_NAME
 
-    <description>
-    ```
-11. Interview the user for optional extras using the `question` tool. Ask each question below and act on the answers:
+   <description>
+   ```
+3. Interview the user for optional extras using the `question` tool. Ask each question below and act on the answers:
     - **Create a default opencode config?** Ask using the `question` tool (Yes/No). If yes, create `.opencode/opencode.jsonc` with these contents:
       ```jsonc
       {
@@ -48,53 +39,6 @@ Bootstrap a new project with a Nix flake devShell, direnv, and an initial commit
       ```
     - **Add additional nix packages to the devShell?** Ask using the `question` tool (Yes/No). If yes, ask which packages, then run `nix search nixpkgs PACKAGE_NAME --json` for each requested package to find the correct attribute name, and add it to `packages` in `flake.nix`. If a requested name is ambiguous or returns no results, skip that package and report the failures to the user.
     - **Any initial instructions for AGENTS.md?** Ask using the `question` tool (Yes/No). If no, continue. If yes, ask for the instructions, translate the user's response into agent instructions, and write them to `AGENTS.md`.
-12. Run `nix build .#devShells.SYSTEM.default` again and check `git status` — the only new entry from this skill should be the `result` symlink (gitignored). Pre-existing untracked files are expected; leave them alone.
-13. Stage only the files created by this skill: `git add flake.nix flake.lock .envrc .gitignore README.md AGENTS.md` (plus `.opencode/opencode.jsonc` if it was created). Do NOT use `git add -A` or `git add .`. Then make the initial commit: `git commit -m "Initial commit: bootstrap nix devshell"`.
-14. Report to the user: what was created, build status, and that the dev environment is ready for customization.
-
-## FLAKE TEMPLATE
-
-Substitute PROJECT_NAME. The default packages are already included.
-
-```nix
-{
-  description = "PROJECT_NAME";
-  inputs.flake-utils.url = "github:numtide/flake-utils";
-  outputs =
-    {
-      nixpkgs,
-      flake-utils,
-      ...
-    }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-      in
-      {
-        devShells = {
-          default = pkgs.mkShell {
-            packages = with pkgs; [
-              curl
-              wget
-              jq
-              git
-              ripgrep
-              gnugrep
-              gawkInteractive
-              findutils
-              gzip
-              diffutils
-              coreutils
-              tree
-              file
-              gnused
-            ];
-            shellHook = ''
-            '';
-          };
-        };
-      }
-    );
-}
-```
+4. Rebuild the devShell to validate any added packages: `nix build .#devShells.$(nix eval --impure --expr 'builtins.currentSystem' --raw).default`.
+5. Stage only the files created by this skill: `git add flake.nix flake.lock .envrc .gitignore README.md AGENTS.md` (plus `.opencode/opencode.jsonc` if it was created). Do NOT use `git add -A` or `git add .`. Then make the initial commit: `git commit -m "Initial commit: bootstrap nix devshell"`.
+6. Report to the user: what was created, build status, any unexpected or untracked files or folders, and that the dev environment is ready for customization.
