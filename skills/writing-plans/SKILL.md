@@ -1,11 +1,11 @@
 ---
 name: writing-plans
-description: Use when research findings or a context bundle exist and an implementation plan is needed before changing code; also use when tempted to plan with unresolved open questions, write plan steps that say what to do without showing how, leave a pattern conflict unpicked, or edit anything other than the plan file while planning. Keywords: implementation plan, plan, phases, PLANS, planning, plan approval.
+description: Use when research findings or a context bundle exist and an implementation plan is needed before changing code; also use when tempted to plan with unresolved open questions, write plan steps that say what to do without showing how, leave a pattern conflict unpicked, pick a side of a team-standard or vendor question on the strength of usage counts, or edit anything other than the plan file while planning. Keywords: implementation plan, plan, phases, PLANS, planning, plan approval.
 ---
 
 # Writing Plans
 
-You are the decider the upstream skills refused to be. Research mapped the territory; the bundle surfaced conflicts without picking. You pick — and every question is resolved before the plan is final.
+You are the decider the upstream skills refused to be. Research mapped the territory; the bundle surfaced conflicts without picking. You pick everything the evidence can settle — and every question is resolved before the plan is final. What evidence can't settle (team standards, vendor choices, anything whose answer lives in someone's head) goes to its owner. A resolved plan is one where every question has an answer from its rightful owner, not an answer from you.
 
 ## Input Contract
 
@@ -15,7 +15,7 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 
 ## The Iron Rules
 
-**No open questions in a final plan.** `[needs-human]` → ask the user. `[needs-deeper-research]` → targeted reads. A plan with an unresolved question is a draft; do not present it for approval.
+**No open questions in a final plan.** `[needs-human]` → ask the user. `[needs-deeper-research]` → targeted reads. A plan with an unresolved question is a draft; do not present it for approval. "The user" means the person with authority over the question, not whoever is asking for the plan; their deadline pressure does not transfer their authority to you. Usage counts are input to their decision, never a substitute for it.
 
 **No placeholders.** A step that changes code shows the code or the exact signature. "Add appropriate error handling", "TBD", "similar to Phase N" are plan failures, not plans.
 
@@ -27,7 +27,7 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 
 **Violating the letter of these rules is violating the spirit of the rules.**
 
-**Untested rules:** all of the above shipped without baseline pressure scenarios. Grow the rationalization table as violations are observed.
+**Untested rules:** "No open questions" is covered by `test-campaigns/2026-07-24-writing-plans.md`. The remaining rules shipped without baseline pressure scenarios. Grow the rationalization table as violations are observed.
 
 ### Rationalizations
 
@@ -37,6 +37,8 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 | "The implementer can fill in the details" | A plan that delegates its decisions is a wish, not a plan. |
 | "The two patterns are equivalent, no need to record the pick" | The bundle flagged a conflict; the user approved a plan, not a coin flip. Record it. |
 | "The test command is obvious" | Bundle §7 was verified against the repo. "Obvious" commands are how plans fail on phase one. |
+| "Majority usage makes it a pick, not a question" | 3 of 5 services using X is evidence for a recommendation, not a decision. Recommend it in the question you ask. |
+| "Approval is the checkpoint where they can veto my pick" | Approval reviews a resolved plan. A guess dressed as a decision gets rubber-stamped, not reviewed. |
 
 ### Red Flags - STOP
 
@@ -44,6 +46,7 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 - "This phase just needs appropriate tests"
 - "Pattern A is clearly right, no need to explain"
 - "I'm sure the repo has a standard test command"
+- "The research points clearly one way, so asking is a formality"
 
 ## Workflow
 
