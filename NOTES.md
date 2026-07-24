@@ -6,6 +6,7 @@ Learning and experimenting with context and harness engineering by building my o
 
 - Start with skills that can reproduce the work I normally do when setting up or working on a project.
 - Then start orchestrating workflows with skills and subagents.
+- primary agent that drives the workflow and uses the skills
 
 ## things what belong in my own global AGENTS.md
 
@@ -56,8 +57,6 @@ you can control the system prompt. the default system prompt instructs the model
 
 in opencode, you can define 'primary' subagents that let you toggle 'modes' with the tab key. by default it has 'build' and 'plan' modes but when you add a new primary agent type it becomes a new 'mode' and you can prompt it directly.
 
-# 1. starting a new project + working with nix
-
 language-specific stuff (later)
 
 - using lua?:
@@ -71,4 +70,30 @@ language-specific stuff (later)
     * dependencies: uv
     * run uv init
 
-# opencode primary agent that knows the workflow, how to use subagents, skills
+## Skills and Implementation Process
+
+how i bootstrapped this repo
+
+### 1. prompt-shaping
+
+### 2. writing-skills
+
+### 3. bootstrap a new project with nix flake devShell
+
+techincally, i did this first. then i used the prompt-shaping and writing-skills skills to update it. i was starting from a bit of a catch-22 situation.
+
+### 4. research + scouting
+
+### 5. making plans, iterating on plans
+
+### 6. implementation
+
+### 7. using worktrees
+
+### 8. parallel implementation
+
+### 9. compaction hand-off prompt + plugin
+
+### 10. review skill(s)
+
+### 11. 

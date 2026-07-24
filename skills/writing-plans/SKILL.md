@@ -27,8 +27,6 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 
 **Violating the letter of these rules is violating the spirit of the rules.**
 
-**Untested rules:** "No open questions" is covered by `test-campaigns/2026-07-24-writing-plans.md`. The remaining rules shipped without baseline pressure scenarios. Grow the rationalization table as violations are observed.
-
 ### Rationalizations
 
 | Excuse | Reality |

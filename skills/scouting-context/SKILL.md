@@ -50,8 +50,6 @@ If no research artifact is provided: proceed anyway. Record `source_research: no
 - "Rule 7 says to pick the more recent one and flag the other"
 - "I'll show both but note which one is recommended"
 
-**Untested rules:** "No silent gaps" and "No solutions" as applied to §8 recommendations shipped without failing baselines (baseline agents complied 5/5 under time/fatigue and obviousness/economic pressure — campaign 2026-07-23). Only "No averaged conflicts" is pressure-tested (baseline violated 5/5; with-skill complied 5/5).
-
 ## Workflow
 
 1. Ingest inputs. Read the research artifact FULLY. Note `status: partial` flags, provenance warnings, and its Known Gaps section.
