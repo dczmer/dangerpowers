@@ -29,6 +29,21 @@ Rapid prototyping of user intent through structured proposals. State the interpr
 
 The loop terminates when verification passes, not when you believe the work is done.
 
+## Spec Block
+
+When shaping converges, emit the agreed intent as a copyable block so downstream artifacts can quote it verbatim as their `request:`:
+
+```markdown
+## Spec
+- **Goal:** ...
+- **In scope:** ...
+- **Out of scope:** ...
+- **Assumptions:** ...
+- **Success criteria:** ...
+```
+
+If the work will span multiple skills or sessions, offer to save it to `RESEARCH/spec.md` under the project root (`RESEARCH/` is gitignored — add it to `.gitignore` if absent).
+
 Example proposals:
 > "I'll add the API endpoint, then write a test that calls it and asserts the expected response. I'll iterate until the test passes."
 

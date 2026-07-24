@@ -49,7 +49,7 @@ Document the codebase AS IT EXISTS TODAY. No improvements, no suggestions, no ro
    - **Pattern-finder** (`general`) — find WHAT TO MODEL: working snippets of similar implementations including test patterns. ALL variations, no recommendation.
    Tell each agent WHAT to find, not HOW to search. Restate the documentarian rules in every prompt.
 4. Wait for ALL sub-agents. Live code is the source of truth — anything uncertain gets verified against the code, not assumed.
-5. Write `research-findings.md` per `references/findings-template.md`. Default location: a temp/scratch path (e.g. `/tmp/opencode/research-findings.md`); write into the repo only if the user asked for persistence.
+5. Write `research-findings.md` per `references/findings-template.md`. Location: `RESEARCH/research-findings.md` under the project root. `RESEARCH/` is gitignored — add it to `.gitignore` if absent.
 6. Run the scout-readiness checklist below. Any failure → a targeted follow-up sub-agent, not a hand-wave. Ship `status: partial` only with §7 explaining why.
 
 ## Scout-Readiness Checklist

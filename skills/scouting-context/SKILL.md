@@ -61,7 +61,7 @@ If no research artifact is provided: proceed anyway. Record `source_research: no
 5. Conflict surfacing: list pattern variations and disagreeing findings explicitly, both sides cited.
 6. Validation commands: verify against the repo what actually runs — read package.json scripts, Makefile, CI config. Do not invent commands.
 7. Start-here selection: exactly one file, with reasoning a planner could audit.
-8. Write `context-bundle.md` per `references/bundle-template.md`. Default location: a temp/scratch path (e.g. `/tmp/opencode/context-bundle.md`); write into the repo only if the user asked for persistence.
+8. Write `context-bundle.md` per `references/bundle-template.md`. Location: `RESEARCH/context-bundle.md` under the project root. `RESEARCH/` is gitignored — add it to `.gitignore` if absent.
 9. Run the bundle checklist below. Fix failures with targeted reads. If any item can't be fixed, ship `status: partial` with the failure recorded in §9 — never silently.
 
 ## Bundle Checklist
