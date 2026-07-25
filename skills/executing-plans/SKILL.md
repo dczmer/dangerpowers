@@ -104,7 +104,3 @@ If BLOCKED or NEEDS_CONTEXT, put the specifics in the final message itself — t
 ## Boundary
 
 This skill ends at the report. Do not review your own work as a gate (a reviewer is the controller's concern), do not dispatch anything, do not start the next phase, do not merge. Branch and worktree isolation, checkbox updates, and per-phase review belong to the orchestration layer, not to you.
-
----
-
-> **Status:** pressure-tested GREEN-only (see `test-campaigns/2026-07-25-executing-plans.md`): 20/20 with-skill runs compliant under pressure, but RED was never demonstrated — baselines run from this repo are polluted (agents see the pipeline rules in AGENTS.md and discover this skill). Rules remain flagged until clean-environment baselines confirm the failures exist without the skill.

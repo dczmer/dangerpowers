@@ -135,7 +135,9 @@ Applies to new skills AND edits to existing rules. Before writing or changing a 
 - Not for "just a wording tweak"
 - Not for "documentation updates"
 
-If the skill contains no rule an agent could violate (pure reference material), pressure testing does not apply. If a discipline rule must ship untested, it must be explicitly flagged as untested in the skill — never silently.
+If the skill contains no rule an agent could violate (pure reference material), pressure testing does not apply. If a discipline rule must ship untested, record it as untested in the campaign log — never silently, and never in the skill itself.
+
+Test status never appears in SKILL.md. SKILL.md is loaded into working context on every run; status notes and references to campaign files are dead weight there and invite agents to read the logs. Status lives only in `test-campaigns/`.
 
 **REQUIRED:** See `references/pressure-testing.md` for scenario design, execution protocol, meta-testing, done criteria, and the results-log format.
 
@@ -169,4 +171,5 @@ Create a todo for each item.
 - [ ] Scenarios re-run WITH the skill; agent complies and cites the skill (GREEN)
 - [ ] New loopholes closed (rule negation + rationalization row + red flag + description symptom) and re-tested (REFACTOR)
 - [ ] Results log written to `test-campaigns/` in the skill's directory
-- [ ] Any rule shipped untested is explicitly flagged as untested in the skill
+- [ ] Any rule shipped untested is recorded as untested in the campaign log — never in SKILL.md
+- [ ] No test status, campaign results, or `test-campaigns/` references in SKILL.md

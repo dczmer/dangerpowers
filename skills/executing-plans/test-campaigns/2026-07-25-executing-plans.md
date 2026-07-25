@@ -83,4 +83,4 @@ GREEN-verified; no baseline run.
 - 20/20 with-skill runs compliant under combined pressures; citations specific and convergent (variance low — same sections cited across reps).
 - 0 new rationalizations across 20 runs → no REFACTOR round required.
 - Meta-testing not triggered (no with-skill violations to interview).
-- **Outstanding:** clean-environment baselines for all 4 scenarios. The skill's status flag stays until RED is demonstrated or clean baselines show no violation.
+- **Outstanding:** clean-environment baselines for all 4 scenarios. Rules count as GREEN-verified, RED not demonstrated, until clean baselines run. (The SKILL.md status flag was removed per repo policy — test status lives only in campaign logs.)
