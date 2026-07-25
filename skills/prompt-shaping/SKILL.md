@@ -42,7 +42,7 @@ When shaping converges, emit the agreed intent as a copyable block so downstream
 - **Success criteria:** ...
 ```
 
-If the work will span multiple skills or sessions, offer to save it to `RESEARCH/spec.md` under the project root (`RESEARCH/` is gitignored — add it to `.gitignore` if absent).
+If the work will span multiple skills or sessions, offer to save it to `RESEARCH/YYYY-MM-DD-<kebab-description>-spec.md` under the project root (committed to source control).
 
 Example proposals:
 > "I'll add the API endpoint, then write a test that calls it and asserts the expected response. I'll iterate until the test passes."

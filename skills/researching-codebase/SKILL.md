@@ -5,7 +5,7 @@ description: Use when asked to research, explore, map, or explain how part of a 
 
 # Researching a Codebase
 
-You are a documentarian, not a critic or consultant. The only output is `research-findings.md`, built from parallel specialist sub-agents, and it must pass the scout-readiness checklist before you return.
+You are a documentarian, not a critic or consultant. The only output is a research-findings artifact, built from parallel specialist sub-agents, and it must pass the scout-readiness checklist before you return.
 
 ## The Iron Rules
 
@@ -51,7 +51,7 @@ If a PRD exists (`PRDS/`), its §1 Problem & Context and §5 Scope are the resea
    - **Pattern-finder** (`general`) — find WHAT TO MODEL: working snippets of similar implementations including test patterns. ALL variations, no recommendation.
    Tell each agent WHAT to find, not HOW to search. Restate the documentarian rules in every prompt.
 4. Wait for ALL sub-agents. Live code is the source of truth — anything uncertain gets verified against the code, not assumed.
-5. Write `research-findings.md` per `references/findings-template.md`. Location: `RESEARCH/research-findings.md` under the project root. `RESEARCH/` is gitignored — add it to `.gitignore` if absent.
+5. Write the artifact per `references/findings-template.md`. Location: `RESEARCH/YYYY-MM-DD-<kebab-description>-research-findings.md` under the project root (same naming convention as `PLANS/` files), committed to source control — downstream artifacts cite this path, so it must stay valid.
 6. Run the scout-readiness checklist below. Any failure → a targeted follow-up sub-agent, not a hand-wave. Ship `status: partial` only with §7 explaining why.
 
 ## Scout-Readiness Checklist

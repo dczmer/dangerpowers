@@ -1,8 +1,8 @@
-# context-bundle.md Template
+# Context Bundle Template
 
-**Load this when writing the context-bundle.md artifact.**
+**Load this when writing a context-bundle artifact.**
 
-Contract: `context-bundle.md` is the skill's only output. A planning agent must be able to plan from it without redoing any research. Fill every section. "None" is a valid entry; a missing section is not.
+Contract: the artifact (`RESEARCH/YYYY-MM-DD-<kebab-description>-context-bundle.md`) is the skill's only output. A planning agent must be able to plan from it without redoing any research. Fill every section. "None" is a valid entry; a missing section is not.
 
 ## The Template
 
@@ -13,7 +13,7 @@ date: YYYY-MM-DD
 git_commit: <full commit hash at bundle time>
 branch: <branch name>
 request: <the user's request, verbatim>
-source_research: <path to research-findings.md, or none>
+source_research: <path to the research-findings artifact, or none>
 source_prd: <path to PRD, or none>
 status: complete | partial
 ---

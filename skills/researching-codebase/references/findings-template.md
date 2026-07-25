@@ -1,8 +1,8 @@
-# research-findings.md Template
+# Research Findings Template
 
-**Load this when writing the research-findings.md artifact.**
+**Load this when writing a research-findings artifact.**
 
-Contract: `research-findings.md` is the skill's only output. It must be complete enough that a downstream consumer (human or agent) never needs to redo the research. Fill every section. "None" is a valid entry; a missing section is not.
+Contract: the artifact (`RESEARCH/YYYY-MM-DD-<kebab-description>-research-findings.md`) is the skill's only output. It must be complete enough that a downstream consumer (human or agent) never needs to redo the research. Fill every section. "None" is a valid entry; a missing section is not.
 
 ## The Template
 
