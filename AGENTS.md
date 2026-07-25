@@ -14,6 +14,8 @@ Skills form a pipeline; each produces one artifact that feeds the next:
 6. **iterating-plans** — applies human review edits to an existing plan before execution; verifies the plan's facts against the current codebase via sub-agents, and routes back upstream when edits invalidate earlier artifacts
 7. **executing-plans** — executes one phase of an approved plan per invocation and reports back status + issues to `PLANS/<date>-<name>-phase-N-report.md`; safe to run as parallel subagents (phases own disjoint file sets; the plan file is read-only in subagent mode)
 
+**prd-to-plan** orchestrates steps 3–5 plus the iterating-plans feedback loop from a single invocation: given a PRD, it drives research, context scouting, and plan writing in order, delegates phases to subagents where safe, and manages user feedback on the plan until the user accepts it as ready for human review.
+
 All artifacts are uniquely named (`YYYY-MM-DD-<kebab>`) and committed to source control — `RESEARCH/` is NOT gitignored. Artifacts record provenance in frontmatter (`source_prd`, `source_bundle`, `source_research`) so any step can trace back. Steps 2–4 are skippable when the input they produce already exists or the task is too small to need them.
 
 ## Pressure Test Pollution
