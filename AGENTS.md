@@ -14,3 +14,10 @@ Skills form a pipeline; each produces one artifact that feeds the next:
 6. **iterating-plans** — applies human review edits to an existing plan before execution; verifies the plan's facts against the current codebase via sub-agents, and routes back upstream when edits invalidate earlier artifacts
 
 All artifacts are uniquely named (`YYYY-MM-DD-<kebab>`) and committed to source control — `RESEARCH/` is NOT gitignored. Artifacts record provenance in frontmatter (`source_prd`, `source_bundle`, `source_research`) so any step can trace back. Steps 2–4 are skippable when the input they produce already exists or the task is too small to need them.
+
+## Pressure Test Pollution
+
+When running pressure test campaigns (see `skills/writing-skills/references/pressure-testing.md`), watch for two contamination sources in baseline runs:
+
+- **Global or per-project rules** (e.g. a global `AGENTS.md`) bleeding into subagent baselines: this pollutes measurements and must be avoided. If detected, flag it and escalate to the user before trusting baseline results.
+- **Skill descriptions of other skills in this repository** visible to subagents: this is fine. These skills ship together, so cross-skill leakage is expected — and baseline reps reaching the right decision because of it is a good outcome, not a measurement error.
