@@ -13,6 +13,7 @@ date: YYYY-MM-DD
 git_commit: <full commit hash at planning time>
 branch: <branch name>
 request: <the user's request or spec block, verbatim>
+source_prd: <path to PRD, or none>
 source_bundle: <path to context-bundle.md, or none>
 source_research: <path to research-findings.md, or none>
 status: draft | approved
@@ -101,6 +102,7 @@ What this phase accomplishes.
 
 ## References
 
+- PRD: <path>
 - Context bundle: `RESEARCH/context-bundle.md`
 - Research findings: `RESEARCH/research-findings.md`
 - Key implementation files: `file:line`

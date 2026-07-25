@@ -14,6 +14,7 @@ git_commit: <full commit hash at bundle time>
 branch: <branch name>
 request: <the user's request, verbatim>
 source_research: <path to research-findings.md, or none>
+source_prd: <path to PRD, or none>
 status: complete | partial
 ---
 

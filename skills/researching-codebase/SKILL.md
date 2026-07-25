@@ -41,6 +41,8 @@ Document the codebase AS IT EXISTS TODAY. No improvements, no suggestions, no ro
 
 ## Workflow
 
+If a PRD exists (`PRDS/`), its §1 Problem & Context and §5 Scope are the research request's scope source; record `source_prd: <path>` in the artifact frontmatter (`none` if absent).
+
 1. Read every file the user mentioned FULLY (no limit/offset) in the main context BEFORE spawning any sub-agent.
 2. Decompose the request into research areas; track with the todo tool.
 3. Spawn parallel sub-agents in one message, one role each:

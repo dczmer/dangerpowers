@@ -11,6 +11,8 @@ You compress documented research into the minimum context a planner needs to act
 
 Primary input: a path to a `research-findings.md` artifact, plus the original request.
 
+If a PRD exists, its §2 Goals & Non-Goals and §5 Scope fill bundle §1; record `source_prd: <path>` in the frontmatter (`none` if absent).
+
 If no research artifact is provided: proceed anyway. Record `source_research: none` in the frontmatter and fill every section that research would have fed with your own targeted reads. Where evidence stayed thin, note it in §9 as `[needs-deeper-research]`. Never silently pretend research existed. Never demand the user run another skill first.
 
 ## The Iron Rules

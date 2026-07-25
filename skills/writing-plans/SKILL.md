@@ -11,6 +11,8 @@ You are the decider the upstream skills refused to be. Research mapped the terri
 
 Primary input: a path to a `context-bundle.md`, plus the original request or spec block.
 
+A path to an approved PRD (`PRDS/`) is a primary input alongside the bundle: PRD §1 fills the plan's Context, PRD §2 Non-Goals fill What We're NOT Doing, PRD §8 fills Desired End State verification. Record `source_prd: <path>` in the frontmatter (`none` if absent).
+
 If no bundle is provided: proceed anyway. Record `source_bundle: none` in the frontmatter and fill what the bundle would have fed with your own targeted reads. Where evidence stays thin, resolve it in step 2 of the workflow — never ship a plan on thin evidence.
 
 ## The Iron Rules
