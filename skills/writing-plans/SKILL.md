@@ -53,7 +53,7 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 1. Read the bundle FULLY, plus the research findings it cites. Note §6 conflicts and §9 open questions.
 2. Resolve every open question: ask the user, or targeted reads. Never re-run full research — the bundle already compressed it.
 3. Propose a phase outline (one line per phase) to the user. Get buy-in on phasing and granularity before writing details.
-4. Write the plan to `PLANS/YYYY-MM-DD-<kebab-description>.md` per `references/plan-template.md`. `PLANS/` lives at the project root and is committed to source control. Build the file incrementally; it is the only file you may write.
+4. Write the plan to `PLANS/YYYY-MM-DD-<kebab-description>-plan.md` per `references/plan-template.md`. The `-plan` suffix distinguishes plans from the `-report` files executing-plans writes beside them. `PLANS/` lives at the project root and is committed to source control. Build the file incrementally; it is the only file you may write.
 5. Run the plan checklist below. Fix failures before presenting.
 6. Present the plan location for approval. Iterate on feedback with surgical edits; do not rewrite the plan for a scoped change.
 

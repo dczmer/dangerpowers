@@ -1,6 +1,6 @@
 # Plan Template
 
-**Load this when writing a plan to `PLANS/`.**
+**Load this when writing a plan to `PLANS/YYYY-MM-DD-<kebab-description>-plan.md`.** The `-plan` suffix is required: executing-plans writes `<kebab-description>-phase-N-report.md` files beside the plan, and the pair must sort together.
 
 Contract: the plan is the skill's only output. An implementing agent must be able to execute it without redoing research, without asking what a phase means, and without guessing which pattern won a conflict. Fill every section. "None" is a valid entry; a missing section is not.
 
@@ -111,6 +111,7 @@ What this phase accomplishes.
 ## Rules
 
 - **Exact file paths always.** Code-changing steps show the code or the exact signature.
+- **Every phase's Changes Required lists exhaustively the files it may touch.** executing-plans treats this list as file ownership — it is what makes parallel phase execution safe. A file a phase needs but doesn't list is a plan failure, not an executor's judgment call.
 - **Every command verified against the repo** — from bundle §7, or read from package.json scripts, Makefile, CI config. Never invented.
 - **No placeholders.** "Add appropriate error handling", "TBD", "similar to Phase N" are plan failures.
 - **Names and signatures must be consistent across phases** — a symbol introduced in Phase 1 keeps its name in Phase 4.
