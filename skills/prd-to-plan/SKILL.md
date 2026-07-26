@@ -1,6 +1,6 @@
 ---
 name: prd-to-plan
-description: Use when a PRD exists in PRDS/ and an implementation plan is needed, to drive research, context scouting, and plan writing through a single invocation; also use when tempted to invoke the pipeline skills manually one by one, keep research or scouting detail in the orchestrating context window, reuse a pre-existing artifact without asking, advance past a phase that produced no artifact, or edit a plan directly instead of routing feedback through iterating-plans. Keywords: PRD to plan, orchestrate pipeline, plan from PRD, research then plan, context bundle, pipeline orchestrator, subagent delegation.
+description: Use when a PRD exists in PRDS/ and an implementation plan is needed, to drive research, context scouting, and plan writing through a single invocation; also use when tempted to invoke the pipeline skills manually one by one, keep research or scouting detail in the orchestrating context window, reuse a pre-existing artifact without asking, advance past a phase that produced no artifact, start the pipeline on a PRD whose status is still draft, or edit a plan directly instead of routing feedback through iterating-plans. Keywords: PRD to plan, orchestrate pipeline, plan from PRD, research then plan, context bundle, pipeline orchestrator, subagent delegation, draft PRD, PRD not approved.
 ---
 
 # Skill: prd-to-plan
@@ -11,7 +11,7 @@ This skill orchestrates the planning pipeline: **researching-codebase** → **sc
 
 Two inputs (FR-001):
 
-1. **Path to a PRD document** (required). If it is missing or is not a PRD, stop and tell the user a PRD is required. Do not proceed on a guessed or implied document.
+1. **Path to a PRD document** (required). If it is missing or is not a PRD, stop and tell the user a PRD is required. Do not proceed on a guessed or implied document. The PRD's frontmatter must say `status: approved`; if it says anything else or the field is absent, stop and tell the user the PRD must be approved first (via the writing-prds skill). **No exceptions:** not for "approval is a formality", not for "the open questions won't affect the plan", not for "the user is in a hurry".
 2. **Optional free-text user instructions.** Convey these verbatim to every phase's skill invocation (FR-007). If the instructions conflict with the PRD, surface the conflict to the user and wait for a resolution — never silently pick one side.
 
 ## Delegation Safety
@@ -30,7 +30,7 @@ Dispatch prompts for delegated phases MUST:
 
 ## Workflow
 
-1. Validate the PRD input. Record the optional instructions. Surface any PRD/instruction conflict to the user before doing anything else.
+1. Validate the PRD input: it exists, it is a PRD, and its frontmatter says `status: approved`. Record the optional instructions. Surface any PRD/instruction conflict to the user before doing anything else.
 2. Derive the expected artifact path for each phase from the naming conventions: `RESEARCH/YYYY-MM-DD-<kebab>-research-findings.md`, `RESEARCH/YYYY-MM-DD-<kebab>-context-bundle.md`, `PLANS/YYYY-MM-DD-<kebab>-plan.md`.
 3. For each phase in fixed order — researching-codebase, then scouting-context, then writing-plans (FR-002): if that phase's artifact for this PRD already exists, use the `question` tool to ask whether to reuse or regenerate it **before** running the phase (FR-006). Never reuse silently. Never regenerate silently.
 4. Run or dispatch the phase per Delegation Safety. If a delegated phase returns questions (e.g. writing-plans' phase-outline buy-in), ask the user via the `question` tool and resume the phase with the answers. The orchestrator mediates all user interaction; subagents never ask directly.
@@ -50,6 +50,9 @@ The orchestrator retains per phase only the artifact path and the phase outcome 
 - "The artifact exists so I'll reuse it without asking"
 - "The phase mostly worked so I'll advance anyway"
 - "These three edits are small; I'll just fix the plan myself"
+- "The PRD is basically final; the status field is a formality"
+- "I'll plan against the draft and re-verify once it's approved"
+- "I'll just run research against the draft — only plan-writing is gated"
 
 ## Boundary
 

@@ -1,6 +1,6 @@
 ---
 name: writing-prds
-description: Use when the user explicitly asks for a PRD or product requirements document, or asks to start planning a feature; also use when tempted to put tech stack or file paths in a requirements doc, to make product decisions silently instead of asking, or to finalize a PRD with open questions remaining. Keywords: PRD, product requirements, feature spec, requirements doc, scoping, acceptance criteria, feature planning.
+description: Use when the user explicitly asks for a PRD or product requirements document, asks to start planning a feature, or wants to update or revise an existing PRD; also use when tempted to put tech stack or file paths in a requirements doc, to make product decisions silently instead of asking, or to finalize a PRD with open questions remaining. Keywords: PRD, product requirements, feature spec, requirements doc, scoping, acceptance criteria, feature planning, update PRD, revise PRD.
 ---
 
 # Writing PRDs
@@ -44,9 +44,9 @@ You produce one artifact — a PRD at `PRDS/YYYY-MM-DD-<kebab-description>.md`, 
 
 ## Workflow
 
-1. **Intake & grounding** — restate the feature request; scan the repo for context that informs scope (README, existing PRDs in `PRDS/`, related plans in `PLANS/`).
-2. **Clarification interview** — use the `question` tool until every template section can be filled without guessing; batch related questions; recommend an option where evidence supports one.
-3. **Draft the PRD** to `PRDS/YYYY-MM-DD-<kebab-description>.md` per `references/prd-template.md` at the project root; create `PRDS/` if absent. This is the only file you may write. `status: draft`.
+1. **Intake & grounding** — if the user names an existing PRD file, that file is the PRD: read it in full as your grounding, keep its path, and run every later step as a revision of it (reset `status: draft`). Otherwise restate the feature request; scan the repo for context that informs scope (README, existing PRDs in `PRDS/`, related plans in `PLANS/`).
+2. **Clarification interview** — use the `question` tool until every template section can be filled without guessing; batch related questions; recommend an option where evidence supports one. When revising, interview only about what changes; confirmed content in the existing PRD stands.
+3. **Draft the PRD** — a new PRD goes to `PRDS/YYYY-MM-DD-<kebab-description>.md` per `references/prd-template.md` at the project root; create `PRDS/` if absent. When the user named an existing file, edit that file in place — never mint a new dated file for a revision. Either way this is the only file you may write. `status: draft`.
 4. **Run the PRD checklist**; fix failures with edits or further interview questions.
 5. **Present the PRD location for approval.** Iterate with surgical edits. Set `status: approved` only when §9 is empty and the user has confirmed.
 6. **Standalone boundary** — this skill ends at approval. Do not suggest, auto-invoke, or chain into research or planning; the user decides what consumes the PRD.
