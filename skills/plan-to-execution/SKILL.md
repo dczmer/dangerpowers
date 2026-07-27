@@ -1,6 +1,6 @@
 ---
 name: plan-to-execution
-description: Use when an approved implementation plan in PLANS/ is ready to be executed end to end, or when tempted to implement plan phases inline in the orchestrating conversation, dispatch a pressure-test campaign or test-only phase to a subagent executor, run plan-declared independent phases sequentially, keep dispatching after a phase fails, re-execute already-committed phases on resume, or proceed to review, cleanup, plan completion, or PR creation after the plan's tests pass. Keywords: execute plan, orchestrate execution, plan to execution, parallel phases, git worktree, phase subagents, resume interrupted run, merge back, final test run, approved plan, pressure test phase, test-only phase, inline phase.
+description: Use when an approved implementation plan in PLANS/ is ready to be executed end to end, or when tempted to implement plan phases inline in the orchestrating conversation, reclassify a plan-declared phase's execution mode, run plan-declared independent phases sequentially, keep dispatching after a phase fails, re-execute already-committed phases on resume, or proceed to review, cleanup, plan completion, or PR creation after the plan's tests pass. Keywords: execute plan, orchestrate execution, plan to execution, parallel phases, git worktree, phase subagents, resume interrupted run, merge back, final test run, approved plan, pressure test phase, test-only phase, inline phase, execution mode declaration.
 ---
 
 # Skill: plan-to-execution
@@ -16,19 +16,15 @@ Two inputs (FR-001):
 
 ## Plan Consumption Contract
 
-The orchestrator reads two conventions from the plan; both are owned and documented by this skill.
+The orchestrator reads three conventions from the plan; all are owned and documented by this skill.
 
 1. **Phase independence.** A phase declares independence with a `**Parallel group:** <name> | none` line in its Overview section. Phases sharing a group name are mutually independent and dispatch in parallel. `none`, or an absent line, means the phase runs sequentially after all prior phases. No declarations anywhere in the plan means a fully sequential run with no worktrees. The orchestrator NEVER infers, overrides, or second-guesses the plan's declarations (FR-005) — the declarations are authoritative, even when phase file sets look independent and the plan says nothing.
 2. **Final verification.** Final test and audit commands come from the plan's `## Final Verification` section — one exact command per line, run verbatim against the integrated result (FR-012). If the section is absent, report after integration that the plan specifies no final commands and stop. NEVER substitute repo-discovered commands; a guessed command was never human-approved.
+3. **Execution mode.** A phase declares `**Execution:** subagent | inline` in its Overview. `inline` phases — ones that dispatch subagents themselves or must run against the fully integrated result — run directly in the main session per Workflow step 4. An absent line means `subagent` (pre-convention plans predate the declaration). The orchestrator NEVER reclassifies a phase — the declaration is authoritative, exactly like the parallel-group declaration.
 
 ## Delegation Safety
 
-Every phase runs in a fresh `general` subagent executing the **executing-plans** skill (FR-002), with one exception class: **inline-only phases**. A phase is inline-only when its work itself spawns subagents or assumes the integrated state — pressure-test campaigns (`skills/writing-skills/references/pressure-testing.md`), test-only execution phases, or any phase that directly invokes a skill or prompt that dispatches subagents. Subagent executors cannot safely run sub-subagents, and test phases assume all prior phases are merged. Inline-only phases:
-
-- NEVER run in a subagent executor — the orchestrator runs them directly in the main session, following the phase's Changes Required itself.
-- NEVER run in parallel, regardless of the phase's `**Parallel group:**` declaration — pull them out of any declared group and schedule them sequentially.
-- Run only after every preceding phase is merged into the main checkout — the campaign or test assumes the integrated result as its starting state.
-- Still produce the phase report and commit per the usual contract.
+Every phase declared `**Execution:** subagent` (or carrying no declaration) runs in a fresh `general` subagent executing the **executing-plans** skill (FR-002). A phase declared `**Execution:** inline` runs directly in the main session: it dispatches subagents itself or assumes the integrated result, executor subagents cannot safely run sub-subagents, and its declaration already implies `**Parallel group:** none`. Inline phases still produce the phase report and commit per the usual contract.
 
 Otherwise, the orchestrator NEVER implements a phase inline — not for a two-line change, not under time pressure, not "just this once". executing-plans spawns no sub-agents of its own, so delegation is safe and no other inline fallback exists.
 
@@ -58,10 +54,10 @@ A phase passing all four checks is complete and is NEVER re-dispatched. The firs
 ## Workflow
 
 1. **Validate input.** The plan exists, is readable, and its frontmatter says `status: approved`. Record the optional user instructions. Surface any instruction/plan conflict to the user before anything else.
-2. **Read the plan and compute the schedule.** Extract the phase list, each phase's `**Parallel group:**` declaration, and the `## Final Verification` commands. Identify inline-only phases per Delegation Safety and pull them out of any declared parallel group. Maximal runs of remaining phases sharing a group name become parallel groups; every other phase is a sequential step in plan order (FR-005, FR-007).
+2. **Read the plan and compute the schedule.** Extract the phase list, each phase's `**Parallel group:**` declaration, and the `## Final Verification` commands. Extract each phase's `**Execution:**` declaration (absent means `subagent`). Maximal runs of phases sharing a group name become parallel groups; every other phase is a sequential step in plan order (FR-005, FR-007).
 3. **Run Resume Detection.** The schedule starts at the resume point; completed phases are skipped, never re-dispatched.
 4. **Execute each schedule step, in order:**
-   - **Inline-only phase:** run it directly in the main session, in the main checkout, once all preceding phases are merged. Follow the phase's Changes Required and Success Criteria yourself, write the phase report, and commit. NEVER dispatch it to a subagent, NEVER run it concurrently with anything else.
+   - **Inline phase:** for each phase declared `inline`, run it directly in the main session, in the main checkout, once all preceding phases are merged. Follow the phase's Changes Required and Success Criteria yourself, write the phase report, and commit.
    - **Sequential phase:** dispatch one executing-plans subagent per Delegation Safety, working in the main checkout.
    - **Parallel group:** for each phase in the group, follow the **isolating-worktrees** procedure (detect → create → set up → verify) with branch and directory named `<plan-base>-phase-<N>`. A worktree-creation failure stops the run with a report — NEVER fall back to unisolated parallel work. Then dispatch all of the group's subagents in parallel in one message, each pointed at its own worktree (FR-006). After all of them return, merge each branch back in ascending phase order with `git merge --no-ff <branch>` from the main checkout. A merge conflict stops the run; report the conflicting branch and phase and let the user resolve or direct (FR-009). Worktrees and branches are left in place — cleanup is a non-goal.
    - **After every subagent returns:** verify the phase's report file exists, its status is `DONE` or `DONE_WITH_CONCERNS`, and at least one commit exists for the phase. Any other status (`BLOCKED`, `NEEDS_CONTEXT`), a missing report, failed phase verification, or no commit: STOP the entire run immediately, report the failing phase and the stated reason, and dispatch nothing further (FR-010). Committed state is left intact for resume. A `NEEDS_CONTEXT` return is a phase failure — surface the subagent's stated need to the user.
@@ -78,8 +74,8 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 |--------|---------|
 | "I'll skim the phase report to give the user a good summary" | The report path IS the summary pointer. Skimming loads transient detail into orchestrator context — the exact problem this skill exists to solve (FR-004). |
 | "This phase is tiny — I'll just implement it inline" | Phase size doesn't change who owns implementation. Dispatch the subagent (FR-002). The only inline exception is an inline-only phase per Delegation Safety. |
-| "The campaign phase is just another phase — dispatch it like the others" | Subagent executors cannot run sub-subagents, and the campaign assumes the integrated state. Inline-only phases run in the main session, sequentially, after prior merges. |
-| "The test phase changes no files, so it can join the parallel group" | Test-only phases assume all prior phases are merged. Parallel execution would test a partially integrated tree. Pull it out and run it inline, sequentially. |
+| "This phase looks like a campaign — I'll run it inline even though it declares `subagent`" | The declaration is authoritative. A misdeclared phase is a plan defect — surface it and route the human to iterating-plans; never reclassify. |
+| "The test phase changes no files, so it can join the parallel group" | Test-only phases assume all prior phases are merged. If the plan declared one parallel, that is a plan defect — surface it; never override. |
 | "Phase 3 doesn't depend on phase 2's files, so I'll keep going after the failure" | File overlap isn't the failure criterion — the failed phase is. Stop and report (FR-010). |
 | "Re-running the committed phases is safer than trusting the reports" | The report-plus-ancestry check is the resume contract. Re-dispatching completed phases wastes work and can conflict with already-merged state (FR-011). |
 | "The tests pass; I'll quickly remove the worktrees before reporting" | Cleanup is a non-goal in every circumstance. Report and stop (FR-014). |
@@ -88,7 +84,7 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 
 - "I'll skim the phase report to give the user a good summary"
 - "This phase is tiny — I'll just implement it inline"
-- "The campaign phase is just another phase — dispatch it like the others"
+- "This phase looks inline to me even though the plan says `subagent` — I'll reclassify it"
 - "The test phase changes no files, so it can join the parallel group"
 - "The executor can run the pressure-test subagents via headless processes instead"
 - "Phase 3 doesn't depend on phase 2's files, so I'll keep going after the failure"
