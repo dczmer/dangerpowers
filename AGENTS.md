@@ -10,7 +10,7 @@ Skills form a pipeline; each produces one artifact that feeds the next:
 2. **writing-prds** — `PRDS/<date>-<name>.md`: WHAT and WHY (features only)
 3. **researching-codebase** — `RESEARCH/<date>-<name>-research-findings.md`: the codebase as it exists
 4. **scouting-context** — `RESEARCH/<date>-<name>-context-bundle.md`: compressed handoff — blast radius, conflicts, constraints
-5. **writing-plans** — `PLANS/<date>-<name>-plan.md`: resolved decisions, phased execution
+5. **writing-plans** — `PLANS/<date>-<name>-plan.md`: resolved decisions, phased execution; declares per-phase independence (`**Parallel group:**`) and plan-level final verification commands
 6. **iterating-plans** — applies human review edits to an existing plan before execution; verifies the plan's facts against the current codebase via sub-agents, and routes back upstream when edits invalidate earlier artifacts
 7. **executing-plans** — executes one phase of an approved plan per invocation and reports back status + issues to `PLANS/<date>-<name>-phase-N-report.md`; safe to run as parallel subagents (phases own disjoint file sets; the plan file is read-only in subagent mode)
 

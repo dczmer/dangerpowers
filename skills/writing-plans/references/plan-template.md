@@ -57,6 +57,8 @@ High-level strategy and reasoning. Only the recommended approach — alternative
 
 What this phase accomplishes.
 
+**Parallel group:** <name> | none
+
 ### Changes Required
 
 #### 1. <Component/File Group>
@@ -100,6 +102,10 @@ What this phase accomplishes.
 ### Manual Testing Steps:
 1. <specific verification step>
 
+## Final Verification
+
+Plan-level test and audit commands, run by plan-to-execution against the fully integrated result after every phase completes — one exact command per line, each repo-verified like every other command in the plan. `None` is a valid entry; an absent section is not.
+
 ## References
 
 - PRD: <path>
@@ -115,3 +121,5 @@ What this phase accomplishes.
 - **Every command verified against the repo** — from bundle §7, or read from package.json scripts, Makefile, CI config. Never invented.
 - **No placeholders.** "Add appropriate error handling", "TBD", "similar to Phase N" are plan failures.
 - **Names and signatures must be consistent across phases** — a symbol introduced in Phase 1 keeps its name in Phase 4.
+- **Every phase declares its independence.** The `**Parallel group:** <name> | none` line is mandatory in each phase Overview. Derive groups from the exhaustive Changes Required file lists: phases may share a group name only if their file sets are disjoint and neither consumes the other's output. When overlap is uncertain, declare `none` — sequential is the safe default, and plan-to-execution never infers or overrides declarations.
+- **The plan ends with `## Final Verification`.** Plan-level commands against the integrated result, one per line, repo-verified — or the literal entry `None`.
