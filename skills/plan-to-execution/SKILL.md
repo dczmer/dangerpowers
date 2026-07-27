@@ -73,9 +73,9 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 | Excuse | Reality |
 |--------|---------|
 | "I'll skim the phase report to give the user a good summary" | The report path IS the summary pointer. Skimming loads transient detail into orchestrator context — the exact problem this skill exists to solve (FR-004). |
-| "This phase is tiny — I'll just implement it inline" | Phase size doesn't change who owns implementation. Dispatch the subagent (FR-002). The only inline exception is an inline-only phase per Delegation Safety. |
+| "This phase is tiny — I'll just implement it inline" | Phase size doesn't change who owns implementation. Dispatch the subagent (FR-002). The only inline exception is a phase declared `**Execution:** inline` per Delegation Safety. |
 | "This phase looks like a campaign — I'll run it inline even though it declares `subagent`" | The declaration is authoritative. A misdeclared phase is a plan defect — surface it and route the human to iterating-plans; never reclassify. |
-| "The test phase changes no files, so it can join the parallel group" | Test-only phases assume all prior phases are merged. If the plan declared one parallel, that is a plan defect — surface it; never override. |
+| "The plan grouped this test phase with the others, and parallelizing saves time" | Test-only phases assume all prior phases are merged. If the plan declared one parallel, that is a plan defect — surface it; never override. |
 | "Phase 3 doesn't depend on phase 2's files, so I'll keep going after the failure" | File overlap isn't the failure criterion — the failed phase is. Stop and report (FR-010). |
 | "Re-running the committed phases is safer than trusting the reports" | The report-plus-ancestry check is the resume contract. Re-dispatching completed phases wastes work and can conflict with already-merged state (FR-011). |
 | "The tests pass; I'll quickly remove the worktrees before reporting" | Cleanup is a non-goal in every circumstance. Report and stop (FR-014). |
@@ -85,7 +85,7 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 - "I'll skim the phase report to give the user a good summary"
 - "This phase is tiny — I'll just implement it inline"
 - "This phase looks inline to me even though the plan says `subagent` — I'll reclassify it"
-- "The test phase changes no files, so it can join the parallel group"
+- "The plan declared this test phase parallel — keeping it in the group saves time"
 - "The executor can run the pressure-test subagents via headless processes instead"
 - "Phase 3 doesn't depend on phase 2's files, so I'll keep going after the failure"
 - "Re-running the committed phases is safer than trusting the reports"
