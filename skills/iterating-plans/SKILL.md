@@ -41,6 +41,7 @@ If either is missing, ask for it. Do not guess which plan they mean, and do not 
 | "The requested change is small, no need to re-check cross-phase consistency" | Small edits break symbol names and phase dependencies too. The checklist applies to every edit. |
 | "The user approved this plan already; the edit is minor" | They approved the plan as written. Any edit makes it a different plan. Status returns to draft. |
 | "Re-running research would be overkill" | Correct — and nobody asked you to. Targeted sub-agent verification is not re-research. |
+| "I only renamed a phase — the parallel groups still look right" | Declarations are plan facts like file paths. Verify them against the edited Changes Required lists, never from how they look. |
 
 ### Red Flags - STOP
 
@@ -50,6 +51,7 @@ If either is missing, ask for it. Do not guess which plan they mean, and do not 
 - "I'll leave the status as approved — the change is tiny"
 - "While I'm editing Phase 2 I'll clean up Phase 3's wording"
 - "The user asking for the edit can override the original decision owner"
+- "I only renamed/split a phase — no need to re-check the Parallel group declarations"
 
 ## Workflow
 
@@ -88,7 +90,7 @@ If either is missing, ask for it. Do not guess which plan they mean, and do not 
 
 5. **Make surgical edits.** If the plan was `status: approved`, set `status: draft`.
 
-6. **Re-run the plan checklist from writing-plans** against the whole plan — cross-phase name consistency, no placeholders, commands still repo-verified (now backed by step 2's evidence, not assumption).
+6. **Re-run the plan checklist from writing-plans** against the whole plan — cross-phase name consistency, no placeholders, commands still repo-verified (now backed by step 2's evidence, not assumption). If the plan carries `**Parallel group:**` declarations or a `## Final Verification` section and the edits added, removed, renamed, or split any phase, verify those too: every phase still carries a declaration, phases sharing a group still have disjoint Changes Required file sets and no output dependency, and the Final Verification commands still match the integrated result. A stale declaration is drift — fix it or get an explicit leave-it decision, like any other drift.
 
 7. **Present a diff summary:** what the feedback changed, what drift was fixed, what drift was deliberately left. The plan awaits human re-approval before execution.
 
