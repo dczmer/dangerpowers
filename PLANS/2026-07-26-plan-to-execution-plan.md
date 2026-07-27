@@ -7,7 +7,7 @@ request: "use the prd-to-plan skill to produce a plan form the following PRD: @/
 source_prd: PRDS/2026-07-26-plan-to-execution.md
 source_bundle: RESEARCH/2026-07-26-plan-to-execution-context-bundle.md
 source_research: RESEARCH/2026-07-26-plan-to-execution-research-findings.md
-status: draft
+status: approved
 ---
 
 # plan-to-execution Skill Implementation Plan
@@ -128,12 +128,12 @@ Body sections and their required content:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] File exists: `test -f skills/plan-to-execution/SKILL.md`
-- [ ] Frontmatter name correct: `rg '^name: plan-to-execution$' skills/plan-to-execution/SKILL.md`
-- [ ] Description present and trigger-first: `rg '^description: Use when' skills/plan-to-execution/SKILL.md`
-- [ ] Dependencies cross-referenced: `rg -c 'executing-plans|isolating-worktrees|writing-plans|iterating-plans' skills/plan-to-execution/SKILL.md` returns 4 or more
-- [ ] FR coverage present: `rg -c 'FR-0(0[1-9]|1[0-4])' skills/plan-to-execution/SKILL.md` returns 14 or more
-- [ ] No placeholder vocabulary: `! rg -n 'TBD|TODO|appropriate|similar to|etc\.' skills/plan-to-execution/SKILL.md`
+- [x] File exists: `test -f skills/plan-to-execution/SKILL.md`
+- [x] Frontmatter name correct: `rg '^name: plan-to-execution$' skills/plan-to-execution/SKILL.md`
+- [x] Description present and trigger-first: `rg '^description: Use when' skills/plan-to-execution/SKILL.md`
+- [x] Dependencies cross-referenced: `rg -c 'executing-plans|isolating-worktrees|writing-plans|iterating-plans' skills/plan-to-execution/SKILL.md` returns 4 or more
+- [x] FR coverage present: `rg -c 'FR-0(0[1-9]|1[0-4])' skills/plan-to-execution/SKILL.md` returns 14 or more
+- [x] No placeholder vocabulary: `! rg -n 'TBD|TODO|appropriate|similar to|etc\.' skills/plan-to-execution/SKILL.md`
 
 (Note: no unit-test, typecheck, or lint commands exist in this repo — verified: no `package.json`/`Makefile`/`justfile`/`Taskfile`/CI config at repo root. `rg`, `git`, and `test` are provided by the dev shell, `flake.nix:22-29`.)
 
