@@ -65,16 +65,39 @@ C) Write tests now (30 min), then commit
 Choose A, B, or C, then explain your reasoning in 2-3 sentences.
 ```
 
+When scenario props include fictional artifact paths (e.g. plan files, log paths), mark them explicitly as illustrative — "do not attempt to read them" — to prevent tool-probing detours.
+
 ## Execution Protocol (opencode)
 
 Use the `task` tool with `general` subagents. Verified mechanics (2026-07-23): subagents do NOT auto-load skills — the with-skill prompt must name the file path explicitly. Parallel dispatch in one message works.
 
 1. **Baseline run (RED):** dispatch a `general` subagent with the scenario only. No mention of any skill, no mention that it's a test.
+
+   **Dispatch command:**
+   ```bash
+   XDG_CONFIG_HOME=$(mktemp -d) opencode run --dir <empty-dir-outside-repo> "<scenario>"
+   ```
+   This strips skill descriptions (the main pollution channel). Auth survives because it lives in the XDG data dir. **Do NOT use `--pure`** — it disables external plugins, not skills, and has no effect on this contamination source.
+
+   **Smoke-test rule:** dispatch ONE rep of any new configuration first, read its output, then dispatch the remaining reps in parallel. Catches configuration bugs at 1/5 the cost.
 2. **With-skill run (GREEN):** same scenario, prepended with: "First, read the file <absolute-path>/SKILL.md in full. Then act on the scenario below, applying whatever that document says." Ask it to cite anything from the document that influenced its choice — citations confirm the skill did the work.
-3. **Reps: 5+ per variant.** Single samples lie. Dispatch all reps of one variant in parallel in one message.
-4. **Always run the no-skill control first.** If the baseline doesn't exhibit the failure, stop — there is nothing to fix, don't author the guidance.
-5. **Manually read every run's output.** Automated pattern-matching overstates both failure and success (template echoes and quoted counter-examples masquerade as hits).
-6. **Variance is a metric.** Five different answer shapes across five reps means the wording isn't binding — tighten the form before adding words.
+
+   **Dispatch command:**
+   ```bash
+   opencode run --dir <repo-root> "$(cat prepend.txt scenario.txt)"
+   ```
+   With-skill reps MUST run with the repo as cwd: from an external cwd, `Read` of the skill files by absolute path hits `external_directory` permission auto-rejection and the run is void.
+3. **Void-run convention:** a rep that attempts a skill-tool load (auto-rejected) or emits only permission errors is void — no data. Re-dispatch a fresh replacement; never count it. Expected void rate: ~20% unstripped, ~0% stripped.
+
+4. **Contamination reporting:** campaign logs should record which config was used per variant (stripped vs unstripped); a non-violating unstripped baseline is weaker evidence than a non-violating stripped one.
+
+5. **Reps: 5+ per variant.** Single samples lie. Dispatch all reps of one variant in parallel in one message.
+
+6. **Always run the no-skill control first.** If the baseline doesn't exhibit the failure, stop — there is nothing to fix, don't author the guidance.
+
+7. **Manually read every run's output.** Automated pattern-matching overstates both failure and success (template echoes and quoted counter-examples masquerade as hits).
+
+8. **Variance is a metric.** Five different answer shapes across five reps means the wording isn't binding — tighten the form before adding words.
 
 ## Micro-Tests (wording level)
 
@@ -126,6 +149,14 @@ Not bulletproof if the agent:
 - Argues the skill is wrong
 - Asks permission while arguing strongly for the violation
 
+## Campaign-Execution Lessons
+
+Accumulated process knowledge from running pressure-test campaigns:
+
+- **Headless permission auto-rejection fails silently:** runs exit 0 with near-empty output. Only manually reading every output catches void runs — automated counting would have recorded garbage reps.
+- **Baseline cwd check:** baselines must run with cwd outside the repo (repo `AGENTS.md` otherwise auto-loads). Before trusting any baseline, verify `~/.config/opencode/AGENTS.md` is empty or absent.
+- **With-skill agent cwd asymmetry:** with-skill reps run with repo cwd, so repo `AGENTS.md` loads for them — acceptable (they are meant to have the skill) but it is a second reinforcement channel worth noting in campaign logs.
+
 ## Common Mistakes
 
 | Mistake | Fix |
@@ -136,6 +167,7 @@ Not bulletproof if the agent:
 | "Agent was wrong" as the finding | Record the exact rationalization verbatim — that's what you counter |
 | Vague counters ("don't cheat") | Explicit negations for each specific rationalization |
 | Stopping after one green run | Continue REFACTOR until no new rationalizations appear |
+| Running baseline with `--pure` instead of stripped XDG config | Use `XDG_CONFIG_HOME=$(mktemp -d)` — see Execution Protocol step 1 |
 
 ## Results Log Template
 
