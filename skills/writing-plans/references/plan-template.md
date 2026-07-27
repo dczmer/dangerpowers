@@ -59,6 +59,8 @@ What this phase accomplishes.
 
 **Parallel group:** <name> | none
 
+**Execution:** subagent | inline
+
 ### Changes Required
 
 #### 1. <Component/File Group>
@@ -121,5 +123,6 @@ Plan-level test and audit commands, run by plan-to-execution against the fully i
 - **Every command verified against the repo** — from bundle §7, or read from package.json scripts, Makefile, CI config. Never invented.
 - **No placeholders.** "Add appropriate error handling", "TBD", "similar to Phase N" are plan failures.
 - **Names and signatures must be consistent across phases** — a symbol introduced in Phase 1 keeps its name in Phase 4.
-- **Every phase declares its independence.** The `**Parallel group:** <name> | none` line is mandatory in each phase Overview. Derive groups from the exhaustive Changes Required file lists: phases may share a group name only if their file sets are disjoint and neither consumes the other's output. When overlap remains uncertain after comparing the file lists, declare `none` — sequential is the safe default for residual uncertainty, never a substitute for the comparison, and blanket `none` declared without comparing file sets is a plan failure. plan-to-execution never infers or overrides declarations.
+- **Every phase declares its independence.** The `**Parallel group:** <name> | none` line is mandatory in each phase Overview. Derive groups from the exhaustive Changes Required file lists: phases may share a group name only if their file sets are disjoint and neither consumes the other's output. A phase that runs against the fully integrated result — test-only phases, pressure campaigns, integrated audits — declares `none` regardless of file overlap: its dependency is ordering, not files. When overlap remains uncertain after comparing the file lists, declare `none` — sequential is the safe default for residual uncertainty, never a substitute for the comparison, and blanket `none` declared without comparing file sets is a plan failure. plan-to-execution never infers or overrides declarations.
+- **Every phase declares its execution mode.** The `**Execution:** subagent | inline` line is mandatory in each phase Overview. Declare `inline` when the phase dispatches subagents itself or must run against the fully integrated result — executor subagents cannot spawn sub-subagents, and test phases assume all prior phases are merged. `inline` implies `**Parallel group:** none`; declaring `inline` with a named group is a plan failure. Everything else declares `subagent`.
 - **The plan ends with `## Final Verification`.** Plan-level commands against the integrated result, one per line, repo-verified — or the literal entry `None`.

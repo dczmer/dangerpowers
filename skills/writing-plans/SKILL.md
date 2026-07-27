@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when research findings or a context bundle exist and an implementation plan is needed before changing code; also use when tempted to plan with unresolved open questions, write plan steps that say what to do without showing how, leave a pattern conflict unpicked, declare every phase's parallel group `none` without assessing file-set overlap, pick a side of a team-standard or vendor question on the strength of usage counts, or edit anything other than the plan file while planning. Keywords: implementation plan, plan, phases, PLANS, planning, plan approval.
+description: Use when research findings or a context bundle exist and an implementation plan is needed before changing code; also use when tempted to plan with unresolved open questions, write plan steps that say what to do without showing how, leave a pattern conflict unpicked, declare every phase's parallel group `none` without assessing file-set overlap, group a test-only or campaign phase as parallel because its file set is disjoint, pick a side of a team-standard or vendor question on the strength of usage counts, or edit anything other than the plan file while planning. Keywords: implementation plan, plan, phases, PLANS, planning, plan approval.
 ---
 
 # Writing Plans
@@ -40,6 +40,7 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 | "Majority usage makes it a pick, not a question" | 3 of 5 services using X is evidence for a recommendation, not a decision. Recommend it in the question you ask. |
 | "Approval is the checkpoint where they can veto my pick" | Approval reviews a resolved plan. A guess dressed as a decision gets rubber-stamped, not reviewed. |
 | "Blanket `none` is the sanctioned safe default, so I can skip the overlap assessment" | `none` resolves uncertainty that survives assessment; skipping the assessment manufactures the uncertainty it claims to resolve. Compare the file sets first. |
+| "The test phase touches no source files, so it's disjoint and parallel-safe" | Test and campaign phases depend on ordering, not files — they assume every prior phase is merged. Integrated-result phases declare `none` and `inline`. |
 
 ### Red Flags - STOP
 
@@ -49,12 +50,15 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 - "I'm sure the repo has a standard test command"
 - "The research points clearly one way, so asking is a formality"
 - "I'll declare every phase's parallel group `none` — that's the safe default anyway"
+- "This phase only runs tests — its file set is disjoint, so it can join the parallel group"
 
 ## Workflow
 
 1. Read the bundle FULLY, plus the research findings it cites. Note §6 conflicts and §9 open questions.
 2. Resolve every open question: ask the user, or targeted reads. Never re-run full research — the bundle already compressed it.
-3. Propose a phase outline (one line per phase) to the user. Get buy-in on phasing and granularity before writing details. The outline includes each phase's `**Parallel group:**` declaration — derive it from the phases' intended Changes Required file sets: phases may share a group only if their file sets are disjoint and neither consumes the other's output. When overlap remains uncertain after assessing the intended file sets, declare `none`; sequential is the safe default for residual uncertainty, never a substitute for the assessment. Declaring `none` for every phase without comparing file sets is a plan failure, not caution.
+3. Propose a phase outline (one line per phase) to the user. Get buy-in on phasing and granularity before writing details. The outline includes each phase's `**Parallel group:**` declaration — derive it from the phases' intended Changes Required file sets: phases may share a group only if their file sets are disjoint and neither consumes the other's output. A phase that runs against the fully integrated result — test-only phases, pressure campaigns, integrated audits — declares `none` regardless of file overlap: its dependency is ordering, not files. When overlap remains uncertain after assessing the intended file sets, declare `none`; sequential is the safe default for residual uncertainty, never a substitute for the assessment. Declaring `none` for every phase without comparing file sets is a plan failure, not caution.
+
+The outline also includes each phase's `**Execution:** subagent | inline` declaration: `inline` when the phase dispatches subagents itself or must run against the fully integrated result, `subagent` otherwise. `inline` implies `**Parallel group:** none`.
 4. Write the plan to `PLANS/YYYY-MM-DD-<kebab-description>-plan.md` per `references/plan-template.md`. The `-plan` suffix distinguishes plans from the `-report` files executing-plans writes beside them. `PLANS/` lives at the project root and is committed to source control. Build the file incrementally; it is the only file you may write.
 5. Run the plan checklist below. Fix failures before presenting.
 6. Present the plan location for approval. Iterate on feedback with surgical edits; do not rewrite the plan for a scoped change.
@@ -73,5 +77,6 @@ A phase is the smallest unit with its own verification gate: automated and manua
 - [ ] Every phase: exact file paths, automated + manual criteria with repo-verified commands
 - [ ] Names and signatures used in later phases match earlier phases
 - [ ] Provenance: bundle and research paths recorded in References
-- [ ] Every phase Overview carries a `**Parallel group:** <name> | none` line; phases sharing a group have disjoint Changes Required file sets and no output dependency
+- [ ] Every phase Overview carries a `**Parallel group:** <name> | none` line; phases sharing a group have disjoint Changes Required file sets and no output dependency; phases running against the integrated result declare `none`
+- [ ] Every phase Overview carries an `**Execution:** subagent | inline` line; `inline` phases dispatch subagents themselves or require the integrated result, and declare `**Parallel group:** none`
 - [ ] `## Final Verification` section present — repo-verified commands, one per line, or `None`
