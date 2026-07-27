@@ -40,8 +40,6 @@ things at the beginning of the message seem to be honored more consistently wher
 
 normally, don't touch it unless you are making a custom agent or some kind of plugin where you need to alter/override the "you are a helpful coding agent" persona.
 
-## things what belong in skills
-
 ## things what need custom subagents
 
 - when you want control over model and effort levels for the task
@@ -72,21 +70,63 @@ language-specific stuff (later)
 
 ## Skills and Implementation Process
 
-how i bootstrapped this repo
+how i bootstrapped this repo.
+
+inspired by bulletproof, superpowers, humanlayer, and the 3-prompt rule.
+
+the 3-prompt rule may seem extreme, but bulletproof, superpowers, humanlayer, etc. all could be considered to be more complex implementations of the basic 3-prompt rule. in particular, they all focus on creating the most complete, quality spec possible up-front. once the AI has generated its solution, any corrections you mare are subtle contradictions to other content in the context window - the decisions the AI made when generating the solution.
+
+all 3 implementations use some kind of research/scouting phase to map out the codebase, context around the planned changes, architectural concerns or other important details, idioms and common practices, entry/exit points, etc. all important context that helps the AI follow the conventions and standards of the project, avoid duplication and architectural drift, and help it find good examples and important information it needs.
+
+### 0. some global and project rules
+
+[global rules what i used](./EXAMPLE_AGENT_RULES.md)
+
+things what set the base operating rules for every session.
+
+i noticed (imagined?) an immediate improvement after adding these. i don't know if every one if them works but the rules about limiting scope and making surgical changes seems to fire a lot and its always what i wanted.
+
+[project rules what i used](./AGENTS.md)
+
+things what the AI made bad decisions that didn't align with what i wanted for this specific project.
+
+in particular, it constantly tries to draft new skills under .opencode/skills instead of skill.
+
+> INTERESTING NOTE!: pressure testing various skills indicated that many of the tests failed to produce a RED run because agents made decisions and explicitly cited my global rules as justification! going to remove my rules temporarily and run all tests again.
 
 ### 1. prompt-shaping
 
+make the AI help me write a good prompt to give to the ai to do a thing.
+
+TODO: i think this should be converted into a skill to make a PRD and produce a hand-off document.
+
 ### 2. writing-skills
+
+blatantly stolen from superpowers only slightly altered.
+
+pressure-testing and bulletproof principals.
 
 ### 3. bootstrap a new project with nix flake devShell
 
+TODO: this will be extracted into a different repo; this repo is about a process pipeline for developing features.
+
 techincally, i did this first. then i used the prompt-shaping and writing-skills skills to update it. i was starting from a bit of a catch-22 situation.
 
-### 4. research + scouting
+sets up a new devshell with required dependencies and common project files.
+
+### 4. PRDs, research + scouting
+
+write PRD: an extension of prompt-shaping for creating structured PRDs for new features, which can be passed to the research/scouting/planing skills downstream.
+
+research: do structured research and produce a hand-off document with the results of the research.
+
+scouting: analyze the codebase in preparation for proposed implementation, using output of research phase as supplementary context.
 
 ### 5. making plans, iterating on plans
 
-### 6. implementation
+use the context produced by research + scouting, along with the original (shaped) prompt to produce a detailed, phased implementation plan file.
+
+### 6. executing plans
 
 ### 7. using worktrees
 
