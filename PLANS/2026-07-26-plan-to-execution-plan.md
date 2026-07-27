@@ -178,11 +178,11 @@ If any baseline does not violate, stop and do not author counter-guidance for th
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] Campaign log exists: `test -f skills/plan-to-execution/test-campaigns/*-plan-to-execution.md`
-- [ ] All five scenarios recorded: `rg -c '^## Scenario' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md` returns 5 or more
-- [ ] Baselines recorded before with-skill runs in every scenario: `rg '^### Baseline \(no skill\)' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md` returns 5 matches and `rg '^### With skill' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md` returns 5 matches
-- [ ] Campaign summary present: `rg '^## Campaign summary' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md`
-- [ ] No status leaked into the skill: `! rg -n 'test-campaigns|bulletproof|GREEN|RED' skills/plan-to-execution/SKILL.md`
+- [x] Campaign log exists: `test -f skills/plan-to-execution/test-campaigns/*-plan-to-execution.md`
+- [x] All five scenarios recorded: `rg -c '^## Scenario' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md` returns 5 or more
+- [x] Baselines recorded before with-skill runs in every scenario: `rg '^### Baseline \(no skill\)' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md` returns 5 matches and `rg '^### With skill' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md` returns 5 matches
+- [x] Campaign summary present: `rg '^## Campaign summary' skills/plan-to-execution/test-campaigns/*-plan-to-execution.md`
+- [x] No status leaked into the skill: `! rg -n 'test-campaigns|bulletproof|GREEN|RED' skills/plan-to-execution/SKILL.md`
 
 #### Manual Verification:
 - [ ] Every baseline rep ran with cwd outside this repo (pollution policy, `AGENTS.md:21-26`) and the log states the baseline environment
@@ -215,9 +215,9 @@ No other lines in `AGENTS.md` change; the numbered list itself is untouched.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] Paragraph present: `rg -n '^\*\*plan-to-execution\*\* orchestrates step 7' AGENTS.md`
-- [ ] Numbered list intact: `rg -c '^[0-9]+\. \*\*' AGENTS.md` returns 7
-- [ ] Only AGENTS.md changed in this phase: `git status --porcelain` shows no modified files other than `AGENTS.md` (untracked artifacts from Phases 1–2 expected)
+- [x] Paragraph present: `rg -n '^\*\*plan-to-execution\*\* orchestrates step 7' AGENTS.md`
+- [x] Numbered list intact: `rg -c '^[0-9]+\. \*\*' AGENTS.md` returns 7
+- [x] Only AGENTS.md changed in this phase: `git status --porcelain` shows no modified files other than `AGENTS.md` (untracked artifacts from Phases 1–2 expected)
 
 #### Manual Verification:
 - [ ] The added paragraph reads consistently with the prd-to-plan paragraph (same bold-name style, one orchestrator per paragraph)

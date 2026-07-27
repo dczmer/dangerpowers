@@ -16,6 +16,8 @@ Skills form a pipeline; each produces one artifact that feeds the next:
 
 **prd-to-plan** orchestrates steps 3–5 plus the iterating-plans feedback loop from a single invocation: given a PRD, it drives research, context scouting, and plan writing in order, delegates phases to subagents where safe, and manages user feedback on the plan until the user accepts it as ready for human review.
 
+**plan-to-execution** orchestrates step 7 from a single invocation: given an approved plan, it dispatches one executing-plans subagent per phase, runs plan-declared independent phases in parallel inside isolated git worktrees, checkpoints each phase as a commit, resumes interrupted runs from committed phases, and runs the plan's final test and audit commands — then stops, leaving review, cleanup, and PR creation to the user.
+
 All artifacts are uniquely named (`YYYY-MM-DD-<kebab>`) and committed to source control — `RESEARCH/` is NOT gitignored. Artifacts record provenance in frontmatter (`source_prd`, `source_bundle`, `source_research`) so any step can trace back. Steps 2–4 are skippable when the input they produce already exists or the task is too small to need them.
 
 ## Pressure Test Pollution
