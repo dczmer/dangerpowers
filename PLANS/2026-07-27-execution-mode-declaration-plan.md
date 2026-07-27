@@ -7,7 +7,7 @@ request: "move inline/integrated-state classification upstream: writing-plans de
 source_prd: none
 source_bundle: none (quick pass)
 source_research: none (quick pass)
-status: draft
+status: completed
 ---
 
 # Execution-Mode Declaration Implementation Plan
