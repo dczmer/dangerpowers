@@ -1,0 +1,10 @@
+[project]
+name = "dangerpowers"
+version = "0.1.0"
+description = "Custom skills library."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "ruff>=0.15.7",
+    "skills-ref>=0.1.1",
+]
