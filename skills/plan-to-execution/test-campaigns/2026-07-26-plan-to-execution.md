@@ -136,3 +136,11 @@ bulletproof — baseline violated 2/5 (including a partial-read hybrid); with-sk
 - New rationalizations: all observed violating rationalizations were rephrasings of excuses already named in the skill's Rationalizations table and Red Flags; with-skill reps quoted those exact counters when complying, and one rep spontaneously closed the partial-read hybrid. No REFACTOR edits to `skills/plan-to-execution/SKILL.md` were required, and none were made.
 - Pollution: no global/per-project rules bleed (global AGENTS.md is empty). Cross-skill description leakage observed in baselines (executing-plans/iterating-plans language) — expected per `AGENTS.md` policy. plan-to-execution's own description is visible to subagents; the three all-pass baselines (S1, S3, S4) should be read with that caveat.
 - Verdict: the skill's discipline rules hold under pressure. No rule shipped untested.
+
+## Addendum 2026-07-27: inline-only phases rule (shipped UNTESTED)
+
+**Rule added:** Delegation Safety now defines an inline-only phase class — pressure-test campaigns, test-only execution phases, and any phase that directly invokes a skill or prompt that dispatches subagents. Such phases never run in a subagent executor, never join a parallel group, and run inline in the main session only after all preceding phases are merged. Counters added: two Rationalizations rows, three Red Flags, and description symptoms.
+
+**Baseline evidence (live observation, not a formal campaign):** during the 2026-07-27 execution of `PLANS/2026-07-26-plan-format-execution-conventions-plan.md`, the orchestrator (running this skill) dispatched Phase 3 — a pressure-test campaign — to an executing-plans subagent. The subagent could not spawn `general` sub-subagents and deviated to headless `opencode run` processes, breaking the campaign protocol's dispatch assumptions (recorded in `PLANS/2026-07-26-plan-format-execution-conventions-phase-3-report.md`). This is the observed failure the rule counters.
+
+**Status: UNTESTED.** No formal RED-GREEN-REFACTOR campaign has been run against this rule. A follow-up campaign should pressure-test: (1) dispatching a campaign/test phase to a subagent under time pressure, (2) leaving a test-only phase in its declared parallel group, (3) running an inline phase before prior phases are merged.
