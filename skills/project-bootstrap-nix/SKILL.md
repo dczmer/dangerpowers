@@ -1,6 +1,6 @@
 ---
 name: project-bootstrap-nix
-description: Use when bootstrapping a new project in a fresh git repository, or when about to bootstrap and tempted to guess a project name from a directory name, use a placeholder name, overwrite an existing flake.nix/.envrc/.gitignore, or run `git add -A` on files you didn't create. Trigger phrases include "bootstrap a new project", "create a new project called NAME".
+description: Use when bootstrapping a new project in a fresh git repository. Also use when about to guess a project name from a directory name, use a placeholder name, overwrite an existing flake.nix/.envrc/.gitignore, or run `git add -A` on files you didn't create. Triggers include "bootstrap a new project" or "create a new project called NAME".
 ---
 
 # Project Bootstrap (Nix)

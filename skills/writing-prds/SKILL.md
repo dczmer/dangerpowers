@@ -1,6 +1,6 @@
 ---
 name: writing-prds
-description: Use when the user explicitly asks for a PRD or product requirements document, asks to start planning a feature, or wants to update or revise an existing PRD; also use when tempted to put tech stack or file paths in a requirements doc, to make product decisions silently instead of asking, or to finalize a PRD with open questions remaining. Keywords: PRD, product requirements, feature spec, requirements doc, scoping, acceptance criteria, feature planning, update PRD, revise PRD.
+description: Use when the user explicitly asks for a PRD or product requirements document, asks to start planning a feature, or wants to update or revise an existing PRD. Also use when about to put tech stack or file paths in a requirements doc, make product decisions silently instead of asking, or finalize a PRD with open questions remaining. Covers feature specs, requirements docs, scoping, and acceptance criteria.
 ---
 
 # Writing PRDs

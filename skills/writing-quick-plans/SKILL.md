@@ -1,6 +1,6 @@
 ---
 name: writing-quick-plans
-description: Use when planning a small, well-understood change where full research and context-bundle artifacts would be overkill — simple features, small projects, or a plan needed fast; also use when tempted to save research summaries "for provenance" as a notes file or plan appendix, or when a request is too small for the research/scout/plan pipeline but still needs an implementation plan. Keywords: quick plan, simple change, small feature, fast plan, lightweight plan, one-shot plan, skip research.
+description: Use when planning a small, well-understood change where full research and context-bundle artifacts would be overkill — simple features, small projects, or a plan needed fast. Also use when about to save research summaries "for provenance" as a notes file or plan appendix, or when a request is too small for the research/scout/plan pipeline but still needs an implementation plan. Covers quick, one-shot, lightweight plans that skip research.
 ---
 
 # Writing Quick Plans

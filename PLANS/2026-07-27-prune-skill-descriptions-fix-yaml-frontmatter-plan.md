@@ -139,9 +139,9 @@ Note: `skills/writing-skills/SKILL.md` line 3 is already correct — do **not** 
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] The 12 Phase-1 skills validate: `for n in executing-plans isolating-worktrees iterating-plans plan-to-execution prd-to-plan prompt-shaping researching-codebase scouting-context writing-plans writing-prds writing-quick-plans project-bootstrap-nix; do agentskills validate "skills/$n"; done` — every line prints `Valid skill: ...`
-- [ ] No Phase-1 description exceeds 1024 chars: `for n in executing-plans isolating-worktrees iterating-plans plan-to-execution prd-to-plan prompt-shaping researching-codebase scouting-context writing-plans writing-prds writing-quick-plans project-bootstrap-nix; do agentskills read-properties "skills/$n" | python3 -c "import json,sys; p=json.load(sys.stdin); d=p['description']; print(p['name'], len(d), 'OK' if len(d)<=1024 else 'OVER')"; done` — every line ends `OK`
-- [ ] No Phase-1 frontmatter contains a `Keywords:`/`Trigger phrases:` label: `for n in executing-plans isolating-worktrees iterating-plans plan-to-execution prd-to-plan prompt-shaping researching-codebase scouting-context writing-plans writing-prds writing-quick-plans project-bootstrap-nix; do agentskills read-properties "skills/$n" | python3 -c "import json,sys; p=json.load(sys.stdin); assert 'Keywords:' not in p['description'] and 'Trigger phrases:' not in p['description'], p['name']"; done` — exits 0
+- [x] The 12 Phase-1 skills validate: `for n in executing-plans isolating-worktrees iterating-plans plan-to-execution prd-to-plan prompt-shaping researching-codebase scouting-context writing-plans writing-prds writing-quick-plans project-bootstrap-nix; do agentskills validate "skills/$n"; done` — every line prints `Valid skill: ...`
+- [x] No Phase-1 description exceeds 1024 chars: `for n in executing-plans isolating-worktrees iterating-plans plan-to-execution prd-to-plan prompt-shaping researching-codebase scouting-context writing-plans writing-prds writing-quick-plans project-bootstrap-nix; do agentskills read-properties "skills/$n" | python3 -c "import json,sys; p=json.load(sys.stdin); d=p['description']; print(p['name'], len(d), 'OK' if len(d)<=1024 else 'OVER')"; done` — every line ends `OK`
+- [x] No Phase-1 frontmatter contains a `Keywords:`/`Trigger phrases:` label: `for n in executing-plans isolating-worktrees iterating-plans plan-to-execution prd-to-plan prompt-shaping researching-codebase scouting-context writing-plans writing-prds writing-quick-plans project-bootstrap-nix; do agentskills read-properties "skills/$n" | python3 -c "import json,sys; p=json.load(sys.stdin); assert 'Keywords:' not in p['description'] and 'Trigger phrases:' not in p['description'], p['name']"; done` — exits 0
 
 #### Manual Verification:
 - [ ] Spot-check 3 rewritten descriptions read as natural prose (not a keyword dump) and still surface the skill's main trigger.
@@ -250,8 +250,8 @@ New:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] writing-skills still validates (frontmatter untouched): `agentskills validate skills/writing-skills` prints `Valid skill: ...`
-- [ ] writing-skills description unchanged and ≤1024 chars: `agentskills read-properties skills/writing-skills | python3 -c "import json,sys; p=json.load(sys.stdin); assert p['description']=='Use when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo\'s skills/ directory.' and len(p['description'])<=1024"`
+- [x] writing-skills still validates (frontmatter untouched): `agentskills validate skills/writing-skills` prints `Valid skill: ...`
+- [x] writing-skills description unchanged and ≤1024 chars: `agentskills read-properties skills/writing-skills | python3 -c "import json,sys; p=json.load(sys.stdin); assert p['description']=='Use when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo\'s skills/ directory.' and len(p['description'])<=1024"`
 
 #### Manual Verification:
 - [ ] Confirm `skills/writing-skills/SKILL.md` renders coherently — the new "### Description YAML safety" subsection sits between the frontmatter yaml example and "## Match the Form to the Failure".

@@ -45,18 +45,29 @@ The type determines how the skill is written and (later) tested.
 Two required fields: `name` and `description`.
 
 - `name`: lowercase letters, numbers, hyphens only. Prefer gerunds/verb-first: `writing-skills`, not `skill-writing`.
-- `description`: third person, describes ONLY when to use — never what the skill does or how it works.
+- `description`: imperative ("Use when..."), describes WHAT the skill does AND WHEN to use it — a few sentences to a short paragraph, ≤1024 chars.
   - Start with "Use when..." plus concrete triggering conditions and symptoms.
+  - State what the skill produces (one clause) so the agent can match user intent, not just internal mechanics.
   - **Never summarize the workflow.** A description that summarizes the process becomes a shortcut agents follow instead of reading the skill body. (Tested failure mode in superpowers: a description saying "code review between tasks" caused an agent to do one review when the skill required two.)
-  - Include keywords an agent would search for: error messages, symptoms, synonyms, tool names.
+  - Keep it concise. Every token competes with all other skills' descriptions at startup. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
+  - Weave trigger terms (error messages, symptoms, synonyms, tool names) into the prose. Never append a `Keywords:` or `Trigger phrases:` label — see Description YAML safety below.
 
 ```yaml
 # Bad: summarizes workflow
 description: Use when writing skills — drafts frontmatter, structures the body, runs the checklist
 
-# Good: triggering conditions only
-description: Use when creating new skills, editing existing skills, or reviewing a skill before deployment
+# Good: what + when, keywords woven
+description: Use when creating new skills, editing existing skills, or reviewing a skill before deployment. Covers frontmatter and body structure for skill files.
 ```
+
+### Description YAML safety
+
+The `description` is a YAML scalar. Two pitfalls that break parsing (`agentskills validate` fails and the skill will not load):
+
+- **Colon-in-scalar:** a plain scalar cannot contain `key: value` (a colon followed by a space). Appending `Keywords: ...` or `Trigger phrases: ...` inside a one-line plain-scalar description is the exact failure that invalidated 11 skills in this repo. Weave keywords into prose instead. If a list-like term is genuinely unavoidable, switch to a YAML block scalar (`description: >`) — but plain prose is preferred.
+- **Length:** hard limit 1024 chars. Long descriptions also bloat every agent run since all descriptions load at startup. Keep to a short paragraph.
+
+Always run `agentskills validate skills/<name>` before finishing; it must print `Valid skill`.
 
 ## Match the Form to the Failure
 
@@ -152,8 +163,9 @@ Create a todo for each item.
 
 **Frontmatter:**
 - [ ] `name` is hyphens/lowercase, gerund or verb-first
-- [ ] `description` starts with "Use when...", third person, triggers/symptoms only — no workflow summary
-- [ ] Keywords included (error messages, symptoms, synonyms, tools)
+- [ ] `description` starts with "Use when...", imperative, states WHAT + WHEN — no workflow summary
+- [ ] Trigger terms woven into prose; no `Keywords:`-style label; ≤1024 chars
+- [ ] `agentskills validate skills/<name>` prints `Valid skill`
 
 **Body:**
 - [ ] Overview states the core principle in 1-2 sentences
@@ -165,6 +177,7 @@ Create a todo for each item.
 
 **Deployment:**
 - [ ] Placement decided per the Placement rule (prompt > repo direction > `question` tool with `.opencode/skills/` default)
+- [ ] `agentskills validate skills/<name>` passes (`Valid skill`)
 
 **Testing (discipline skills only):**
 - [ ] Baseline scenarios run WITHOUT the skill; rationalizations documented verbatim (RED)

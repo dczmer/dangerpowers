@@ -1,6 +1,6 @@
 ---
 name: researching-codebase
-description: Use when asked to research, explore, map, or explain how part of a codebase works, find where features live, locate entry points or call sites, or gather code context before planning; also use when tempted to answer codebase questions from memory, from a single grep, to flag problems and suggest improvements while researching, or to append an "improvement opportunities" note to research output. Keywords: research, explore, find files, entry points, call sites, how does X work.
+description: Use when asked to research, explore, map, or explain how part of a codebase works, find where features live, locate entry points or call sites, or gather code context before planning. Also use when about to answer codebase questions from memory or a single grep, or to flag problems and suggest improvements while researching. Covers "how does X work" exploration without unsolicited improvement notes.
 ---
 
 # Researching a Codebase

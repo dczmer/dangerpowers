@@ -1,6 +1,6 @@
 ---
 name: prd-to-plan
-description: Use when a PRD exists in PRDS/ and an implementation plan is needed, to drive research, context scouting, and plan writing through a single invocation; also use when tempted to invoke the pipeline skills manually one by one, keep research or scouting detail in the orchestrating context window, reuse a pre-existing artifact without asking, advance past a phase that produced no artifact, start the pipeline on a PRD whose status is still draft, or edit a plan directly instead of routing feedback through iterating-plans. Keywords: PRD to plan, orchestrate pipeline, plan from PRD, research then plan, context bundle, pipeline orchestrator, subagent delegation, draft PRD, PRD not approved.
+description: Use when a PRD exists in PRDS/ and an implementation plan is needed. Drives researching-codebase, scouting-context, and writing-plans from a single invocation, delegating phases to subagents where safe and managing user feedback on the plan until accepted for human review. Also use when about to invoke the pipeline skills manually one by one, reuse a pre-existing artifact without asking, start the pipeline on a draft PRD, or edit a plan directly instead of routing feedback through iterating-plans.
 ---
 
 # Skill: prd-to-plan

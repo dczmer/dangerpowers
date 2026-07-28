@@ -1,6 +1,6 @@
 ---
 name: iterating-plans
-description: Use when a human has reviewed an existing plan in PLANS/ and returns with edits before execution starts, when time has passed since the plan was approved and the codebase may have drifted, or when tempted to edit a plan from memory, apply feedback without verifying the plan's facts still hold, silently absorb a change that invalidates the plan's source research, or treat an approved plan as still approved after editing it. Keywords: update plan, revise plan, plan is stale, edit plan before executing, plan feedback, stale file:line references.
+description: Use when a human has reviewed an existing plan in PLANS/ and returns with edits before execution starts, or when time has passed since the plan was approved and the codebase may have drifted. Also use when about to edit a plan from memory, apply feedback without verifying the plan's facts still hold, or treat an edited plan as still approved. Covers updating, revising, and detecting stale file:line references in plans.
 ---
 
 # Iterating Plans

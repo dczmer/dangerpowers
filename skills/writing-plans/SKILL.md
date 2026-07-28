@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when research findings or a context bundle exist and an implementation plan is needed before changing code; also use when tempted to plan with unresolved open questions, write plan steps that say what to do without showing how, leave a pattern conflict unpicked, declare every phase's parallel group `none` without assessing file-set overlap, group a test-only or campaign phase as parallel because its file set is disjoint, pick a side of a team-standard or vendor question on the strength of usage counts, or edit anything other than the plan file while planning. Keywords: implementation plan, plan, phases, PLANS, planning, plan approval.
+description: Use when research findings or a context bundle exist and an implementation plan in PLANS/ is needed before changing code. Also use when about to plan with unresolved open questions, write plan steps that say what to do without showing how, leave a pattern conflict unpicked, declare every phase's parallel group none without assessing file-set overlap, pick a side of a team-standard or vendor question on usage counts alone, or edit anything other than the plan file while planning. Covers implementation plans, phases, and plan approval.
 ---
 
 # Writing Plans

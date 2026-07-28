@@ -1,6 +1,6 @@
 ---
 name: prompt-shaping
-description: Use when a user's request is vague, underspecified, or incomplete but reasonable assumptions can be made from context; also use when tempted to start coding on an ambiguous request without confirming scope, or when a high-level request like "add caching" or "clean this up" leaves boundaries undefined. Keywords: vague request, unclear, underspecified, ambiguous intent, assumptions, scope.
+description: Use when a user's request is vague, underspecified, or incomplete but reasonable assumptions can be made from context. Also use when about to start coding on an ambiguous request without confirming scope, or when a high-level request like "add caching" or "clean this up" leaves boundaries undefined. Covers clarifying unclear intent and scoping assumptions.
 ---
 
 # Prompt Shaping

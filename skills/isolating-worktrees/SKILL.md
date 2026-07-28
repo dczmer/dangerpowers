@@ -1,6 +1,6 @@
 ---
 name: isolating-worktrees
-description: Use when starting feature work that needs an isolated checkout, when setting up workspaces for executing-plans phase executors (especially parallel ones), or when you need the correct git worktree commands and procedures. Keywords: git worktree, isolated workspace, .worktrees, worktree add, linked worktree, branch isolation, parallel executors.
+description: Use when starting feature work that needs an isolated checkout, or when setting up workspaces for executing-plans phase executors (especially parallel ones). Use when you need the correct `git worktree add` commands and procedures for linked worktrees under .worktrees/ and branch isolation.
 ---
 
 # Isolating Worktrees
