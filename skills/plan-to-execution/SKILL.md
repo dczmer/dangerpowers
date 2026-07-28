@@ -1,6 +1,6 @@
 ---
 name: plan-to-execution
-description: Use when an approved implementation plan in PLANS/ is ready to be executed end to end. Orchestrates one executing-plans subagent per phase, runs plan-declared independent phases in parallel inside isolated git worktrees, checkpoints each phase as a commit, resumes interrupted runs, and runs the plan's final test and audit commands. Also use when about to implement a phase inline, reclassify a phase's declared execution mode, run independent phases sequentially, or proceed to review, cleanup, or PR creation before the plan's tests pass.
+description: Use when an approved plan in PLANS/ is ready to be executed end-to-end with parallel subagents, resume an interrupted execution, or run final test and audit commands. You orchestrate the full plan execution, dispatch phase executors, manage worktrees, and handle commits and verification. Do not implement a single phase or execute one phase inline.
 ---
 
 # Skill: plan-to-execution

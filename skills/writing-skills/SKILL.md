@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo's skills/ directory.
+description: Use when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo's skills/ directory. Triggers include "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills".
 ---
 
 # Writing Skills
@@ -165,7 +165,7 @@ Applies to every skill, including pure reference — distinct from pressure test
 
 If a skill ships with an untested description, record it as untested in the trigger campaign log — never silently, and never in the skill itself.
 
-**REQUIRED:** See `references/trigger-optimizing.md` for eval query design, train/validation split, the ≤5-iteration optimization loop, the opencode detection harness, contamination rules, done criteria, and the trigger results-log format.
+**REQUIRED:** See `references/trigger-optimizing.md` for eval query design (≤5 should-trigger + ≤5 should-not), train/validation split, the ≤3-iteration optimization loop, the opencode detection harness, contamination rules, done criteria, and the trigger results-log format.
 
 ## Checklist
 
@@ -205,4 +205,7 @@ Create a todo for each item.
 **Trigger Optimization:**
 - [ ] Trigger eval set exists (`trigger-evals/train.json` + `trigger-evals/validation.json`), or trigger evals marked not applicable in `test-campaigns/` (e.g. for skills whose triggering surface is trivially unique)
 - [ ] Selected description chosen by **validation** pass rate, not the last iteration
-- [ ] Fresh-query sanity check passed (5–10 queries never used in optimization)
+- [ ] Fresh-query sanity check passed (5 queries never used in optimization); at most 1 train-expansion re-opt performed
+- [ ] Borderline bumps limited to consecutive-opposite-outcome queries, ≤25% of queries/iteration, per-rep outcomes recorded
+- [ ] Early-abort stopped each rep once the verdict was observable (candidate load for should-trigger; substantive non-skill work for should-not)
+- [ ] For multi-skill plans: Final Verification ran 1 rep of each campaigned skill's canonical should-trigger smoke query against the final description state (no cross-phase routing regression)

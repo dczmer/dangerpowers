@@ -14,7 +14,7 @@ Trigger optimization measures **the decision to load at all** — not compliance
 
 ## Trigger Eval Query Design
 
-Build ~20 queries: 8–10 **should-trigger** and 8–10 **should-not**. The should-nots are the discriminating half — they decide whether the description has any boundary at all.
+Build **≤5 should-trigger** and **≤5 should-not** queries (≤10 total). Aim for the full cap when the skill's triggering surface is broad; fewer are acceptable when it is trivially unique. The should-nots are the discriminating half — they decide whether the description has any boundary at all.
 
 ### Should-trigger axes
 
@@ -52,7 +52,7 @@ Why split: optimizing against the full set risks overfitting to the exact querie
 
 ## The Optimization Loop
 
-≤5 iterations. The four steps, in spirit from agentskills.io:
+≤3 iterations. The four steps, in spirit from agentskills.io:
 
 1. **Evaluate current description** on train + validation.
 2. **Identify train-set failures only.** Train results guide changes; validation results are set aside — do not tune against them.
@@ -61,7 +61,7 @@ Why split: optimizing against the full set risks overfitting to the exact querie
 
 Re-check the 1024-char description ceiling **every iteration**. Descriptions grow during optimization; a passing iteration that blew the ceiling is invalid, not a win.
 
-Then run a **fresh-query sanity check**: 5–10 queries never used in optimization, run once through the harness. If the selected description fails the fresh check, the train set was unrepresentative — expand train and re-optimize; do not iterate against the fresh queries themselves (they would become a second train set).
+Then run a **fresh-query sanity check**: 5 queries never used in optimization, run once through the harness. If the selected description fails the fresh check, the train set was unrepresentative — expand train and re-optimize **at most once** (one train expansion; ≤3 iterations on the expanded set, same cap). Ship the best-validation-pass-rate iteration even if the fresh check still fails — record residuals and defer them to a follow-up plan, mirroring the iteration cap. Do not iterate against the fresh queries themselves (they would become a second train set).
 
 ### Failure-class remediation
 
@@ -107,9 +107,11 @@ for q_set in train validation; do
 done
 ```
 
-**Pass criterion:** should-trigger query passes when trigger rate > 0.5 over ≥3 reps; should-not passes when rate < 0.5. Reps ≥3 per query, ≥5 for borderline cases.
+**Pass criterion:** should-trigger query passes when trigger rate > 0.5 over ≥3 reps; should-not passes when rate < 0.5. Reps ≥3 per query. **Bump to 5 reps only on consecutive-opposite-outcome** — a 3-of-3 split across trigger / no-trigger (≥2 distinct outcomes over the 3 baseline reps). Borderline verdicts no longer rest on agent judgment alone; record the 3 per-rep outcomes and a one-line rationale in the campaign log. **Bump rate cap: ≤25% of queries per iteration** may be bumped.
 
-**Stop-early tip:** runs may be aborted once the agent has clearly loaded the candidate or clearly started working without it. Saves cost.
+**Early-abort policy (per rep, both directions):** stop reading the response once the rep is decided — do not wait for completion. **Should-trigger:** once `tool_use skill <candidate>` appears in the stream, the rep is decided — record the verdict and stop. **Should-not:** once the agent emits substantive non-skill work, the rep is decided — record the verdict and stop. This is a per-rep policy, not a tip; it cuts output tokens materially on decided reps.
+
+**Intra-iteration rep parallelism:** dispatch the per-iteration rep matrix in parallel (e.g. `xargs -P N` or a small job queue). Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase bash fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
 
 ## Contamination Rules
 
@@ -123,10 +125,16 @@ A trigger eval is bulletproof when:
 
 - All train queries pass over the run (≥3 reps each, >0.5 trigger rate for should-trigger, <0.5 for should-not).
 - Validation pass rate is the **highest** across iterations tried — not just the last iteration.
-- Fresh-query sanity check (5–10 queries never used in optimization) passes.
+- Fresh-query sanity check (5 queries never used in optimization) passes; at most 1 train-expansion re-opt was performed if the first fresh check failed.
 - Description is still ≤1024 chars.
 
 The selected description may not be the last iteration — it is the one with the best validation pass rate.
+
+## Multi-Skill Campaigns
+
+When a plan campaigns multiple skills in sequence against a shared live `SKILL.md:3` state, selecting the best-validation-pass-rate iteration may change an earlier skill's description to a non-final (earlier) iteration. A later phase's campaign runs against the live state of all skills, including just-campaigned earlier skills — so a later phase's regression can route differently than the earlier phase's measurement assumed, and recorded pass rates no longer hold.
+
+**Final-Verification regression smoke:** in the plan's Final Verification, re-run 1 rep of each campaigned skill's canonical should-trigger smoke query against the final pinned description state (~12 reps for a 12-skill plan). Report any cross-phase routing regression. This is cheap insurance against the assertion that file-disjoint edits can't cross-talk — true for *files* but not for *routing behavior* when the candidate description itself changed mid-campaign.
 
 ## Common Mistakes
 
@@ -165,7 +173,7 @@ And:
 
 ```markdown
 ## Fresh-query sanity check
-- 5–10 queries never used in optimization:
+- 5 queries never used in optimization:
   - <query>: <triggered candidate | sibling | not triggered> — pass | fail
 - Pass rate: <N>/<M>
 ```

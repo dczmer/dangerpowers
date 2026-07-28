@@ -1,7 +1,7 @@
 # Instructions
 
 **CRITICAL**:
-- NEVER make a `git` commit or push without explicit approval from the user.
+- NEVER blindly search `/nix/store` for answers. On a nix-based system, this directory is massive and running `grep`/`find`/`rg` will take forever.
 - If you are instructed to run a command, either by the user or by AGENTS.md, and the command is not available in your PATH, **STOP** and inform the user that something is not configured correctly. DO NOT attempt to debug or work-around the issue without the user's approval.
 
 ## Operational Rules

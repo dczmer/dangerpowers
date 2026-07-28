@@ -1,6 +1,6 @@
 ---
 name: executing-plans
-description: Use when an approved implementation plan in PLANS/ is ready to execute, or when dispatched as a subagent to implement a single phase of a plan. Also use when about to edit code outside an assigned phase, deviate from the plan when code doesn't match it, edit the plan file during parallel execution, or report a phase done without verification evidence. Covers plan execution, phase implementation, and implementer-subagent runs.
+description: Use to execute or implement a single phase of an approved plan — run one phase at a time when the plan path, phase number, and report path are provided. You implement one phase, report results, and commit. Do not orchestrate the whole plan, dispatch multiple phases, or run end-to-end execution.
 ---
 
 # Executing Plans
