@@ -152,6 +152,21 @@ Test status never appears in SKILL.md. SKILL.md is loaded into working context o
 
 **REQUIRED:** See `references/pressure-testing.md` for scenario design, execution protocol, meta-testing, done criteria, and the results-log format.
 
+## Trigger Optimization
+
+**The Trigger Eval Rule: NO DESCRIPTION SHIPS WITHOUT A PASSING EVAL SET.**
+
+Applies to every skill, including pure reference — distinct from pressure testing, which gates discipline-skill **body** rules. Pressure testing measures compliance after load; trigger evals measure the *decision to load at all*. A skill can pass one axis and fail the other.
+
+**No exceptions:**
+- Not for "obviously matches its domain"
+- Not for "the sibling skills already route"
+- Not for "it's a wording tweak to the description"
+
+If a skill ships with an untested description, record it as untested in the trigger campaign log — never silently, and never in the skill itself.
+
+**REQUIRED:** See `references/trigger-optimizing.md` for eval query design, train/validation split, the ≤5-iteration optimization loop, the opencode detection harness, contamination rules, done criteria, and the trigger results-log format.
+
 ## Checklist
 
 Create a todo for each item.
@@ -186,3 +201,8 @@ Create a todo for each item.
 - [ ] Results log written to `test-campaigns/` in the skill's directory
 - [ ] Any rule shipped untested is recorded as untested in the campaign log — never in SKILL.md
 - [ ] No test status, campaign results, or `test-campaigns/` references in SKILL.md
+
+**Trigger Optimization:**
+- [ ] Trigger eval set exists (`trigger-evals/train.json` + `trigger-evals/validation.json`), or trigger evals marked not applicable in `test-campaigns/` (e.g. for skills whose triggering surface is trivially unique)
+- [ ] Selected description chosen by **validation** pass rate, not the last iteration
+- [ ] Fresh-query sanity check passed (5–10 queries never used in optimization)
