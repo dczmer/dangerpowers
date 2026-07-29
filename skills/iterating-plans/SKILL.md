@@ -22,6 +22,8 @@ If either is missing, ask for it. Do not guess which plan they mean, and do not 
 
 **Drift the user agreed to fix is fixed, not annotated.** A stale claim left in the plan with a note beside it is a stale plan. Either update the claim or get an explicit decision to leave it.
 
+**Unrelated drift is surfaced, never ignored.** When staleness verification finds drift unrelated to the requested edits, you surface it and ask the user whether to fix it now or leave it. Never delay it to a "separate session" — that is silent drift.
+
 **Feedback doesn't transfer authority.** An edit that reopens a question resolved during planning (a Decisions-table pick, a scope exclusion) goes back to whoever owns that question. The person requesting the edit may not be that owner.
 
 **Surgical edits only.** Preserve everything the feedback and the drift report don't touch. No drive-by improvements, no reformatting, no rewriting phases "while you're in there."
@@ -38,6 +40,7 @@ If either is missing, ask for it. Do not guess which plan they mean, and do not 
 | "I remember this file; no need to spawn a sub-agent" | Your memory is the staleness bug this skill exists to catch. |
 | "The drift is unrelated to the requested edits, so I'll ignore it" | Ignore is silent. Surface it and let the user decide — that costs one message. |
 | "I'll note the stale line numbers in a comment" | A note next to a wrong fact is a wrong plan. Fix it or get an explicit leave-it decision. |
+| "I'll address this drift in a separate session" | Delaying drift is silent drift. Surface it and ask the user now — that costs one message. |
 | "The requested change is small, no need to re-check cross-phase consistency" | Small edits break symbol names and phase dependencies too. The checklist applies to every edit. |
 | "The user approved this plan already; the edit is minor" | They approved the plan as written. Any edit makes it a different plan. Status returns to draft. |
 | "Re-running research would be overkill" | Correct — and nobody asked you to. Targeted sub-agent verification is not re-research. |
@@ -53,6 +56,7 @@ If either is missing, ask for it. Do not guess which plan they mean, and do not 
 - "The user asking for the edit can override the original decision owner"
 - "I only renamed/split a phase — no need to re-check the Parallel group declarations"
 - "I only renamed/split a phase — no need to re-check the execution-mode declarations"
+- "I'll address this drift in a separate session"
 
 ## Workflow
 
