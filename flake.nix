@@ -38,7 +38,6 @@
               which agentskills || $(uv sync && uv python install)
 
               echo ">> NOTE: Add ~/.local/bin to \$PATH to discover executables."
-              echo ">> NOTE: Move/link this folder to ~/.agents/skills to install."
             '';
           };
         };

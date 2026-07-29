@@ -75,7 +75,7 @@ Use the `task` tool with `general` subagents. Verified mechanics (2026-07-23): s
 
    **Dispatch command:**
    ```bash
-   XDG_CONFIG_HOME=$(mktemp -d) opencode run --dir <empty-dir-outside-repo> "<scenario>"
+   opencode run --dir <empty-dir-outside-repo> "<scenario>"
    ```
    This strips skill descriptions (the main pollution channel). Auth survives because it lives in the XDG data dir. **Do NOT use `--pure`** — it disables external plugins, not skills, and has no effect on this contamination source.
 
@@ -167,7 +167,6 @@ Accumulated process knowledge from running pressure-test campaigns:
 | "Agent was wrong" as the finding | Record the exact rationalization verbatim — that's what you counter |
 | Vague counters ("don't cheat") | Explicit negations for each specific rationalization |
 | Stopping after one green run | Continue REFACTOR until no new rationalizations appear |
-| Running baseline with `--pure` instead of stripped XDG config | Use `XDG_CONFIG_HOME=$(mktemp -d)` — see Execution Protocol step 1 |
 
 ## Results Log Template
 
