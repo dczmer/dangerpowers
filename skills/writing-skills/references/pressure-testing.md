@@ -170,7 +170,7 @@ Accumulated process knowledge from running pressure-test campaigns:
 
 ## Results Log Template
 
-Save campaigns to `test-campaigns/YYYY-MM-DD-<skill-name>.md` in the skill's directory.
+Save campaigns to `test-campaigns/YYYY-MM-DD-<skill-name>.md` in the skill under test's directory (where its SKILL.md resides).
 
 The campaign log is the ONLY place test status lives. Never add status sections, verdicts, or `test-campaigns/` references to SKILL.md — SKILL.md is loaded into working context on every run, and status notes there bloat context and invite agents to read the logs.
 

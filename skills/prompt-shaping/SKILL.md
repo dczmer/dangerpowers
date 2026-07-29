@@ -1,6 +1,6 @@
 ---
 name: prompt-shaping
-description: Use when a user's request is vague, underspecified, or incomplete but reasonable assumptions can be made from context — the request names a goal without naming the scope, target, or boundaries (e.g. "add caching", "clean this up", "refactor the API"). Also use when about to start coding on an ambiguous request without confirming scope. Covers clarifying unclear intent and scoping assumptions. Does not apply when the request already names specific files, libraries, config values, or exact implementation details, nor when the user explicitly asks for research, exploration, or a different pipeline stage.
+description: Use when a user's request is vague, underspecified, or incomplete — the request names a goal without naming the scope, target, or boundaries (even if those words aren't used). Use this skill to avoid building the wrong thing by clarifying intent before execution. Does not apply when the request already names specific files, libraries, or exact implementation details.
 ---
 
 # Prompt Shaping
@@ -20,6 +20,8 @@ Rapid prototyping of user intent through structured proposals. State the interpr
 2. **Bullet the structure** — Break the restatement into scannable components.
 3. **Propose an iterative grounding loop** — Define how completion will be verified.
 4. **State the next action** — Commit to a concrete step if the interpretation is correct.
+
+**Clarification step:** When the request is underspecified (doesn't name scope, target, or boundaries), **ask clarifying questions** rather than writing a plan document. Shaping is about aligning with the user, not deferring work.
 
 ## Grounding Loop (Iterative Verification)
 
