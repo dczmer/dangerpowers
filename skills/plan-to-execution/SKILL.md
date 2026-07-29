@@ -53,7 +53,7 @@ A phase passing all four checks is complete and is NEVER re-dispatched. The firs
 
 ## Workflow
 
-1. **Validate input.** The plan exists, is readable, and its frontmatter says `status: approved`. Record the optional user instructions. Surface any instruction/plan conflict to the user before anything else.
+1. **Validate input.** The plan exists, is readable, and its frontmatter says `status: approved`. Additionally, verify that the plan file is committed to source control (git) and accessible from all worktrees. Record the optional user instructions. Surface any instruction/plan conflict to the user before anything else.
 2. **Read the plan and compute the schedule.** Extract the phase list, each phase's `**Parallel group:**` declaration, and the `## Final Verification` commands. Extract each phase's `**Execution:**` declaration (absent means `subagent`). Maximal runs of phases sharing a group name become parallel groups; every other phase is a sequential step in plan order (FR-005, FR-007).
 3. **Run Resume Detection.** The schedule starts at the resume point; completed phases are skipped, never re-dispatched.
 4. **Execute each schedule step, in order:**
