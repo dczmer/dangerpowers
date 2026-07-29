@@ -1,6 +1,6 @@
 ---
 name: executing-plans
-description: Use to execute or implement a single phase of an approved plan — run one phase at a time when the plan path, phase number, and report path are provided. You implement one phase, report results, and commit. Do not orchestrate the whole plan, dispatch multiple phases, or run end-to-end execution.
+description: Use to implement a single phase of a multi-phase plan when you're executing one discrete task, not orchestrating the whole plan. Use this skill when the user provides a plan path, phase number, and report path — even if they don't explicitly mention "phase" or "orchestration."
 ---
 
 # Executing Plans
