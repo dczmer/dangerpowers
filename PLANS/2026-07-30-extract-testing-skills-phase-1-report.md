@@ -5,7 +5,7 @@ plan: PLANS/2026-07-30-extract-testing-skills-plan.md
 phase: 1
 status: DONE
 git_commit_start: 31a0bbed38929fd8b01ccfc021298dc02a90c8cf
-git_commit_end: uncommitted
+git_commit_end: 634fb9932b800e2c98ee368a7fa9b89c91b01a54
 ---
 
 # Phase 1: Create the pressure-testing skill — Implementation Report
