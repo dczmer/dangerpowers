@@ -42,5 +42,3 @@ Some other projects of inspiration:
 ---
 
 ## Skills and Workflows
-
-
