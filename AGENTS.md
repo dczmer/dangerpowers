@@ -10,7 +10,7 @@ Newly created skills should be created under skills/ and NOT as per-project skil
 
 ## Pressure Test Pollution
 
-When running pressure test campaigns (see `skills/writing-skills/references/pressure-testing.md`), watch for two contamination sources in baseline runs:
+When the user runs test campaigns via the pressure-testing or trigger-testing skills, watch for two contamination sources in baseline runs:
 
 - **Global or per-project rules** (e.g. a global `AGENTS.md`) bleeding into subagent baselines: this pollutes measurements and must be avoided. If detected, flag it and escalate to the user before trusting baseline results.
 - **Skill descriptions of other skills in this repository** visible to subagents: this is fine. These skills ship together, so cross-skill leakage is expected — and baseline reps reaching the right decision because of it is a good outcome, not a measurement error.

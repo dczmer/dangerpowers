@@ -150,7 +150,7 @@ If the skill contains no rule an agent could violate (pure reference material), 
 
 Test status never appears in SKILL.md. SKILL.md is loaded into working context on every run; status notes and references to campaign files are dead weight there and invite agents to read the logs. Status lives only in `test-campaigns/`.
 
-**REQUIRED:** See `references/pressure-testing.md` for scenario design, execution protocol, meta-testing, done criteria, and the results-log format.
+**Testing is part of the skill-creation process, but the agent does not run it.** Tell the user the skill must be pressure-tested and direct them to run the `pressure-testing` skill manually to complete the process. Never begin any campaign step as part of authoring.
 
 ## Trigger Optimization
 
@@ -165,7 +165,7 @@ Applies to every skill, including pure reference — distinct from pressure test
 
 If a skill ships with an untested description, record it as untested in the trigger campaign log — never silently, and never in the skill itself.
 
-**REQUIRED:** See `references/trigger-optimizing.md` for eval query design (≤5 should-trigger + ≤5 should-not), train/validation split, the ≤3-iteration optimization loop, the opencode detection harness, contamination rules, done criteria, and the trigger results-log format.
+**Testing is part of the skill-creation process, but the agent does not run it.** For every skill — including pure reference — tell the user the description must pass a trigger eval and direct them to run the `trigger-testing` skill manually to complete the process. Never begin any campaign step as part of authoring.
 
 ## Checklist
 
@@ -195,17 +195,12 @@ Create a todo for each item.
 - [ ] `agentskills validate skills/<name>` passes (`Valid skill`)
 
 **Testing (discipline skills only):**
-- [ ] Baseline scenarios run WITHOUT the skill; rationalizations documented verbatim (RED)
-- [ ] Scenarios re-run WITH the skill; agent complies and cites the skill (GREEN)
-- [ ] New loopholes closed (rule negation + rationalization row + red flag + description symptom) and re-tested (REFACTOR)
-- [ ] Results log written to `test-campaigns/` in the skill's directory
-- [ ] Any rule shipped untested is recorded as untested in the campaign log — never in SKILL.md
+- [ ] User told the skill must be pressure-tested and directed to run the `pressure-testing` skill manually (skipped only for pure-reference skills with no violable rule)
+- [ ] User told any rule shipping untested must be recorded as untested in the campaign log — never in SKILL.md
 - [ ] No test status, campaign results, or `test-campaigns/` references in SKILL.md
+- [ ] No campaign steps (baseline runs, with-skill reps, loophole re-tests) performed during authoring
 
 **Trigger Optimization:**
-- [ ] Trigger eval set exists (`trigger-evals/train.json` + `trigger-evals/validation.json`), or trigger evals marked not applicable in `test-campaigns/` (e.g. for skills whose triggering surface is trivially unique)
-- [ ] Selected description chosen by **validation** pass rate, not the last iteration
-- [ ] Fresh-query sanity check passed (5 queries never used in optimization); at most 1 train-expansion re-opt performed
-- [ ] Borderline bumps limited to consecutive-opposite-outcome queries, ≤25% of queries/iteration, per-rep outcomes recorded
-- [ ] Early-abort stopped each rep once the verdict was observable (candidate load for should-trigger; substantive non-skill work for should-not)
-- [ ] For multi-skill plans: Final Verification ran 1 rep of each campaigned skill's canonical should-trigger smoke query against the final description state (no cross-phase routing regression)
+- [ ] User told the description must pass a trigger eval and directed to run the `trigger-testing` skill manually — applies to every skill, including pure reference
+- [ ] Pending its eval, the description complies with the Frontmatter rules (imperative, WHAT + WHEN, no workflow summary, trigger terms woven into prose, ≤1024 chars)
+- [ ] No eval-set creation, harness runs, or description iterations performed during authoring
