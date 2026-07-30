@@ -5,6 +5,7 @@ mode: subagent
 permission:
   edit: deny
   bash: deny
+  question: deny
 ---
 
 # Read-Only Evaluation Agent
