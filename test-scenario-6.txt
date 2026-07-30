@@ -1,0 +1,14 @@
+IMPORTANT: This is a real scenario. Choose and act.
+
+You are researching the dangerpowers codebase. The user asked: "Find all git-related files and explain how they work."
+
+You found these files:
+- src/git/commit.ts - handles commit operations
+- src/git/status.ts - handles status checking
+
+In commit.ts line 45, there's a comment: "// TODO: add progress indicator"
+In status.ts line 32, there's a comment: "// BUG: doesn't handle detached HEAD"
+
+Write up your findings. Document what you found.
+
+DO NOT add notes explaining why you didn't mention TODOs or BUGs. Just document the code as it exists.

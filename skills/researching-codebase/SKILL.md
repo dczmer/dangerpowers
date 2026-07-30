@@ -19,6 +19,26 @@ Document the codebase AS IT EXISTS TODAY. No improvements, no suggestions, no ro
 - Not for "just one suggestion at the end"
 - Not as a clearly separated appendix, "improvement opportunities" section, or "observations" note — a suggestion anywhere in the artifact is a suggestion in the artifact
 
+### What You MUST NOT Do
+
+**DO NOT mention or flag:**
+- TODO comments as "missing features" or "areas for improvement"
+- BUG comments as "known issues" or "defects"
+- Any code quality, performance, or security commentary
+- Pattern recommendations or best practices
+- "Considerations" about edge cases
+- "Recommendations" for enhancements
+- TODO/BUG comments themselves as anything other than incidental file content
+- Notes explaining why you didn't mention TODOs/BUGs
+- Meta-commentary about the discipline rules
+
+**If you see a TODO or BUG comment in the code:**
+- You document ONLY the file location and its role
+- You do NOT describe the TODO/BUG itself
+- You do NOT flag it as a problem, issue, or opportunity
+- You do NOT mention it in any form whatsoever
+- The comment is incidental content, not a finding to report
+
 ### Rationalizations
 
 | Excuse | Reality |
@@ -29,6 +49,9 @@ Document the codebase AS IT EXISTS TODAY. No improvements, no suggestions, no ro
 | "A clearly separated appendix keeps the document clean" | An appendix is part of the artifact. A suggestion there poisons it just the same. |
 | "Stating the behavior neutrally buries the signal" | Stated behavior IS the signal. Labeling it a "problem" is judgment, not flagging. |
 | "Omitting the idea wastes the context I built" | The context produced the findings. The suggestion was never the deliverable. |
+| "The TODO/BUG is clearly visible in the code, I should mention it" | Visibility does not equal relevance. Documenting a TODO as "a TODO" is still a suggestion. |
+| "I'll just note it as a TODO comment" | Mentioning a TODO comment is mentioning a missing feature. That's a suggestion. |
+| "I'll put it in a clearly separated appendix" | An appendix is part of the artifact. A suggestion there poisons it just the same. |
 
 ### Red Flags - STOP
 
@@ -38,6 +61,11 @@ Document the codebase AS IT EXISTS TODAY. No improvements, no suggestions, no ro
 - "I'll put it in a clearly separated appendix"
 - "I'll just note the direction the codebase is heading"
 - "Flagging it as a problem is what flagging means"
+- "Mentioning the TODO is just documenting what's in the code"
+- "The TODO/BUG is clearly visible, so it's factual to mention it"
+- "I'll describe it neutrally as 'a TODO comment'"
+- "Documenting the TODO doesn't suggest anything"
+- "The user asked for all git-related files, and the TODO is part of that"
 
 ## Workflow
 
@@ -46,10 +74,10 @@ If a PRD exists (`PRDS/`), its §1 Problem & Context and §5 Scope are the resea
 1. Read every file the user mentioned FULLY (no limit/offset) in the main context BEFORE spawning any sub-agent.
 2. Decompose the request into research areas; track with the todo tool.
 3. Spawn parallel sub-agents in one message, one role each:
-   - **Locator** (`explore`) — find WHERE: files grouped by purpose (implementation, tests, config, types, docs, entry points), full paths with one-line roles, directory file counts, naming conventions. No file contents.
-   - **Analyzer** (`general`) — understand HOW: entry/exit points, data flow, key logic, error handling, configuration & flags. Every claim cited `file:line`.
-   - **Pattern-finder** (`general`) — find WHAT TO MODEL: working snippets of similar implementations including test patterns. ALL variations, no recommendation.
-   Tell each agent WHAT to find, not HOW to search. Restate the documentarian rules in every prompt.
+    - **Locator** (`explore`) — find WHERE: files grouped by purpose (implementation, tests, config, types, docs, entry points), full paths with one-line roles, directory file counts, naming conventions. No file contents.
+    - **Analyzer** (`general`) — understand HOW: entry/exit points, data flow, key logic, error handling, configuration & flags. Every claim cited `file:line`.
+    - **Pattern-finder** (`general`) — find WHAT TO MODEL: working snippets of similar implementations including test patterns. ALL variations, no recommendation.
+    Tell each agent WHAT to find, not HOW to search. Restate the documentarian rules in every prompt.
 4. Wait for ALL sub-agents. Live code is the source of truth — anything uncertain gets verified against the code, not assumed.
 5. Write the artifact per `references/findings-template.md`. Location: `RESEARCH/YYYY-MM-DD-<kebab-description>-research-findings.md` under the project root (same naming convention as `PLANS/` files), committed to source control — downstream artifacts cite this path, so it must stay valid.
 6. Run the scout-readiness checklist below. Any failure → a targeted follow-up sub-agent, not a hand-wave. Ship `status: partial` only with §7 explaining why.
