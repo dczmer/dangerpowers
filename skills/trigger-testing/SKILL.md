@@ -11,11 +11,11 @@ Run this campaign when a skill's description is designed or revised, before the 
 
 ## Workflow
 
-Input: one target skill name, or a list of target skills.
+Input: one target skill name, or a list of target skills. The skill name(s) are the only user input; the campaign runs autonomously from there — no step asks the user anything.
 
 1. Read the target skill's `SKILL.md` and its current frontmatter `description`.
-2. Build the eval set per Trigger Eval Query Design; split it per Train/Validation Split into `trigger-evals/train.json` and `trigger-evals/validation.json`.
-3. Smoke-test the harness: dispatch ONE should-trigger query through the Harness and read the rep's output before dispatching full runs. The smoke rep verifies the `trigger-evaluator` subagent receives skill descriptions in context and can invoke the skill tool — if the subagent cannot load skills, stop and fix the agent configuration before any campaign. Because detection under this harness is the rep's own report (not a greppable event stream), the smoke run must also confirm the rep names the specific skill it loaded, distinguishing the candidate from a sibling.
+2. Build the eval set per Trigger Eval Query Design; split it per Train/Validation Split into `trigger-evals/train.json` and `trigger-evals/validation.json`. You author every query yourself — never ask the user to supply, confirm, or answer eval queries.
+3. Smoke-test the harness (see Harness below): dispatch ONE should-trigger query as a `Task` tool call to the `trigger-evaluator` subagent and read the rep's returned message before dispatching full runs. The smoke rep verifies the `trigger-evaluator` subagent receives skill descriptions in context and can invoke the skill tool — if the subagent cannot load skills, stop and fix the agent configuration before any campaign. Because detection under this harness is the rep's own report (not a greppable event stream), the smoke run must also confirm the rep names the specific skill it loaded, distinguishing the candidate from a sibling.
 4. Run the Optimization Loop: evaluate, revise per failure class, repeat — selecting the best iteration by validation pass rate.
 5. Run the fresh-query sanity check; at most one train-expansion re-opt.
 6. Check the Done Criteria, then write the results log per Results Log Format — one log per target skill.
@@ -105,6 +105,8 @@ Then run a **fresh-query sanity check**: 5 queries never used in optimization, r
 
 ## Harness
 
+Every query — smoke, train, validation, fresh — is dispatched to a subagent via the `Task` tool. Queries are NEVER sent to the user. The `question` tool plays no role in this campaign; if you are about to ask the user an eval query, you have confused the measurement target — the subagent rep is the subject under test, not the user.
+
 **Invoke:** one `Task` tool call per rep, with these exact parameters:
 
 - `subagent_type`: `"trigger-evaluator"` (defined in `agents/trigger-evaluator.md`) — always; never `general` or another agent.
@@ -163,6 +165,7 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 | Skipping the smoke-test (1-rep dispatch) before running the full campaign | Run ONE rep through the harness and read its output before dispatching the full rep matrix |
 | Running reps with a full-tool agent | Always dispatch the `trigger-evaluator` subagent — under a full-tool agent a triggered skill executes its real workload on every rep |
 | Adding framing, skill names, or "this is a test" context to the rep dispatch prompt | Dispatch the bare eval query only — anything more carries the runner's context into the rep and biases the routing measurement |
+| Asking the user eval queries via the `question` tool | The user is never a rep. All queries go to `trigger-evaluator` subagents via `Task`; the runner authors them without user input. |
 
 ## Results Log Format
 
