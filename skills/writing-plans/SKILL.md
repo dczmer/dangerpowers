@@ -27,6 +27,8 @@ If no bundle is provided: proceed anyway. Record `source_bundle: none` in the fr
 
 **Read-only except the plan file.** Planning changes nothing else in the project.
 
+**No requirement ID labels.** Do not embed PRD requirement markers (e.g., `FR-001`, `FR-002`) in plan sections, phases, or code comments. The plan is an execution contract, not a PRD traceability matrix. Refer to features by descriptive name only.
+
 **Violating the letter of these rules is violating the spirit of the rules.**
 
 ### Rationalizations
