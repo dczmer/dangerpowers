@@ -15,7 +15,7 @@ Input: one target skill name, or a list of target skills.
 
 1. Read the target skill's `SKILL.md` and its current frontmatter `description`.
 2. Build the eval set per Trigger Eval Query Design; split it per Train/Validation Split into `trigger-evals/train.json` and `trigger-evals/validation.json`.
-3. Smoke-test the harness: run ONE query through the opencode Harness and read its output before dispatching full runs.
+3. Smoke-test the harness: run ONE should-trigger query through the opencode Harness and read its output before dispatching full runs. The smoke rep also verifies the `trigger-evaluator` agent can invoke the skill tool and receives skill descriptions in context — if the `tool_use skill` event cannot fire under the agent, stop and fix the agent configuration before any campaign.
 4. Run the Optimization Loop: evaluate, revise per failure class, repeat — selecting the best iteration by validation pass rate.
 5. Run the fresh-query sanity check; at most one train-expansion re-opt.
 6. Check the Done Criteria, then write the results log per Results Log Format — one log per target skill.
@@ -107,7 +107,9 @@ Then run a **fresh-query sanity check**: 5 queries never used in optimization, r
 
 Verified mechanics from this plan's smoke test.
 
-**Invoke:** `opencode run --dir <repo-root> --format json "<query>" > out.json 2>&1`.
+**Invoke:** `opencode run --dir <repo-root> --agent trigger-evaluator --format json "<query>" > out.json 2>&1`.
+
+Reps MUST run under the `trigger-evaluator` agent (`agents/trigger-evaluator.md`). Its read-only tool set makes workload execution impossible: a triggered skill loads (which is the measurement) but cannot write files, run commands, or dispatch agents. The skill-load `tool_use` event is emitted by the harness regardless of which agent is in the run, so detection is unaffected.
 
 `--format json` is the only JSON-shaped option (there is no `--json` flag). Output is NDJSON. A skill load appears as one event:
 
@@ -127,7 +129,7 @@ for q_set in train validation; do
   for f in trigger-evals/${q_set}/*.json; do
     while IFS=$'\t' read -r query should_trigger; do
       out=$(mktemp); opencode run --dir <repo-root> \
-        --format json "$query" > "$out" 2>&1
+        --agent trigger-evaluator --format json "$query" > "$out" 2>&1
       triggered=$(grep '"tool":"skill"' "$out" | grep -q "\"name\":\"$SKILL\"" && echo yes || echo no)
       # record (query, should_trigger, triggered)
       rm "$out"
@@ -138,7 +140,7 @@ done
 
 **Pass criterion:** should-trigger query passes when trigger rate > 0.5 over ≥3 reps; should-not passes when rate < 0.5. Reps ≥3 per query. **Bump to 5 reps only on consecutive-opposite-outcome** — a 3-of-3 split across trigger / no-trigger (≥2 distinct outcomes over the 3 baseline reps). Borderline verdicts no longer rest on agent judgment alone; record the 3 per-rep outcomes and a one-line rationale in the campaign log. **Bump rate cap: ≤25% of queries per iteration** may be bumped.
 
-**Early-abort policy (per rep, both directions):** stop reading the response once the rep is decided — do not wait for completion. **Should-trigger:** once `tool_use skill <candidate>` appears in the stream, the rep is decided — record the verdict and stop. **Should-not:** once the agent emits substantive non-skill work, the rep is decided — record the verdict and stop. This is a per-rep policy, not a tip; it cuts output tokens materially on decided reps.
+**Workload isolation (per rep):** reps run under `--agent trigger-evaluator`, so a triggered skill's workload cannot execute — that is the abort mechanism, and it is structural, not procedural. Do not try to "stop" a rep mid-run: the harness invocation is blocking and runs to completion, and verdicts come from the finished rep's JSON stream. If a rep hangs (e.g. loaded skill content loops the agent into endless reads), kill it, void the rep, and re-dispatch a fresh replacement — mirroring the pressure-testing void-run convention. Never count a killed rep.
 
 **Intra-iteration rep parallelism:** dispatch the per-iteration rep matrix in parallel (e.g. `xargs -P N` or a small job queue). Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase bash fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
 
@@ -175,6 +177,7 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 | Forgetting the 1024-char ceiling mid-optimization | Re-check every iteration; descriptions grow |
 | Stripping skills via `XDG_CONFIG_HOME` for "clean" baselines | Wrong approach for trigger evals — keeps the candidate out. Trigger-eval baselines measure the candidate's routing rate against siblings |
 | Skipping the smoke-test (1-rep dispatch) before running the full campaign | Run ONE rep through the harness and read its output before dispatching the full 60+ invocations |
+| Running reps with the default full-tool agent | Always pass `--agent trigger-evaluator` — under the default agent a triggered skill executes its real workload on every rep |
 
 ## Results Log Format
 
