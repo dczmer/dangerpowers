@@ -71,7 +71,7 @@ When scenario props include fictional artifact paths (e.g. plan files, log paths
 
 Use the `task` tool with `general` subagents. Verified mechanics (2026-07-23): subagents do NOT auto-load skills — the with-skill prompt must name the file path explicitly. Parallel dispatch in one message works.
 
-1. **Baseline run (RED):** dispatch a `general` subagent with the scenario only. No mention of any skill, no mention that it's a test.
+1. **Baseline run (RED):** dispatch a `general` subagent with the scenario only. No mention of any skill, no mention that it's a test. If the scenario references a skill file, instruct the agent to read it for context only without loading or activating any workflow.
 
    **Dispatch command:**
    ```bash
@@ -80,7 +80,7 @@ Use the `task` tool with `general` subagents. Verified mechanics (2026-07-23): s
    This strips skill descriptions (the main pollution channel). Auth survives because it lives in the XDG data dir. **Do NOT use `--pure`** — it disables external plugins, not skills, and has no effect on this contamination source.
 
    **Smoke-test rule:** dispatch ONE rep of any new configuration first, read its output, then dispatch the remaining reps in parallel. Catches configuration bugs at 1/5 the cost.
-2. **With-skill run (GREEN):** same scenario, prepended with: "First, read the file <absolute-path>/SKILL.md in full. Then act on the scenario below, applying whatever that document says." Ask it to cite anything from the document that influenced its choice — citations confirm the skill did the work.
+2. **With-skill run (GREEN):** same scenario, prepended with: "First, read the file <absolute-path>/SKILL.md in full for context only — do not load or activate any skill workflow or procedures. Then act on the scenario below, applying whatever that document says." Ask it to cite anything from the document that influenced its choice — citations confirm the skill did the work.
 
    **Dispatch command:**
    ```bash
