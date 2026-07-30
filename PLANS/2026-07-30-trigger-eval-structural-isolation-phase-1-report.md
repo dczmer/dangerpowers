@@ -5,7 +5,7 @@ plan: /home/dave/source/dangerpowers/PLANS/2026-07-30-trigger-eval-structural-is
 phase: 1
 status: DONE
 git_commit_start: da9f516555bb5cc8dc9e0c6b6442d7f0e383db34
-git_commit_end: pending-commit
+git_commit_end: 6276483967008e4a5d324163be7eeb2798e805cf
 ---
 
 # Phase 1: Trigger-Eval Structural Isolation — Implementation Report
