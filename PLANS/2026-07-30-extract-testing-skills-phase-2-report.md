@@ -5,7 +5,7 @@ plan: PLANS/2026-07-30-extract-testing-skills-plan.md
 phase: 2
 status: DONE
 git_commit_start: 31a0bbed38929fd8b01ccfc021298dc02a90c8cf
-git_commit_end: ea44e0a
+git_commit_end: 3db50aeccb6d7008bd455260d0721bfec1f7ff3e
 ---
 
 # Phase 2: Create the trigger-testing skill — Implementation Report
