@@ -145,8 +145,7 @@ done
 ## Contamination Rules
 
 1. **Do not strip skills via `XDG_CONFIG_HOME=$(mktemp -d)`.** That strips the candidate being measured. Trigger evals run with the repo's full skill set present, because that is the deployment reality — sibling routing competition is the cost the eval catches (the smoke test caught it). This is the opposite of pressure-test baselines, which strip skills to isolate the rule under test.
-2. **Verify the global `~/.config/opencode/AGENTS.md` is empty or absent before each campaign.** If it isn't, subagent baselines may be primed by global rules bleeding through; flag and resolve before trusting results. (This mirrors the repo top-level `AGENTS.md` "Pressure Test Pollution" note.)
-3. **Cross-skill description visibility is expected, not contamination.** Per repo `AGENTS.md`, these skills ship together, so a sibling routing win on a should-trigger rep is a real measurement, not an error to be filtered out.
+2. **Cross-skill description visibility is expected, not contamination.** Per repo `AGENTS.md`, these skills ship together, so a sibling routing win on a should-trigger rep is a real measurement, not an error to be filtered out.
 
 ## Done Criteria
 
