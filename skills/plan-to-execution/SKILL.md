@@ -71,7 +71,7 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 ### Rationalizations
 
 | Excuse | Reality |
-|--------|---------|
+|--------|--------|
 | "I'll skim the phase report to give the user a good summary" | The report path IS the summary pointer. Skimming loads transient detail into orchestrator context — the exact problem this skill exists to solve. |
 | "This phase is tiny — I'll just implement it inline" | Phase size doesn't change who owns implementation. Dispatch the subagent. The only inline exception is a phase declared `**Execution:** inline` per Delegation Safety. |
 | "This phase looks like a campaign — I'll run it inline even though it declares `subagent`" | The declaration is authoritative. A misdeclared phase is a plan defect — surface it and route the human to iterating-plans; never reclassify. |
@@ -79,6 +79,7 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 | "Phase 3 doesn't depend on phase 2's files, so I'll keep going after the failure" | File overlap isn't the failure criterion — the failed phase is. Stop and report. |
 | "Re-running the committed phases is safer than trusting the reports" | The report-plus-ancestry check is the resume contract. Re-dispatching completed phases wastes work and can conflict with already-merged state. |
 | "The tests pass; I'll quickly remove the worktrees before reporting" | Cleanup is a non-goal in every circumstance. Report and stop. |
+| "This phase is just one command / trivial work / won't take long — I'll do it myself" | The declaration is authoritative. "Trivial" is not a valid exception. Dispatch the subagent. |
 
 ### Red Flags - STOP
 
@@ -93,6 +94,9 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 - "These phases look independent even though the plan doesn't say so — I'll parallelize them"
 - "The plan has no Final Verification section; I'll run the repo's test command instead"
 - "The user would obviously want a PR opened for this"
+- "This phase is just one command / trivial work / won't take long — I'll do it myself"
+- "The subagent is taking too long — I'll implement it myself"
+- "The subagent is taking too long — I'll cancel it and do it myself"
 
 ## Boundary
 
