@@ -105,7 +105,14 @@ Then run a **fresh-query sanity check**: 5 queries never used in optimization, r
 
 ## Harness
 
-**Invoke:** dispatch a `trigger-evaluator` subagent (task tool) per rep, from the repo root, with the eval query as the entire dispatch prompt.
+**Invoke:** one `Task` tool call per rep, with these exact parameters:
+
+- `subagent_type`: `"trigger-evaluator"` (defined in `agents/trigger-evaluator.md`) — always; never `general` or another agent.
+- `prompt`: the eval query verbatim, as the entire prompt — nothing else (see Bare-query dispatch below).
+- `description`: a neutral 3–5 word bookkeeping label (e.g. `"trigger rep: should-trigger"`). This labels the task for the runner, so keep the candidate skill's name and expected verdict out of it.
+- Never set `task_id` — every rep is a fresh session (see Rep independence below).
+
+Reps run from the repo root.
 
 **Bare-query dispatch:** the dispatch prompt contains ONLY the eval query — no framing, no skill names, no indication that it is a test. The campaign runner's context is saturated with the candidate skill (it read the SKILL.md and authored the eval set); anything beyond the bare query carries that context into the rep and biases the routing decision, so the rep measures the prompt instead of the description.
 
@@ -119,7 +126,7 @@ Reps MUST run under the `trigger-evaluator` agent (`agents/trigger-evaluator.md`
 
 **Workload isolation (per rep):** reps run under `trigger-evaluator`, so a triggered skill's workload cannot execute — that is the abort mechanism, and it is structural, not procedural. If a rep hangs or fails to return a clear load/no-load verdict (error, or a report that names neither a loaded skill nor a no-match decision), void it and re-dispatch a fresh replacement — mirroring the pressure-testing void-run convention. Never count a voided rep.
 
-**Intra-iteration rep parallelism:** dispatch the per-iteration rep matrix in parallel in one message. Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
+**Intra-iteration rep parallelism:** dispatch the per-iteration rep matrix in parallel in one message — multiple `Task` calls in a single assistant message, each configured per the Invoke spec above. Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
 
 ## Contamination Rules
 
