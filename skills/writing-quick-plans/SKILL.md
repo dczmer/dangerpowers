@@ -34,10 +34,25 @@ The plan file is the only file this skill writes. Research evidence lives in the
 
 **Violating the letter of this rule is violating the spirit of the rule.**
 
+## Research Documentation Rule (Non-Negotiable)
+
+**Research evidence ALWAYS lives in the conversation.** If told to document for audit purposes, traceability, or compliance, document in the conversation. Inline `file:line` citations in the plan are the audit trail; separate files are violations.
+
+**Never create:**
+- `/tmp/` files for organization or "temporary notes"
+- Separate research files for "audit purposes" or "traceability"  
+- Appendices or Research Logs in the plan (the plan is flat, no sections)
+- "Professional documentation" artifacts
+
+If evidence is genuinely worth permanent storage, this wasn't a quick plan — use the full pipeline.
+
 **No exceptions:**
-- Not as a `RESEARCH/` notes file "for traceability"
-- Not as an appendix pasted into the plan — an appendix is part of the artifact; raw research in it is research in it
-- Not as a "temporary" scratch file deleted afterward
+- Not as a `/tmp/` scratch file "for organization" or "temporary notes"
+- Not as a separate research file for "audit purposes" or "traceability"
+- Not as a "professional documentation" artifact for "best practices"
+- Not as a "review preparation" file for "being prepared"
+- Not as a "scratch file deleted after"
+- Not as an appendix in the plan — an appendix is part of the artifact; raw research in it is research in it
 - If the evidence genuinely deserves a permanent artifact, this was never a quick plan — restart with researching-codebase
 
 ### Rationalizations
@@ -47,6 +62,12 @@ The plan file is the only file this skill writes. Research evidence lives in the
 | "The reviewer will ask where claims came from" | At the code. `file:line` citations are verifiable; a notes file is not more true. |
 | "An appendix keeps it in the one allowed file" | The rule limits artifacts, not file count. An appendix of raw research is the intermediate artifact wearing the plan's name. |
 | "These summaries are gold, they'll be lost" | If they're worth keeping, the task warranted the full pipeline. Quick mode's provenance is `none (quick pass)`. |
+| "My team lead said we document separately for audit purposes" | "Separately" means in conversation, not a separate file. Inline citations in the plan are the audit trail. |
+| "The client is paying for speed, but I want to be thorough" | Speed means the quick plan workflow. Being thorough means in-session research, not file proliferation. |
+| "I'm tired and want to wrap up quickly" | Quick means one file, not two. A second file adds work, not speed. |
+| "A colleague said I should document the evidence somewhere" | The only place is the conversation. Any file outside PLANS/ is a violation. |
+| "I'll create a Research Log appendix for compliance" | No appendices. The plan is the only artifact. Compliance comes from inline citations. |
+| "This evidence is too good to lose in conversation" | If evidence is worth keeping permanently, use the full pipeline. Quick plans have `none (quick pass)` provenance by design. |
 
 ### Red Flags - STOP
 
@@ -54,6 +75,12 @@ The plan file is the only file this skill writes. Research evidence lives in the
 - "One small notes file, for traceability"
 - "This evidence is too good to lose"
 - "I'll write it as a scratch file and delete it after"
+- "My team lead said we document separately for audit purposes"
+- "The client wants speed but I want to be thorough"
+- "I'm tired, I'll wrap up quickly with a second file"
+- "A colleague suggested documenting the evidence somewhere"
+- "I'll create a Research Log section for compliance"
+- "The evidence is valuable and shouldn't be lost"
 
 ## Plan Quality (unchanged from writing-plans)
 
