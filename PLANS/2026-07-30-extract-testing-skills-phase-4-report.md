@@ -5,7 +5,7 @@ plan: PLANS/2026-07-30-extract-testing-skills-plan.md
 phase: 4
 status: DONE
 git_commit_start: 73e40f5b0cc8d2a1b5d2f9f44c414962cc00d191
-git_commit_end: PLACEHOLDER_UPDATED_AFTER_COMMIT
+git_commit_end: 2d8c1322c8f64b22ce3990ba182bb61db95e5dfe
 ---
 
 # Phase 4: Integrated content-accounting audit — Implementation Report
