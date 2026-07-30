@@ -94,7 +94,7 @@ Use the `task` tool with `general` subagents. Verified mechanics (2026-07-23): s
    ```bash
    opencode run --dir <empty-dir-outside-repo> "<scenario>"
    ```
-   This strips skill descriptions (the main pollution channel). Auth survives because it lives in the XDG data dir. **Do NOT use `--pure`** — it disables external plugins, not skills, and has no effect on this contamination source.
+   This strips skill descriptions (the main pollution channel). **Do NOT use `--pure`** — it disables external plugins, not skills, and has no effect on this contamination source.
 
    **Smoke-test rule:** dispatch ONE rep of any new configuration first, read its output, then dispatch the remaining reps in parallel. Catches configuration bugs at 1/5 the cost.
 2. **With-skill run (GREEN):** same scenario, prepended with: "First, read the file <absolute-path>/SKILL.md in full for context only — do not load or activate any skill workflow or procedures. Then act on the scenario below, applying whatever that document says." Ask it to cite anything from the document that influenced its choice — citations confirm the skill did the work.

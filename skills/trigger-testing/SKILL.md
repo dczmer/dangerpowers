@@ -31,7 +31,7 @@ Trigger optimization measures **the decision to load at all** — not compliance
 
 ## Description Best Practices
 
-Rules for writing and revising skill descriptions, from this repo's writing-skills guidance and https://agentskills.io/skill-creation/optimizing-descriptions:
+Rules for writing and revising skill descriptions:
 
 - **Imperative opener.** Start with "Use when..." plus concrete triggering conditions and symptoms.
 - **WHAT + WHEN.** State what the skill produces (one clause) so the agent can match user intent, and when to use it. Write for user intent, not implementation mechanics.
