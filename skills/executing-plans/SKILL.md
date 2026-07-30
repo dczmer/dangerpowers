@@ -46,6 +46,8 @@ If any of the three is missing, ask for it. If the plan is `status: draft`, stop
 | Excuse | Reality |
 |--------|---------|
 | "This one-line fix in another file unblocks my phase" | That file may belong to a phase running in parallel right now. Report it; don't touch it. |
+| "Prevents Phase N from having to revisit it" | You may not touch files owned by other phases, even for optimization. Report the dependency; the controller coordinates. |
+| "Prevents downstream issues" | Report the issue; do not preemptively fix files outside your ownership. Let the controller decide. |
 | "The plan's approach is clearly wrong, my way is better" | A human approved the plan, not your improvisation. Mismatch → BLOCKED with the protocol below. |
 | "Flipping one checkbox is harmless" | Two executors flipping boxes in the same file is a lost update. In subagent mode the plan is read-only, no exceptions. |
 | "The code is obviously right; the test command is slow" | DONE without green verification is a claim, not a result. Run it. |
@@ -61,6 +63,8 @@ If any of the three is missing, ask for it. If the plan is `status: draft`, stop
 - "Verification mostly passed"
 - "I skimmed the file; the change is localized"
 - "Manual testing looks fine to me, checking it off"
+- "Prevents Phase N from having to revisit it"
+- "Prevents downstream issues"
 
 ## Workflow
 
