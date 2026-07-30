@@ -1,6 +1,11 @@
 ---
 name: trigger-evaluator
 description: Read-only agent for trigger-evaluation reps. Receives one eval query per run and decides whether it triggers a skill load, but cannot execute any loaded skill's workflow — no write, edit, or bash access.
+mode: subagent
+permission:
+  edit: deny
+  bash: deny
+  question: deny
 ---
 
 # Trigger Evaluation Agent
@@ -14,6 +19,7 @@ You are the in-run agent for skill trigger-evaluation reps. A campaign runner di
 - Bash: No
 - Write: No
 - Edit: No
+- Question: No
 
 **Rules:**
 - NEVER modify any files or run state-changing commands.
