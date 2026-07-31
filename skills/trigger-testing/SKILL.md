@@ -15,13 +15,18 @@ Input: one target skill name, or a list of target skills. The skill name(s) are 
 
 1. Read the target skill's `SKILL.md` and its current frontmatter `description`.
 2. Build the eval set per Trigger Eval Query Design; split it per Train/Validation Split into `trigger-evals/train.json` and `trigger-evals/validation.json`. You author every query yourself — never ask the user to supply, confirm, or answer eval queries.
-3. Create the campaign workspace: run `WS=$(skills/trigger-testing/scripts/trigger-test.sh init)`. The workspace contains frontmatter-only stubs of every skill under `skills/` plus the `trigger-evaluator` agent. One workspace per campaign — every eval in this campaign reuses it; never create a workspace per eval.
+3. Create the campaign workspace. The workspace contains frontmatter-only stubs of every skill under `skills/` plus the `trigger-evaluator` agent. One workspace per campaign — every eval in this campaign reuses it; never create a workspace per eval, and never run `init` a second time.
+   a. From the repo root (the script path is relative), run exactly:
+      `WS=$(skills/trigger-testing/scripts/trigger-test.sh init) && echo "WORKSPACE=$WS"`
+   b. Copy the printed path (it looks like `/tmp/trigger-test.XXXXXXXXXX`) into your working notes as **WS_PATH**. Shell variables do not survive between Bash tool invocations — in every later command, paste the literal WS_PATH wherever the workflow shows `"$WS"`; never rely on `$WS` or `TRIGGER_TEST_WORKSPACE`.
+   c. Verify once: `ls WS_PATH/.agents/skills` must list every skill name. If it does not, stop and fix the workspace before any eval.
+   d. If a later command fails with `workspace unset` or you have lost WS_PATH, recover the path from step 3a's output or by running `ls -d /tmp/trigger-test.*` — NEVER recover by re-running `init`. A second `init` creates a different workspace and orphans the first.
 4. Smoke-test the harness (see Harness below): run ONE should-trigger query through the harness and read the verdict block before running full campaigns. The smoke run verifies the `trigger-evaluator` agent sees the stub descriptions and can invoke the skill tool — if the eval cannot load any skill, stop and fix the workspace or agent setup before any campaign. The smoke run must also confirm the verdict names the candidate skill specifically, distinguishing it from a sibling.
 5. Run the Optimization Loop: evaluate, revise per failure class, repeat — selecting the best iteration by validation pass rate.
 6. Run the fresh-query sanity check; at most one train-expansion re-opt.
 7. Check the Done Criteria, then write the results log per Results Log Format — one log per target skill.
 8. Given a list of skills, advance per Multi-Skill Campaigns.
-9. Clean up the workspace: run `skills/trigger-testing/scripts/trigger-test.sh cleanup --workspace "$WS"` — always, including when the campaign aborts early. A finished campaign leaves no workspace artifacts behind.
+9. Clean up the workspace: run `skills/trigger-testing/scripts/trigger-test.sh cleanup --workspace WS_PATH` with the literal path recorded in step 3b — always, including when the campaign aborts early. A finished campaign leaves no workspace artifacts behind; if cleanup cannot run because the path is lost, recover it per step 3d, then clean up.
 
 ## Scope
 
@@ -118,10 +123,10 @@ Every query — smoke, train, validation, fresh — is executed by `skills/trigg
 
 **Workspace lifecycle:** one workspace per campaign, created in Workflow step 3, reused for every eval, removed in Workflow step 9 — including on abort. The workspace holds frontmatter-only stubs of every skill plus the `trigger-evaluator` agent; skill bodies, the repo codebase, and the repo `AGENTS.md` are absent by construction.
 
-**Invoke:** one eval per rep:
+**Invoke:** one eval per rep, pasting the literal WS_PATH recorded in Workflow step 3b (`$WS` does not survive between shell invocations):
 
 ```bash
-skills/trigger-testing/scripts/trigger-test.sh eval --skill <candidate> --workspace "$WS" "$(cat <<'EOF'
+skills/trigger-testing/scripts/trigger-test.sh eval --skill <candidate> --workspace /tmp/trigger-test.XXXXXXXXXX "$(cat <<'EOF'
 <eval query, verbatim>
 EOF
 )"
@@ -185,6 +190,7 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 
 | Mistake | Fix |
 |---------|-----|
+| Re-running `init` after losing `$WS` | `$WS` dies with each shell invocation. Record the literal path from init's output (Workflow step 3b) and paste it in every command; recover a lost path via `ls -d /tmp/trigger-test.*` — one workspace per campaign, always |
 | Optimizing against the full eval set (no split) | Use train/validation split; select best iteration by validation pass rate |
 | Pasting failed-query keywords into the description | Find the general category, not the specific query |
 | Stopping at the last iteration | Compare validation pass rates across all iterations; pick the best |
