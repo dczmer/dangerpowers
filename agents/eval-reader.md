@@ -1,7 +1,7 @@
 ---
 name: eval-reader
 description: Read-only agent for pressure testing baselines. Can only use Read, Glob, and Grep tools. No write, edit, or bash access to prevent rogue implementation.
-mode: subagent
+mode: primary
 permission:
   edit: deny
   bash: deny

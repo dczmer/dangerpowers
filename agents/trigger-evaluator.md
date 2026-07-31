@@ -1,8 +1,8 @@
 ---
 name: trigger-evaluator
 description: Read-only agent for trigger-evaluation reps. Receives one eval query per run and decides whether it triggers a skill load. The skill tool is its only tool — file, shell, web, todo, and agent tools are all denied and iterations are capped — so post-load execution is structurally impossible.
-mode: subagent
-steps: 1
+mode: primary
+steps: 3
 permission:
   skill: allow
   edit: deny
