@@ -1,6 +1,6 @@
 ---
 name: writing-prds
-description: Use when the user asks to write, create, draft, spec out, document, update, edit, revise, add to, or complete a PRD, product requirements document, or feature specification, asks to start planning a feature, or describes what a feature should do from a product perspective. Also use when about to put tech stack or file paths in a requirements doc, make product decisions silently instead of asking, or finalize a PRD with open questions remaining. Covers feature specs, requirements docs, scoping, behavior specifications, and acceptance criteria.
+description: Use when the user wants to write a product requirements document, PRD, product doc, or feature specification that defines WHAT and WHY a feature should do. Trigger on "write a PRD", "draft requirements", "create a product spec", "spec out a workflow", "document what this feature should do", "create a product doc", or "start planning a new feature". Do NOT use for fixing bugs, running tests, writing tutorials, creating READMEs, user docs, or general documentation requests.
 ---
 
 # Writing PRDs
