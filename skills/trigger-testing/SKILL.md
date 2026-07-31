@@ -82,7 +82,7 @@ A set of polished, keyword-perfect queries overfits: the description will pass o
 
 ## Train/Validation Split
 
-Split the eval queries ~60/40 into `trigger-evals/train.json` and `trigger-evals/validation.json` (sibling to `test-campaigns/` in the skill's directory). Shuffle randomly, then **keep the split fixed across iterations** — comparisons are apples-to-apples only if the same queries sit in the same bucket each run. Both sets contain a proportional mix of should-trigger and should-not.
+Split the eval queries ~60/40 into `trigger-evals/train.json` and `trigger-evals/validation.json` in the skill under test's directory (where its SKILL.md resides, beside `test-campaigns/`). Shuffle randomly, then **keep the split fixed across iterations** — comparisons are apples-to-apples only if the same queries sit in the same bucket each run. Both sets contain a proportional mix of should-trigger and should-not.
 
 Why split: optimizing against the full set risks overfitting to the exact queries. Train results guide changes; **validation pass rate selects the best iteration**, which may not be the last.
 
@@ -180,7 +180,7 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 
 ## Results Log Format
 
-Trigger eval logs use the campaign log format: title `# Test Campaign: <skill-name> — <date>`, with per-run bullets recording verdicts and verbatim evidence. Save trigger campaigns to `test-campaigns/YYYY-MM-DD-<skill-name>-trigger.md` — the `-trigger` suffix distinguishes them from discipline pressure-test campaigns at `test-campaigns/YYYY-MM-DD-<skill-name>.md`. If a log for the same skill and suffix already exists for that date, insert a two-digit sequence number: `test-campaigns/YYYY-MM-DD-NN-<skill-name>-trigger.md`, incrementing NN per additional same-day campaign.
+Trigger eval logs use the campaign log format: title `# Test Campaign: <skill-name> — <date>`, with per-run bullets recording verdicts and verbatim evidence. Save trigger campaigns to `test-campaigns/YYYY-MM-DD-<skill-name>-trigger.md` in the skill under test's directory (where its SKILL.md resides) — the `-trigger` suffix distinguishes them from discipline pressure-test campaigns at `test-campaigns/YYYY-MM-DD-<skill-name>.md`. If a log for the same skill and suffix already exists for that date, insert a two-digit sequence number: `test-campaigns/YYYY-MM-DD-NN-<skill-name>-trigger.md`, incrementing NN per additional same-day campaign.
 
 Two optional sections, appended in addition to or in place of `## Baseline` / `## With skill` when the campaign is trigger-focused:
 
@@ -212,7 +212,7 @@ The campaign log is the ONLY place trigger status lives. Never add trigger statu
 
 ### `trigger-evals/` directory convention
 
-The `trigger-evals/` directory lives beside `test-campaigns/` in the skill's host directory and holds `train.json`, `validation.json`, and any post-selection `YYYY-MM-DD-fresh.json`. Files are JSON arrays of `{"query": "<str>", "should_trigger": <bool>}` objects. Committed to source control like `test-campaigns/` — `trigger-evals/` is NOT gitignored. Linked from the campaign index by filename; never referenced from `SKILL.md`. The first trigger campaign creates the directory; this plan creates none.
+The `trigger-evals/` directory lives in the skill under test's directory (where its SKILL.md resides, beside `test-campaigns/`) and holds `train.json`, `validation.json`, and any post-selection `YYYY-MM-DD-fresh.json`. Files are JSON arrays of `{"query": "<str>", "should_trigger": <bool>}` objects. Committed to source control like `test-campaigns/` — `trigger-evals/` is NOT gitignored. Linked from the campaign index by filename; never referenced from `SKILL.md`. The first trigger campaign against a skill creates the directory.
 
 ## Standalone Boundary
 
