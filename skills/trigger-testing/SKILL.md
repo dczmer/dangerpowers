@@ -15,11 +15,13 @@ Input: one target skill name, or a list of target skills. The skill name(s) are 
 
 1. Read the target skill's `SKILL.md` and its current frontmatter `description`.
 2. Build the eval set per Trigger Eval Query Design; split it per Train/Validation Split into `trigger-evals/train.json` and `trigger-evals/validation.json`. You author every query yourself — never ask the user to supply, confirm, or answer eval queries.
-3. Smoke-test the harness (see Harness below): dispatch ONE should-trigger query as a `Task` tool call to the `trigger-evaluator` subagent and read the rep's returned message before dispatching full runs. The smoke rep verifies the `trigger-evaluator` subagent receives skill descriptions in context and can invoke the skill tool — if the subagent cannot load skills, stop and fix the agent configuration before any campaign. Because detection under this harness is the rep's own report (not a greppable event stream), the smoke run must also confirm the rep names the specific skill it loaded, distinguishing the candidate from a sibling.
-4. Run the Optimization Loop: evaluate, revise per failure class, repeat — selecting the best iteration by validation pass rate.
-5. Run the fresh-query sanity check; at most one train-expansion re-opt.
-6. Check the Done Criteria, then write the results log per Results Log Format — one log per target skill.
-7. Given a list of skills, advance per Multi-Skill Campaigns.
+3. Create the campaign workspace: run `WS=$(skills/trigger-testing/scripts/trigger-test.sh init)`. The workspace contains frontmatter-only stubs of every skill under `skills/` plus the `trigger-evaluator` agent. One workspace per campaign — every eval in this campaign reuses it; never create a workspace per eval.
+4. Smoke-test the harness (see Harness below): run ONE should-trigger query through the harness and read the verdict block before running full campaigns. The smoke run verifies the `trigger-evaluator` agent sees the stub descriptions and can invoke the skill tool — if the eval cannot load any skill, stop and fix the workspace or agent setup before any campaign. The smoke run must also confirm the verdict names the candidate skill specifically, distinguishing it from a sibling.
+5. Run the Optimization Loop: evaluate, revise per failure class, repeat — selecting the best iteration by validation pass rate.
+6. Run the fresh-query sanity check; at most one train-expansion re-opt.
+7. Check the Done Criteria, then write the results log per Results Log Format — one log per target skill.
+8. Given a list of skills, advance per Multi-Skill Campaigns.
+9. Clean up the workspace: run `skills/trigger-testing/scripts/trigger-test.sh cleanup --workspace "$WS"` — always, including when the campaign aborts early. A finished campaign leaves no workspace artifacts behind.
 
 ## Scope
 
@@ -112,37 +114,55 @@ Then run a **fresh-query sanity check**: 5 queries never used in optimization, r
 
 ## Harness
 
-Every query — smoke, train, validation, fresh — is dispatched to a subagent via the `Task` tool. Queries are NEVER sent to the user. The `question` tool plays no role in this campaign; if you are about to ask the user an eval query, you have confused the measurement target — the subagent rep is the subject under test, not the user.
+Every query — smoke, train, validation, fresh — is executed by `skills/trigger-testing/scripts/trigger-test.sh` inside the campaign's isolated workspace. Queries are NEVER sent to the user. The `question` tool plays no role in this campaign; if you are about to ask the user an eval query, you have confused the measurement target — the workspace eval is the subject under test, not the user.
 
-**Invoke:** one `Task` tool call per rep, with these exact parameters:
+**Workspace lifecycle:** one workspace per campaign, created in Workflow step 3, reused for every eval, removed in Workflow step 9 — including on abort. The workspace holds frontmatter-only stubs of every skill plus the `trigger-evaluator` agent; skill bodies, the repo codebase, and the repo `AGENTS.md` are absent by construction.
 
-- `subagent_type`: `"trigger-evaluator"` (defined in `agents/trigger-evaluator.md`) — always; never `general` or another agent.
-- `prompt`: the eval query verbatim, as the entire prompt — nothing else (see Bare-query dispatch below).
-- `description`: a neutral 3–5 word bookkeeping label (e.g. `"trigger rep: should-trigger"`). This labels the task for the runner, so keep the candidate skill's name and expected verdict out of it.
-- Never set `task_id` — every rep is a fresh session (see Rep independence below).
+**Invoke:** one eval per rep:
 
-Reps run from the repo root.
+```bash
+skills/trigger-testing/scripts/trigger-test.sh eval --skill <candidate> --workspace "$WS" "$(cat <<'EOF'
+<eval query, verbatim>
+EOF
+)"
+```
 
-**Bare-query dispatch:** the dispatch prompt contains ONLY the eval query — no framing, no skill names, no indication that it is a test. The campaign runner's context is saturated with the candidate skill (it read the SKILL.md and authored the eval set); anything beyond the bare query carries that context into the rep and biases the routing decision, so the rep measures the prompt instead of the description.
+- The scenario argument is the eval query verbatim, passed through a `<<'EOF'` heredoc so quotes, backticks, and shell metacharacters survive intact — nothing else reaches the evaluator (see Bare-query dispatch below).
+- For scenario text saved to a file, use `--scenario-file PATH`; the path must reside inside the workspace and the script rejects files outside it.
+- Optional model: add `--model provider/model`. When omitted, the script passes no model argument at all.
+- Every rep is a fresh `opencode run` invocation (see Rep independence below).
 
-Reps MUST run under the `trigger-evaluator` agent (`agents/trigger-evaluator.md`). Its only tool is `skill` — read, grep, glob, list, bash, edit, task, todowrite, webfetch, websearch, and question are all permission-denied, and a `steps` cap bounds its iterations — so a triggered skill loads (which is the measurement) but no part of its workload can execute, and a rep cannot burn turns digging for context on vague queries.
+**Bare-query dispatch:** the scenario contains ONLY the eval query — no framing, no skill names, no indication that it is a test. The campaign runner's context is saturated with the candidate skill (it read the SKILL.md and authored the eval set); anything beyond the bare query carries that context into the eval and biases the routing decision, so the eval measures the prompt instead of the description.
 
-**Detection:** the rep's final message reports which skill it loaded (the skill tool's `name` input) or that no skill matched. Detection **must** be candidate-specific. A rep where a *sibling* skill fired instead of the candidate is a FAIL, not a pass — "any skill fired" is the failure mode the smoke test caught (`prompt-shaping` stole routing from `writing-prds`).
+Evals run under the `trigger-evaluator` agent (`agents/trigger-evaluator.md`), copied into the workspace by `trigger-test.sh init`. Its only tool is `skill` — read, grep, glob, list, bash, edit, task, todowrite, webfetch, websearch, and question are all permission-denied, and a `steps` cap bounds its iterations — so a triggered skill loads (which is the measurement) but no part of its workload can execute, and an eval cannot burn turns digging for context on vague queries.
 
-**Rep independence:** every rep is a fresh task invocation — never resume a prior rep's session. Reps share no context with each other or with later iterations.
+**Detection:** mechanical, from the eval run's JSON event stream — never from the runner reading a transcript. The script parses the stream for the skill-load signal (a `skill` tool invocation naming the skill, or a `Skill loaded: <name>` text report) and prints a verdict block:
+
+```
+verdict: loaded | not-loaded
+target: <candidate>
+loaded_skills: <comma-separated names, or none>
+conflict: none | wrong-skill | additional-skills
+conflict_skills: <comma-separated names, or none>
+```
+
+A run that ends, times out, or hits its step limit without a load signal for the candidate is **not-loaded**; the verdict is binary and does not distinguish those cases. Detection **must** be candidate-specific: an eval where a *sibling* skill fired instead of the candidate reports `verdict: not-loaded` with `conflict: wrong-skill` — "any skill fired" is the failure mode the smoke test caught (`prompt-shaping` stealing routing from `writing-prds`). The `conflict_skills` field names what actually loaded — target-plus-extras (`additional-skills`) or the wrong skill (`wrong-skill`) — so over-similar descriptions can be reworked.
+
+**Rep independence:** every rep is a fresh `opencode run` session. Workspace reuse carries no context between reps — the workspace holds only static stubs and the agent definition, so a reused workspace cannot change an eval's outcome relative to running it alone.
 
 **Pass criterion:** should-trigger query passes when trigger rate > 0.5 over ≥3 reps; should-not passes when rate < 0.5. Reps ≥3 per query. **Bump to 5 reps only on consecutive-opposite-outcome** — a 3-of-3 split across trigger / no-trigger (≥2 distinct outcomes over the 3 baseline reps). Borderline verdicts no longer rest on agent judgment alone; record the 3 per-rep outcomes and a one-line rationale in the campaign log. **Bump rate cap: ≤25% of queries per iteration** may be bumped.
 
-**Load-and-stop (per rep):** the rep measures the load decision only. After the skill tool returns, the rep MUST report the loaded skill's exact name (or the no-match decision) in one line and end the turn. The loaded skill body is context only — the rep must not load or activate any skill workflow or procedures: do not begin step 1, do not create todos from its checklist, do not follow its process, do not narrate "starting" the workflow. A rep that begins executing a loaded skill's workflow is void — re-dispatch a fresh replacement and never count it, same convention as error/hang voids. Because dispatch is bare-query, no prompt framing may carry this rule into the rep; the `trigger-evaluator` agent definition is the enforcement channel, which is why every rep MUST run under that agent and no other.
+**Load-and-stop (per rep):** the rep measures the load decision only. In the isolated workspace a loaded skill is a frontmatter stub — there is no body to execute — so post-load workflow execution is impossible by construction, and the `trigger-evaluator` agent's report-and-stop rule (`agents/trigger-evaluator.md`) remains as a second enforcement layer. An eval whose verdict block is missing or unparseable (script error, missing workspace, non-JSON output) is void — fix the cause, re-dispatch a fresh replacement, and never count it, same convention as error/hang voids.
 
-**Workload isolation (per rep):** reps run under `trigger-evaluator`, whose skill-only tool surface and `steps` cap make a triggered skill's workload impossible to execute and bound every rep's cost — that is the abort mechanism, and it is structural, not procedural. If a rep hangs or fails to return a clear load/no-load verdict (error, or a report that names neither a loaded skill nor a no-match decision), void it and re-dispatch a fresh replacement — mirroring the pressure-testing void-run convention. Never count a voided rep.
+**Workload isolation (per rep):** two structural layers. The stub-only workspace removes skill bodies, the codebase, and anything to analyze; the `trigger-evaluator` agent's skill-only tool surface and `steps` cap bound every rep's cost — that is the abort mechanism, and it is structural, not procedural. A hung `opencode run` is killed by the script's timeout guard and reports not-loaded; only a missing or unparseable verdict block makes the eval void per Load-and-stop above.
 
-**Intra-iteration rep parallelism:** dispatch the per-iteration rep matrix in parallel in one message — multiple `Task` calls in a single assistant message, each configured per the Invoke spec above. Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
+**Intra-iteration rep parallelism:** run the per-iteration rep matrix as concurrent background shell jobs — each its own `trigger-test.sh eval` invocation writing its own verdict block — then wait for all jobs and collect the blocks. Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
 
 ## Contamination Rules
 
-1. **Cross-skill description visibility is expected, not contamination.** Per repo `AGENTS.md`, these skills ship together, so a sibling routing win on a should-trigger rep is a real measurement, not an error to be filtered out.
-2. **Repo `AGENTS.md` loads in every rep — do not strip it.** Reps run from the repo root, so the repo's rules file is in context. It is constant across iterations, so it cannot bias the train/validation comparisons that select the winning description, and it is part of the deployment reality for this repo's skill library. If `AGENTS.md` names the candidate skill verbatim, record that in the campaign log — absolute trigger rates for that skill may read high relative to deployments without it.
+1. **Cross-skill description visibility is expected, not contamination.** Per repo `AGENTS.md`, these skills ship together, so a sibling routing win on a should-trigger eval is a real measurement, not an error to be filtered out. The workspace stubs every skill under `skills/`, so sibling descriptions compete exactly as in deployment.
+2. **Reps no longer see the repo `AGENTS.md` or the real codebase — rates recorded under the old repo-root harness are not comparable.** The isolated workspace removes both by design. Campaign logs written before this harness shipped were measured with `AGENTS.md` in context and real skill bodies present; treat them as a different measurement regime, never as a baseline to match.
+3. **Globally installed skills can leak into the workspace.** Skills under `~/.config/opencode/skills`, `~/.claude/skills`, and `~/.agents/skills` load in every opencode run, including workspace evals. A load of a skill absent from this repo's `skills/` appears in `loaded_skills`; record it in the campaign log as environmental noise and exclude it from conflict-rework decisions about this repo's descriptions.
 
 ## Done Criteria
 
@@ -159,7 +179,7 @@ The selected description may not be the last iteration — it is the one with th
 
 When a plan campaigns multiple skills in sequence against a shared live description state, selecting the best-validation-pass-rate iteration may change an earlier skill's description to a non-final (earlier) iteration. A later phase's campaign runs against the live state of all skills, including just-campaigned earlier skills — so a later phase's regression can route differently than the earlier phase's measurement assumed, and recorded pass rates no longer hold.
 
-**Final-Verification regression smoke:** in the plan's Final Verification, re-run 1 rep of each campaigned skill's canonical should-trigger smoke query against the final pinned description state (~12 reps for a 12-skill plan). Report any cross-phase routing regression. This is cheap insurance against the assertion that file-disjoint edits can't cross-talk — true for *files* but not for *routing behavior* when the candidate description itself changed mid-campaign.
+**Final-Verification regression smoke:** in the plan's Final Verification, re-run 1 eval of each campaigned skill's canonical should-trigger smoke query against the final pinned description state through the campaign workspace (~12 evals for a 12-skill plan). Report any cross-phase routing regression. This is cheap insurance against the assertion that file-disjoint edits can't cross-talk — true for *files* but not for *routing behavior* when the candidate description itself changed mid-campaign.
 
 ## Common Mistakes
 
@@ -168,14 +188,14 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 | Optimizing against the full eval set (no split) | Use train/validation split; select best iteration by validation pass rate |
 | Pasting failed-query keywords into the description | Find the general category, not the specific query |
 | Stopping at the last iteration | Compare validation pass rates across all iterations; pick the best |
-| Treating a sibling skill firing as "any skill fired, pass" | Detection must check `input.name` against the candidate specifically |
+| Treating a sibling skill firing as "any skill fired, pass" | The verdict is candidate-specific: sibling-only loads report `not-loaded` with `conflict: wrong-skill` |
 | Forgetting the 1024-char ceiling mid-optimization | Re-check every iteration; descriptions grow |
 | Stripping skills via `XDG_CONFIG_HOME` for "clean" baselines | Wrong approach for trigger evals — keeps the candidate out. Trigger-eval baselines measure the candidate's routing rate against siblings |
-| Skipping the smoke-test (1-rep dispatch) before running the full campaign | Run ONE rep through the harness and read its output before dispatching the full rep matrix |
-| Running reps with a full-tool agent | Always dispatch the `trigger-evaluator` subagent — under a full-tool agent a triggered skill executes its real workload on every rep |
-| Rep begins the loaded skill's workflow after the load event | The rep's job ends at the load decision — report the skill name and stop. A workflow-executing rep is void; re-dispatch and never count it |
-| Adding framing, skill names, or "this is a test" context to the rep dispatch prompt | Dispatch the bare eval query only — anything more carries the runner's context into the rep and biases the routing measurement |
-| Asking the user eval queries via the `question` tool | The user is never a rep. All queries go to `trigger-evaluator` subagents via `Task`; the runner authors them without user input. |
+| Skipping the smoke-test before running the full campaign | Run ONE should-trigger eval through `trigger-test.sh` and read its verdict block before running the full rep matrix |
+| Running evals outside the isolated harness | Always run evals through `trigger-test.sh` — only it guarantees the stub-only workspace and the skill-only `trigger-evaluator` agent |
+| Assuming a triggered skill can execute its workflow | Stubs are frontmatter-only — there is no body to execute. A missing or unparseable verdict block means the eval is void: fix the cause, re-dispatch fresh, never count it |
+| Adding framing, skill names, or "this is a test" context to the scenario | Pass the bare eval query only, via `<<'EOF'` heredoc — anything more carries the runner's context into the eval and biases the routing measurement |
+| Asking the user eval queries via the `question` tool | The user is never a rep. All queries go through `trigger-test.sh eval` into the isolated workspace; the runner authors them without user input. |
 | Fixing false triggers by appending a longer "Do NOT use" list | Negations trail; boundaries lead. Restructure the description so the exclusion is the opening condition — and if it still fails, suspect a body/label conflict, not a wording problem |
 
 ## Results Log Format
