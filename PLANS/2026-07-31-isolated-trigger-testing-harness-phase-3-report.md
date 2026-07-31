@@ -5,7 +5,7 @@ plan: PLANS/2026-07-31-isolated-trigger-testing-harness-plan.md
 phase: 3
 status: DONE
 git_commit_start: 78d48b670225c6821d442d9e4cf83ded4c8b6c16
-git_commit_end: <filled at commit time>
+git_commit_end: 18b49c59cf9e211f2a295aa215a41aec886f6caa
 ---
 
 # Phase 3: Replace the Harness Inside the trigger-testing Skill — Implementation Report
