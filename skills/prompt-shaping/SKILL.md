@@ -1,6 +1,6 @@
 ---
 name: prompt-shaping
-description: Use when a user's request is vague, underspecified, or incomplete — the request names a goal without naming the scope, target, or boundaries (even if those words aren't used). Use this skill to avoid building the wrong thing by clarifying intent before execution. Does not apply when the request already names specific files, libraries, or exact implementation details.
+description: Use ONLY when the user asks for help with the request itself — clarifying what they mean, expressing uncertainty ("not sure", "help me understand", "what should I do"), or making a hedged ask like "some kind of X" — and NOT when the user asks for work. A request to do something (write, fix, add, build, run, implement, refactor), however vague or incomplete, does NOT use this skill — do the work or ask one targeted question instead. Use this skill to restate intent and align on scope before executing, so misalignment costs a sentence instead of a wrong implementation.
 ---
 
 # Prompt Shaping

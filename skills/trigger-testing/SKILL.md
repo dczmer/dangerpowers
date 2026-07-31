@@ -41,6 +41,10 @@ Rules for writing and revising skill descriptions:
 - **Weave trigger terms into prose** (error messages, symptoms, synonyms, tool names). Never append a `Keywords:` or `Trigger phrases:` label.
 - **YAML safety.** The description is a YAML scalar: a plain scalar cannot contain a colon followed by a space, and the 1024-char limit is hard. Prefer plain prose; use a block scalar (`description: >`) only if a list-like term is genuinely unavoidable.
 - **Generalize failures.** When an eval query fails, address the general category the query represents — never paste the failed query's specific keywords into the description (that overfits).
+- **Front-load boundaries; never trail them.** A "Do NOT use for..." clause at the end of a description is weak — reps read the positive trigger framing as dominant and rationalize past trailing negations. If a boundary matters, make it the primary condition ("Use ONLY when X and NOT when Y") rather than an afterthought.
+- **Match speech acts, not request properties.** The router can only match what's visible in the prompt's surface. "Request is vague / lacks scope / is underspecified" is a property the router must *infer* — and it will infer it for every vague task, including your negatives. "User says 'not sure', asks 'what should I do', hedges with 'some kind of X'" is a surface signal it can *match*. Frame triggers as what the user says or does, never as judgments about the request's completeness.
+- **Anchor with quoted micro-phrases.** Short quoted signals ("not sure", "some kind of X") give the router literal handles to match against; they outperformed abstract category names ("expresses uncertainty") in back-to-back iterations. This is the strong form of "weave trigger terms into prose."
+- **Name negative classes by verb category.** When excluding a class of requests, list the action verbs that define it (write, fix, add, run) rather than describing the class abstractly ("direct imperatives", "actionable requests"). Abstract exclusions are unenforceable for the same reason abstract triggers are unmatchable. Note this sharpens boundaries the router already respects; it cannot create new ones.
 
 ## Trigger Eval Query Design
 
@@ -62,6 +66,8 @@ Vary queries across these axes so the set exercises the description, not a singl
 Use **near-miss** negatives — queries that share keywords or concepts with the skill but need something different. `"What's the weather?"` is a weak negative: it tests nothing, because no skill would trigger on it. A strong negative for `writing-prds` is "help me write a README for this library" — same surface keywords ("write", "documentation"), different need.
 
 Reject weak negatives at design time. A near-miss negative that the description correctly *doesn't* fire on is the highest-signal query in the set.
+
+**Body-consistency check.** Before labeling a query should-not, read the candidate's `SKILL.md` body and confirm its "when to use / when not to use" statements agree with the label. A body that endorses the behavior a negative label forbids (e.g. a body saying "ask clarifying questions when underspecified" paired with a vague-request negative) predicts false-trigger failures that no description edit will fix — the router infers the skill's purpose from the body, and the description cannot outvote it.
 
 ### Realism tips
 
@@ -85,13 +91,13 @@ Why split: optimizing against the full set risks overfitting to the exact querie
 ≤3 iterations. The four steps, in spirit from agentskills.io:
 
 1. **Evaluate current description** on train + validation.
-2. **Identify train-set failures only.** Train results guide changes; validation results are set aside — do not tune against them.
+2. **Identify train-set failures only.** Train results guide changes; validation results are set aside — do not tune against them. **Read rep rationales forensically.** The rep's stated justification reveals which clause anchored its decision. If rationales quote phrasing that appears in *no* iteration of your description, the anchor is the skill body or a sibling's description — your edits aren't reaching the decision, and more rewording won't help.
 3. **Revise per failure class** (table below).
 4. **Repeat** until all train queries pass or improvement stalls. Select the best iteration by validation pass rate — which may not be the last.
 
 Re-check the 1024-char description ceiling **every iteration**. Descriptions grow during optimization; a passing iteration that blew the ceiling is invalid, not a win.
 
-Then run a **fresh-query sanity check**: 5 queries never used in optimization, run once through the harness. If the selected description fails the fresh check, the train set was unrepresentative — expand train and re-optimize **at most once** (one train expansion; ≤3 iterations on the expanded set, same cap). Ship the best-validation-pass-rate iteration even if the fresh check still fails — record residuals and defer them to a follow-up plan, mirroring the iteration cap. Do not iterate against the fresh queries themselves (they would become a second train set).
+Then run a **fresh-query sanity check**: 5 queries never used in optimization, run once through the harness. If the selected description fails the fresh check, the train set was unrepresentative — expand train and re-optimize **at most once** (one train expansion; ≤3 iterations on the expanded set, same cap). Expand only if the fresh failure class is absent from train: if train already contains the failing class and it has failed across structurally distinct framings, expansion adds samples of a proven local minimum, not new signal — skip the re-opt and record residuals. Ship the best-validation-pass-rate iteration even if the fresh check still fails — record residuals and defer them to a follow-up plan, mirroring the iteration cap. Do not iterate against the fresh queries themselves (they would become a second train set).
 
 ### Failure-class remediation
 
@@ -100,6 +106,7 @@ Then run a **fresh-query sanity check**: 5 queries never used in optimization, r
 | Should-trigger query didn't fire | description too narrow | broaden scope or add context about when the skill is useful |
 | Should-not query false-triggered | description too broad | add specificity about what the skill does NOT do; clarify boundary with adjacent skills |
 | Same query fails repeatedly after tweaks | local minimum | try a structurally different framing of the description rather than incremental tweaks |
+| Same should-not query false-triggers across structurally different framings | eval labels conflict with the skill's own body | Inspect `SKILL.md` for body statements that justify the unwanted trigger (e.g. "ask clarifying questions when underspecified"). A description cannot outvote the purpose a router infers from the body. Resolve the policy conflict first — relabel the evals or rewrite the body — before spending more iterations on the description |
 
 **Never paste specific failed-query keywords into the description** — that overfits. Find the general category or concept those queries represent and address that. (Cross-reference: this is the same principle encoded in this skill's Description Best Practices — weave trigger terms into prose, never enumerate them as a labeled list.)
 
@@ -169,6 +176,7 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 | Rep begins the loaded skill's workflow after the load event | The rep's job ends at the load decision — report the skill name and stop. A workflow-executing rep is void; re-dispatch and never count it |
 | Adding framing, skill names, or "this is a test" context to the rep dispatch prompt | Dispatch the bare eval query only — anything more carries the runner's context into the rep and biases the routing measurement |
 | Asking the user eval queries via the `question` tool | The user is never a rep. All queries go to `trigger-evaluator` subagents via `Task`; the runner authors them without user input. |
+| Fixing false triggers by appending a longer "Do NOT use" list | Negations trail; boundaries lead. Restructure the description so the exclusion is the opening condition — and if it still fails, suspect a body/label conflict, not a wording problem |
 
 ## Results Log Format
 
