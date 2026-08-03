@@ -1,0 +1,12 @@
+[
+  {"query": "I'm not sure what I should do with this file", "should_trigger": true},
+  {"query": "help me understand how this works", "should_trigger": true},
+  {"query": "I need some kind of validation for this", "should_trigger": true},
+  {"query": "what does this prompt mean", "should_trigger": true},
+  {"query": "I'm confused about the request, can you clarify", "should_trigger": true},
+  {"query": "write a function to calculate the sum", "should_trigger": false},
+  {"query": "fix this bug in the login flow", "should_trigger": false},
+  {"query": "add error handling to the API", "should_trigger": false},
+  {"query": "build a REST endpoint for users", "should_trigger": false},
+  {"query": "run the tests for this module", "should_trigger": false}
+]
