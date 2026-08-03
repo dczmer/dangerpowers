@@ -1,6 +1,6 @@
 ---
 name: scouting-context
-description: Use when preparing to plan a code change and needing to compress research findings into a handoff brief — affected files, call sites, blast radius, constraints, risks, validation commands, and where to start. Also use when a research findings document exists and needs to become actionable context, or when about to embed a recommended approach in the handoff, pick one of two competing patterns for the planner, or ship a handoff brief with empty sections. Covers pre-planning context bundles.
+description: Use when you need to compress research findings into a handoff brief for planning — turn research documents into actionable context, embed recommended approaches from your research, help pick one of two competing patterns for the planner, or ship a context bundle with empty sections. Also use for pre-planning context bundles that document affected files, call sites, blast radius, constraints, risks, validation commands, and where to start. Covers pre-planning context bundles.
 ---
 
 # Scouting Context
