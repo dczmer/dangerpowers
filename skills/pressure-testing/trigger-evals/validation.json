@@ -1,0 +1,12 @@
+[
+  {"query": "I need to validate a discipline enforcement rule before release", "should_trigger": true},
+  {"query": "Testing whether a skill enforces compliance rules", "should_trigger": true},
+  {"query": "Baseline test for a discipline skill with rule violations", "should_trigger": true},
+  {"query": "With-skill run for discipline rule compliance", "should_trigger": true},
+  {"query": "RED phase testing for discipline skill rules", "should_trigger": true},
+  {"query": "Help me write documentation for a new tool", "should_trigger": false},
+  {"query": "Create a plan for implementing this feature", "should_trigger": false},
+  {"query": "Write a skill description for the API reference", "should_trigger": false},
+  {"query": "Draft technical requirements for authentication", "should_trigger": false},
+  {"query": "Generate a product requirements document", "should_trigger": false}
+]
