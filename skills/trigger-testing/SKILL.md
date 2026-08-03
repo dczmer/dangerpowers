@@ -30,11 +30,10 @@ Input: one target skill name, or a list of target skills. The skill name(s) are 
 
 ## Scope
 
-Trigger optimization measures **the decision to load at all** — not compliance after load. It is a separate testing axis from pressure testing:
+Trigger optimization measures **the decision to load at all** — not compliance after load.
 
-- Pressure testing gates the **body rules** of discipline skills; trigger evals gate the **description** of every skill.
+- Trigger evals gate the **description** of every skill.
 - It applies to every skill regardless of type — discipline, technique, pattern, and reference. Reference skills (exempt from pressure testing per the writing-skills skill's Testing Discipline Skills section) are NOT exempt here: a reference skill with a description that fails to trigger is a skill that never loads.
-- A skill can pass one axis and fail the other. A perfectly pressure-tested body with a description that never triggers is invisible; a description that triggers perfectly on rules that violate under pressure is untrustworthy. Run both axes; do not substitute one for the other.
 
 ## Description Best Practices
 
@@ -99,7 +98,8 @@ Why split: optimizing against the full set risks overfitting to the exact querie
 
 1. **Evaluate current description** on train + validation.
 2. **Identify train-set failures only.** Train results guide changes; validation results are set aside — do not tune against them. **Read rep rationales forensically.** The rep's stated justification reveals which clause anchored its decision. If rationales quote phrasing that appears in *no* iteration of your description, the anchor is the skill body or a sibling's description — your edits aren't reaching the decision, and more rewording won't help.
-3. **Revise per failure class** (table below).
+3. **Revise per failure class** (table below). After every description revision, re-sync the workspace stub — the stub is an init-time snapshot and does not track the real `SKILL.md`, so an un-synced next iteration measures the *previous* description and every verdict is garbage:
+   `skills/trigger-testing/scripts/trigger-test.sh sync --skill <candidate> --workspace WS_PATH`
 4. **Repeat** until all train queries pass or improvement stalls. Select the best iteration by validation pass rate — which may not be the last.
 
 Re-check the 1024-char description ceiling **every iteration**. Descriptions grow during optimization; a passing iteration that blew the ceiling is invalid, not a win.
@@ -121,7 +121,7 @@ Then run a **fresh-query sanity check**: 5 queries never used in optimization, r
 
 Every query — smoke, train, validation, fresh — is executed by `skills/trigger-testing/scripts/trigger-test.sh` inside the campaign's isolated workspace. Queries are NEVER sent to the user. The `question` tool plays no role in this campaign; if you are about to ask the user an eval query, you have confused the measurement target — the workspace eval is the subject under test, not the user.
 
-**Workspace lifecycle:** one workspace per campaign, created in Workflow step 3, reused for every eval, removed in Workflow step 9 — including on abort. The workspace holds frontmatter-only stubs of every skill plus the `trigger-evaluator` agent; skill bodies, the repo codebase, and the repo `AGENTS.md` are absent by construction.
+**Workspace lifecycle:** one workspace per campaign, created in Workflow step 3, reused for every eval, removed in Workflow step 9 — including on abort. The workspace holds frontmatter-only stubs of every skill plus the `trigger-evaluator` agent; skill bodies, the repo codebase, and the repo `AGENTS.md` are absent by construction. Stubs are an init-time snapshot: whenever the candidate's description changes during the optimization loop, run `trigger-test.sh sync --skill <candidate> --workspace WS_PATH` before the next eval — never re-run `init` to pick up a revision.
 
 **Invoke:** one eval per rep, pasting the literal WS_PATH recorded in Workflow step 3b (`$WS` does not survive between shell invocations):
 
@@ -196,6 +196,7 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 | Stopping at the last iteration | Compare validation pass rates across all iterations; pick the best |
 | Treating a sibling skill firing as "any skill fired, pass" | The verdict is candidate-specific: sibling-only loads report `not-loaded` with `conflict: wrong-skill` |
 | Forgetting the 1024-char ceiling mid-optimization | Re-check every iteration; descriptions grow |
+| Revising the description but evaluating against the stale init-time stub | Re-sync after every revision: `trigger-test.sh sync --skill <candidate> --workspace WS_PATH` — without it the next iteration measures the previous description |
 | Stripping skills via `XDG_CONFIG_HOME` for "clean" baselines | Wrong approach for trigger evals — keeps the candidate out. Trigger-eval baselines measure the candidate's routing rate against siblings |
 | Skipping the smoke-test before running the full campaign | Run ONE should-trigger eval through `trigger-test.sh` and read its verdict block before running the full rep matrix |
 | Running evals outside the isolated harness | Always run evals through `trigger-test.sh` — only it guarantees the stub-only workspace and the skill-only `trigger-evaluator` agent |

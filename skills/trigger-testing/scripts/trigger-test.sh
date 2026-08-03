@@ -6,6 +6,7 @@ usage() {
 usage:
   trigger-test.sh init [--source DIR]
   trigger-test.sh eval --skill NAME [--workspace DIR] [--model PROVIDER/MODEL] [--scenario-file PATH] [SCENARIO_TEXT]
+  trigger-test.sh sync --skill NAME [--workspace DIR] [--source DIR]
   trigger-test.sh cleanup [--workspace DIR]
 
 init    creates one campaign workspace and prints its path on stdout:
@@ -21,6 +22,12 @@ eval    runs one scenario in the workspace and prints a verdict block:
           conflict: none | wrong-skill | additional-skills
           conflict_skills: <comma-separated names, or none>
         The workspace comes from --workspace or $TRIGGER_TEST_WORKSPACE.
+sync    re-extracts the frontmatter of skills/NAME/SKILL.md (from --source,
+        defaulting to the repository root) into the workspace stub, so evals
+        measure the description just revised. Run after every description
+        edit; the workspace stub is an init-time snapshot and does not track
+        the real SKILL.md. Workspace comes from --workspace or
+        $TRIGGER_TEST_WORKSPACE.
 cleanup removes the workspace (--workspace or $TRIGGER_TEST_WORKSPACE).
 EOF
   exit 1
@@ -141,6 +148,33 @@ cmd_eval() {
     "$verdict" "$skill" "$loaded_csv" "$conflict" "${others:-none}" "$rc"
 }
 
+cmd_sync() {
+  local skill="" ws="" source=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --skill) skill="$2"; shift 2 ;;
+      --workspace) ws="$2"; shift 2 ;;
+      --source) source="$2"; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  [ -n "$skill" ] || { echo "error: --skill NAME is required" >&2; usage; }
+  ws="${ws:-${TRIGGER_TEST_WORKSPACE:-}}"
+  [ -n "$ws" ] && [ -d "$ws/.agents/skills/$skill" ] \
+    || { echo "error: workspace unset or has no stub for skill '$skill': ${ws:-<unset>}" >&2; exit 1; }
+  if [ -z "$source" ]; then
+    source="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  fi
+  local src="$source/skills/$skill/SKILL.md"
+  [ -f "$src" ] || { echo "error: missing SKILL.md: $src" >&2; exit 1; }
+  if ! extract_frontmatter "$src" > "$ws/.agents/skills/$skill/SKILL.md"; then
+    echo "error: missing or unterminated frontmatter in $src" >&2; exit 1
+  fi
+  grep -q "^name: $skill\$" "$ws/.agents/skills/$skill/SKILL.md" \
+    || { echo "error: frontmatter name does not match directory in $src" >&2; exit 1; }
+  echo "synced: $skill"
+}
+
 cmd_cleanup() {
   local ws=""
   while [ $# -gt 0 ]; do
@@ -162,6 +196,7 @@ cmd="$1"; shift
 case "$cmd" in
   init) cmd_init "$@" ;;
   eval) cmd_eval "$@" ;;
+  sync) cmd_sync "$@" ;;
   cleanup) cmd_cleanup "$@" ;;
   *) usage ;;
 esac
