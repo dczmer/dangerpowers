@@ -1,0 +1,8 @@
+[
+  {"query": "I need to start work on a new feature branch that's isolated from my main checkout", "should_trigger": true},
+  {"query": "how do I create an isolated git checkout for feature work", "should_trigger": true},
+  {"query": "I want to implement a feature without touching my current branch", "should_trigger": true},
+  {"query": "help me write a PRD for a payment feature", "should_trigger": false},
+  {"query": "how do I fix a bug in my existing branch", "should_trigger": false},
+  {"query": "run tests for the current project", "should_trigger": false}
+]

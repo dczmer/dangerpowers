@@ -1,0 +1,10 @@
+[
+  {"query": "I need to start work on a new feature branch that's isolated from my main checkout", "should_trigger": true},
+  {"query": "help me set up an isolated workspace for feature development", "should_trigger": true},
+  {"query": "I'm working on the payment-retry feature and need a separate checkout", "should_trigger": true},
+  {"query": "git worktree add for a new feature branch", "should_trigger": true},
+  {"query": "I need linked worktrees under .worktrees for parallel development", "should_trigger": true},
+  {"query": "setting up workspaces for phase executors", "should_trigger": true},
+  {"query": "how do I create an isolated git checkout for feature work", "should_trigger": true},
+  {"query": "I want to implement a feature without touching my current branch", "should_trigger": true}
+]
