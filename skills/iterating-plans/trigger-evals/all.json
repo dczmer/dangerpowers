@@ -1,0 +1,12 @@
+[
+  {"query": "I reviewed the plan in PLANS/api-refactor.md and made some edits. The file:line references for user service calls are now at line 42 instead of 15. Can you update it and mark the changes?"},
+  {"query": "It's been two weeks since we approved the PLANS/auth-migration.md plan. I need to apply these changes from memory: move the database migration step to after the schema validation and remove the legacy auth cleanup. I know the codebase has drifted since then."},
+  {"query": "Can you update PLANS/feature-x.md with the feedback I just gave you? I know the file:line numbers might be stale - the config file moved from line 8 to line 23. Just apply the edits and fix the references."},
+  {"query": "I've been out for 3 days and the PLANS/payment-integration.md plan needs updating. The webhook handler is now at line 67 not 32. Apply my changes from memory: add idempotency check and update the retry logic. I know the code has drifted."},
+  {"query": "The PLANS/notification-service.md plan was approved last week. I need to edit it: move the email queue setup to before the template rendering and remove the SMS integration. The file references are outdated but just apply my edits."},
+  {"query": "Write a plan for implementing the new dashboard feature with user analytics and real-time updates"},
+  {"query": "How does the codebase handle plan approval status changes and when should I use this skill versus writing-plans?"},
+  {"query": "Execute the plan in PLANS/migration-2024.md and run the database schema updates"},
+  {"query": "I have a PRD for the search feature. Should I create a plan and then execute it, or just start coding?"},
+  {"query": "Research how the plan validation workflow works and when staleness detection triggers"}
+]

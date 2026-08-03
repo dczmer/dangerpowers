@@ -1,0 +1,22 @@
+[
+  {
+    "query": "I've been out for 3 days and the PLANS/payment-integration.md plan needs updating. The webhook handler is now at line 67 not 32. Apply my changes from memory: add idempotency check and update the retry logic. I know the code has drifted.",
+    "should_trigger": true
+  },
+  {
+    "query": "The PLANS/notification-service.md plan was approved last week. I need to edit it: move the email queue setup to before the template rendering and remove the SMS integration. The file references are outdated but just apply my edits.",
+    "should_trigger": true
+  },
+  {
+    "query": "It's been two weeks since we approved the PLANS/auth-migration.md plan. I need to apply these changes from memory: move the database migration step to after the schema validation and remove the legacy auth cleanup. I know the codebase has drifted since then.",
+    "should_trigger": true
+  },
+  {
+    "query": "Can you update PLANS/feature-x.md with the feedback I just gave you? I know the file:line numbers might be stale - the config file moved from line 8 to line 23. Just apply the edits and fix the references.",
+    "should_trigger": true
+  },
+  {
+    "query": "I have a PRD for the search feature. Should I create a plan and then execute it, or just start coding?",
+    "should_trigger": false
+  }
+]
