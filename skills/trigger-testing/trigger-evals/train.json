@@ -1,0 +1,13 @@
+[
+  {"query": "I need to test if my skill description triggers correctly on user prompts", "should_trigger": true},
+  {"query": "run a trigger-eval campaign to measure if my skill loads on the right queries", "should_trigger": true},
+  {"query": "I'm designing a new skill and need to validate its trigger behavior before shipping", "should_trigger": true},
+  {"query": "optimize the trigger description for my writing-prds skill with eval queries and validation splits", "should_trigger": true},
+  {"query": "measuring trigger rates for my skill to ensure it loads on should-trigger queries and not on should-not queries", "should_trigger": true},
+  {"query": "what's the weather like today?", "should_trigger": false},
+  {"query": "help me understand when to use the trigger-testing skill", "should_trigger": false},
+  {"query": "write a PRD for this new feature with user stories and acceptance criteria", "should_trigger": false},
+  {"query": "fix a bug in the authentication service", "should_trigger": false},
+  {"query": "implement the checkout flow for the e-commerce site", "should_trigger": false},
+  {"query": "run npm test to verify my changes work correctly", "should_trigger": false}
+]
