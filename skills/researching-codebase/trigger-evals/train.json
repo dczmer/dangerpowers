@@ -1,0 +1,22 @@
+[
+  {"query": "research the auth module in this codebase", "should_trigger": true},
+  {"query": "explore how the git workflow is implemented", "should_trigger": true},
+  {"query": "find where the user registration flow lives", "should_trigger": true},
+  {"query": "explain how data flows through the payment system", "should_trigger": true},
+  {"query": "map out the dependency structure of the project", "should_trigger": true},
+  {"query": "explain how the logging system works", "should_trigger": true},
+  {"query": "locate the entry points for the CLI commands", "should_trigger": true},
+  {"query": "gather context about the database schema before planning migrations", "should_trigger": true},
+  {"query": "research how the caching layer is configured", "should_trigger": true},
+  {"query": "find where the authentication middleware is defined", "should_trigger": true},
+  {"query": "explore the codebase to understand the event bus implementation", "should_trigger": true},
+  {"query": "locate all usages of the UserService class", "should_trigger": true},
+  {"query": "research how the API versioning is handled", "should_trigger": true},
+  {"query": "explain the workflow for deployment", "should_trigger": false},
+  {"query": "write a PRD for a new feature", "should_trigger": false},
+  {"query": "fix a bug in the authentication module", "should_trigger": false},
+  {"query": "add a new endpoint to the API", "should_trigger": false},
+  {"query": "implement the user profile page", "should_trigger": false},
+  {"query": "run the tests for the auth module", "should_trigger": false},
+  {"query": "optimize the database queries in the service layer", "should_trigger": false}
+]
