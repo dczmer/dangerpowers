@@ -1,0 +1,12 @@
+[
+  {"query": "execute an approved plan from PLANS/", "should_trigger": true},
+  {"query": "run this approved plan end-to-end", "should_trigger": true},
+  {"query": "resume an interrupted plan execution", "should_trigger": true},
+  {"query": "run the final verification commands for this plan", "should_trigger": true},
+  {"query": "orchestrate plan-to-execution with worktrees", "should_trigger": true},
+  {"query": "write a plan for implementing a new feature", "should_trigger": false},
+  {"query": "create a PRD for the analytics dashboard", "should_trigger": false},
+  {"query": "help me draft the requirements doc", "should_trigger": false},
+  {"query": "run the tests for this feature", "should_trigger": false},
+  {"query": "fix the bug in the auth module", "should_trigger": false}
+]

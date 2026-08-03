@@ -1,0 +1,8 @@
+[
+  {"query": "run an approved plan in PLANS/ now", "should_trigger": true},
+  {"query": "resume execution from a failed plan", "should_trigger": true},
+  {"query": "execute the plan's final verification", "should_trigger": true},
+  {"query": "start writing a new plan", "should_trigger": false},
+  {"query": "create documentation for this feature", "should_trigger": false},
+  {"query": "run the test suite", "should_trigger": false}
+]
