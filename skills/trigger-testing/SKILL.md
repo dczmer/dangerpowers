@@ -19,7 +19,7 @@ Input: one target skill name, or a list of target skills. The skill name(s) are 
    a. From the repo root (the script path is relative), run exactly:
       `WS=$(skills/trigger-testing/scripts/trigger-test.sh init) && echo "WORKSPACE=$WS"`
    b. Copy the printed path (it looks like `/tmp/trigger-test.XXXXXXXXXX`) into your working notes as **WS_PATH**. Shell variables do not survive between Bash tool invocations — in every later command, paste the literal WS_PATH wherever the workflow shows `"$WS"`; never rely on `$WS` or `TRIGGER_TEST_WORKSPACE`.
-   c. Verify once: `ls WS_PATH/.agents/skills` must list every skill name. If it does not, stop and fix the workspace before any eval.
+   c. Verify once: `ls WS_PATH/.agents/skills` must list every skill name. If it does not, stop and fix the workspace before any eval. Then confirm the candidate's stub matches the live SKILL.md — `skills/trigger-testing/scripts/trigger-test.sh status --skill <candidate> --workspace WS_PATH` must print `in-sync` (exit 0); re-run it any time mid-campaign you suspect drift, and re-`sync` on `stale`.
    d. If a later command fails with `workspace unset` or you have lost WS_PATH, recover the path from step 3a's output or by running `ls -d /tmp/trigger-test.*` — NEVER recover by re-running `init`. A second `init` creates a different workspace and orphans the first.
 4. Smoke-test the harness (see Harness below): run ONE should-trigger query through the harness and read the verdict block before running full campaigns. The smoke run verifies the `trigger-evaluator` agent sees the stub descriptions and can invoke the skill tool — if the eval cannot load any skill, stop and fix the workspace or agent setup before any campaign. The smoke run must also confirm the verdict names the candidate skill specifically, distinguishing it from a sibling.
 5. Run the Optimization Loop: evaluate, revise per failure class, repeat — selecting the best iteration by validation pass rate.
@@ -149,9 +149,11 @@ target: <candidate>
 loaded_skills: <comma-separated names, or none>
 conflict: none | wrong-skill | additional-skills
 conflict_skills: <comma-separated names, or none>
+exit_code: <exit code of the opencode run>
+timed_out: yes | no
 ```
 
-A run that ends, times out, or hits its step limit without a load signal for the candidate is **not-loaded**; the verdict is binary and does not distinguish those cases. Detection **must** be candidate-specific: an eval where a *sibling* skill fired instead of the candidate reports `verdict: not-loaded` with `conflict: wrong-skill` — "any skill fired" is the failure mode the smoke test caught (`prompt-shaping` stealing routing from `writing-prds`). The `conflict_skills` field names what actually loaded — target-plus-extras (`additional-skills`) or the wrong skill (`wrong-skill`) — so over-similar descriptions can be reworked.
+A run that ends or hits its step limit without a load signal for the candidate is **not-loaded**; a run killed by the timeout guard follows the split semantics in Workload isolation below — load signal already present keeps the verdict, absent is void. Detection **must** be candidate-specific: an eval where a *sibling* skill fired instead of the candidate reports `verdict: not-loaded` with `conflict: wrong-skill` — "any skill fired" is the failure mode the smoke test caught (`prompt-shaping` stealing routing from `writing-prds`). The `conflict_skills` field names what actually loaded — target-plus-extras (`additional-skills`) or the wrong skill (`wrong-skill`) — so over-similar descriptions can be reworked.
 
 **Rep independence:** every rep is a fresh `opencode run` session. Workspace reuse carries no context between reps — the workspace holds only static stubs and the agent definition, so a reused workspace cannot change an eval's outcome relative to running it alone.
 
@@ -159,9 +161,9 @@ A run that ends, times out, or hits its step limit without a load signal for the
 
 **Load-and-stop (per rep):** the rep measures the load decision only. In the isolated workspace a loaded skill is a frontmatter stub — there is no body to execute — so post-load workflow execution is impossible by construction, and the `trigger-evaluator` agent's report-and-stop rule (`agents/trigger-evaluator.md`) remains as a second enforcement layer. An eval whose verdict block is missing or unparseable (script error, missing workspace, non-JSON output) is void — fix the cause, re-dispatch a fresh replacement, and never count it, same convention as error/hang voids.
 
-**Workload isolation (per rep):** two structural layers. The stub-only workspace removes skill bodies, the codebase, and anything to analyze; the `trigger-evaluator` agent's skill-only tool surface and `steps` cap bound every rep's cost — that is the abort mechanism, and it is structural, not procedural. A hung `opencode run` is killed by the script's timeout guard and reports not-loaded; only a missing or unparseable verdict block makes the eval void per Load-and-stop above.
+**Workload isolation (per rep):** two structural layers. The stub-only workspace removes skill bodies, the codebase, and anything to analyze; the `trigger-evaluator` agent's skill-only tool surface and `steps` cap bound every rep's cost — that is the abort mechanism, and it is structural, not procedural. Timeout semantics split on the load signal: a timed-out rep whose event stream already contains the candidate's load signal keeps its verdict — the measurement happened before the kill; a timed-out rep with no load signal is **void** — the outcome is unknown, so retry it serially and never count it as not-loaded (counting it fabricates a false negative). The verdict block's `timed_out: yes|no` field marks which reps the guard killed; `trigger-test.sh batch` applies the void rule and serial retry automatically. Only a missing or unparseable verdict block joins timeout-without-load in the void class per Load-and-stop above.
 
-**Intra-iteration rep parallelism:** run the per-iteration rep matrix as concurrent background shell jobs — each its own `trigger-test.sh eval` invocation writing its own verdict block — then wait for all jobs and collect the blocks. Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
+**Intra-iteration rep parallelism:** run the per-iteration rep matrix through `trigger-test.sh batch --skill <candidate> --workspace WS_PATH --scenarios FILE` (one query per line), which executes reps through a bounded job pool at the default `--jobs 2`, retries timed-out-without-load reps serially, and prints each rep's verdict block plus a `batch summary:` line. Raise `--jobs` only when reps consistently finish well under the timeout (remote or fast models); on local models keep the default and let batch's serial retry absorb overload timeouts — unbounded fan-out saturates a local model and every rep times out. Reps within one iteration are interchangeable; the next iteration depends on the previous iteration's *failures*, so inter-iteration stays serial. This is within-phase fan-out and does not violate a plan's `Execution: inline` / `Parallel group: none` declarations — those govern inter-phase parallelism, not intra-phase fan-out.
 
 ## Contamination Rules
 
@@ -204,6 +206,8 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 | Adding framing, skill names, or "this is a test" context to the scenario | Pass the bare eval query only, via `<<'EOF'` heredoc — anything more carries the runner's context into the eval and biases the routing measurement |
 | Asking the user eval queries via the `question` tool | The user is never a rep. All queries go through `trigger-test.sh eval` into the isolated workspace; the runner authors them without user input. |
 | Fixing false triggers by appending a longer "Do NOT use" list | Negations trail; boundaries lead. Restructure the description so the exclusion is the opening condition — and if it still fails, suspect a body/label conflict, not a wording problem |
+| Launching the full rep matrix as unbounded parallel jobs | Use `trigger-test.sh batch` at the default `--jobs 2`; unbounded fan-out saturates local models and every rep times out |
+| Counting a timed-out rep as not-loaded | Check `timed_out:` in the verdict block; timeout without a load signal is void — retry serially, never count it |
 
 ## Results Log Format
 
@@ -216,6 +220,7 @@ Two optional sections, appended in addition to or in place of `## Baseline` / `#
 
 ### Iteration 1
 - Description (≤1024 chars): <paste verbatim>
+- Description sha256 (first 12): <hash>
 - Train pass rate: <N>/<M> queries
 - Validation pass rate: <N>/<M> queries
 - Train failures: <list queries+failure type>
@@ -225,6 +230,8 @@ Two optional sections, appended in addition to or in place of `## Baseline` / `#
 
 ### Selected iteration: <N> (validation pass rate <X>)
 ```
+
+Compute the hash at selection time with `sed -n 's/^description: //p' skills/<name>/SKILL.md | sha256sum | cut -c1-12` so later verification runs can detect post-campaign description drift.
 
 And:
 
