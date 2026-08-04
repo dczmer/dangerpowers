@@ -1,0 +1,17 @@
+[
+  {"query": "I need to write an implementation plan before I start coding", "should_trigger": true},
+  {"query": "after the research is done, help me write the plan for this feature", "should_trigger": true},
+  {"query": "write a plan for implementing authentication with OAuth", "should_trigger": true},
+  {"query": "I have research findings and I need a plan in PLANS/", "should_trigger": true},
+  {"query": "help me plan this with unresolved questions about the API", "should_trigger": true},
+  {"query": "write a PRD for a new feature", "should_trigger": false},
+  {"query": "create a product requirements document", "should_trigger": false},
+  {"query": "write a README for this library", "should_trigger": false},
+  {"query": "I need documentation for the API endpoints", "should_trigger": false},
+  {"query": "write a user guide for the application", "should_trigger": false},
+  {"query": "run the tests for this feature", "should_trigger": false},
+  {"query": "execute the test suite", "should_trigger": false},
+  {"query": "deploy the application to production", "should_trigger": false},
+  {"query": "fix a bug in the code", "should_trigger": false},
+  {"query": "add error handling to this function", "should_trigger": false}
+]
