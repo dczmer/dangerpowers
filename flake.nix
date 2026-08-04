@@ -31,6 +31,8 @@
               file
               gnused
               uv
+              shellcheck
+              shunit2
             ];
             shellHook = ''
               [[ -d .venv ]] || uv venv .venv
