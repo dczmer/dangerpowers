@@ -141,15 +141,6 @@ skills/
 
 Applies to new skills AND edits to existing rules. Before writing or changing a discipline rule, run a baseline pressure scenario without the skill and watch an agent violate it (RED). Then write the minimal counter (GREEN). Then close any new loopholes found on re-runs (REFACTOR).
 
-**No exceptions:**
-- Not for "simple additions"
-- Not for "just a wording tweak"
-- Not for "documentation updates"
-
-If the skill contains no rule an agent could violate (pure reference material), pressure testing does not apply. If a discipline rule must ship untested, record it as untested in the campaign log — never silently, and never in the skill itself.
-
-Test status never appears in SKILL.md. SKILL.md is loaded into working context on every run; status notes and references to campaign files are dead weight there and invite agents to read the logs. Status lives only in `test-campaigns/`.
-
 **Testing is part of the skill-creation process, but the agent does not run it.** Tell the user the skill must be pressure-tested and direct them to run the `pressure-testing` skill manually to complete the process. Never begin any campaign step as part of authoring.
 
 ## Trigger Optimization
@@ -157,13 +148,6 @@ Test status never appears in SKILL.md. SKILL.md is loaded into working context o
 **The Trigger Eval Rule: NO DESCRIPTION SHIPS WITHOUT A PASSING EVAL SET.**
 
 Applies to every skill, including pure reference — distinct from pressure testing, which gates discipline-skill **body** rules. Pressure testing measures compliance after load; trigger evals measure the *decision to load at all*. A skill can pass one axis and fail the other.
-
-**No exceptions:**
-- Not for "obviously matches its domain"
-- Not for "the sibling skills already route"
-- Not for "it's a wording tweak to the description"
-
-If a skill ships with an untested description, record it as untested in the trigger campaign log — never silently, and never in the skill itself.
 
 **Testing is part of the skill-creation process, but the agent does not run it.** For every skill — including pure reference — tell the user the description must pass a trigger eval and direct them to run the `trigger-testing` skill manually to complete the process. Never begin any campaign step as part of authoring.
 
