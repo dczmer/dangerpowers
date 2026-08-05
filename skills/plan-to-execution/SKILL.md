@@ -110,6 +110,7 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 - "This phase is just one command / trivial work / won't take long — I'll do it myself"
 - "The subagent is taking too long — I'll implement it myself"
 - "The subagent is taking too long — I'll cancel it and do it myself"
+- "I'll just run it on master without asking — creating branches is cleanup churn"
 
 ## Boundary
 
