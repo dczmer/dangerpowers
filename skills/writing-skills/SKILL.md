@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo's skills/ directory. Triggers include "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills".
+description: Use when creating new skills, editing existing skills, reviewing a skill before deploying it to this repo's skills/ directory, or pressure-testing an existing skill's rules. Triggers include "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills", "pressure test this skill", "pressure test a skill".
 ---
 
 # Writing Skills
@@ -15,6 +15,11 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 1. If the user's prompt specifies a location, use it.
 2. If this repo is a skill library (its AGENTS.md directs where skills live — e.g. this repo uses `skills/`), follow that direction.
 3. Otherwise, use the `question` tool to ask whether to accept the default `.opencode/skills/` or enter a specific path (e.g. `.agents/skills/` for cross-tool portability). Do not proceed until answered.
+
+## Invocation Branch
+
+- **Invoked to pressure-test an existing skill** (e.g. "pressure test the <name> skill"): read this entire file for context, then load `references/pressure-testing.md` and begin the campaign against the named target. If the named skill has no `skills/<name>/SKILL.md` in this repo, report that the target cannot be found — do not invent one.
+- **Anything else** (authoring, editing, reviewing): continue below.
 
 ## When to Create a Skill
 
@@ -141,7 +146,7 @@ skills/
 
 Applies to new skills AND edits to existing rules. Before writing or changing a discipline rule, run a baseline pressure scenario without the skill and watch an agent violate it (RED). Then write the minimal counter (GREEN). Then close any new loopholes found on re-runs (REFACTOR).
 
-**Testing is part of the skill-creation process, but the agent does not run it.** Tell the user the skill must be pressure-tested and direct them to run the `pressure-testing` skill manually to complete the process. Never begin any campaign step as part of authoring.
+The campaign process — scenario design, execution protocol, rationalization plugging, results logging — lives in `references/pressure-testing.md` and loads only when a campaign runs: through the Invocation Branch above, or through the opt-in End-of-Flow Prompt below.
 
 ## Trigger Optimization
 
@@ -149,7 +154,16 @@ Applies to new skills AND edits to existing rules. Before writing or changing a 
 
 Applies to every skill, including pure reference — distinct from pressure testing, which gates discipline-skill **body** rules. Pressure testing measures compliance after load; trigger evals measure the *decision to load at all*. A skill can pass one axis and fail the other.
 
-**Testing is part of the skill-creation process, but the agent does not run it.** For every skill — including pure reference — tell the user the description must pass a trigger eval and direct them to run the `trigger-testing` skill manually to complete the process. Never begin any campaign step as part of authoring.
+Trigger evals are run with the `trigger-testing` skill, offered as an opt-in End-of-Flow Prompt below — never begun unprompted during authoring.
+
+## End-of-Flow Prompts
+
+When the Checklist is complete and `agentskills validate` passes, offer each follow-on as its own Yes/No question via the `question` tool:
+
+1. **Start pressure testing now?** — discipline skills only; skip the question entirely for pure-reference skills with no violable rule. On yes, load `references/pressure-testing.md` and begin the campaign against the skill just authored.
+2. **Run a trigger eval now?** — every skill, including pure reference. On yes, run the `trigger-testing` skill against the new description.
+
+Both are opt-in. Declining either skips it; declining both ends the flow cleanly with no campaign started.
 
 ## Checklist
 
@@ -179,12 +193,12 @@ Create a todo for each item.
 - [ ] `agentskills validate skills/<name>` passes (`Valid skill`)
 
 **Testing (discipline skills only):**
-- [ ] User told the skill must be pressure-tested and directed to run the `pressure-testing` skill manually (skipped only for pure-reference skills with no violable rule)
-- [ ] User told any rule shipping untested must be recorded as untested in the campaign log — never in SKILL.md
+- [ ] Pressure testing offered as an opt-in End-of-Flow Prompt (question skipped only for pure-reference skills with no violable rule)
+- [ ] Any rule shipping untested is recorded as untested in the campaign log — never in SKILL.md
 - [ ] No test status, campaign results, or `test-campaigns/` references in SKILL.md
-- [ ] No campaign steps (baseline runs, with-skill reps, loophole re-tests) performed during authoring
+- [ ] No campaign steps (baseline runs, with-skill reps, loophole re-tests) performed unless the user opted in at the End-of-Flow Prompt or invoked this skill to pressure-test
 
 **Trigger Optimization:**
-- [ ] User told the description must pass a trigger eval and directed to run the `trigger-testing` skill manually — applies to every skill, including pure reference
+- [ ] Trigger eval offered as an opt-in End-of-Flow Prompt — applies to every skill, including pure reference
 - [ ] Pending its eval, the description complies with the Frontmatter rules (imperative, WHAT + WHEN, no workflow summary, trigger terms woven into prose, ≤1024 chars)
-- [ ] No eval-set creation, harness runs, or description iterations performed during authoring
+- [ ] No eval-set creation, harness runs, or description iterations performed unless the user opted in at the End-of-Flow Prompt

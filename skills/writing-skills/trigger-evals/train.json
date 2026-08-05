@@ -5,6 +5,8 @@
   {"query": "review a skill before deploying it", "should_trigger": true},
   {"query": "update a skill description", "should_trigger": true},
   {"query": "create a new skill called pressure-testing", "should_trigger": true},
+  {"query": "pressure test the writing-plans skill", "should_trigger": true},
+  {"query": "run a pressure-test campaign on this skill", "should_trigger": true},
   {"query": "write a PRD for a new feature", "should_trigger": false},
   {"query": "draft a README for this project", "should_trigger": false},
   {"query": "plan a multi-phase implementation", "should_trigger": false},
