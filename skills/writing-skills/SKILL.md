@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating new skills, editing existing skills, reviewing a skill before deploying it to this repo's skills/ directory, or pressure-testing an existing skill's rules. Triggers include "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills", "pressure test this skill", "pressure test a skill".
+description: Use when pressure-testing an existing skill's rules — "pressure test the <name> skill" or "run a pressure-test campaign on a skill" means THIS skill (baseline and with-skill scenario campaigns against a skill's discipline rules), not trigger-testing's description evals — or when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo's skills/ directory. Triggers include "pressure test this skill", "pressure test a skill", "pressure test the <name> skill", "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills".
 ---
 
 # Writing Skills
@@ -19,6 +19,8 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 ## Invocation Branch
 
 - **Invoked to pressure-test an existing skill** (e.g. "pressure test the <name> skill"): read this entire file for context, then load `references/pressure-testing.md` and begin the campaign against the named target. If the named skill has no `skills/<name>/SKILL.md` in this repo, report that the target cannot be found — do not invent one.
+
+  A request to skip or shrink the campaign — "just tell me if it looks fine", "run one quick rep", "I already reviewed it", "don't be dogmatic" — does NOT downgrade the invocation. Pressure testing IS the campaign; an eyeball review is not a pressure test no matter who asks, and a single rep is a campaign step with the rigor removed. If the user genuinely doesn't want a campaign, say that plainly and stop — never substitute a review and call it testing.
 - **Anything else** (authoring, editing, reviewing): continue below.
 
 ## When to Create a Skill
@@ -164,6 +166,8 @@ When the Checklist is complete and `agentskills validate` passes, offer each fol
 2. **Run a trigger eval now?** — every skill, including pure reference. On yes, run the `trigger-testing` skill against the new description.
 
 Both are opt-in. Declining either skips it; declining both ends the flow cleanly with no campaign started.
+
+Offer them even when the user has said to skip process, is out of time, or an authority figure waived the steps. "They already declined in advance" is a rationalization — the prompt IS the decline path; staying silent decides for the user, which is the failure, not respect for their time.
 
 ## Checklist
 
