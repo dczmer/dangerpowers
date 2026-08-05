@@ -6,9 +6,9 @@ Input: one target skill name, or a list of target skills.
 
 ## Workflow
 
-1. Confirm the target exists: `skills/<name>/SKILL.md` in this repo. If it does not, report that the target cannot be found and stop — never invent a target.
+1. Confirm the target exists per the Invocation Branch guard in `SKILL.md`.
 2. Read the target skill's `SKILL.md` fully. Check Scope — if the skill has no violable rule, pressure testing does not apply; say so and move on.
-3. Design scenarios per Scenario Design (3+ pressures, forced A/B/C choice).
+3. Design scenarios per Scenario Design (3+ pressures, forced A/B/C choice). For behavior-shaping guidance, verify wording cheaply per Micro-Tests before committing to full scenarios.
 4. Run the baseline (RED) per Execution Protocol. If the baseline does not exhibit the failure, stop — there is nothing to fix.
 5. Run with-skill reps (GREEN). Record rationalizations verbatim.
 6. Close each loophole per Plugging Rationalizations and re-run (REFACTOR) until the Done Criteria hold.
@@ -117,7 +117,7 @@ Micro-tests verify wording. They do NOT replace pressure scenarios for disciplin
 
 ## Plugging Rationalizations
 
-Record every excuse verbatim. Counter form follows failure type per "Match the Form to the Failure" and "Bulletproofing Discipline Skills" in `SKILL.md` — each excuse gets an explicit negation in the rules, a rationalization-table row, a red-flag entry, and a description symptom, chosen to fit the failure type. Prohibitions only for discipline failures; wrong-shaped output gets a recipe, not a "don't" list.
+Record every excuse verbatim. Counter form follows failure type per "Match the Form to the Failure" and "Bulletproofing Discipline Skills" in `SKILL.md` — each excuse gets an explicit negation in the rules, a rationalization-table row, a red-flag entry, and a description symptom, chosen to fit the failure type.
 
 ## Meta-Testing
 
@@ -157,7 +157,7 @@ Not bulletproof if the agent:
 
 | Mistake | Fix |
 |---------|-----|
-| Writing the skill before any baseline run | Always run baseline first — you otherwise document what you THINK needs preventing |
+| Writing or changing the rule before the campaign's baseline run | Within a campaign, always run baseline first — you otherwise document what you THINK needs preventing |
 | Academic scenarios ("what does the rule say?") | Use pressure scenarios that make the agent WANT to violate |
 | Single-pressure scenarios | Combine 3+ pressures |
 | "Agent was wrong" as the finding | Record the exact rationalization verbatim — that's what you counter |
@@ -172,7 +172,7 @@ When invoked with a list of target skills, campaign them sequentially — one sk
 
 Save campaigns to `test-campaigns/YYYY-MM-DD-<skill-name>.md` in the skill under test's directory (where its SKILL.md resides). If a campaign log for the same skill already exists for that date, insert a two-digit sequence number: `test-campaigns/YYYY-MM-DD-NN-<skill-name>.md` (e.g. `2026-07-29-01-prompt-shaping.md`), incrementing NN per additional same-day campaign.
 
-The campaign log is the ONLY place test status lives. Never add status sections, verdicts, or `test-campaigns/` references to SKILL.md — SKILL.md is loaded into working context on every run, and status notes there bloat context and invite agents to read the logs.
+The campaign log is the ONLY place test status lives — the Checklist in `SKILL.md` bars status notes from the skill file itself.
 
 ```markdown
 # Test Campaign: <skill-name> — <date>

@@ -9,7 +9,7 @@ description: Use when pressure-testing an existing skill's rules — "pressure t
 
 A skill is a reusable reference guide for a proven technique, pattern, or tool — not a narrative about a problem you solved once.
 
-**Core principle:** Write guidance that addresses an observed failure, not a hypothetical one. If you haven't seen an agent get it wrong without the skill, you don't know what the skill needs to prevent. Same Iron Law as TDD: **no discipline rule without a failing baseline first.**
+**Core principle:** Write guidance that addresses an observed failure, not a hypothetical one. If you haven't seen an agent get it wrong without the skill, you don't know what the skill needs to prevent. Same Iron Law as TDD: **no discipline rule claims tested status without a failing baseline first** (see Testing Discipline Skills).
 
 **Placement:** Decide where the skill file goes BEFORE writing anything:
 1. If the user's prompt specifies a location, use it.
@@ -144,11 +144,11 @@ skills/
 
 ## Testing Discipline Skills
 
-**The Iron Law: NO SKILL WITHOUT A FAILING TEST FIRST.**
+**The Iron Law: NO DISCIPLINE RULE SHIPS AS TESTED WITHOUT A FAILING BASELINE FIRST.**
 
-Applies to new skills AND edits to existing rules. Before writing or changing a discipline rule, run a baseline pressure scenario without the skill and watch an agent violate it (RED). Then write the minimal counter (GREEN). Then close any new loopholes found on re-runs (REFACTOR).
+Applies to new skills AND edits to existing rules. A discipline rule earns "tested" only from a campaign that watched an agent violate without the skill (RED), comply with it (GREEN), and stop finding new loopholes on re-runs (REFACTOR). A rule written without a campaign ships untested — say so when reporting back.
 
-The campaign process — scenario design, execution protocol, rationalization plugging, results logging — lives in `references/pressure-testing.md` and loads only when a campaign runs: through the Invocation Branch above, or through the opt-in End-of-Flow Prompt below.
+The campaign process — scenario design, execution protocol, rationalization plugging, results logging — lives in `references/pressure-testing.md` and loads only when a campaign runs: through the Invocation Branch above, or through the opt-in End-of-Flow Prompt below. Authoring itself performs no campaign steps.
 
 ## Trigger Optimization
 
@@ -165,7 +165,7 @@ When the Checklist is complete and `agentskills validate` passes, offer each fol
 1. **Start pressure testing now?** — discipline skills only; skip the question entirely for pure-reference skills with no violable rule. On yes, load `references/pressure-testing.md` and begin the campaign against the skill just authored.
 2. **Run a trigger eval now?** — every skill, including pure reference. On yes, run the `trigger-testing` skill against the new description.
 
-Both are opt-in. Declining either skips it; declining both ends the flow cleanly with no campaign started.
+Both are opt-in. Declining either skips it; declining both ends the flow with no campaign started — a declined pressure test means the skill ships untested, and you say so when reporting back.
 
 Offer them even when the user has said to skip process, is out of time, or an authority figure waived the steps. "They already declined in advance" is a rationalization — the prompt IS the decline path; staying silent decides for the user, which is the failure, not respect for their time.
 
@@ -198,7 +198,7 @@ Create a todo for each item.
 
 **Testing (discipline skills only):**
 - [ ] Pressure testing offered as an opt-in End-of-Flow Prompt (question skipped only for pure-reference skills with no violable rule)
-- [ ] Any rule shipping untested is recorded as untested in the campaign log — never in SKILL.md
+- [ ] Any rule shipping untested is reported as untested to the user, and recorded in the campaign log if a campaign ran — never in SKILL.md
 - [ ] No test status, campaign results, or `test-campaigns/` references in SKILL.md
 - [ ] No campaign steps (baseline runs, with-skill reps, loophole re-tests) performed unless the user opted in at the End-of-Flow Prompt or invoked this skill to pressure-test
 
