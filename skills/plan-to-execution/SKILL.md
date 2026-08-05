@@ -63,15 +63,16 @@ A phase passing all four checks is complete and is NEVER re-dispatched. The firs
 ## Workflow
 
 1. **Validate input.** The plan exists, is readable, and its frontmatter says `status: approved`. Additionally, verify that the plan file is committed to source control (git) and accessible from all worktrees. Record the optional user instructions. Surface any instruction/plan conflict to the user before anything else.
-2. **Read the plan and compute the schedule.** Extract the phase list, each phase's `**Parallel group:**` declaration, and the `## Final Verification` commands. Extract each phase's `**Execution:**` declaration (absent means `subagent`). Maximal runs of phases sharing a group name become parallel groups; every other phase is a sequential step in plan order.
-3. **Run Resume Detection.** The schedule starts at the resume point; completed phases are skipped.
-4. **Execute each schedule step, in order:**
+2. **Run Branch Selection.** Follow the Branch Selection section: detect mainline, offer `dev/<plan-base>` when on mainline, proceed per the user's choice.
+3. **Read the plan and compute the schedule.** Extract the phase list, each phase's `**Parallel group:**` declaration, and the `## Final Verification` commands. Extract each phase's `**Execution:**` declaration (absent means `subagent`). Maximal runs of phases sharing a group name become parallel groups; every other phase is a sequential step in plan order.
+4. **Run Resume Detection.** The schedule starts at the resume point; completed phases are skipped.
+5. **Execute each schedule step, in order:**
    - **Inline phase:** for each phase declared `inline`, run it directly in the main session, in the main checkout, once all preceding phases are merged. Follow the phase's Changes Required and Success Criteria yourself, write the phase report, and commit.
 - **Sequential phase:** dispatch one executing-plans subagent per Delegation Safety, working in the main checkout.
 - **Parallel group:** for each phase in the group, follow the **isolating-worktrees** procedure (detect → create → set up → verify) with branch and directory named `<plan-base>-phase-<N>`. A worktree-creation failure stops the run with a report — NEVER fall back to unisolated parallel work. Then dispatch all of the group's subagents in parallel in one message, each pointed at its own worktree. After all of them return, merge each branch back in ascending phase order with `git merge --no-ff <branch>` from the main checkout. A merge conflict stops the run; report the conflicting branch and phase and let the user resolve or direct. Worktrees and branches are left in place — cleanup is a non-goal.
    - **After every subagent returns:** verify the phase's report file exists, its status is `DONE` or `DONE_WITH_CONCERNS`, and at least one commit exists for the phase. Any other status (`BLOCKED`, `NEEDS_CONTEXT`), a missing report, failed phase verification, or no commit: STOP the entire run immediately, report the failing phase and the stated reason, and dispatch nothing further. Committed state is left intact for resume. A `NEEDS_CONTEXT` return is a phase failure — surface the subagent's stated need to the user.
-5. **Final verification.** After all phases are implemented and integrated, run every command from the plan's `## Final Verification` section exactly as written, against the integrated result. Any failure: report the failures and stop — NEVER attempt fixes.
-6. **Report and stop.** Conclude by reporting phase outcomes, commit identifiers, and verification results; then stop.
+6. **Final verification.** After all phases are implemented and integrated, run every command from the plan's `## Final Verification` section exactly as written, against the integrated result. Any failure: report the failures and stop — NEVER attempt fixes.
+7. **Report and stop.** Conclude by reporting phase outcomes, commit identifiers, and verification results; then stop.
 
 ## Context Discipline
 
