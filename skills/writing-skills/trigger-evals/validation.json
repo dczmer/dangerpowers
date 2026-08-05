@@ -3,6 +3,7 @@
   {"query": "I'm writing skills documentation", "should_trigger": true},
   {"query": "edit the writing-skills file", "should_trigger": true},
   {"query": "pressure test the scouting-context skill", "should_trigger": true},
+  {"query": "trigger test the executing-plans skill", "should_trigger": true},
   {"query": "spec out a workflow", "should_trigger": false},
   {"query": "write documentation", "should_trigger": false},
   {"query": "help me execute a plan", "should_trigger": false}
