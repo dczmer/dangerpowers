@@ -14,6 +14,15 @@ Two inputs:
 1. **Path to a `status: approved` plan in `PLANS/`** (required). The plan is the sole source of phase definitions, phase-scoped context, independence declarations, and verification commands. If the plan is missing, unreadable, or its frontmatter status is anything other than `approved`, stop and tell the user an approved plan is required. **No exceptions:** not for "the plan is basically final", not for "only one phase remains", not for "the user is in a hurry".
 2. **Optional free-text user instructions.** Convey these verbatim to every dispatch prompt. If the instructions conflict with the plan, surface the conflict to the user and wait for a resolution — never silently pick one side.
 
+## Branch Selection
+
+Runs on every invocation, after plan validation, before scheduling. Determine the current branch (`git symbolic-ref --short HEAD`) and the mainline branch: `git symbolic-ref --short refs/remotes/origin/HEAD`, falling back to verifying local `main` then `master` (`git rev-parse --verify`), falling back to asking the user. NEVER parse `.git/config` — worktrees relocate it.
+
+- **Current branch is mainline:** offer the user a choice — create `dev/<plan-base>` (or `dev/<plan-slug>` if that name is taken) and continue there, or stay on mainline. A refusal is final for this run; proceed without commentary. Refusals are not remembered — re-ask on each fresh invocation, including resumes.
+- **Current branch is not mainline:** proceed silently on the current branch.
+- **Detached HEAD:** stop and surface; never silently branch from a detached state.
+- **Resume case:** if phase reports reference commits present on `dev/<plan-base>` but not ancestors of HEAD, offer to check out that branch before dispatching — this is the recoverable form of the stranded-branch ancestor-check failure.
+
 ## Plan Consumption Contract
 
 The orchestrator reads three conventions from the plan; all are owned and documented by this skill.
