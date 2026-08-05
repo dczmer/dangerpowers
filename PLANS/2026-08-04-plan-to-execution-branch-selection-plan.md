@@ -7,7 +7,7 @@ request: "analyze the plan-to-execution skill. i would like to propose a new rul
 source_prd: none
 source_bundle: none (quick pass)
 source_research: none (quick pass)
-status: draft
+status: approved
 ---
 
 # plan-to-execution Branch Selection Rule Implementation Plan
