@@ -90,6 +90,9 @@ The orchestrator retains per phase ONLY: the phase outcome (status), commit iden
 | "Re-running the committed phases is safer than trusting the reports" | The report-plus-ancestry check is the resume contract. Re-dispatching completed phases wastes work and can conflict with already-merged state. |
 | "The tests pass; I'll quickly remove the worktrees before reporting" | Cleanup is a non-goal in every circumstance. Report and stop. |
 | "This phase is just one command / trivial work / won't take long — I'll do it myself" | The declaration is authoritative. "Trivial" is not a valid exception. Dispatch the subagent. |
+| "The user approved the plan, they obviously want it on master" | Branch placement is a separate decision. Ask once; it's one question. |
+| "I'll parse .git/config for the default branch" | Worktrees relocate config. Use `git symbolic-ref refs/remotes/origin/HEAD` with the main/master fallback. |
+| "User declined the branch — I'll ask again on resume" | A refusal is final for the run. Proceed on mainline without comment. |
 
 ### Red Flags - STOP
 
