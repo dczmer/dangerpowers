@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when pressure-testing an existing skill's rules — "pressure test the <name> skill" or "run a pressure-test campaign on a skill" means THIS skill (baseline and with-skill scenario campaigns against a skill's discipline rules), not trigger-testing's description evals — or when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo's skills/ directory. Triggers include "pressure test this skill", "pressure test a skill", "pressure test the <name> skill", "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills".
+description: Use when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo's skills/ directory, when pressure-testing an existing skill's discipline rules, or when trigger-testing a skill's description with eval-query campaigns. "Pressure test the <name> skill" and "trigger test the <name> skill" both mean THIS skill — pressure tests measure rule compliance after load; trigger evals measure whether the description loads on the right prompts. Triggers include "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills", "pressure test this skill", "pressure test a skill", "trigger test this skill", "trigger eval", "test my skill description".
 ---
 
 # Writing Skills
@@ -18,9 +18,12 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 
 ## Invocation Branch
 
-- **Invoked to pressure-test an existing skill** (e.g. "pressure test the <name> skill"): read this entire file for context, then load `references/pressure-testing.md` and begin the campaign against the named target. If the named skill has no `skills/<name>/SKILL.md` in this repo, report that the target cannot be found — do not invent one.
+- **Invoked to pressure-test an existing skill** (e.g. "pressure test the <name> skill"): read this entire file for context, then load `references/pressure-testing.md` and begin the campaign against the named target.
+- **Invoked to trigger-test an existing skill's description** (e.g. "trigger test the <name> skill", "run a trigger eval on <name>"): read this entire file for context, then load `references/trigger-testing.md` and begin the campaign against the named target.
 
-  A request to skip or shrink the campaign — "just tell me if it looks fine", "run one quick rep", "I already reviewed it", "don't be dogmatic" — does NOT downgrade the invocation. Pressure testing IS the campaign; an eyeball review is not a pressure test no matter who asks, and a single rep is a campaign step with the rigor removed. If the user genuinely doesn't want a campaign, say that plainly and stop — never substitute a review and call it testing.
+For either campaign: if the named skill has no `skills/<name>/SKILL.md` in this repo, report that the target cannot be found — do not invent one. A request to skip or shrink the campaign — "just tell me if it looks fine", "just eyeball the description", "run one quick rep", "I already reviewed it", "don't run a whole campaign", "don't be dogmatic" — does NOT downgrade the invocation. A campaign IS the test: an eyeball review is not a pressure test and an opinion about a description is not a measurement, no matter who asks, and a single rep is a campaign step with the rigor removed. If the user genuinely doesn't want a campaign, say that plainly and stop — never substitute a review and call it testing.
+
+- **Ambiguous "test the <name> skill" requests** (no campaign type named): ask which campaign applies — pressure test (discipline rules) or trigger eval (description routing) — via the `question` tool. Never pick one silently.
 - **Anything else** (authoring, editing, reviewing): continue below.
 
 ## When to Create a Skill
@@ -58,6 +61,11 @@ Two required fields: `name` and `description`.
   - **Never summarize the workflow.** A description that summarizes the process becomes a shortcut agents follow instead of reading the skill body. (Tested failure mode in superpowers: a description saying "code review between tasks" caused an agent to do one review when the skill required two.)
   - Keep it concise. Every token competes with all other skills' descriptions at startup. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
   - Weave trigger terms (error messages, symptoms, synonyms, tool names) into the prose. Never append a `Keywords:` or `Trigger phrases:` label — see Description YAML safety below.
+  - **Err on the side of being pushy.** List contexts where the skill applies, including situations where the user doesn't name the domain — the description is the primary trigger mechanism, and under-triggering makes the skill invisible.
+  - **Front-load boundaries; never trail them.** A "Do NOT use for..." clause at the end of a description is weak — readers treat the positive trigger framing as dominant and rationalize past trailing negations. If a boundary matters, make it the opening condition ("Use ONLY when X and NOT when Y").
+  - **Match speech acts, not request properties.** The router can only match what's visible in the prompt's surface — frame triggers as what the user says or does ("user says 'not sure', hedges with 'some kind of X'"), never as judgments about the request ("request is vague / underspecified").
+  - **Anchor with quoted micro-phrases.** Short quoted signals give the router literal handles to match against; they outperform abstract category names ("expresses uncertainty").
+  - **Name negative classes by verb category.** When excluding a class of requests, list the action verbs that define it (write, fix, add, run) rather than describing the class abstractly ("direct imperatives").
 
 ```yaml
 # Bad: summarizes workflow
@@ -156,16 +164,16 @@ The campaign process — scenario design, execution protocol, rationalization pl
 
 Applies to every skill, including pure reference — distinct from pressure testing, which gates discipline-skill **body** rules. Pressure testing measures compliance after load; trigger evals measure the *decision to load at all*. A skill can pass one axis and fail the other.
 
-Trigger evals are run with the `trigger-testing` skill, offered as an opt-in End-of-Flow Prompt below — never begun unprompted during authoring.
+The campaign process — eval query design, train/validation split, optimization loop, harness protocol, results logging — lives in `references/trigger-testing.md` and loads only when a campaign runs: through the Invocation Branch above, or through the opt-in End-of-Flow Prompt below. Authoring itself performs no campaign steps.
 
 ## End-of-Flow Prompts
 
 When the Checklist is complete and `agentskills validate` passes, offer each follow-on as its own Yes/No question via the `question` tool:
 
 1. **Start pressure testing now?** — discipline skills only; skip the question entirely for pure-reference skills with no violable rule. On yes, load `references/pressure-testing.md` and begin the campaign against the skill just authored.
-2. **Run a trigger eval now?** — every skill, including pure reference. On yes, run the `trigger-testing` skill against the new description.
+2. **Run a trigger eval now?** — every skill, including pure reference. On yes, load `references/trigger-testing.md` and begin the campaign against the new description.
 
-Both are opt-in. Declining either skips it; declining both ends the flow with no campaign started — a declined pressure test means the skill ships untested, and you say so when reporting back.
+Both are opt-in. Declining either skips it; declining both ends the flow with no campaign started — a declined pressure test means the skill ships untested, and a declined trigger eval means the description ships unverified; say so when reporting back.
 
 Offer them even when the user has said to skip process, is out of time, or an authority figure waived the steps. "They already declined in advance" is a rationalization — the prompt IS the decline path; staying silent decides for the user, which is the failure, not respect for their time.
 
@@ -205,4 +213,4 @@ Create a todo for each item.
 **Trigger Optimization:**
 - [ ] Trigger eval offered as an opt-in End-of-Flow Prompt — applies to every skill, including pure reference
 - [ ] Pending its eval, the description complies with the Frontmatter rules (imperative, WHAT + WHEN, no workflow summary, trigger terms woven into prose, ≤1024 chars)
-- [ ] No eval-set creation, harness runs, or description iterations performed unless the user opted in at the End-of-Flow Prompt
+- [ ] No eval-set creation, harness runs, or description iterations performed unless the user opted in at the End-of-Flow Prompt or invoked this skill to trigger-test a description
