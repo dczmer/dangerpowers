@@ -4,7 +4,7 @@ plan: PLANS/2026-08-05-merge-trigger-testing-into-writing-skills-plan.md
 phase: 4
 status: DONE_WITH_CONCERNS
 git_commit_start: 0e3ad21b76ce2514293f2a7f9eb281e9c5173c8b
-git_commit_end: FILL_IN_AT_COMMIT
+git_commit_end: 2cd1312
 ---
 
 # Phase 4 Execution Report: Verification campaign against the merged skill
