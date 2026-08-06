@@ -173,6 +173,8 @@ When the Checklist is complete and `agentskills validate` passes, offer each fol
 1. **Start pressure testing now?** — discipline skills only; skip the question entirely for pure-reference skills with no violable rule. On yes, load `references/pressure-testing.md` and begin the campaign against the skill just authored.
 2. **Run a trigger eval now?** — every skill, including pure reference. On yes, load `references/trigger-testing.md` and begin the campaign against the new description.
 
+A yes means your very next action is reading the reference file — not noting "offered (user said yes)" in a summary, not substituting `agentskills validate`, not asking another question first. An offer you record but never begin is the same as never offering it. An answer the user gave in advance (in the original request or earlier in the session) counts as the answer — never re-ask a question the user already answered; re-asking is stalling, and the campaign, not the question, is the deliverable. Track the two prompts' answers independently and read them carefully: a "no" to pressure testing says nothing about the trigger eval.
+
 Both are opt-in. Declining either skips it; declining both ends the flow with no campaign started — a declined pressure test means the skill ships untested, and a declined trigger eval means the description ships unverified; say so when reporting back.
 
 Offer them even when the user has said to skip process, is out of time, or an authority figure waived the steps. "They already declined in advance" is a rationalization — the prompt IS the decline path; staying silent decides for the user, which is the failure, not respect for their time.
