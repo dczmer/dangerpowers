@@ -38,10 +38,11 @@ Bootstrap a new project with a Nix flake devShell, direnv, and an initial commit
 
 ## Steps
 
-1. Run the bootstrap script from this skill's directory, substituting PROJECT_NAME:
+1. Run the bootstrap script from this skill's `scripts/` directory, resolving its path via the base directory reported when this skill loads, substituting PROJECT_NAME:
    ```bash
-   skills/project-bootstrap-nix/scripts/bootstrap.sh "PROJECT_NAME"
+   <base>/scripts/bootstrap.sh "PROJECT_NAME"
    ```
+   where `<base>` is this skill's reported base directory.
    It verifies the preconditions, writes `flake.nix`/`flake.lock`/`.envrc`/`.gitignore`/`AGENTS.md`, stages `flake.nix` and `flake.lock`, and verifies the devShell builds. If it exits non-zero, read its error output, fix the problem, and re-run it (it is safe to re-run only if the failing step did not create a bootstrap file — otherwise fix manually and continue).
 2. Prompt the user for a brief description of the project. Write it to `README.md` under a top-level heading (substitute PROJECT_NAME with the actual project name):
    ```md
