@@ -78,7 +78,7 @@ When scenario props include fictional artifact paths (e.g. plan files, log paths
 
 ## Execution Protocol (opencode)
 
-Use the `task` tool with `general` subagents. Verified mechanics (2026-07-23): subagents do NOT auto-load skills — the with-skill prompt must name the file path explicitly. Parallel dispatch in one message works.
+Run reps headless via the `opencode run` CLI (commands below). Verified mechanics (2026-07-23): headless runs do NOT auto-load skills — the with-skill prompt must name the file path explicitly. Multiple reps can be dispatched in parallel (separate shell invocations in one batch), subject to local-model saturation — drop to serial if reps time out.
 
 1. **Baseline run (RED):** dispatch a `general` subagent with the scenario only. No mention of any skill, no mention that it's a test. If the scenario references a skill file, instruct the agent to read it for context only without loading or activating any workflow.
 

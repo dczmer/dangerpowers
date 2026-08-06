@@ -29,7 +29,7 @@ Input: one target skill name, or a list of target skills. The skill name(s) are 
 Trigger optimization measures **the decision to load at all** — not compliance after load.
 
 - Trigger evals gate the **description** of every skill.
-- It applies to every skill regardless of type — discipline, technique, pattern, and reference. Reference skills (exempt from pressure testing per the Testing Discipline Skills section in `SKILL.md`) are NOT exempt here: a reference skill with a description that fails to trigger is a skill that never loads.
+- It applies to every skill regardless of type — discipline, technique, pattern, and reference. Reference skills (exempt from pressure testing per the Scope section of `references/pressure-testing.md`) are NOT exempt here: a reference skill with a description that fails to trigger is a skill that never loads.
 
 ## Description Revision Rules
 
@@ -167,9 +167,11 @@ A trigger eval is bulletproof when:
 - Fresh-query sanity check (5 queries never used in optimization) passes; at most 1 train-expansion re-opt was performed if the first fresh check failed.
 - Description is still ≤1024 chars.
 
-The selected description may not be the last iteration — it is the one with the best validation pass rate.
+The selected description may not be the last iteration — it is the one with the best validation pass rate. If no iteration meets all criteria within the caps, ship the best-validation-pass-rate iteration anyway per The Optimization Loop, and report the description as tested-with-residuals rather than bulletproof.
 
 ## Multi-Skill Campaigns
+
+When invoked with a list of target skills, campaign them sequentially — one skill at a time, in the order given. For each skill, run the full campaign (Workflow steps 1-8, 10) and write its results log before advancing to the next; verify the log file exists before starting the next skill. Do not interleave evals across skills, and do not campaign skills in parallel.
 
 When a plan campaigns multiple skills in sequence against a shared live description state, selecting the best-validation-pass-rate iteration may change an earlier skill's description to a non-final (earlier) iteration. A later phase's campaign runs against the live state of all skills, including just-campaigned earlier skills — so a later phase's regression can route differently than the earlier phase's measurement assumed, and recorded pass rates no longer hold.
 
