@@ -8,21 +8,21 @@ Input: one target skill name, or a list of target skills. The skill name(s) are 
 
 ## Workflow
 
-1. Confirm the target exists: `skills/<name>/SKILL.md` in this repo. If it does not, report that the target cannot be found and stop — never invent a target.
+1. Confirm the target exists: resolve the named skill from the session's loaded skills — its `SKILL.md` lives at `<target-base>/SKILL.md`, where `<target-base>` is the base directory reported when the target skill loads. If the target is not loaded and cannot be found, report that the target cannot be found and stop — never invent a target.
 2. Read the target skill's `SKILL.md` and its current frontmatter `description`.
 3. Build the eval set per Trigger Eval Query Design; split it per Train/Validation Split into `trigger-evals/train.json` and `trigger-evals/validation.json`. You author every query yourself — never ask the user to supply, confirm, or answer eval queries.
-4. Create the campaign workspace. The workspace contains frontmatter-only stubs of every skill under `skills/` plus the `trigger-evaluator` agent. One workspace per campaign — every eval in this campaign reuses it; never create a workspace per eval, and never run `init` a second time.
-   a. From the repo root (the script path is relative), run exactly:
-      `WS=$(skills/writing-skills/scripts/trigger-test.sh init) && echo "WORKSPACE=$WS"`
+4. Create the campaign workspace. The workspace contains frontmatter-only stubs of every skill in the plugin's `skills/` directory plus the `trigger-evaluator` agent. One workspace per campaign — every eval in this campaign reuses it; never create a workspace per eval, and never run `init` a second time.
+   a. From the repo root, run exactly (`<base>` is the writing-skills base directory reported when this skill loaded — paste its absolute path):
+      `WS=$(<base>/scripts/trigger-test.sh init) && echo "WORKSPACE=$WS"`
    b. Copy the printed path (it looks like `/tmp/trigger-test.XXXXXXXXXX`) into your working notes as **WS_PATH**. Shell variables do not survive between Bash tool invocations — in every later command, paste the literal WS_PATH wherever the workflow shows `"$WS"`; never rely on `$WS` or `TRIGGER_TEST_WORKSPACE`.
-   c. Verify once: `ls WS_PATH/.agents/skills` must list every skill name. If it does not, stop and fix the workspace before any eval. Then confirm the candidate's stub matches the live SKILL.md — `skills/writing-skills/scripts/trigger-test.sh status --skill <candidate> --workspace WS_PATH` must print `in-sync` (exit 0); re-run it any time mid-campaign you suspect drift, and re-`sync` on `stale`.
+   c. Verify once: `ls WS_PATH/.agents/skills` must list every skill name. If it does not, stop and fix the workspace before any eval. Then confirm the candidate's stub matches the live SKILL.md — `<base>/scripts/trigger-test.sh status --skill <candidate> --workspace WS_PATH` must print `in-sync` (exit 0); re-run it any time mid-campaign you suspect drift, and re-`sync` on `stale`.
    d. If a later command fails with `workspace unset` or you have lost WS_PATH, recover the path from step 4a's output or by running `ls -d /tmp/trigger-test.*` — NEVER recover by re-running `init`. A second `init` creates a different workspace and orphans the first.
 5. Smoke-test the harness (see Harness below): run ONE should-trigger query through the harness and read the verdict block before running full campaigns. The smoke run verifies the `trigger-evaluator` agent sees the stub descriptions and can invoke the skill tool — if the eval cannot load any skill, stop and fix the workspace or agent setup before any campaign. The smoke run must also confirm the verdict names the candidate skill specifically, distinguishing it from a sibling.
 6. Run the Optimization Loop: evaluate, revise per failure class, repeat — selecting the best iteration by validation pass rate.
 7. Run the fresh-query sanity check; at most one train-expansion re-opt.
 8. Check the Done Criteria, then write the results log per Results Log Format — one log per target skill.
 9. Given a list of skills, advance per Multi-Skill Campaigns.
-10. Clean up the workspace: run `skills/writing-skills/scripts/trigger-test.sh cleanup --workspace WS_PATH` with the literal path recorded in step 4b — always, including when the campaign aborts early. A finished campaign leaves no workspace artifacts behind; if cleanup cannot run because the path is lost, recover it per step 4d, then clean up.
+10. Clean up the workspace: run `<base>/scripts/trigger-test.sh cleanup --workspace WS_PATH` with the literal path recorded in step 4b — always, including when the campaign aborts early. A finished campaign leaves no workspace artifacts behind; if cleanup cannot run because the path is lost, recover it per step 4d, then clean up.
 
 ## Scope
 
@@ -75,7 +75,7 @@ A set of polished, keyword-perfect queries overfits: the description will pass o
 
 ## Train/Validation Split
 
-Split the eval queries ~60/40 into `skills/<skill-name>/trigger-evals/train.json` and `skills/<skill-name>/trigger-evals/validation.json` — i.e. in the skill under test's directory under `skills/` (where its SKILL.md resides, beside `test-campaigns/`), never a repo-root `<skill-name>/` directory. Shuffle randomly, then **keep the split fixed across iterations** — comparisons are apples-to-apples only if the same queries sit in the same bucket each run. Both sets contain a proportional mix of should-trigger and should-not.
+Split the eval queries ~60/40 into `trigger-evals/train.json` and `trigger-evals/validation.json` in the target skill's own directory (where its SKILL.md resides, beside `test-campaigns/`). Shuffle randomly, then **keep the split fixed across iterations** — comparisons are apples-to-apples only if the same queries sit in the same bucket each run. Both sets contain a proportional mix of should-trigger and should-not.
 
 Why split: optimizing against the full set risks overfitting to the exact queries. Train results guide changes; **validation pass rate selects the best iteration**, which may not be the last.
 
@@ -86,7 +86,7 @@ Why split: optimizing against the full set risks overfitting to the exact querie
 1. **Evaluate current description** on train + validation.
 2. **Identify train-set failures only.** Train results guide changes; validation results are set aside — do not tune against them. **Read rep rationales forensically.** The rep's stated justification reveals which clause anchored its decision. If rationales quote phrasing that appears in *no* iteration of your description, the anchor is the skill body or a sibling's description — your edits aren't reaching the decision, and more rewording won't help.
 3. **Revise per failure class** (table below), applying the rules in Description Revision Rules. After every description revision, re-sync the workspace stub — the stub is an init-time snapshot and does not track the real `SKILL.md`, so an un-synced next iteration measures the *previous* description and every verdict is garbage:
-   `skills/writing-skills/scripts/trigger-test.sh sync --skill <candidate> --workspace WS_PATH`
+   `<base>/scripts/trigger-test.sh sync --skill <candidate> --workspace WS_PATH`
 4. **Repeat** until all train queries pass or improvement stalls. Select the best iteration by validation pass rate — which may not be the last.
 
 Re-check the 1024-char description ceiling **every iteration**. Descriptions grow during optimization; a passing iteration that blew the ceiling is invalid, not a win.
@@ -106,14 +106,14 @@ Then run a **fresh-query sanity check**: 5 queries never used in optimization, r
 
 ## Harness
 
-Every query — smoke, train, validation, fresh — is executed by `skills/writing-skills/scripts/trigger-test.sh` inside the campaign's isolated workspace. Queries are NEVER sent to the user. The `question` tool plays no role in this campaign; if you are about to ask the user an eval query, you have confused the measurement target — the workspace eval is the subject under test, not the user.
+Every query — smoke, train, validation, fresh — is executed by `<base>/scripts/trigger-test.sh` (the writing-skills base directory reported when this skill loaded) inside the campaign's isolated workspace. Queries are NEVER sent to the user. The `question` tool plays no role in this campaign; if you are about to ask the user an eval query, you have confused the measurement target — the workspace eval is the subject under test, not the user.
 
 **Workspace lifecycle:** one workspace per campaign, created in Workflow step 4, reused for every eval, removed in Workflow step 10 — including on abort. The workspace holds frontmatter-only stubs of every skill plus the `trigger-evaluator` agent; skill bodies, the repo codebase, and the repo `AGENTS.md` are absent by construction. Stubs are an init-time snapshot: whenever the candidate's description changes during the optimization loop, run `trigger-test.sh sync --skill <candidate> --workspace WS_PATH` before the next eval — never re-run `init` to pick up a revision.
 
 **Invoke:** one eval per rep, pasting the literal WS_PATH recorded in Workflow step 4b (`$WS` does not survive between shell invocations):
 
 ```bash
-skills/writing-skills/scripts/trigger-test.sh eval --skill <candidate> --workspace /tmp/trigger-test.XXXXXXXXXX "$(cat <<'EOF'
+<base>/scripts/trigger-test.sh eval --skill <candidate> --workspace /tmp/trigger-test.XXXXXXXXXX "$(cat <<'EOF'
 <eval query, verbatim>
 EOF
 )"
@@ -154,9 +154,9 @@ A run that ends or hits its step limit without a load signal for the candidate i
 
 ## Contamination Rules
 
-1. **Cross-skill description visibility is expected, not contamination.** Per repo `AGENTS.md`, these skills ship together, so a sibling routing win on a should-trigger eval is a real measurement, not an error to be filtered out. The workspace stubs every skill under `skills/`, so sibling descriptions compete exactly as in deployment.
+1. **Cross-skill description visibility is expected, not contamination.** These skills ship together in the same plugin, so a sibling routing win on a should-trigger eval is a real measurement, not an error to be filtered out. The workspace stubs every skill in the plugin's `skills/` directory, so sibling descriptions compete exactly as in deployment.
 2. **Reps no longer see the repo `AGENTS.md` or the real codebase — rates recorded under the old repo-root harness are not comparable.** The isolated workspace removes both by design. Campaign logs written before this harness shipped were measured with `AGENTS.md` in context and real skill bodies present; treat them as a different measurement regime, never as a baseline to match.
-3. **Globally installed skills can leak into the workspace.** Skills under `~/.config/opencode/skills`, `~/.claude/skills`, and `~/.agents/skills` load in every opencode run, including workspace evals. A load of a skill absent from this repo's `skills/` appears in `loaded_skills`; record it in the campaign log as environmental noise and exclude it from conflict-rework decisions about this repo's descriptions.
+3. **Globally installed skills can leak into the workspace.** Skills under `~/.config/opencode/skills`, `~/.claude/skills`, and `~/.agents/skills` load in every opencode run, including workspace evals. A load of a skill not shipped in this plugin appears in `loaded_skills`; record it in the campaign log as environmental noise and exclude it from conflict-rework decisions about the plugin's descriptions.
 
 ## Done Criteria
 
@@ -200,7 +200,7 @@ When a plan campaigns multiple skills in sequence against a shared live descript
 
 ## Results Log Format
 
-Trigger eval logs use the campaign log format: title `# Test Campaign: <skill-name> — <date>`, with per-run bullets recording verdicts and verbatim evidence. Save trigger campaigns to `skills/<skill-name>/test-campaigns/YYYY-MM-DD-<skill-name>-trigger.md` — the skill under test's directory under `skills/` (where its SKILL.md resides), never a repo-root `<skill-name>/` directory — the `-trigger` suffix distinguishes them from discipline pressure-test campaigns at `test-campaigns/YYYY-MM-DD-<skill-name>.md`. If a log for the same skill and suffix already exists for that date, insert a two-digit sequence number: `test-campaigns/YYYY-MM-DD-NN-<skill-name>-trigger.md`, incrementing NN per additional same-day campaign.
+Trigger eval logs use the campaign log format: title `# Test Campaign: <skill-name> — <date>`, with per-run bullets recording verdicts and verbatim evidence. Save trigger campaigns to `test-campaigns/YYYY-MM-DD-<skill-name>-trigger.md` in the target skill's own directory (where its SKILL.md resides) — the `-trigger` suffix distinguishes them from discipline pressure-test campaigns at `test-campaigns/YYYY-MM-DD-<skill-name>.md`. If a log for the same skill and suffix already exists for that date, insert a two-digit sequence number: `test-campaigns/YYYY-MM-DD-NN-<skill-name>-trigger.md`, incrementing NN per additional same-day campaign.
 
 Two optional sections, appended in addition to or in place of `## Baseline` / `## With skill` when the campaign is trigger-focused:
 
@@ -220,7 +220,7 @@ Two optional sections, appended in addition to or in place of `## Baseline` / `#
 ### Selected iteration: <N> (validation pass rate <X>)
 ```
 
-Compute the hash at selection time with `sed -n 's/^description: //p' skills/<name>/SKILL.md | sha256sum | cut -c1-12` so later verification runs can detect post-campaign description drift.
+Compute the hash at selection time with `sed -n 's/^description: //p' <target-skill-base>/SKILL.md | sha256sum | cut -c1-12` so later verification runs can detect post-campaign description drift.
 
 And:
 
@@ -235,7 +235,7 @@ The campaign log is the ONLY place trigger status lives. Never add trigger statu
 
 ### `trigger-evals/` directory convention
 
-The `trigger-evals/` directory lives at `skills/<skill-name>/trigger-evals/` — the skill under test's directory under `skills/` (where its SKILL.md resides, beside `test-campaigns/`) — and holds `train.json`, `validation.json`, and any post-selection `YYYY-MM-DD-fresh.json`. Files are JSON arrays of `{"query": "<str>", "should_trigger": <bool>}` objects. Committed to source control like `test-campaigns/` — `trigger-evals/` is NOT gitignored. Linked from the campaign index by filename; never referenced from `SKILL.md`. The first trigger campaign against a skill creates the directory.
+The `trigger-evals/` directory lives in the target skill's own directory (where its SKILL.md resides, beside `test-campaigns/`) and holds `train.json`, `validation.json`, and any post-selection `YYYY-MM-DD-fresh.json`. Files are JSON arrays of `{"query": "<str>", "should_trigger": <bool>}` objects. Committed to source control like `test-campaigns/` — `trigger-evals/` is NOT gitignored. Linked from the campaign index by filename; never referenced from `SKILL.md`. The first trigger campaign against a skill creates the directory.
 
 ## Boundary
 
