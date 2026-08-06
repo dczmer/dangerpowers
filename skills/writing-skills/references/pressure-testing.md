@@ -93,9 +93,9 @@ Run reps headless via the `opencode run` CLI (commands below). Verified mechanic
 
    **Dispatch command:**
    ```bash
-   opencode run --dir <skill-readable-cwd> --agent eval-reader "$(cat prepend.txt scenario.txt)"
+   opencode run --dir <repo-root> --agent eval-reader "$(cat prepend.txt scenario.txt)"
    ```
-   With-skill reps MUST run with a cwd from which `Read` of the target skill's absolute path is permitted: from a cwd whose permissions don't cover the skill file, `Read` hits `external_directory` permission auto-rejection and the run is void. When the target skill lives in the current project, the project root satisfies this; for a plugin-installed skill, use a directory whose permissions cover the install location.
+   With-skill reps MUST run with the repo as cwd: from an external cwd, `Read` of the skill files by absolute path hits `external_directory` permission auto-rejection and the run is void.
    Always use the `eval-reader` agent when running with skill because it will prevent the skill from actually executing heavy workflows.
 3. **Void-run convention:** a rep that attempts a skill-tool load (auto-rejected) or emits only permission errors is void — no data. Re-dispatch a fresh replacement; never count it. Expected void rate: ~20% unstripped, ~0% stripped.
 4. **Contamination reporting:** campaign logs should record which config was used per variant (stripped vs unstripped); a non-violating unstripped baseline is weaker evidence than a non-violating stripped one.
