@@ -22,7 +22,7 @@ One session, one file: a cursory research + scout pass whose evidence lives in t
    - **Validation commands:** verified against package.json scripts, Makefile, CI config — never invented
    - **Blast radius:** likely-to-change vs must-not-break consumers
 4. **Resolve every open question.** Answers that live in someone's head → ask the user before writing. Answers evidence can settle → settled in step 3. No open question reaches the plan.
-5. **Write the plan, unphased.** `PLANS/YYYY-MM-DD-<kebab-description>-plan.md` per `writing-plans/references/plan-template.md`, committed to source control, with these deltas:
+5. **Write the plan, unphased.** `PLANS/YYYY-MM-DD-<kebab-description>-plan.md` per the plan template in the `writing-plans` skill (`references/plan-template.md`, resolved via that skill's base directory), committed to source control, with these deltas:
    - Frontmatter: `source_prd: <path or none>`; `source_bundle: none (quick pass)`; `source_research: none (quick pass)`
    - One flat **Changes Required** section — exact file paths, specific code or signatures — with a single automated + manual success-criteria gate. No phases.
    - References: PRD path if any; bundle/research entries read "none (quick pass) — evidence gathered in-session"
