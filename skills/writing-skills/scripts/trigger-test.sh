@@ -15,8 +15,9 @@ init    creates one campaign workspace and prints its path on stdout:
         frontmatter-only stubs of every skills/<name>/SKILL.md under SOURCE
         go to WORKSPACE/.agents/skills/<name>/SKILL.md, and
         SOURCE/agents/trigger-evaluator.md is copied to
-        WORKSPACE/.opencode/agents/. SOURCE defaults to the repository
-        root containing this script.
+        WORKSPACE/.opencode/agents/. SOURCE defaults to the plugin/repo
+        root containing this script (resolved two directories up from
+        the script, expecting `skills/` and `agents/` beneath it).
 eval    runs one scenario in the workspace and prints a verdict block:
           verdict: loaded | not-loaded
           target: <skill>
@@ -33,14 +34,17 @@ batch   runs one scenario per non-blank line of --scenarios FILE through a
         once serially with a fresh timeout, and still-void reps report
         verdict: void. Ends with a "batch summary:" line.
 sync    re-extracts the frontmatter of skills/NAME/SKILL.md (from --source,
-        defaulting to the repository root) into the workspace stub, so evals
+        defaulting to the plugin/repo root containing this script —
+        resolved two directories up from the script, expecting `skills/`
+        and `agents/` beneath it) into the workspace stub, so evals
         measure the description just revised. Run after every description
         edit; the workspace stub is an init-time snapshot and does not track
         the real SKILL.md. Workspace comes from --workspace or
         $TRIGGER_TEST_WORKSPACE.
 status  diffs the workspace stub for NAME against the live frontmatter of
-        skills/NAME/SKILL.md (from --source, defaulting to the repository
-        root). Prints "in-sync: NAME" and exits 0 on match, or
+        skills/NAME/SKILL.md (from --source, defaulting to the plugin/repo
+        root containing this script — resolved two directories up from the
+        script, expecting `skills/` and `agents/` beneath it). Prints "in-sync: NAME" and exits 0 on match, or
         "stale: NAME" and exits 1 on any difference.
 cleanup removes the workspace (--workspace or $TRIGGER_TEST_WORKSPACE).
 EOF
