@@ -5,7 +5,7 @@ plan: /home/dave/source/dangerpowers/PLANS/2026-08-06-portable-skill-paths-plan.
 phase: 6
 status: DONE
 git_commit_start: 9cc8c7c4663fc494abb8efabe7b0d81ec83310ba
-git_commit_end: <filled after commit>
+git_commit_end: 97071704555bd885fce674bcfea9bc465e20a3f9
 ---
 
 # Phase 6: trigger-test.sh usage text — Implementation Report
