@@ -4,7 +4,7 @@ plan: PLANS/2026-08-05-merge-trigger-testing-into-writing-skills-plan.md
 phase: 5
 status: DONE
 git_commit_start: e8557888b1f943982225cb111df4fd8b447d4786
-git_commit_end: FILL_IN_AT_COMMIT
+git_commit_end: 537fa453ab7c41ff711b6a00c747173526a20366
 ---
 
 # Phase 5 Execution Report: Clean-context review and remediation
