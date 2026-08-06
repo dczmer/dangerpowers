@@ -8,6 +8,7 @@ Newly created skills should be created under skills/ and NOT as per-project skil
 - You may update AGENTS.md but always get confirmation from the user first. AGENTS.md should contain important information about the project and commands, issues that happen frequently and require trial and error to fix. But the file should be, otherwise, as short and minimal as possible.
 - `.opencode/skills` and `.opencode/agents` are symlinks to the `skills` and `agents` directories in this repository. Never try to commit the symlinks, always commit the real files.
 - Skills live under the `skills` directory below the project root. When told to load, use, or test a skill, use the Glob too to look under `./skills` instead of inventing plausible-sounding paths or searching the system.
+- Never reference other files by line number (e.g. `SKILL.md:42` or "see line 24") in skills, references, or docs — line numbers drift on edit. Reference by file path and section/heading name instead.
 
 ## Project Layout
 
