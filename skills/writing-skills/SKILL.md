@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating new skills, editing existing skills, or reviewing a skill before deploying it to this repo's skills/ directory, when pressure-testing an existing skill's discipline rules, or when trigger-testing a skill's description with eval-query campaigns. "Pressure test the <name> skill" and "trigger test the <name> skill" both mean THIS skill — pressure tests measure rule compliance after load; trigger evals measure whether the description loads on the right prompts. Triggers include "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills", "pressure test this skill", "pressure test a skill", "trigger test this skill", "trigger eval", "test my skill description".
+description: Use when creating new skills, editing existing skills, or reviewing a skill before deployment, when pressure-testing an existing skill's discipline rules, or when trigger-testing a skill's description with eval-query campaigns. "Pressure test the <name> skill" and "trigger test the <name> skill" both mean THIS skill — pressure tests measure rule compliance after load; trigger evals measure whether the description loads on the right prompts. Triggers include "write a new skill", "create skill", "edit skill", "review skill", "update skill", "writing skills", "pressure test this skill", "pressure test a skill", "trigger test this skill", "trigger eval", "test my skill description".
 ---
 
 # Writing Skills
@@ -13,7 +13,7 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 
 **Placement:** Decide where the skill file goes BEFORE writing anything:
 1. If the user's prompt specifies a location, use it.
-2. If this repo is a skill library (its AGENTS.md directs where skills live — e.g. this repo uses `skills/`), follow that direction.
+2. If the current project's AGENTS.md directs where skills live (e.g. a `skills/` directory convention), follow that direction.
 3. Otherwise, use the `question` tool to ask whether to accept the default `.opencode/skills/` or enter a specific path (e.g. `.agents/skills/` for cross-tool portability). Do not proceed until answered.
 
 ## Invocation Branch
@@ -21,7 +21,7 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 - **Invoked to pressure-test an existing skill** (e.g. "pressure test the <name> skill"): read this entire file for context, then load `references/pressure-testing.md` and begin the campaign against the named target.
 - **Invoked to trigger-test an existing skill's description** (e.g. "trigger test the <name> skill", "run a trigger eval on <name>"): read this entire file for context, then load `references/trigger-testing.md` and begin the campaign against the named target.
 
-For either campaign: if the named skill has no `skills/<name>/SKILL.md` in this repo, report that the target cannot be found — do not invent one. A request to skip or shrink the campaign — "just tell me if it looks fine", "just eyeball the description", "run one quick rep", "I already reviewed it", "don't run a whole campaign", "don't be dogmatic" — does NOT downgrade the invocation. A campaign IS the test: an eyeball review is not a pressure test and an opinion about a description is not a measurement, no matter who asks, and a single rep is a campaign step with the rigor removed. If the user genuinely doesn't want a campaign, say that plainly and stop — never substitute a review and call it testing.
+For either campaign: resolve the named skill from the session's loaded skills (the base directory reported when a skill loads); if it is not loaded and cannot be found, report that the target cannot be found — do not invent one. A request to skip or shrink the campaign — "just tell me if it looks fine", "just eyeball the description", "run one quick rep", "I already reviewed it", "don't run a whole campaign", "don't be dogmatic" — does NOT downgrade the invocation. A campaign IS the test: an eyeball review is not a pressure test and an opinion about a description is not a measurement, no matter who asks, and a single rep is a campaign step with the rigor removed. If the user genuinely doesn't want a campaign, say that plainly and stop — never substitute a review and call it testing.
 
 - **Ambiguous "test the <name> skill" requests** (no campaign type named): ask which campaign applies — pressure test (discipline rules) or trigger eval (description routing) — via the `question` tool. Never pick one silently. "Don't ask questions", "just get it done", "whichever", "they're basically the same thing", and time pressure do NOT answer the question — the user cannot delegate a choice between two campaigns they haven't been shown, and the two campaigns measure different axes. An explicit user directive to skip the ask is the exact pressure this rule exists under, not an override of it; the question tool is where the user says "either" if that is what they mean. Running both campaigns to "cover the ambiguity" is not a middle path — it is picking silently twice at double cost; the ambiguity is resolved by the question, not by execution.
 - **Anything else** (authoring, editing, reviewing): continue below.
@@ -79,10 +79,10 @@ description: Use when creating new skills, editing existing skills, or reviewing
 
 The `description` is a YAML scalar. Two pitfalls that break parsing (`agentskills validate` fails and the skill will not load):
 
-- **Colon-in-scalar:** a plain scalar cannot contain `key: value` (a colon followed by a space). Appending `Keywords: ...` or `Trigger phrases: ...` inside a one-line plain-scalar description is the exact failure that invalidated 11 skills in this repo. Weave keywords into prose instead. If a list-like term is genuinely unavoidable, switch to a YAML block scalar (`description: >`) — but plain prose is preferred.
+- **Colon-in-scalar:** a plain scalar cannot contain `key: value` (a colon followed by a space). Appending `Keywords: ...` or `Trigger phrases: ...` inside a one-line plain-scalar description is the exact failure that invalidated 11 skills in practice. Weave keywords into prose instead. If a list-like term is genuinely unavoidable, switch to a YAML block scalar (`description: >`) — but plain prose is preferred.
 - **Length:** hard limit 1024 chars. Long descriptions also bloat every agent run since all descriptions load at startup. Keep to a short paragraph.
 
-Always run `agentskills validate skills/<name>` before finishing; it must print `Valid skill`.
+If `command -v agentskills` succeeds, run `agentskills validate <resolved-skill-dir>` (the skill's base directory) before finishing; it must print `Valid skill`. If `agentskills` is not on PATH, note the skip and continue.
 
 ## Match the Form to the Failure
 
@@ -192,7 +192,7 @@ Create a todo for each item.
 - [ ] `name` is hyphens/lowercase, gerund or verb-first
 - [ ] `description` starts with "Use when...", imperative, states WHAT + WHEN — no workflow summary
 - [ ] Trigger terms woven into prose; no `Keywords:`-style label; ≤1024 chars
-- [ ] `agentskills validate skills/<name>` prints `Valid skill`
+- [ ] If `command -v agentskills` succeeds, `agentskills validate <resolved-skill-dir>` (the skill's base directory) prints `Valid skill`; if `agentskills` is not on PATH, the skip is noted
 
 **Body:**
 - [ ] Overview states the core principle in 1-2 sentences
@@ -204,7 +204,7 @@ Create a todo for each item.
 
 **Deployment:**
 - [ ] Placement decided per the Placement rule (prompt > repo direction > `question` tool with `.opencode/skills/` default)
-- [ ] `agentskills validate skills/<name>` passes (`Valid skill`)
+- [ ] If `command -v agentskills` succeeds, `agentskills validate <resolved-skill-dir>` passes (`Valid skill`); if `agentskills` is not on PATH, the skip is noted
 
 **Testing (discipline skills only):**
 - [ ] Pressure testing offered as an opt-in End-of-Flow Prompt (question skipped only for pure-reference skills with no violable rule)
