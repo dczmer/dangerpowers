@@ -6,6 +6,12 @@ Dissecting popular frameworks like superpowers and building my own - to learn an
 
 ---
 
+**STATUS**: About 75% done with the skills and workflows I wanted for this project, but discovered some issues that prevent this library from being useful on other projects besides this very repository.
+
+I moved all of the old skill definitions to `skills.old` directory and I'm currently folding them back into the proper `skills` directory one-at-a-time, starting with an improved `writing-skills`.
+
+---
+
 ## Motivation
 
 When I first installed [superpowers](https://github.com/obra/superpowers), I was amazed by how consistently the skills fired, and how well they enforced the operational rules without the AI rationalizing or working around the constraints and rules.
