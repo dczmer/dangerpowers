@@ -1,0 +1,10 @@
+{
+  "name": "dangerpowers",
+  "private": true,
+  "type": "module",
+  "main": "plugins/opencode-plugin.js",
+  "dependencies": {
+    "@opencode-ai/plugin": "1.18.3",
+    "yaml": "^2.8.0"
+  }
+}

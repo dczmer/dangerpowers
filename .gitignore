@@ -2,3 +2,4 @@
 result
 .worktrees/
 .venv/
+node_modules
