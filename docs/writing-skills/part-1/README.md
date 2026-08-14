@@ -1,6 +1,10 @@
 # Writing Skills Deep Dive - Part 1: Basics
 
-I experimented with `superpowers` and was impressed by how well the skills triggered and how they implemented a full end-to-end development system. I decided to review the `superpowers` repository and skill definitions to see how they write such effective skills.
+Have you ever tried to write a skill, but the AI couldn't figure out how to execute certain steps or, even worse, completely disregard important rules from your instructions? Maybe the skill doesn't fire when you expect it to, or fires too frequently and runs when you don't want it? Then you add more and more rules, change wording to further emphasize rules that should not be broken? Did you end up with a 3K line markdown file that you were not satisfied with?
+
+I spent some time experimenting with `superpowers` and was impressed by how well the skills triggered and how they implemented a full end-to-end development system. I was particularly impressed at how well the TDD behavior in their system worked, since TDD is "antagonistic" to the way LLMs work (according to `Opus`), and they tend to just try to do everything in one shot no matter how much you instruct them to follow a process.
+
+I decided to review the `superpowers` repository and skill definitions to see how they write such effective skills.
 
 How `superpowers` works:
 
@@ -10,7 +14,7 @@ How `superpowers` works:
 - Provides a skill called `writing-skills`, which encodes their conventions so that skills you create follow these conventions too.
 - Implements a "pressure testing" process that optimizes instructions: adds discipline rules where the AI does not comply but does NOT add unnecessary rules (must see a real failure first).
 
-I also read [agentskills.io](agentskills.io) contents and the official skills spec, which had similar advice. They also described processes for testing and optimizing triggering and testing the product of what the skill can produce. [agentskills.io](agentskills.io) also publishes a `python` package you can use to validate skill front-matter and formatting called `agentskills`.
+[agentskills.io](agentskills.io) has a skills guide, and the official skills spec, and a `python` package, called `agentskills`, that can verify and validate your skill file and front-matter. They also described processes for testing and optimizing triggering and testing the product of what the skill can produce.
 
 I also watched a presentation about how Google DeepMind team writes skills, which covers much of the same stuff but adds more specific advice and a sort of recipe for writing and developing skills.
 
@@ -35,11 +39,9 @@ Superpowers breaks things down into 4 types of skills but I prefer the capabilit
 
 The first rule from the DeepMind presentation was to write the initial skill content yourself. AI-generated skill definitions tend to contain a lot of unnecessary statements, no-ops, or rules based on something that happened in the context when the skill was written but make no sense when the skill is executed in a different session.
 
-Write the skill yourself and then read it carefully whenever you let the AI modify it. Humans are better at writing a minimal skill definition without duplication, no-op statements, or random commentary about something that was happening in the session.
-
 When we get to testing and optimization, the AI will take over editing the skill file, but it will do so under very specific instructions. You just need to make sure it stays concise and free of no-ops or contradictory instructions.
 
-One of the first big skills I tried to write ended up with a lot of unnecessary text prohibiting the execution of certain instructions that existed in previous drafts of the skill file. I would decide to completely remove a rule or a piece of information from the skill file and ask the AI to do it. Instead of completely removing it, it would replace the text with a statement explaining that the specific rule is not applicable, until the skill body was littered with "tombstone" phrases about rules that were not actually part of the skill at all.
+One of the first big skills I tried to write ended up with a lot of unnecessary text prohibiting the execution of certain instructions that existed in previous drafts of the skill file. I would decide to completely remove a rule or a piece of information from the skill file and ask the AI to do it. Instead of simply removing it, it would replace the text with a statement explaining that the specific rule is not applicable, until the skill body was littered with "tombstone" comments about rules that didn't exist.
 
 ## Descriptions and Triggers
 
@@ -54,7 +56,7 @@ A good description should have the following properties:
 
 How do you write skill descriptions that trigger when you want them to, and not when you do not want them to? With a process called "trigger testing," which we will be doing later, after covering the basics of skill files first.
 
-You can also define skills that do not auto-trigger, and use them explicitly like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. A skill defined like this does not take up as much context, never hijacks another prompt, doesn't require any trigger testing or optimization. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLLM interpreting your prompt.
+You can also define skills that do not auto-trigger, and use them explicitly like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. A skill defined like this does not take up as much context, never hijacks another prompt, doesn't require any trigger testing or optimization. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLM interpreting your prompt.
 
 To make a skill that does not auto-trigger, replace the `description: ...` in the front-matter with `disable-model-invocation: true`.
 
@@ -117,6 +119,7 @@ Some issues I've observed (not counting issues with testing processes):
 - Descriptions from other skills influencing LLM reasoning, contaminating the context window.
 - Skills that never seem to fire automatically, or skills that fire too broadly and hijack prompts they shouldn't receive.
 - LLM deciding NOT to execute a skill that should have triggered, because the skill description had a TLDR of the process it encapsulates. "I don't need to read the skill, I already know what to do from the description."
+- Prompt-injection attacks from the `description` field of third-party skills.
 
 It mostly comes down to context window management, triggering, and contaminating your context with instructions you don't always want.
 
@@ -124,11 +127,11 @@ I should also point out that descriptions from third-party skills you install ar
 
 ## Testing
 
-I will cover these testing and optimization concepts in the next instalment:
+I will cover these testing and optimization concepts in the next installment:
 
 **Trigger Testing**
 
-Agent-driven evaluation and optimization loop that tests prompts with various trigger phrases against your skill description. Statements that should trigger vs. statements that should never trigger. Then modifying the description and repeating until the tests pass.
+Agent-driven evaluation and optimization loop that tests prompts with various trigger phrases against your skill description. Statements that should trigger vs. statements that should never trigger. Then modifying the description and repeating until the description is optimized.
 
 **Pressure Testing**
 
@@ -142,9 +145,17 @@ Each behavioral rule is tested with a scenario that contains multiple sources of
 
 The last category of test, and probably the most expensive to run, is like a unit or system test that verifies the product of what your skill produces.
 
-This typically requires some kind of fake project scaffolding or fixture to create an environment where the skill is applicable - like a simple nodejs project with source code so you can actually execute some javascript related skill and observe the output.
+This typically requires some kind of fake project scaffolding or fixture to create an environment where the skill is applicable - like a simple `nodejs` project with source code so you can actually execute some JavaScript related skill and observe the output.
 
 This means these tests do actual work, which could get out of hand when you are running them in a self-optimizing loop.
+
+## Example
+
+Here is our own `writing-skills` skill, based largely on the `superpowers` version, containing everything we've covered in this document, and nothing we haven't covered yet (testing and optimization rules).
+
+[writing-skills (without testing)](./writing-skills.md)
+
+You can use this to write a new skill, iterate on a skill, or clean-up an existing skill. Whenever we run a test campaign and optimization loop, a skill like this will be loaded into context to ensure the AI follows these rules when modifying the skill.
 
 ## References
 
