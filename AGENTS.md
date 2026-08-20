@@ -22,13 +22,10 @@ dangerpowers/
 │       └── trigger-evals/     # trigger-eval scenarios (some skills)
 ├── agents/                    # custom opencode agent definitions (*.md)
 ├── plugins/                   # opencode plugin (opencode-plugin.js) registering skills/ + agents/ via config hook
-├── PRDS/                      # product requirements documents
-├── RESEARCH/                  # research findings + context bundles feeding plans
-├── PLANS/                     # implementation plans + phase execution reports
 ├── .opencode/                 # opencode config
 ├── .worktrees/                # git worktrees used by plan execution
 ├── AGENTS.md                  # repo operational rules for agents
-├── README.md / NOTES.md       # docs
+├── README.md                  # docs
 ├── package.json / node_modules # Node deps for plugins/ (yaml, @opencode-ai/plugin)
 ├── flake.nix / flake.lock / .envrc  # Nix dev environment
 └── pyproject.toml / uv.lock / .venv # Python environment (skill development tooling)

@@ -1,8 +1,0 @@
-[
-  {"query": "Use the plan execution workflow to implement a single phase.", "should_trigger": true},
-  {"query": "I have an approved plan with phases. I want to implement phase 3 now.", "should_trigger": true},
-  {"query": "Help me write a README for this library.", "should_trigger": false},
-  {"query": "I need to create a new skill for the team.", "should_trigger": false},
-  {"query": "Can you help me design a workflow?", "should_trigger": false},
-  {"query": "Write a PRD for a new feature.", "should_trigger": false}
-]

@@ -1,6 +1,0 @@
-[
-  {"query": "Help me execute one phase of a multi-phase plan that was approved.", "should_trigger": true},
-  {"query": "I need to implement phase 2 of an approved plan. The plan is in PLANS/my-plan-plan.md and the report should go to PLANS/my-plan-phase-2-report.md.", "should_trigger": true},
-  {"query": "What's the weather today?", "should_trigger": false},
-  {"query": "I'm running a phase executor for an approved plan.", "should_trigger": true}
-]

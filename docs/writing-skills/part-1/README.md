@@ -2,17 +2,7 @@
 
 Have you ever tried to write a skill, but the AI couldn't figure out how to execute certain steps or, even worse, completely disregard important rules from your instructions? Maybe the skill doesn't fire when you expect it to, or fires too frequently and runs when you don't want it? Then you add more and more rules, change wording to further emphasize rules that should not be broken? Did you end up with a 3K line markdown file that you were not satisfied with?
 
-I spent some time experimenting with `superpowers` and was impressed by how well the skills triggered and how they implemented a full end-to-end development system. I was particularly impressed at how well the TDD behavior in their system worked, since TDD is "antagonistic" to the way LLMs work (according to `Opus`), and they tend to just try to do everything in one shot no matter how much you instruct them to follow a process.
-
-I decided to review the `superpowers` repository and skill definitions to see how they write such effective skills.
-
-How `superpowers` works:
-
-- Includes skills that implement specific workflow steps (brainstorming, executing an implementation plan, structured debugging, etc.).
-- Injects custom instructions in your system prompt telling it how and when to use the skills. It implements the orchestration instructions, and how to use subagents, in the system prompt of every session.
-- Uses consistent conventions around optimizing skill content and descriptions to produce effective skills with smaller definitions. Specifically, it focuses on "discipline" rules that force the agent to actually follow the instructions more consistently.
-- Provides a skill called `writing-skills`, which encodes their conventions so that skills you create follow these conventions too.
-- Implements a "pressure testing" process that optimizes instructions: adds discipline rules where the AI does not comply but does NOT add unnecessary rules (must see a real failure first).
+I spent some time experimenting with `superpowers` and was impressed by how well the skills triggered and how they implemented a full end-to-end development system. I was particularly impressed at how well the skills would stick to the rules, even in long-running sessions.
 
 [agentskills.io](agentskills.io) has a skills guide, and the official skills spec, and a `python` package, called `agentskills`, that can verify and validate your skill file and front-matter. They also described processes for testing and optimizing triggering and testing the product of what the skill can produce.
 
@@ -125,30 +115,6 @@ It mostly comes down to context window management, triggering, and contaminating
 
 I should also point out that descriptions from third-party skills you install are a prime vector for prompt injection attacks. This will become clear when you start doing trigger and pressure testing campaigns, as descriptions from other skills will frequently cause your agent to exhibit undesired behavior for the test scenario.
 
-## Testing
-
-I will cover these testing and optimization concepts in the next installment:
-
-**Trigger Testing**
-
-Agent-driven evaluation and optimization loop that tests prompts with various trigger phrases against your skill description. Statements that should trigger vs. statements that should never trigger. Then modifying the description and repeating until the description is optimized.
-
-**Pressure Testing**
-
-Did you know that LLMs are susceptible to social pressure, just like humans? Factors like sunk time, cost, work, authority, etc. all lead to AI "rationalizing" reasons why they can circumvent the rules in your skill file.
-
-Pressure testing is another agent-driven eval + optimization loop. This one proposes a hypothetical scenario to a fresh agent session, gives multiple choice answers, and then prompts the agent to see if it follows a specific rule or not. The agent is instructed to give reasons _why_ it made its decision, which we use to optimize the instructions for the next round.
-
-Each behavioral rule is tested with a scenario that contains multiple sources of pressure. LLMs are good at pushing back on a single source of pressure, but are more likely to rationalize if there are multiple pressures.
-
-**Skill Test Evals**
-
-The last category of test, and probably the most expensive to run, is like a unit or system test that verifies the product of what your skill produces.
-
-This typically requires some kind of fake project scaffolding or fixture to create an environment where the skill is applicable - like a simple `nodejs` project with source code so you can actually execute some JavaScript related skill and observe the output.
-
-This means these tests do actual work, which could get out of hand when you are running them in a self-optimizing loop.
-
 ## Example
 
 Here is our own `writing-skills` skill, based largely on the `superpowers` version, containing everything we've covered in this document, and nothing we haven't covered yet (testing and optimization rules).
@@ -156,6 +122,8 @@ Here is our own `writing-skills` skill, based largely on the `superpowers` versi
 [writing-skills (without testing)](./writing-skills.md)
 
 You can use this to write a new skill, iterate on a skill, or clean-up an existing skill. Whenever we run a test campaign and optimization loop, a skill like this will be loaded into context to ensure the AI follows these rules when modifying the skill.
+
+In the following installments, we'll augment this skill to focus on writing optimal descriptions, writing discipline rules, and testing skills.
 
 ## References
 
