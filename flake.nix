@@ -35,6 +35,7 @@
               shunit2
               nodejs
               typescript-language-server
+              gh
             ];
             shellHook = ''
               [[ -d .venv ]] || uv venv .venv
