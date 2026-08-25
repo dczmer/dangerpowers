@@ -89,7 +89,7 @@ Verdicts: **Sound** · **Sound, with caveat** · **Contested** (sources disagree
 | # | Claim | Verdict | Source |
 |---|---|---|---|
 | 43 | LLMs are non-deterministic | **Sound** | E "Model behavior is nondeterministic — the same query might trigger the skill on one run but not the next" |
-| 44 | …because of sampling/temperature **plus** floating-point rounding and parallel-GPU differences | **Mostly incorrect** | See finding **F2** |
+| 44 | …because of sampling/temperature **plus** floating-point rounding and parallel-GPU differences | **Mostly incorrect (Resolved)** | See finding **F2** |
 | 45 | Let the agent find its own way; don't prescribe step-by-step | **Half right — needs the conditional (Resolved)** | See finding **F1** |
 | 46 | If it must be a rigid procedure, write a script | **Sound** | A's low-freedom example is literally a script invocation; A "Prefer scripts for deterministic operations"; B on determinism and cost |
 | 47 | If the agent keeps writing the same ad-hoc script, save it as a reusable one | **Sound** | D: "If you notice the agent independently reinventing the same logic each run… that's a signal to write a tested script once and bundle it in `scripts/`"; A "Even if Claude could write a script, pre-made scripts offer advantages: more reliable, save tokens, save time, ensure consistency" |
@@ -172,7 +172,30 @@ DeepMind "let it find its own way" advice as the default for open-field work, an
 absolute checklist items with a fragility test. As written, the skill file would fail its own
 checklist on any deploy or migration skill.
 
-### F2 — The non-determinism explanation is the hypothesis that got refuted
+### F2 — The non-determinism explanation is the hypothesis that got refuted — **Resolved**
+
+> **Resolution.** The refuted causal clause was replaced with the batch-invariance mechanism, cited to **I**.
+>
+> - `README.md` (opening paragraph of *Determinism, Rigid Processes, and Scripts*): "partly because of many
+>   little factors that affect computation, like rounding errors in precise floating-point math or
+>   differences in how data is processed on parallel GPUs" is gone. It now states that even at temperature
+>   zero the same prompt against the same endpoint won't reliably return the same tokens, attributes that
+>   to batch-invariance — kernels return slightly different floating-point results depending on the batch
+>   size they run at, and batch size tracks concurrent server traffic — and notes you don't control it.
+>   Sampling/temperature is kept as the by-design source.
+> - The framing claim was softened in both places it appeared: the paragraph opens "non-deterministic in
+>   **practice**" rather than flatly "non-deterministic," and "LLMs are non-deterministic by nature" was cut
+>   from the following paragraph (it was a restatement, and **I** shows the property is fixable with
+>   batch-invariant kernels, so "by nature" is wrong).
+> - **I** was added to the reference list.
+>
+> The conclusion the section draws — same instructions, different route each run, so move guaranteed
+> sequences into a script — was load-bearing on none of this and is unchanged. Rows 43 and 46–48 keep their
+> verdicts.
+>
+> Note on why this wasn't a wording nitpick: floating point appears in both the old and new text, but the
+> causal direction was inverted. The old text implied the arithmetic is inherently jittery; the arithmetic is
+> deterministic given a fixed batch, and the nondeterminism enters through the batch.
 
 The draft attributes non-determinism to "sampling and temperature" plus "rounding errors in precise
 floating-point math or differences in how data is processed on parallel GPUs." **I** names that

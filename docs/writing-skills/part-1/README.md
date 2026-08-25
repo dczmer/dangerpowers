@@ -119,9 +119,9 @@ Most skills are a mix of both, and each section calibrates separately. The test 
 
 ## Determinism, Rigid Processes, and Scripts
 
-LLMs are non-deterministic. Partly by design (sampling and temperature), and partly because of many little factors that affect computation, like rounding errors in precise floating-point math or differences in how data is processed on parallel GPUs. This means that you can give an agent the same instructions many times, and it will take slightly different route to get there each time (or maybe VERY different routes).
+LLMs are non-deterministic in practice. Some of that is by design - sampling and temperature. But even at temperature zero, the same prompt against the same endpoint won't reliably give you the same tokens. Thinking Machines traced this to batch-invariance: the kernels serving your request produce slightly different floating-point results depending on the batch size they run at, and batch size depends on how much other traffic the server is handling at that moment. You don't control that. Either way, you can give an agent the same instructions many times and it will take a slightly different route to get there each time (or maybe VERY different routes).
 
-A rule from the DeepMind presentation that surprised me: on open-field tasks, let the agent find it's own way to the solution. LLMs are non-deterministic by nature, but they are designed to reason and figure out a solution with iteration. The AI will find its way to the solution but will always take a different approach each time.
+A rule from the DeepMind presentation that surprised me: on open-field tasks, let the agent find it's own way to the solution. They are designed to reason and figure out a solution with iteration. The AI will find its way to the solution but will always take a different approach each time.
 
 You may see it doing things that obviously won't work, but eventually figure it out. My initial instinct was to lock that down with tighter rules, so it never tries to execute commands that will not work, or to tell it exactly what to do at each step. When the task had many valid routes, that backfired - the rigid execution steps caused more problems than the wandering did. Only when you see it do something bad, or consistently struggle to figure out the next step, should you add discipline rules to correct it.
 
@@ -174,3 +174,4 @@ In the following installments, we'll augment this skill to focus on writing opti
 - [DeepMind - Don't Ship Skills Without Evals](https://youtu.be/0vphxNt4wyk?si=j9E5D7a-scWELD6_)
 * Skill authoring best practices: [https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
 * Equipping agents for the real world with Agent Skills: [https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
+* Defeating Nondeterminism in LLM Inference: [https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)
