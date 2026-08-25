@@ -58,7 +58,7 @@ Skills are activated using the `skill` tool in your coding agent. The system pro
 
 A good description should have the following properties:
 - Include what (capability) and when (triggers)
-- Should be short (< 1024 characters) because every skill description takes space in your context window.
+- Should be short (< 1024 characters) because every skill description takes space in your context window. Descriptions live in the system prompt, so you pay for them from the first turn of every session, whether the skill ever fires or not.
 - Triggers the skill based on phrases you intend to active.
 - Does not "hijack" phrases that should load other skills, or not load a skill at all.
 - Does not paraphrase the contents of the skill - AI will cheat and not load the skill if the description already has a TLDR of what it does.
@@ -73,7 +73,7 @@ How you declare this depends on your agent. It isn't in the Agent Skills spec, s
 
 The body of your `SKILL.md` file contains the instructions or context that the agent should follow to accomplish a task.
 
-Skill files should be short: <500 lines. When a skill is invoked, the entire contents of the skill file will be loaded into the context window. This means that every no-op statement, every paragraph of flowery prose that could be concise directives, become bloat that wastes context space. Anything that is obvious, or that the agent can easily figure out on it's own is also waste (we'll see how to detect that with eval tests later).
+Skill files should be short: <500 lines. When a skill is invoked, the entire contents of the skill file are loaded into the context window - and it stays there. This isn't a one-time cost paid at invocation; the skill body sits in the conversation history for the rest of the session, re-sent with every turn that follows. Fifty lines of preamble in a skill you trigger early is fifty lines you keep paying for while you do everything else. So every no-op statement, every paragraph of flowery prose that could be concise directives, becomes bloat that wastes context space. Anything that is obvious, or that the agent can easily figure out on it's own is also waste (we'll see how to detect that with eval tests later).
 
 A skill should start with an overview that states it's core principals in 1-2 sentences. It should contain a section that describes when to use the skill, and when not to use the skill. These sections give the AI a chance to abort early, after triggering the skill, if it's not actually applicable to the current problem context.
 
@@ -157,9 +157,15 @@ I should also point out that descriptions from third-party skills you install ar
 
 * Naming: Gerund form (`processing-pdfs`, `analyzing-spreadsheets`). Lowercase, numbers, hyphens, 64 chars.
 * Descriptions get written in third person, always. "Processes Excel files and generates reports", not "I can help you with". The field gets injected into the system prompt and mixing point of view causes discovery problems. Include both what it does and when to use it, with the trigger words a user would actually type.
+* Scope a skill like a function - one coherent unit of work. Too narrow and you need three of them loaded at once to get anything done; too broad and no description can trigger it precisely.
+* Include a "gotchas" section - environment-specific facts that defy reasonable assumptions. This is often the highest-value content in the whole file, because it's exactly what the model can't derive on its own.
+* Provide defaults, not menus. Pick one library, one approach, and name it. Mention the escape hatch if there is one, but don't hand the agent a decision it has no basis for making.
+* No time-sensitive information. "If you're doing this before August 2025" rots. If an older approach still needs documenting, put it in a clearly labeled section for legacy patterns.
 * Forward slashes in paths, even on Windows.
 * Pick one term per concept and use it everywhere. Don't rotate between field, box, element, and control.
 * Scripts should handle their own error cases instead of failing and leaving the agent to figure it out.
+* No magic constants in scripts. If a script sets `TIMEOUT = 30`, say why it's 30. If you don't know the right value, the agent has no way to work it out either.
+* Don't assume a skill that works on a large model works on a small one. Instructions a frontier model follows fine may need to be spelled out for a smaller, faster one.
 
 ## Example
 

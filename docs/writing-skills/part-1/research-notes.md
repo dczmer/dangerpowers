@@ -345,15 +345,38 @@ broadly (not project-specific)" bullet too.
 > survives at `:16` and `:20`. Other three items in the *Don't create for* list untouched — F verbatim
 > and sound. No checklist change; nothing in the checklist tests the when-to-create criteria.
 
-### F6 — One addition worth making, because it strengthens your central argument
+### F6 — One addition worth making, because it strengthens your central argument — **Resolved**
 
 G documents something the draft doesn't: once a skill loads, "its content stays in context across
 turns, so every line is a recurring token cost." That's a stronger justification for the <500-line
 rule than "it gets loaded once," and it's the same argument the draft already makes about references.
 
+> **Resolved.** Two additions, both in `README.md`. No table row to update — F6 is an addition, not an
+> audited claim. Both new statements are sourced to G, already in the reference list.
+>
+> - `:76` — the <500-line justification now states the cost is per-turn, not per-invocation: the body
+>   "sits in the conversation history for the rest of the session, re-sent with every turn that
+>   follows." Fixes an inversion in the draft's own argument, which made the compounding case for
+>   reference files at `:100` but only the one-time case for the body — backwards, since the body is
+>   the part guaranteed to be there. Phrased around conversation history rather than any agent's
+>   implementation, so it stays vendor-neutral.
+> - `:61` — added the same mechanism for descriptions, one sentence: they live in the system prompt, so
+>   they're paid from the first turn of every session whether the skill fires or not. This was the
+>   unstated mechanism behind two existing *Issues* bullets (`:146` too many skills bloat context,
+>   `:147` foreign descriptions contaminating reasoning).
+>
+> Two deliberate non-edits:
+>
+> - `:104` ("a reference file that is ALWAYS loaded is pointless") could carry the same recurring-cost
+>   framing, but the sharpened `:76` already establishes it and repeating it would violate the draft's
+>   own no-repeated-content rule.
+> - `writing-skills.md:67` already gives the correct justification in directive form ("every token
+>   competes with conversation context"). Adding the mechanism there would be rationale in a file whose
+>   own checklist forbids commentary that isn't a goal, constraint, or end condition.
+
 ---
 
-## In-scope guidance the draft omits
+## In-scope guidance the draft omits — **Folded in**
 
 Not an argument to expand the post — just flagging basics from A and D that fall inside part 1's
 scope, in case any earn a line:
@@ -371,6 +394,29 @@ scope, in case any earn a line:
   value, how will Claude determine it?"
 - **Fully-qualified MCP tool names** (A) — `ServerName:tool_name`.
 - **Test across models** (A) — "What works perfectly for Opus might need more detail for Haiku."
+
+> **Folded in.** All seven landed as bullets in *Some Established Conventions* (`README.md:159–169`).
+> No new table rows — same treatment as F6's additions; these are additions, not audited claims. Each
+> traces to A or D, both already in the reference list.
+>
+> Ordering: new bullets were interleaved rather than appended, so the section groups as
+> definition/discovery → content → consistency → scripts. Concretely: *coherent units* and *gotchas*
+> and *defaults, not menus* and *no time-sensitive info* after the descriptions bullet; *MCP names*
+> after the terminology bullet; *no voodoo constants* after the existing scripts bullet. No existing
+> bullet was reworded — only repositioned relative to the new ones.
+>
+> Two judgement calls worth recording:
+>
+> - **Test across models** is arguably testing scope, which the post defers to part 2 (`:7`). Kept it
+>   because it's stated as a convention ("don't assume large-model behavior transfers") rather than a
+>   procedure, and phrased by model size instead of naming Opus/Haiku, per the vendor-neutrality pass.
+> - **Gotchas** is really content guidance and would sit as naturally in *Content* (`:88–94`). Put it
+>   in Conventions as directed. It's the highest-value item of the seven — it's the mechanism behind
+>   the durable/preference category at `:33`, so if the post ever needs a stronger argument for why
+>   preference skills don't become obsolete, this bullet is where it starts.
+>
+> Not folded in: **row 22's** wording nit (`:57` describes skill matching as keyword dispatch; it's
+> semantic matching against descriptions) and the three agentskills.io deep links. Both still open.
 
 ## Suggested reference-list additions
 
