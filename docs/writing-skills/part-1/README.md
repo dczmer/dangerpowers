@@ -61,9 +61,9 @@ A good description should have the following properties:
 
 How do you write skill descriptions that trigger when you want them to, and not when you do not want them to? With a process called "trigger testing," which we will be doing later, after covering the basics of skill files first.
 
-You can also define skills that do not auto-trigger, and use them explicitly like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. A skill defined like this does not take up as much context, never hijacks another prompt, doesn't require any trigger testing or optimization. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLM interpreting your prompt.
+You can also define skills that do not auto-trigger, and use them explicitly like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. The Claude Code docs recommend it for anything with side effects, or where you want to control the timing - `/commit`, `/deploy` - because you don't want the agent deciding to deploy just because your code looks ready. A skill defined like this never hijacks another prompt and doesn't require any trigger testing or optimization, though its description is still loaded into context and can still color the agent's reasoning. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLM interpreting your prompt.
 
-To make a skill that does not auto-trigger, replace the `description: ...` in the front-matter with `disable-model-invocation: true`.
+To make a skill that does not auto-trigger, add `disable-model-invocation: true` to the front-matter. One caveat: this key is a Claude Code extension rather than part of the Agent Skills spec, so a skill that uses it may not validate everywhere.
 
 ## Content
 
@@ -175,3 +175,4 @@ In the following installments, we'll augment this skill to focus on writing opti
 * Skill authoring best practices: [https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
 * Equipping agents for the real world with Agent Skills: [https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 * Defeating Nondeterminism in LLM Inference: [https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)
+* Claude Code — Extend Claude with skills: [https://code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills)

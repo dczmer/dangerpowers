@@ -39,7 +39,7 @@ Verdicts: **Sound** · **Sound, with caveat** · **Contested** (sources disagree
 | 11 | One term per concept; don't rotate field/box/element/control | **Sound** | A "Use consistent terminology" — the field/box/element/control example is lifted from this section |
 | 12 | Scripts handle their own error cases | **Sound** | A "Solve, don't defer"; C scripts should "include helpful error messages" and "handle edge cases gracefully" |
 | 13 | Move deterministic logic to scripts to save tokens and get consistency | **Sound** | A "Prefer scripts for deterministic operations"; B "sorting a list via token generation is far more expensive than simply running a sorting algorithm" and "many applications require the deterministic reliability that only code can provide" |
-| 14 | `disable-model-invocation: true` **replaces** `description` and so costs less context | **Incorrect** | See finding **F3** below |
+| 14 | `disable-model-invocation: true` **replaces** `description` and so costs less context | **Incorrect (Resolved)** | See finding **F3** below |
 
 ## 2. Descriptions and triggering
 
@@ -213,7 +213,33 @@ and the framing "LLMs are non-deterministic by nature" should soften to *inferen
 non-deterministic in practice*, since I demonstrates the property is fixable. The conclusion you draw
 from it — write a script when you need a guaranteed sequence — is unaffected.
 
-### F3 — `disable-model-invocation` doesn't work the way the draft says
+### F3 — `disable-model-invocation` doesn't work the way the draft says — **Resolved**
+
+> **Resolution.** All three errors fixed in `README.md`; `writing-skills.md` never mentioned the field.
+>
+> - **Mechanism.** "replace the `description: ...` in the front-matter with `disable-model-invocation: true`"
+>   became "add `disable-model-invocation: true` to the front-matter." That single word change is the whole
+>   fix — the keys are orthogonal, so nothing needs removing. No explicit "keep the description" sentence was
+>   added; "add" already implies it, and the paragraph is tighter without it.
+> - **Context claim.** "does not take up as much context" deleted rather than inverted. Whether such a skill's
+>   description occupies the system prompt specifically is a client implementation detail no source pins down,
+>   so the draft now makes no claim either way. The real benefit — control over timing — was already the
+>   paragraph's closing point.
+> - **Portability.** Added, sourced to **G**: the key is a Claude Code extension, not one of the spec's six
+>   fields, so a skill using it may not validate everywhere.
+> - **Self-contradiction.** "never hijacks another prompt" was narrowed to "never hijacks another prompt and
+>   doesn't require any trigger testing, though its description is still loaded into context and can still
+>   color the agent's reasoning." The immunity is real for *invocation* only; the contamination hazard the
+>   draft itself lists in *Issues* still applies, and the two passages no longer disagree.
+> - **G's rationale grafted in**, replacing personal preference as the sole justification: recommended for
+>   anything with side effects or where you want to control the timing (`/commit`, `/deploy`), "because you
+>   don't want the agent deciding to deploy just because your code looks ready."
+> - **G added to the reference list** (`https://code.claude.com/docs/en/skills`) — the draft now cites "the
+>   Claude Code docs" in prose, so the link had to exist. This also clears one of the four suggested
+>   reference-list additions below.
+>
+> Deliberately not added: `user-invocable: false` (the model-only inverse). Real, but the post doesn't
+> otherwise enumerate frontmatter keys and it isn't needed to make any claim correct.
 
 The draft says to "replace the `description: ...` in the front-matter with
 `disable-model-invocation: true`," and that such a skill "does not take up as much context."
