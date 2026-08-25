@@ -36,9 +36,13 @@ Superpowers breaks things down into 4 types of skills but I prefer the capabilit
 
 ## Start Small
 
-The first rule from the DeepMind presentation was to **write the initial skill content yourself**. AI-generated skill definitions tend to contain a lot of unnecessary statements, no-ops, or rules based on something that happened in the context when the skill was written but make no sense when the skill is executed in a different session.
+The DeepMind presentation's first rule is to **write the initial skill content yourself**. I'd put it slightly differently, because the problem underneath it is narrower than "AI writing is bad."
 
-When we get to testing and optimization, the AI will take over editing the skill file, but it will do so under very specific instructions. You just need to make sure it stays concise and free of no-ops or contradictory instructions.
+Ask an agent to write a skill cold and you get filler - "handle errors appropriately," "follow best practices" - because it has nothing concrete to work from. Ask it to write one at the end of a long working session and you get the opposite problem: rules that encode incidental details of that conversation. A path that only existed on your branch. An error you hit once. A decision that was right that afternoon and is noise forever after. Both failure modes come from the same place - the model wrote from the wrong evidence - and the second is harder to catch, because every one of those rules looked justified at the time.
+
+So the rule isn't "type it yourself." It's: control what the model writes from, and never ship a skill you haven't read back cold. Give it real material - a transcript of doing the task by hand, an existing runbook, review comments, a patch - instead of asking it to imagine the process. Then open the draft in a fresh session that has no memory of writing it. Leaked context is obvious from there and nearly invisible from inside; anything you can't justify without that history is what to cut.
+
+When we get to testing and optimization, the AI will be doing most of the editing, but it will do so under very specific instructions. You just need to make sure it stays concise and free of no-ops or contradictory instructions.
 
 In fact, the common advice is actually to NOT write a skill right away, but to build one up with a TDD-like approach (basically the opposite of how everyone writes skills):
 1. Run the agent on real representative tasks with no skill at all. Write down where it failed.
@@ -61,9 +65,9 @@ A good description should have the following properties:
 
 How do you write skill descriptions that trigger when you want them to, and not when you do not want them to? With a process called "trigger testing," which we will be doing later, after covering the basics of skill files first.
 
-You can also define skills that do not auto-trigger, and use them explicitly like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. The Claude Code docs recommend it for anything with side effects, or where you want to control the timing - `/commit`, `/deploy` - because you don't want the agent deciding to deploy just because your code looks ready. A skill defined like this never hijacks another prompt and doesn't require any trigger testing or optimization, though its description is still loaded into context and can still color the agent's reasoning. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLM interpreting your prompt.
+You can also define skills that do not auto-trigger, and invoke them explicitly, like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. It's also the right shape for anything with side effects, or where you want to control the timing - committing, deploying, cutting a release. You don't want the agent deciding to deploy because your code looks ready. A skill defined like this never hijacks another prompt and doesn't require any trigger testing or optimization, though its description is still loaded into context and can still color the agent's reasoning. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLM interpreting your prompt.
 
-To make a skill that does not auto-trigger, add `disable-model-invocation: true` to the front-matter. One caveat: this key is a Claude Code extension rather than part of the Agent Skills spec, so a skill that uses it may not validate everywhere.
+How you declare this depends on your agent. It isn't in the Agent Skills spec, so there's no portable way to express it - in Claude Code it's `disable-model-invocation: true` in the front-matter. Check whether your agent supports it before relying on it.
 
 ## Content
 

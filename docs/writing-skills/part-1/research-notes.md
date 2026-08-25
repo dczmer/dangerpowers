@@ -102,7 +102,7 @@ Verdicts: **Sound** · **Sound, with caveat** · **Contested** (sources disagree
 | 49 | Capability vs. preference skills; preference skills are durable | **Attributed only** | J. No written source uses this split. Two adjacent taxonomies you can cite alongside it: G's "reference content" (conventions, style guides, domain knowledge) vs "task content" (step-by-step actions you invoke with `/name`), and F's four types (discipline / technique / pattern / reference) |
 | 50 | Capability skills may become unnecessary as models improve | **Attributed, plausible** | J. D gives the empirical test: "if the agent already handles the entire task well without the skill, the skill may not be adding value" |
 | 51 | Superpowers' "discipline" and "prohibitions" concepts | **Sound** | F, both terms used as described. Worth knowing for later: F now warns prohibitions are the *wrong* form for output-shape failures |
-| 52 | Write the initial skill content yourself | **Contested** | See finding **F4** |
+| 52 | Write the initial skill content yourself | **Contested (Resolved)** | See finding **F4** |
 | 53 | AI-generated skills carry no-ops and session-specific junk | **Sound** | D names the failure mode: "vague, generic procedures ('handle errors appropriately,' 'follow best practices for authentication')"; A builds a review step around it: "Check that Claude A hasn't added unnecessary explanations" |
 | 54 | Don't write the skill first — baseline, three scenarios, minimum instructions | **Sound** | A "Build evaluations first", and the four steps in the draft map 1:1 onto A's list (identify gaps → create three evaluations → establish baseline → write minimal instructions → iterate). F's Iron Law is the hard version: "NO SKILL WITHOUT A FAILING TEST FIRST" |
 | 55 | Don't create a skill for one-offs, well-documented standard practice, project-specific conventions, or mechanically enforceable constraints | **Contested (one item)** | F verbatim for all four. But "project-specific" is wrong as stated — see finding **F5** |
@@ -226,17 +226,24 @@ from it — write a script when you need a guaranteed sequence — is unaffected
 >   so the draft now makes no claim either way. The real benefit — control over timing — was already the
 >   paragraph's closing point.
 > - **Portability.** Added, sourced to **G**: the key is a Claude Code extension, not one of the spec's six
->   fields, so a skill using it may not validate everywhere.
+>   fields. *Revised in a later pass* — this was promoted from footnote to frame. The paragraph now opens "How
+>   you declare this depends on your agent. It isn't in the Agent Skills spec, so there's no portable way to
+>   express it," and gives the Claude Code key as one agent's spelling rather than as the instruction. More
+>   honest about a genuinely non-portable feature, and it's the only Claude-Code-specific fact in either file.
 > - **Self-contradiction.** "never hijacks another prompt" was narrowed to "never hijacks another prompt and
 >   doesn't require any trigger testing, though its description is still loaded into context and can still
 >   color the agent's reasoning." The immunity is real for *invocation* only; the contamination hazard the
 >   draft itself lists in *Issues* still applies, and the two passages no longer disagree.
-> - **G's rationale grafted in**, replacing personal preference as the sole justification: recommended for
->   anything with side effects or where you want to control the timing (`/commit`, `/deploy`), "because you
->   don't want the agent deciding to deploy just because your code looks ready."
-> - **G added to the reference list** (`https://code.claude.com/docs/en/skills`) — the draft now cites "the
->   Claude Code docs" in prose, so the link had to exist. This also clears one of the four suggested
->   reference-list additions below.
+> - **G's rationale grafted in**, replacing personal preference as the sole justification: side effects, or
+>   wanting to control the timing — committing, deploying, cutting a release — "you don't want the agent
+>   deciding to deploy because your code looks ready." *Revised in a later pass* — the in-prose attribution
+>   ("the Claude Code docs recommend it") was dropped and the point is now made in the author's own voice, per
+>   a standing preference to keep advice applicable to any coding agent. Attributing an *idea* to a source is
+>   fine (the post does it for **A** at the calibration section, and for **J** and **F** throughout); framing
+>   advice as one vendor's recommendation is what reads as endorsement.
+> - **G added to the reference list** (`https://code.claude.com/docs/en/skills`). Kept even after the prose
+>   citation was removed — it backs the `description` fallback behavior and the extension-vs-spec status. A
+>   reference list is attribution, not allegiance. Clears one of the four suggested additions below.
 >
 > Deliberately not added: `user-invocable: false` (the model-only inverse). Real, but the post doesn't
 > otherwise enumerate frontmatter keys and it isn't needed to make any claim correct.
@@ -259,9 +266,36 @@ The rest of the paragraph holds up well — G endorses the pattern for exactly y
 for workflows with side effects or that you want to control timing, like `/commit`, `/deploy`…
 You don't want Claude deciding to deploy because your code looks ready."
 
-### F4 — "Write the initial skill content yourself" is contested, and A contradicts it directly
+### F4 — "Write the initial skill content yourself" is contested, and A contradicts it directly — **Resolved**
 
-A's recommended process is the opposite: develop the skill *with* Claude ("Claude A") and test it
+> **Resolution.** Reframed from "who types it" to "what the model writes from," which keeps the draft's
+> original observation and drops only the remedy A contradicts. `README.md` *Start Small* is now four short
+> paragraphs where it was one.
+>
+> - The rule is still credited to **J**, then explicitly restated rather than repeated: "the problem
+>   underneath it is narrower than 'AI writing is bad.'"
+> - **Two opposed failure modes, one root cause.** **D**'s under-grounding case (write it cold → generic
+>   filler, "handle errors appropriately") is now paired with the draft's own over-fitting case (write it at
+>   the end of a working session → rules encoding incidental details of that conversation). Both are the
+>   model writing from the wrong evidence. The pairing is **not in any source** — D only has the first half —
+>   and it's the strongest original idea in the section, so it should be flagged as the author's own, not
+>   attributed.
+> - **Remedy replaced.** "Type it yourself" → control the input material (hand-done transcript, runbook,
+>   review comments, a patch), which is exactly **D**'s fix, plus read the draft back in a fresh session with
+>   no memory of authoring it. That second step is **A**'s Claude A / Claude B split doing double duty: a
+>   context-free reader is the only reliable detector for leaked context, since the leakage is invisible from
+>   inside the conversation that produced it. A's review step ("check that Claude A hasn't added unnecessary
+>   explanations") is the same move.
+> - **Hand-writing kept as an option, demoted from a rule:** "one way to get there, and a fine default for a
+>   short skill. It just isn't the part that matters." This is what lets the section improve on **J** without
+>   reading as a correction of a source the post is citing approvingly.
+> - Consequential edit: the next paragraph's "the AI will **take over** editing the skill file" became "the AI
+>   will be doing most of the editing" — "take over" implied the human wrote the draft, which the rewrite no
+>   longer claims.
+>
+> Row 53 keeps **Sound**; the draft now expands that claim into the two-failure-mode framing rather than
+> weakening it. Row 54 (baseline → three scenarios → minimum instructions) is untouched and still reads
+> consistently after the rewrite. is the opposite: develop the skill *with* Claude ("Claude A") and test it
 with a fresh instance ("Claude B"), and explicitly, "You don't need special system prompts or a
 'writing skills' skill to get Claude to help create Skills."
 
