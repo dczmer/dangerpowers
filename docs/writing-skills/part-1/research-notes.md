@@ -503,15 +503,27 @@ Thirteen words reproduced with one substitution (`Claude` → `the agent`), in t
 Compounding factor: the **F3** resolution at `:242` records that the in-prose attribution to G was
 *deliberately removed* for vendor-neutrality. The neutrality goal is right; the effect was to leave a
 borrowed sentence with nothing pointing at its origin. A `([G](#ref-g))` marker has been added, which
-fixes attribution but not the verbatim overlap — **still open**: either reword in the author's voice
-or restore G's wording as an explicit quotation.
+fixes attribution but not the verbatim overlap.
+
+> **Resolved.** G's wording restored as an explicit quotation with an in-prose lead-in: *As the Claude
+> Code docs put it, "You don't want Claude deciding to deploy because your code looks ready"
+> ([G](#ref-g)).* The overlap is now marked as borrowed, which is what it always was, and `Claude` goes
+> back in because a quoted vendor doc naming its own vendor is not the endorsement problem the **F3**
+> pass at `:239` was solving — the surrounding advice stays in the author's voice and stays
+> agent-neutral. This narrows, but does not reverse, that pass: one sentence of G is quoted rather than
+> paraphrased; the framing is not "the Claude Code docs recommend it."
 
 **`README.md:161`** — "environment-specific facts that defy reasonable assumptions"
 
 D, per `:389` above: *"The highest-value content in many skills is a list of gotchas —
 environment-specific facts that defy reasonable assumptions."* Seven words verbatim, no quotation
 marks. The adjacent "highest-value content in the whole file" claim is also D's, reworded. Cited to D
-now; the seven-word run **still needs rewording or quoting**.
+now.
+
+> **Resolved.** Reworded to *the things about your setup that a sensible guess gets wrong*, which
+> carries D's meaning with no shared content words. The second sentence was already a rewording of D's
+> "highest-value content in many skills" plus the author's own explanation of why, so it stands as
+> written; `([D](#ref-d))` continues to cover the bullet.
 
 ### P2 — Near-verbatim with substitutions
 
@@ -521,7 +533,13 @@ discovery problems."
 A, per row 16: *"The description is injected into the system prompt, and inconsistent point-of-view
 can cause discovery problems."* Same clause order, three synonym swaps (`description` → `field`,
 `inconsistent point-of-view` → `mixing point of view`, `can cause` → `causes`). Reads as original
-prose. Cited to A now; restructuring recommended.
+prose. Cited to A now.
+
+> **Resolved.** Restructured cause-first: *All of these descriptions land in the same system prompt,
+> and one that breaks pattern is harder to trigger.* Synonym-swapping in place is the least defensible
+> form of this defect, because the borrowed thing is the sentence's structure, not its vocabulary —
+> inverting the clause order is what actually fixes it. A's claim is unchanged. The only shared run is
+> "system prompt," a term of art with no substitute.
 
 **`README.md:78`** — "core principals in 1-2 sentences"
 
@@ -529,10 +547,43 @@ F's `SKILL.md` template, per row 25: *"Core principle in 1-2 sentences."* Short 
 low severity, but it is F's template line intact (the post's "principals" is a spelling slip, not a
 rewrite). Cited to F.
 
+> **Resolved.** Reworded to *a sentence or two on the principle the skill is built around*. The
+> plagiarism case here was weak on its own — a cited, functional template label — but the line carried
+> two outright errors in the same clause (`principals` → principles, `it's` → its), so the rewrite was
+> warranted regardless and closes both at once.
+
 **`README.md:162`** — "Provide defaults, not menus."
 
 D's section title used verbatim as the bullet lead-in, per `:386`. A slogan rather than prose; the
 `([A](#ref-a), [D](#ref-d))` marker is sufficient treatment.
+
+> **Closed, no change.** Deliberate. A four-word imperative used as a labeled bullet lead-in, inside a
+> section headed "Some Established Conventions," with D cited — that is what citing a borrowed *term*
+> looks like. Renaming the convention would cost the reader the ability to recognize it when they hit
+> it in D, which is worse than the overlap. If a blanket no-unquoted-verbatim rule is ever adopted for
+> the post, the fix is quotation (`* "Provide defaults, not menus" ([D](#ref-d)) - pick one library
+> …`), not paraphrase.
+
+**`README.md:167`** — "If you don't know the right value, the agent has no way to work it out either."
+*(re-filed from P4)*
+
+A, per the P4 table below: *"If you don't know the right value, how will Claude determine it?"* Seven
+words verbatim at the head of the clause — "If you don't know the right value" — with A's rhetorical
+question flattened to a statement. Originally logged as a borrowed example; it is a borrowed sentence.
+
+> **Resolved.** Reworded to *A number you can't justify is a number the agent can't either.* Same point
+> — an unexplained constant is unexplainable to the model too — with nothing shared. `([A](#ref-a))`
+> retained.
+
+**`README.md:122`** — "Most skills are a mix of both, and each section calibrates separately."
+*(re-filed from P4)*
+
+D, per the P4 table below: *"Most skills have a mix. Calibrate each part independently."* D's two
+sentences merged into one with substitutions in place — structurally the same defect as `:159`.
+
+> **Resolved.** Reworded to *A single skill usually needs both, so calibrate section by section rather
+> than settling on one setting for the whole file.* "Calibrate" stays: it is the post's own load-bearing
+> term across that entire section, not a borrowing from D. `([D](#ref-d))` retained.
 
 ### P3 — Quoted, unattributed
 
@@ -550,7 +601,12 @@ introduced as "Anthropic's own example"). Those needed only links.
 ### P4 — Borrowed examples and enumerations
 
 None verbatim; each reproduces a source's specific illustrative choices. Individually minor,
-cumulatively a pattern. All now carry markers; none require rewording.
+cumulatively a pattern. All carry markers.
+
+> **Two rows re-filed to P2.** `:167` and `:122` were originally listed here. On re-reading they are not
+> reused *examples* — they are the sources' *sentences* with substitutions, which is the P2 defect. Both
+> were moved to that section and reworded; see the entries there. Six rows remain, and for those the
+> original verdict stands: **cited, no rewording needed.**
 
 | Line | Borrowed element | Source |
 |---|---|---|
@@ -560,8 +616,16 @@ cumulatively a pattern. All now carry markers; none require rewording.
 | `:158` | `processing-pdfs`, `analyzing-spreadsheets` | A's gerund examples (row 10) |
 | `:43` | "a transcript of doing the task by hand, an existing runbook, review comments, a patch" | D's grounding list — item-for-item identical, reordered |
 | `:47–51` | the baseline → three scenarios → minimum-instructions sequence | A's list; row 54 records the 1:1 mapping |
-| `:167` | "If you don't know the right value, the agent has no way to work it out either." | A's *"If you don't know the right value, how will Claude determine it?"* — rhetorical question flattened to a statement |
-| `:122` | "Most skills are a mix of both, and each section calibrates separately." | D's *"Most skills have a mix. Calibrate each part independently."* |
+
+Why these six stay: the first four are the canonical illustrations for the rules they attach to, and a
+marker is the standard treatment for a reused example. The last two are enumerations whose *content* is
+the borrowed thing — paraphrasing D's list of grounding material or A's TDD sequence would obscure the
+method without removing the borrowing. `:47` additionally frames itself as "the common advice," so the
+prose signals non-originality on its own.
+
+Open, not a plagiarism matter: substituting the author's own examples at `:163` and `:165` would read as
+demonstrated understanding rather than transcription. Deferred to the author; the current form is
+defensible as cited.
 
 ### Confirmed original
 
@@ -574,12 +638,43 @@ uncited, per the placement rule above.
 Not plagiarism; flagged because the citation pass had to skip them.
 
 - `:57` — "instructions on how to detect and dispatch skills based on words or phrases." Matching is
-  semantic against descriptions, not keyword dispatch (E). This is row 22, still open, and it is now
-  the only uncited mechanical claim in the *Descriptions and Triggers* section.
-- `:150`, `:154` — third-party descriptions as a prompt-injection vector. Row 59 stands: mechanism
-  sound, exploit unsourced. No marker was added, because H merely defines prompt injection and citing
-  it would overstate the support. Row 59's recommendation — lean on `allowed-tools` and `` !`command` ``
-  injection, both documented in G — is the way to make this citable.
+  semantic against descriptions, not keyword dispatch (E). This is row 22, and it was the only uncited
+  mechanical claim in the *Descriptions and Triggers* section.
+
+  > **Resolved.** Three sentences collapsed to two. The keyword-dispatch sentence was both wrong and
+  > redundant — the sentence after it already said descriptions are what get matched — so the fix was
+  > deletion plus a correct replacement: *the agent picks a skill by matching your request against those
+  > descriptions ([E](#ref-e)). That match is semantic, not a keyword lookup - the phrasing you use in a
+  > description still matters, but it works by shaping meaning rather than by registering literal trigger
+  > words.* The final clause is load-bearing, not hedging: the post's own advice at `:159` tells the
+  > reader to include "the trigger words a user would actually type," and deleting the keyword idea
+  > outright would leave that unmoored.
+
+- `:150`, `:154` — third-party descriptions as a prompt-injection vector. Row **61** stands (earlier
+  drafts of this section cited row 59; that is the never-fires/fires-too-broadly item): mechanism sound,
+  exploit unsourced. No marker was added at scan time, because H merely defines prompt injection and
+  citing it would overstate the support. Row 61's recommendation — lean on `allowed-tools` and
+  `` !`command` `` injection, both documented in G — is the way to make this citable.
+
+  > **Resolved by broadening, not by softening.** Rather than hedge an unsourced exploit, the claim was
+  > moved onto the two mechanisms G actually documents, which are stronger anyway: they are real
+  > privilege escalations rather than a hypothetical. `:150` and `:154` now both carry `([G](#ref-g))`.
+
+  > **Live verification.** G was fetched at `https://code.claude.com/docs/en/skills` rather than trusted
+  > from the excerpts recorded at row 61, since this is security guidance in a published post. Both
+  > quotes confirmed verbatim on the live page. Two corrections came out of it:
+  >
+  > 1. **The `` !`command` `` claim was incomplete as recorded here.** G's full wording: *"Injected
+  >    commands never prompt for permission. When a command's permission check returns anything other
+  >    than allow, Claude Code aborts the invocation. This includes a rule that would normally ask you."*
+  >    It fails **closed**. Row 61 captured only the first sentence, and "never prompts for permission"
+  >    standing alone inside a security paragraph implies silent arbitrary execution — the opposite of
+  >    the documented behavior. The post says *fail closed* explicitly and locates the actual exposure in
+  >    the composition: a broad `allowed-tools` grant **and** an injected command in the same skill.
+  > 2. **"System prompt" is A's wording, not G's.** G says descriptions are *"loaded into context so
+  >    Claude knows what's available."* The post's `:154` now says "loaded into your context" under
+  >    `[G]`; the stronger "injected into the system prompt" phrasing stays where it is sourced to A
+  >    (`:61`, `:159`).
 
 ### Corrections to this document, found during the scan
 

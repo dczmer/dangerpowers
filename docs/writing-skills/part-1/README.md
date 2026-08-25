@@ -54,7 +54,7 @@ The point is that you build-up the skill by solving actual real-world problems i
 
 ## Descriptions and Triggers
 
-Skills are activated using the `skill` tool in your coding agent. The system prompt managed by your coding agent contains instructions on how to detect and dispatch skills based on words or phrases from your prompt. The `description` of each skill is loaded into the context window and that is what is used to match against your prompt.
+Skills are activated using the `skill` tool in your coding agent. The `description` of each skill is loaded into the context window, and the agent picks a skill by matching your request against those descriptions ([E](#ref-e)). That match is semantic, not a keyword lookup - the phrasing you use in a description still matters, but it works by shaping meaning rather than by registering literal trigger words.
 
 A good description should have the following properties:
 - Include what (capability) and when (triggers) ([A](#ref-a), [C](#ref-c))
@@ -65,7 +65,7 @@ A good description should have the following properties:
 
 How do you write skill descriptions that trigger when you want them to, and not when you do not want them to? With a process called "trigger testing," which we will be doing later, after covering the basics of skill files first.
 
-You can also define skills that do not auto-trigger, and invoke them explicitly, like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. It's also the right shape for anything with side effects, or where you want to control the timing - committing, deploying, cutting a release. You don't want the agent deciding to deploy because your code looks ready ([G](#ref-g)). A skill defined like this never hijacks another prompt and doesn't require any trigger testing or optimization, though its description is still loaded into context and can still color the agent's reasoning. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLM interpreting your prompt.
+You can also define skills that do not auto-trigger, and invoke them explicitly, like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. It's also the right shape for anything with side effects, or where you want to control the timing - committing, deploying, cutting a release. As the Claude Code docs put it, "You don't want Claude deciding to deploy because your code looks ready" ([G](#ref-g)). A skill defined like this never hijacks another prompt and doesn't require any trigger testing or optimization, though its description is still loaded into context and can still color the agent's reasoning. The trade-off is that it becomes something you do explicitly, rather than implicitly based on an LLM interpreting your prompt.
 
 How you declare this depends on your agent. It isn't in the Agent Skills spec ([C](#ref-c)), so there's no portable way to express it - in Claude Code it's `disable-model-invocation: true` in the front-matter ([G](#ref-g)). Check whether your agent supports it before relying on it.
 
@@ -75,7 +75,7 @@ The body of your `SKILL.md` file contains the instructions or context that the a
 
 Skill files should be short: <500 lines ([A](#ref-a), [C](#ref-c)). When a skill is invoked, the entire contents of the skill file are loaded into the context window - and it stays there. This isn't a one-time cost paid at invocation; the skill body sits in the conversation history for the rest of the session, re-sent with every turn that follows ([G](#ref-g)). Fifty lines of preamble in a skill you trigger early is fifty lines you keep paying for while you do everything else. So every no-op statement, every paragraph of flowery prose that could be concise directives, becomes bloat that wastes context space. Anything that is obvious, or that the agent can easily figure out on it's own is also waste (we'll see how to detect that with eval tests later).
 
-A skill should start with an overview that states it's core principals in 1-2 sentences ([F](#ref-f)). It should contain a section that describes when to use the skill, and when not to use the skill. These sections give the AI a chance to abort early, after triggering the skill, if it's not actually applicable to the current problem context.
+A skill should start with a brief overview - a sentence or two on the principle the skill is built around ([F](#ref-f)). It should contain a section that describes when to use the skill, and when not to use the skill. These sections give the AI a chance to abort early, after triggering the skill, if it's not actually applicable to the current problem context.
 
 One frustration I have encountered is how often the AI will forget or ignore an instruction by rationalizing a reason to circumvent a rule that is making it hard to accomplish its task. A process called "pressure testing" can be used to ensure your skill's rules are consistently followed. We'll cover pressure testing in the next installment.
 
@@ -119,7 +119,7 @@ Be specific when the operation is irreversible, order-dependent, or has exactly 
 
 Be loose when many routes reach the same outcome - refactoring, writing tests, exploring an unfamiliar codebase. State the goal, the constraints, and how to verify the result, then let the agent route itself.
 
-Most skills are a mix of both, and each section calibrates separately ([D](#ref-d)). The test to apply per instruction: if a step could vary without anything breaking, state the outcome instead. If it couldn't, spell it out.
+A single skill usually needs both, so calibrate section by section rather than settling on one setting for the whole file ([D](#ref-d)). The test to apply per instruction: if a step could vary without anything breaking, state the outcome instead. If it couldn't, spell it out.
 
 ## Determinism, Rigid Processes, and Scripts
 
@@ -147,24 +147,24 @@ Some issues I've observed (not counting issues with testing processes):
 - Descriptions from other skills influencing LLM reasoning, contaminating the context window ([E](#ref-e)).
 - Skills that never seem to fire automatically, or skills that fire too broadly and hijack prompts they shouldn't receive ([E](#ref-e)).
 - LLM deciding NOT to execute a skill that should have triggered, because the skill description had a TLDR of the process it encapsulates. "I don't need to read the skill, I already know what to do from the description." ([F](#ref-f))
-- Prompt-injection attacks from the `description` field of third-party skills.
+- Prompt injection and over-broad tool grants from third-party skills - a description sits in your context whether the skill ever fires or not, and a skill checked into a repo carries its own `allowed-tools` ([G](#ref-g)).
 
 It mostly comes down to context window management, triggering, and contaminating your context with instructions you don't always want.
 
-I should also point out that descriptions from third-party skills you install are a prime vector for prompt injection attacks. This will become clear when you start doing trigger and pressure testing campaigns, as descriptions from other skills will frequently cause your agent to exhibit undesired behavior for the test scenario.
+I should also point out that installing a third-party skill means trusting more than its instructions. The `description` is loaded into your context whether or not the skill ever fires, and workspace trust doesn't gate `allowed-tools` - Claude Code applies a project skill's grant even in a `-p` run in a folder you've never trusted, which is why the docs tell you to review the `allowed-tools` of any skills checked into a repository before you run an agent there ([G](#ref-g)). Injected `` !`command` `` lines never prompt for permission either, though they fail closed - a command that isn't already allowed aborts the invocation rather than asking you - so the real exposure is a broad grant and an injected command in the same skill. This will also become clear when you start doing trigger and pressure testing campaigns, as descriptions from other skills will frequently cause your agent to exhibit undesired behavior for the test scenario.
 
 ## Some Established Conventions
 
 * Naming: Gerund form (`processing-pdfs`, `analyzing-spreadsheets`). Lowercase, numbers, hyphens, 64 chars. ([A](#ref-a), [C](#ref-c))
-* Descriptions get written in third person, always. "Processes Excel files and generates reports", not "I can help you with". The field gets injected into the system prompt and mixing point of view causes discovery problems. Include both what it does and when to use it, with the trigger words a user would actually type. ([A](#ref-a), [E](#ref-e))
+* Descriptions get written in third person, always. "Processes Excel files and generates reports", not "I can help you with". All of these descriptions land in the same system prompt, and one that breaks pattern is harder to trigger. Include both what it does and when to use it, with the trigger words a user would actually type. ([A](#ref-a), [E](#ref-e))
 * Scope a skill like a function - one coherent unit of work. Too narrow and you need three of them loaded at once to get anything done; too broad and no description can trigger it precisely. ([D](#ref-d))
-* Include a "gotchas" section - environment-specific facts that defy reasonable assumptions. This is often the highest-value content in the whole file, because it's exactly what the model can't derive on its own. ([D](#ref-d))
+* Include a "gotchas" section - the things about your setup that a sensible guess gets wrong. This is often the highest-value content in the whole file, because it's exactly what the model can't derive on its own. ([D](#ref-d))
 * Provide defaults, not menus. Pick one library, one approach, and name it. Mention the escape hatch if there is one, but don't hand the agent a decision it has no basis for making. ([A](#ref-a), [D](#ref-d))
 * No time-sensitive information. "If you're doing this before August 2025" rots. If an older approach still needs documenting, put it in a clearly labeled section for legacy patterns. ([A](#ref-a))
 * Forward slashes in paths, even on Windows. ([A](#ref-a))
 * Pick one term per concept and use it everywhere. Don't rotate between field, box, element, and control. ([A](#ref-a))
 * Scripts should handle their own error cases instead of failing and leaving the agent to figure it out. ([A](#ref-a), [C](#ref-c))
-* No magic constants in scripts. If a script sets `TIMEOUT = 30`, say why it's 30. If you don't know the right value, the agent has no way to work it out either. ([A](#ref-a))
+* No magic constants in scripts. If a script sets `TIMEOUT = 30`, say why it's 30. A number you can't justify is a number the agent can't either. ([A](#ref-a))
 * Don't assume a skill that works on a large model works on a small one. Instructions a frontier model follows fine may need to be spelled out for a smaller, faster one. ([A](#ref-a))
 
 ## Example
