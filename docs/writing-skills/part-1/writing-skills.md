@@ -37,7 +37,7 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 Two required fields: `name` and `description`.
 
 - `name`: lowercase letters, numbers, hyphens only. Prefer gerunds/verb-first: `writing-skills`, not `skill-writing`.
-- `description`: imperative ("Use when..."), describes WHAT the skill does AND WHEN to use it — a few sentences to a short paragraph, ≤1024 chars.
+- `description`: third person about the skill, never first or second person ("I can help you..."). Open with an imperative trigger clause ("Use when..."), then state WHAT the skill does — a few sentences to a short paragraph, ≤1024 chars.
   - Start with "Use when..." plus concrete triggering conditions and symptoms.
   - State what the skill produces (one clause) so the agent can match user intent, not just internal mechanics.
   - **Never summarize the workflow.** A description that summarizes the process becomes a shortcut agents follow instead of reading the skill body.
@@ -84,7 +84,7 @@ Create a todo for each item.
 
 **Frontmatter:**
 - [ ] `name` is hyphens/lowercase, gerund or verb-first
-- [ ] `description` starts with "Use when...", imperative, states WHAT + WHEN — no workflow summary
+- [ ] `description` starts with "Use when...", third person, states WHAT + WHEN — no workflow summary
 - [ ] Trigger terms woven into prose; no `Keywords:`-style label; ≤1024 chars
 
 **Body:**
