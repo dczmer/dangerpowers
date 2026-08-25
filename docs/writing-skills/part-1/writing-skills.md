@@ -65,7 +65,7 @@ skills/
 - Keep principles, patterns, and short code inline. Move heavy reference to `references/` and reusable tools to `scripts/`, referenced one level deep from SKILL.md.
 - Use scripts for fully deterministic processes.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
-- One excellent, complete example beats several mediocre ones. No multi-language versions, no fill-in-the-blank templates.
+- One excellent, complete example beats several mediocre ones. No multi-language versions, no fill-in-the-blank templates — show one complete, filled-in example instead.
 - Use flowcharts for non-obvious decisions or loops with early exits, tables for reference data, numbered lists for linear steps.
 - When editing an existing skill, read it fully first.
 
