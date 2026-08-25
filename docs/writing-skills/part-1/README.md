@@ -2,11 +2,7 @@
 
 Have you ever tried to write a skill, but the AI couldn't figure out how to execute certain steps or, even worse, completely disregard important rules from your instructions? Maybe the skill doesn't fire when you expect it to, or fires too frequently and runs when you don't want it? Then you add more and more rules, change wording to further emphasize rules that should not be broken? Did you end up with a 3K line markdown file that you were not satisfied with?
 
-I spent some time experimenting with `superpowers` and was impressed by how well the skills triggered and how they implemented a full end-to-end development system. I was particularly impressed at how well the skills would stick to the rules, even in long-running sessions.
-
-[agentskills.io](agentskills.io) has a skills guide, and the official skills spec, and a `python` package, called `agentskills`, that can verify and validate your skill file and front-matter. They also described processes for testing and optimizing triggering and testing the product of what the skill can produce.
-
-I also watched a presentation about how Google DeepMind team writes skills, which covers much of the same stuff but adds more specific advice and a sort of recipe for writing and developing skills.
+I was inspired by how well `superpowers` skills fire and how well they stick to the rules, so I did some research on their `writing-skills` meta-skill. I also researched the `agentskills.io` spec and their advice for writing and testing skills. Finally, I watched a presentation by someone from Google DeepMind team that pulls everything together and gives a kind of recipe for writing and managing skills. (All references are linked at the bottom of the document).
 
 This entry will just explore the basics and not go into testing or optimization. The follow-up to this post will cover trigger and pressure testing and we'll build our own "eval" harness to carry out the tests.
 
@@ -14,9 +10,22 @@ This entry will just explore the basics and not go into testing or optimization.
 
 Skills are a mechanism for extending AI agent capabilities or enforcing conventions or preferences. Skills provide instructions or context on-demand - skills are a formalized implementation of progressive disclosure.
 
-> TODO: ascii art skill file/folder layout
+```
+my-skill/
+├── SKILL.md           # skill definition/instructions
+├── scripts/           # helper scripts (optional)
+├── references/        # reference docs (optional)
+```
 
-The DeepMind presentation classifies skills into two categories:
+A skill is a directory with a SKILL.md in it. The frontmatter has a `name` and a `description`, and those two fields are the only part that gets pre-loaded into the system prompt at startup. Everything else is read on demand. So the description is not documentation, it's the router. If it's vague, the skill never fires and you spend an afternoon debugging a prompt when the actual bug is one line of yaml.
+
+The rest of it comes down to four things:
+* Be concise, because the context window is shared with everything else the agent needs to know.
+* Match how specific your instructions are to how easy the task is to get wrong.
+* Split content out into files that only get read when they're needed.
+* Build the evals first, before you write the doc.
+
+The Google DeepMind team classifies skills into two broad categories:
 
 1. Capability: teaches the agent something it doesn't know how to do today.
 2. Preferences: encodes preferences, conventions, workflows that are specific to your project or environment.
@@ -25,13 +34,19 @@ Capability skills may become unnecessary as models evolve and become more capabl
 
 Superpowers breaks things down into 4 types of skills but I prefer the capability/preference explanation. However, superpowers calls out the concept of "discipline" - rules you add to steer or correct agent behavior while executing a skill. Discipline rules that are intended to prevent the agent from doing something wrong are called "prohibitions."
 
-## Human vs. AI
+## Start Small
 
-The first rule from the DeepMind presentation was to write the initial skill content yourself. AI-generated skill definitions tend to contain a lot of unnecessary statements, no-ops, or rules based on something that happened in the context when the skill was written but make no sense when the skill is executed in a different session.
+The first rule from the DeepMind presentation was to **write the initial skill content yourself**. AI-generated skill definitions tend to contain a lot of unnecessary statements, no-ops, or rules based on something that happened in the context when the skill was written but make no sense when the skill is executed in a different session.
 
 When we get to testing and optimization, the AI will take over editing the skill file, but it will do so under very specific instructions. You just need to make sure it stays concise and free of no-ops or contradictory instructions.
 
-One of the first big skills I tried to write ended up with a lot of unnecessary text prohibiting the execution of certain instructions that existed in previous drafts of the skill file. I would decide to completely remove a rule or a piece of information from the skill file and ask the AI to do it. Instead of simply removing it, it would replace the text with a statement explaining that the specific rule is not applicable, until the skill body was littered with "tombstone" comments about rules that didn't exist.
+In fact, the common advice is actually to NOT write a skill right away, but to build one up with a TDD-like approach (basically the opposite of how everyone writes skills):
+1. Run the agent on real representative tasks with no skill at all. Write down where it failed.
+2. Build three scenarios that test those specific failures.
+3. Measure the baseline without the skill.
+4. Write the minimum instructions that fix the observed gaps.
+
+The point is that you build-up the skill by solving actual real-world problems instead of ones you just predicted/imagined. But since we are only talking about "what is a skill" and not covering evals yet, this advice must be deferred to later installments.
 
 ## Descriptions and Triggers
 
@@ -115,6 +130,14 @@ It mostly comes down to context window management, triggering, and contaminating
 
 I should also point out that descriptions from third-party skills you install are a prime vector for prompt injection attacks. This will become clear when you start doing trigger and pressure testing campaigns, as descriptions from other skills will frequently cause your agent to exhibit undesired behavior for the test scenario.
 
+## Some Established Conventions
+
+* Naming: Gerund form (`processing-pdfs`, `analyzing-spreadsheets`). Lowercase, numbers, hyphens, 64 chars.
+* Descriptions get written in third person, always. "Processes Excel files and generates reports", not "I can help you with". The field gets injected into the system prompt and mixing point of view causes discovery problems. Include both what it does and when to use it, with the trigger words a user would actually type.
+* Forward slashes in paths, even on Windows.
+* Pick one term per concept and use it everywhere. Don't rotate between field, box, element, and control.
+* Scripts should handle their own error cases instead of failing and leaving the agent to figure it out.
+
 ## Example
 
 Here is our own `writing-skills` skill, based largely on the `superpowers` version, containing everything we've covered in this document, and nothing we haven't covered yet (testing and optimization rules).
@@ -130,3 +153,5 @@ In the following installments, we'll augment this skill to focus on writing opti
 - [Agentskills.io spec + guide](https://agentskills.io)
 - [Superpowers "writing-skills" skill](https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md)
 - [DeepMind - Don't Ship Skills Without Evals](https://youtu.be/0vphxNt4wyk?si=j9E5D7a-scWELD6_)
+* Skill authoring best practices: [https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+* Equipping agents for the real world with Agent Skills: [https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
