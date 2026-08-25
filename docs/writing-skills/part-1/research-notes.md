@@ -418,7 +418,7 @@ scope, in case any earn a line:
 > Not folded in: **row 22's** wording nit (`:57` describes skill matching as keyword dispatch; it's
 > semantic matching against descriptions) and the three agentskills.io deep links. Both still open.
 
-## Suggested reference-list additions
+## Suggested reference-list additions — **Applied**
 
 ```
 - Agent Skills specification: https://agentskills.io/specification
@@ -431,3 +431,163 @@ scope, in case any earn a line:
 
 The existing bare `https://agentskills.io` link is worth replacing with the three deep links — most
 of the description and calibration rules in the post trace to specific pages, not the landing page.
+
+> **Applied.** All nine references now sit in one normalized list (`README.md:181–189`). The bare
+> `https://agentskills.io` landing-page link is gone, replaced by the three deep links as recommended.
+>
+> Formatting normalized — the list had drifted into two styles: the three original entries used
+> `- [Descriptive title](url)`, while the four later additions (including the two I added during F2/F3,
+> which matched the then-current style) used `* Title: [url](url)` with the raw URL as link text. Now
+> uniformly `- [Publisher - Title](url)`, sorted alphabetically by publisher (*superseded by the
+> citation pass* — the list is now sorted by source key). Hyphen separators rather
+> than em-dashes, matching the draft's prose style; the one em-dash I'd introduced in the Claude Code
+> entry is gone.
+>
+> Publisher prefixes were added to the three original entries, which previously attributed
+> inconsistently ("Agentskills.io spec + guide" had none, "DeepMind - …" had one). Renames:
+> Agentskills.io spec + guide → three *Agent Skills* entries; DeepMind → *Google DeepMind*;
+> Superpowers "writing-skills" skill → *Superpowers - "writing-skills" skill*.
+>
+> Every source key A–J now resolves to a listed reference. Reference-list work is closed.
+
+---
+
+## Inline citations — **Applied**
+
+`README.md` now carries inline citations keyed to the same A–J letters used in this document, so a
+claim in the post and its row in the tables above resolve to the same key.
+
+Mechanism: each reference-list entry gained an HTML anchor and a visible key —
+`- <a id="ref-a"></a>**[A]** [Anthropic - Skill authoring best practices](…)`. Statements cite it
+either by hyperlinking a source name already present in the prose ("[Thinking Machines](#ref-i)
+traced this to batch-invariance") or, where no source is named, with a trailing marker
+`([A](#ref-a))`. The list is sorted by key rather than by publisher, so a reader following `[G]` back
+from the prose lands on it by position; this supersedes the publisher-alphabetical ordering set by the
+reference-list pass.
+
+Placement rule: at most one marker per paragraph or bullet, attached to the sentence carrying the
+borrowed claim rather than to every clause. Where several sources support one statement they share a
+marker (`([A](#ref-a), [C](#ref-c))`).
+
+Deliberately left uncited, so absence of a marker stays meaningful:
+
+- `:102` extract-only-when-longer — original heuristic (row 41). The marker on the preceding sentence
+  stops before it.
+- `:41–43` the two-opposed-failure-modes framing — original (per **F4**); the two markers in that
+  passage sit on D's filler examples and A's fresh-reader step, not on the framing.
+- `:132–138` the three-level fragility scale — original synthesis (per **F1**).
+- `:88–94` and `:106–108` summary bullet lists — recaps of claims cited where first stated.
+- `:57` and `:150`/`:154` — see the open items under **P5** below.
+
+---
+
+## Plagiarism scan
+
+Method: every assertion in `README.md` diffed against the verbatim source excerpts recorded in the
+tables and findings above.
+
+**Scope limit.** The comparison corpus is the ~60 quoted snippets in this document, not the live
+pages. Anything a source says that was never quoted here could not be checked. A complete pass needs
+A–J fetched and diffed in full; the findings below are a floor, not a ceiling.
+
+Severity: **P1** verbatim, unquoted, uncited · **P2** near-verbatim with substitutions · **P3** quoted
+but unattributed · **P4** borrowed example or enumeration, reworded.
+
+### P1 — Verbatim, unquoted, uncited
+
+**`README.md:68`** — "You don't want the agent deciding to deploy because your code looks ready."
+
+G, per `:267` above: *"You don't want Claude deciding to deploy because your code looks ready."*
+Thirteen words reproduced with one substitution (`Claude` → `the agent`), in the author's voice.
+
+Compounding factor: the **F3** resolution at `:242` records that the in-prose attribution to G was
+*deliberately removed* for vendor-neutrality. The neutrality goal is right; the effect was to leave a
+borrowed sentence with nothing pointing at its origin. A `([G](#ref-g))` marker has been added, which
+fixes attribution but not the verbatim overlap — **still open**: either reword in the author's voice
+or restore G's wording as an explicit quotation.
+
+**`README.md:161`** — "environment-specific facts that defy reasonable assumptions"
+
+D, per `:389` above: *"The highest-value content in many skills is a list of gotchas —
+environment-specific facts that defy reasonable assumptions."* Seven words verbatim, no quotation
+marks. The adjacent "highest-value content in the whole file" claim is also D's, reworded. Cited to D
+now; the seven-word run **still needs rewording or quoting**.
+
+### P2 — Near-verbatim with substitutions
+
+**`README.md:159`** — "The field gets injected into the system prompt and mixing point of view causes
+discovery problems."
+
+A, per row 16: *"The description is injected into the system prompt, and inconsistent point-of-view
+can cause discovery problems."* Same clause order, three synonym swaps (`description` → `field`,
+`inconsistent point-of-view` → `mixing point of view`, `can cause` → `causes`). Reads as original
+prose. Cited to A now; restructuring recommended.
+
+**`README.md:78`** — "core principals in 1-2 sentences"
+
+F's `SKILL.md` template, per row 25: *"Core principle in 1-2 sentences."* Short and functional, so
+low severity, but it is F's template line intact (the post's "principals" is a spelling slip, not a
+rewrite). Cited to F.
+
+**`README.md:162`** — "Provide defaults, not menus."
+
+D's section title used verbatim as the bullet lead-in, per `:386`. A slogan rather than prose; the
+`([A](#ref-a), [D](#ref-d))` marker is sufficient treatment.
+
+### P3 — Quoted, unattributed
+
+**`README.md:41`** — `"handle errors appropriately," "follow best practices"`
+
+Both from D, per row 53 and `:305`, including D's comma-inside-quote punctuation. The quotation marks
+mean nothing is passed off as original prose, but with no source attached they read as the author's
+invented examples of filler rather than D's documented ones. **Resolved** by the `([D](#ref-d))`
+marker on that sentence.
+
+Contrast with the two passages that were already handled correctly: `:114` (robot-on-a-path,
+attributed in prose to Anthropic) and `:116–118` (A's `migrate.py` instruction, blockquoted and
+introduced as "Anthropic's own example"). Those needed only links.
+
+### P4 — Borrowed examples and enumerations
+
+None verbatim; each reproduces a source's specific illustrative choices. Individually minor,
+cumulatively a pattern. All now carry markers; none require rewording.
+
+| Line | Borrowed element | Source |
+|---|---|---|
+| `:165` | the `field` / `box` / `element` / `control` rotation example | A — row 11 already noted it was "lifted from this section" |
+| `:159` | "Processes Excel files and generates reports" / "I can help you with" | A's good/avoid pair (row 16) |
+| `:163` | "If you're doing this before August 2025" | A's rot example |
+| `:158` | `processing-pdfs`, `analyzing-spreadsheets` | A's gerund examples (row 10) |
+| `:43` | "a transcript of doing the task by hand, an existing runbook, review comments, a patch" | D's grounding list — item-for-item identical, reordered |
+| `:47–51` | the baseline → three scenarios → minimum-instructions sequence | A's list; row 54 records the 1:1 mapping |
+| `:167` | "If you don't know the right value, the agent has no way to work it out either." | A's *"If you don't know the right value, how will Claude determine it?"* — rhetorical question flattened to a statement |
+| `:122` | "Most skills are a mix of both, and each section calibrates separately." | D's *"Most skills have a mix. Calibrate each part independently."* |
+
+### Confirmed original
+
+`:20` "the description is not documentation, it's the router" · `:41–43` the two-failure-mode framing
+· `:102` the extract-when-longer cost test · `:132–138` the three-level fragility scale. Left
+uncited, per the placement rule above.
+
+### P5 — Statements no source supports
+
+Not plagiarism; flagged because the citation pass had to skip them.
+
+- `:57` — "instructions on how to detect and dispatch skills based on words or phrases." Matching is
+  semantic against descriptions, not keyword dispatch (E). This is row 22, still open, and it is now
+  the only uncited mechanical claim in the *Descriptions and Triggers* section.
+- `:150`, `:154` — third-party descriptions as a prompt-injection vector. Row 59 stands: mechanism
+  sound, exploit unsourced. No marker was added, because H merely defines prompt injection and citing
+  it would overstate the support. Row 59's recommendation — lean on `allowed-tools` and `` !`command` ``
+  injection, both documented in G — is the way to make this citable.
+
+### Corrections to this document, found during the scan
+
+- `:450` claims "every source key A–J now resolves to a listed reference." **H** (Claude Code
+  security) is not in `README.md`'s reference list. Nine references, A–J minus H. Either add H or drop
+  it from the key table at `:17`.
+- `:398` claims all seven omitted items landed at `README.md:159–169`. Six did. **Fully-qualified MCP
+  tool names** (`ServerName:tool_name`, A) is absent from *Some Established Conventions*.
+- `:296–298` has a text-corruption artifact: the **F4** resolution block ends mid-sentence and
+  splices into the original finding — "…still reads consistently after the rewrite. is the opposite:
+  develop the skill *with* Claude…" A sentence introducing A's position was lost.
