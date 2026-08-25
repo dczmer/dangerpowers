@@ -90,7 +90,7 @@ Verdicts: **Sound** · **Sound, with caveat** · **Contested** (sources disagree
 |---|---|---|---|
 | 43 | LLMs are non-deterministic | **Sound** | E "Model behavior is nondeterministic — the same query might trigger the skill on one run but not the next" |
 | 44 | …because of sampling/temperature **plus** floating-point rounding and parallel-GPU differences | **Mostly incorrect** | See finding **F2** |
-| 45 | Let the agent find its own way; don't prescribe step-by-step | **Half right — needs the conditional** | See finding **F1** |
+| 45 | Let the agent find its own way; don't prescribe step-by-step | **Half right — needs the conditional (Resolved)** | See finding **F1** |
 | 46 | If it must be a rigid procedure, write a script | **Sound** | A's low-freedom example is literally a script invocation; A "Prefer scripts for deterministic operations"; B on determinism and cost |
 | 47 | If the agent keeps writing the same ad-hoc script, save it as a reusable one | **Sound** | D: "If you notice the agent independently reinventing the same logic each run… that's a signal to write a tested script once and bundle it in `scripts/`"; A "Even if Claude could write a script, pre-made scripts offer advantages: more reliable, save tokens, save time, ensure consistency" |
 | 48 | Reserve model reasoning for judgment and semantic understanding | **Sound** | B (code for what code does well); F "Mechanical constraints — if it's enforceable with regex/validation, automate it, save documentation for judgment calls" |
@@ -122,7 +122,34 @@ Verdicts: **Sound** · **Sound, with caveat** · **Contested** (sources disagree
 
 ## Findings that need an edit
 
-### F1 — The draft contradicts itself on step-by-step instructions
+### F1 — The draft contradicts itself on step-by-step instructions — **Resolved**
+
+> **Resolution.** Reframed as calibration on task fragility rather than a prohibition on specificity.
+>
+> - `README.md` gained a short **Calibrating Specificity** section, placed before the determinism
+>   section that it feeds into. It opens by naming this as the one two-sided rule in the post, quotes
+>   A's robot-on-a-path framing (narrow bridge vs. open field), gives A's `migrate.py` example as the
+>   specific case and refactoring/tests as the loose case, and closes with the per-instruction test:
+>   if a step could vary without anything breaking, state the outcome; if it couldn't, spell it out.
+> - The two blanket bullets in *Content* ("Focus on goals and constraints, not a step-by-step
+>   process" / "don't micro-manage execution steps") were replaced by one pointer to that section.
+> - The DeepMind paragraph was scoped to open-field tasks in both sentences that carried the blanket
+>   claim, so the advice survives with its domain stated.
+> - "If it must be rigid, write a script" became an explicit three-level scale — goals and
+>   constraints → explicit ordered steps → script — closing the gap where the draft jumped from
+>   level 1 to level 3 and left no room for a legitimately procedural skill that isn't scriptable.
+> - `writing-skills.md`: content rules 29–30 collapsed into one fragility-calibration directive;
+>   checklist items 81–82 collapsed into one item phrased as a conditional on an observable predicate
+>   ("every prescribed step is justified by fragility…"), not an exemption clause — which #28/**F**
+>   would otherwise have made the one unavailable fix. Line 67 narrowed to "fully deterministic
+>   processes" to match level 3.
+>
+> Two things this also fixed, beyond what was written up below: `writing-skills.md` contradicted
+> *itself* — line 70 prescribed "numbered lists for linear steps" while line 81 forbade exactly that,
+> 11 lines apart — and the skill now passes its own checklist, which it previously could not.
+>
+> Row 46 ("if it must be a rigid procedure, write a script") is left at **Sound**. Its text was
+> restructured by this fix, but the claim's verdict never changed.
 
 Line 24 states the correct rule ("Match how specific your instructions are to how easy the task is
 to get wrong"), then line 87, line 113, and two checklist items in `writing-skills.md` state a

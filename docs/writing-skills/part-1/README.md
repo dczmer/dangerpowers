@@ -25,7 +25,7 @@ The rest of it comes down to four things:
 * Split content out into files that only get read when they're needed.
 * Build the evals first, before you write the doc.
 
-The Google DeepMind team classifies skills into two broad categories:
+The Google DeepMind presentation classifies skills into two broad categories:
 
 1. Capability: teaches the agent something it doesn't know how to do today.
 2. Preferences: encodes preferences, conventions, workflows that are specific to your project or environment.
@@ -84,11 +84,10 @@ Including a checklist or verification procedure at the end allows the AI to self
 Some suggested best practices:
 - Write concise directives, not essays.
 - Keep free of no-ops, commentary, or unnecessary rules.
-- Focus on goals and constraints, not a step-by-step process or rigid execution path.
+- Match instruction specificity to task fragility (see below).
 - Include examples to illustrate what you want.
 - Avoid passive phrasing when describing rules.
 - Include a checklist or verification process.
-- Give the agent freedom to complete the task (don't micro-manage execution steps or exact commands).
 
 ## Progressive Disclosure
 
@@ -104,15 +103,35 @@ However, a reference file that is ALWAYS loaded whenever you use the skill is po
 - Move corner-cases and error handling instructions to reference files and only load them when they are actually needed.
 - Reference files that are always loaded are pointless (they do not help managing context bloat).
 
+## Calibrating Specificity
+
+Most of the rules in this post are one-sided - concise beats verbose, always. This one isn't, so it gets its own section.
+
+How specific your instructions should be depends on how easy the task is to get wrong. Anthropic's skill-authoring guide frames it as a robot following a path: a narrow bridge with cliffs on both sides gets exact step-by-step instructions, while an open field gets a direction and a destination. Neither answer is correct in general.
+
+Be specific when the operation is irreversible, order-dependent, or has exactly one correct form - migrations, deploys, release cutting, anything that touches production. Getting the sequence wrong costs more than the tokens you spend pinning it down. Anthropic's own example is about as rigid as instructions get:
+
+> Run exactly this script: `python scripts/migrate.py --verify --backup`. Do not modify the command or add additional flags.
+
+Be loose when many routes reach the same outcome - refactoring, writing tests, exploring an unfamiliar codebase. State the goal, the constraints, and how to verify the result, then let the agent route itself.
+
+Most skills are a mix of both, and each section calibrates separately. The test to apply per instruction: if a step could vary without anything breaking, state the outcome instead. If it couldn't, spell it out.
+
 ## Determinism, Rigid Processes, and Scripts
 
 LLMs are non-deterministic. Partly by design (sampling and temperature), and partly because of many little factors that affect computation, like rounding errors in precise floating-point math or differences in how data is processed on parallel GPUs. This means that you can give an agent the same instructions many times, and it will take slightly different route to get there each time (or maybe VERY different routes).
 
-A rule from the DeepMind presentation that surprised me: let the agent find it's own way to the solution. Don't try to prescribe exact step-by-step instructions. LLMs are non-deterministic by nature, but they are designed to reason and figure out a solution with iteration. The AI will find its way to the solution but will always take a different approach each time.
+A rule from the DeepMind presentation that surprised me: on open-field tasks, let the agent find it's own way to the solution. LLMs are non-deterministic by nature, but they are designed to reason and figure out a solution with iteration. The AI will find its way to the solution but will always take a different approach each time.
 
-You may see it doing things that obviously won't work, but eventually figure it out. My initial instinct was to lock that down with tighter rules, so it never tries to execute commands that will not work, or to tell it exactly what to do at each step. But these rigid execution steps seem to cause even more problems. Instead, just focus on goals and constraints and give the AI freedom to find it's own way. Only when you see it do something bad, or consistently struggle to figure out the next step, should you add discipline rules to correct it.
+You may see it doing things that obviously won't work, but eventually figure it out. My initial instinct was to lock that down with tighter rules, so it never tries to execute commands that will not work, or to tell it exactly what to do at each step. When the task had many valid routes, that backfired - the rigid execution steps caused more problems than the wandering did. Only when you see it do something bad, or consistently struggle to figure out the next step, should you add discipline rules to correct it.
 
-If something needs to be a rigid step-by-step process or precise execution procedure, write a script instead. You can ask the LLM to write the script, or if you see the agent frequently writing an ad-hoc script for the same step each time, ask it to save it as a reusable script. In fact, any time you can move deterministic logic to a script instead of having an LLM interpret it each time, that will save token costs and ensure more consistent application.
+So there are three levels available, and the fragility of the task picks which one you use:
+
+1. **Goals and constraints.** The agent routes itself. The default for open-field work.
+2. **Explicit ordered steps.** For when the sequence matters but each step still needs judgment, or drives a system a script shouldn't touch unattended.
+3. **A script.** For when the process is fully deterministic.
+
+The third one is the one people reach for least and should reach for most. You can ask the LLM to write the script, or if you see the agent frequently writing an ad-hoc script for the same step each time, ask it to save it as a reusable script. Any time you can move deterministic logic to a script instead of having an LLM interpret it each time, that will save token costs and ensure more consistent application.
 
 Keep the LLM evaluation for places where you _need_ reasoning or semantic understanding.
 

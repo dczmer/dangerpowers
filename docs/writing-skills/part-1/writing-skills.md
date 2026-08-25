@@ -26,8 +26,7 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 
 - Written as directives, not essays.
 - Lean and short (`SKILL.md` should be <500 lines).
-- Describes goals, constraints and end conditions, not rigid step-by-step instructions.
-- Describes the required outcome, rather than enforcing a procedural path.
+- Instruction specificity matches task fragility. Prescribe exact steps where the operation is irreversible, order-dependent, or has one correct form. State goals, constraints and end conditions everywhere else.
 - Does not contain no-op statements or commentary that is not relevant to the goals, constraints, or end conditions.
 - Use explicit instructions ("Always use X"), never passive phrasing ("X is recommended").
 - State constraints directly. No nuance or exemption clauses that scope a directive ("unless X", "except when Y") — fold the condition into the directive or leave it out.
@@ -64,7 +63,7 @@ skills/
 ```
 
 - Keep principles, patterns, and short code inline. Move heavy reference to `references/` and reusable tools to `scripts/`, referenced one level deep from SKILL.md.
-- Use scripts for deterministic or rigid step-by-step processes.
+- Use scripts for fully deterministic processes.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
 - One excellent, complete example beats several mediocre ones. No multi-language versions, no fill-in-the-blank templates.
 - Use flowcharts for non-obvious decisions or loops with early exits, tables for reference data, numbered lists for linear steps.
@@ -78,8 +77,7 @@ Create a todo for each item.
 - [ ] No nuance clauses; no exemption clauses that try to scope
 - [ ] Instructions written as directives
 - [ ] `SKILL.md` is <500 lines.
-- [ ] Does not describe a rigid step-by-step process.
-- [ ] Describes a desired outcome and constraints, rather than a procedural path.
+- [ ] Every prescribed step is justified by fragility (irreversible, order-dependent, one correct form); steps that could vary harmlessly are stated as outcomes instead.
 - [ ] Is free of no-op statements.
 - [ ] Is free of passively-phrased wording.
 - [ ] No reference files that are _always_ loaded by the main skill body - that does nothing to keep the skill lean.
