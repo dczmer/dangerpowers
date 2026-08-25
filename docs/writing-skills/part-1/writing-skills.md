@@ -13,13 +13,13 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool â
 
 **Create when:**
 - The technique wasn't intuitively obvious
-- You'd reference it again across projects
-- The pattern applies broadly (not project-specific)
+- You'd reference it again, across projects or repeatedly within one
+- It's a procedure or workflow, not a standalone fact
 
 **Don't create for:**
 - One-off solutions
 - Standard practices well-documented elsewhere
-- Project-specific conventions (those go in AGENTS.md)
+- Durable facts needed in every session (those go in AGENTS.md)
 - Mechanical constraints enforceable with code or validation â€” automate those; save documentation for judgment calls
 
 ## Content

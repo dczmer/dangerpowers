@@ -105,7 +105,7 @@ Verdicts: **Sound** · **Sound, with caveat** · **Contested** (sources disagree
 | 52 | Write the initial skill content yourself | **Contested (Resolved)** | See finding **F4** |
 | 53 | AI-generated skills carry no-ops and session-specific junk | **Sound** | D names the failure mode: "vague, generic procedures ('handle errors appropriately,' 'follow best practices for authentication')"; A builds a review step around it: "Check that Claude A hasn't added unnecessary explanations" |
 | 54 | Don't write the skill first — baseline, three scenarios, minimum instructions | **Sound** | A "Build evaluations first", and the four steps in the draft map 1:1 onto A's list (identify gaps → create three evaluations → establish baseline → write minimal instructions → iterate). F's Iron Law is the hard version: "NO SKILL WITHOUT A FAILING TEST FIRST" |
-| 55 | Don't create a skill for one-offs, well-documented standard practice, project-specific conventions, or mechanically enforceable constraints | **Contested (one item)** | F verbatim for all four. But "project-specific" is wrong as stated — see finding **F5** |
+| 55 | Don't create a skill for one-offs, well-documented standard practice, project-specific conventions, or mechanically enforceable constraints | **Contested (one item) (Resolved)** | F verbatim for all four. But "project-specific" is wrong as stated — see finding **F5** |
 | 56 | A skill is a reference guide for a proven technique, not a narrative | **Sound** | F "Skills are NOT: Narratives about how you solved a problem once"; anti-pattern "Narrative Example" |
 
 ## 7. Issues section
@@ -308,7 +308,7 @@ transcript, runbooks, review comments, patches), not to hand-write it.
 Suggested reframe: the rule isn't "type it yourself," it's "don't let the model invent content it has
 no evidence for" — plus A's review step, which exists precisely because model-authored skills bloat.
 
-### F5 — "Project-specific conventions go in AGENTS.md" is wrong as stated
+### F5 — "Project-specific conventions go in AGENTS.md" is wrong as stated — **Resolved**
 
 `writing-skills.md` inherits this from F ("put in your instructions file"), but G contradicts it:
 "Create a skill when you keep pasting the same instructions, checklist, or multi-step procedure into
@@ -322,6 +322,28 @@ from a generic 'data engineering best practices' article."
 The real line is facts vs. procedures, not project vs. general: durable facts belong in CLAUDE.md
 (always loaded), procedures belong in a skill (loaded on demand). Note this cuts against the "applies
 broadly (not project-specific)" bullet too.
+
+> **Resolved.** Three bullets rewritten in `writing-skills.md` — README needed no change.
+>
+> - `:16` "You'd reference it again across projects" → "across projects or repeatedly within one."
+>   The load-bearing criterion is *recurring*, not *cross-project*; the cross-project reading was a
+>   milder form of the same defect.
+> - `:17` "The pattern applies broadly (not project-specific)" → "It's a procedure or workflow, not a
+>   standalone fact." Substitutes G's actual distinction for the generality test.
+> - `:22` "Project-specific conventions (those go in AGENTS.md)" → "Durable facts needed in every
+>   session (those go in AGENTS.md)." Retargets the bullet at facts instead of at project scope, which
+>   is the routing G describes. Kept the AGENTS.md spelling rather than G's CLAUDE.md, per the
+>   vendor-neutrality pass — G's point holds for either file.
+>
+> Also closed an internal contradiction not captured in any table row: `README.md:31` defines
+> preference skills as those encoding conventions and workflows "specific to your project or
+> environment" and `:33` calls that category the durable one, while the skill file linked from the
+> post told you not to write skills for project-specific conventions. The README was the correct side,
+> so the fix landed entirely in `writing-skills.md`.
+>
+> Sprawl guard preserved: it was never the generality bullet, it was one-off vs. recurring, which
+> survives at `:16` and `:20`. Other three items in the *Don't create for* list untouched — F verbatim
+> and sound. No checklist change; nothing in the checklist tests the when-to-create criteria.
 
 ### F6 — One addition worth making, because it strengthens your central argument
 
