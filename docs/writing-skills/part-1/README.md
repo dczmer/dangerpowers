@@ -162,7 +162,7 @@ You are probably already familiar with "progressive disclosure" - loading target
 
 The concept applies to the skills themselves, too. If you write a skill that is 200K lines long, then you fill up your context window as soon as the skill is loaded. Even if your skill is much shorter than that, any lines which are not actually used in your session - rules about corner-cases or errors that never happen, for example - are just taking up space in your context window.
 
-You can extract these corner-cases from the `SKILL.md` file and move them to their own files under the `references` directory, then link them into the main file with instructions to read the reference when a certain condition is met ([A](#ref-a), [D](#ref-d)). This is worth doing when the instructions you're extracting are longer than the instructions that replace them (evaluate a condition and load the reference file).
+You can extract these corner-cases from the `SKILL.md` file and move them to their own files under the `references` directory, then link them into the main file with instructions to read the reference when a certain condition is met ([A](#ref-a), [D](#ref-d)). This is worth doing when the instructions you're extracting are longer than the instructions that replace them (evaluate a condition and load the reference file). As a rough rule of thumb, anything over about 100 lines belongs in a reference file regardless.
 
 A reference file that is ALWAYS loaded whenever you use the skill is pointless. It's no different than just keeping it inline, because it still fills up your context window.
 

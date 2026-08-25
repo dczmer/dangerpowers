@@ -5,7 +5,8 @@ Written 2026-08-25 against `README.md` and `writing-skills.md`; refreshed 2026-0
 so every finding below stands — only the references and quotes have been re-resolved. Re-check them
 before acting if either file has moved on.
 
-**Fixes applied so far:** C1 and C2 (see the work queue at the bottom for what remains).
+**Fixes applied so far:** C1, C2, and C4; C3 reviewed and accepted with no change (see the work queue
+at the bottom for what remains).
 
 Companion document: `research-notes.md` holds the source audit, citation pass, and plagiarism scan for
 `README.md`. This file covers only the blog-to-skill correspondence.
@@ -58,15 +59,26 @@ example instead," naming the actual failure mode and pointing at the endorsed al
 needed no edit; its wording already sits inside a sentence about concrete examples. One-line edit, so no
 line reference in this report has shifted.
 
-**C3 — Frontmatter field set.** `writing-skills.md:37` opens "Two required fields: `name` and
-`description`" and never mentions another key. `README.md:95` documents `disable-model-invocation: true`
-as an authoring decision with real consequences. A reader following the skill would not know the option
-exists, and `:37`'s phrasing reads as an exhaustive field list.
+**C3 — Frontmatter field set. Accepted 2026-08-25 — no change.** `writing-skills.md:37` opens "Two
+required fields: `name` and `description`" and never mentions another key. `README.md:95` documents
+`disable-model-invocation: true` as an authoring decision with real consequences.
 
-**C4 — Extraction threshold (soft conflict).** `README.md:165` gives a comparative test: extract to
-`references/` when the extracted text is longer than the conditional-load instruction replacing it.
-`writing-skills.md:60` gives an absolute one: "Heavy reference (100+ lines)". Not contradictory, but
-they're different heuristics, the blog's is the more useful one, and `100+` appears nowhere in the post.
+Decision: accept. `:37` claims only that two fields are *required*, not that the list is exhaustive, so
+there is no inaccuracy to fix. The manual-invocation mechanism is agent-specific (absent from the Agent
+Skills spec, per `README.md:95`), and the skill's audience — an agent authoring or editing skills —
+does not need it to produce correct frontmatter. Documenting an optional, non-portable key would cost
+every reader a line for a decision that rarely applies.
+
+**C4 — Extraction threshold (soft conflict). Resolved 2026-08-25.** `README.md:165` gave a comparative
+test — extract to `references/` when the extracted text is longer than the conditional-load instruction
+replacing it — while `writing-skills.md:60` gave an absolute one: "Heavy reference (100+ lines)". Not
+contradictory (a 100+ line extract virtually always passes the comparative test), but different
+heuristics, and `100+` appeared nowhere in the post.
+
+Applied: `README.md:165` now adds the threshold as a rule of thumb: "As a rough rule of thumb, anything
+over about 100 lines belongs in a reference file regardless." The comparative test stays as the
+principle; the skill's number is now grounded in the post. The skill needed no edit. One-line edit, so
+no line reference in this report has shifted.
 
 ---
 
@@ -214,10 +226,10 @@ Nothing below has been decided or applied.
       `README.md:264`/`:270`, `writing-skills.md:40`, and `:87`. The skill's `:3` is voice-clean; left to S1
 - [x] **C2** — vocabulary collision, not a real disagreement; the blog's "templates" are worked examples.
       Fixed at `writing-skills.md:68` by pointing the prohibition at the endorsed alternative
-- [ ] **C3** — decide whether the skill mentions `disable-model-invocation`, and reword "Two required
-      fields" if not
-- [ ] **C4** — pick the comparative or the 100-line extraction heuristic; if the 100-line rule stays,
-      it needs to appear in the post
+- [x] **C3** — accepted, no change. `:37` lists required fields only, not an exhaustive set; the
+      mechanism is agent-specific and out of scope for the skill
+- [x] **C4** — blog adopted the 100-line rule as a rule of thumb alongside the comparative test, at
+      `README.md:165`; the skill keeps its threshold and is now grounded in the post
 - [ ] **§2** — fold in the nine missing conventions (gotchas first), plus when-to-use/when-not-to-use,
       grounding + cold review, script promotion, LLM-for-reasoning, and anti-hijacking
 - [ ] **§3** — decide per item: add to the post, or drop from the skill
