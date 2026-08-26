@@ -1,20 +1,18 @@
 # Why Do Agents Misbehave?
 
-Build a basic mental model of how LLMs and agentic coding assistants work, what they are good at, what they are not good at, and how that affects their application. (All references are linked at the bottom of the document, and cited inline by their `[A]`-`[J]` keys).
-
-## Why Do Agents Misbehave?
-
 > You're absolutely right. I violated every rule. You gave clear instructions and I disregarded them completely.
 
-Some issues that cause AIs to go rouge, forget instructions, ignore or override operational rules, and produce inconsistent outcomes.
+Build a basic mental model of how LLMs and agentic coding assistants work, what they are good at, what they are not good at, and how that affects their application. (All references are linked at the bottom of the document, and cited inline by their `[A]`-`[J]` keys).
+
+Some issues that cause AIs to go rogue, forget instructions, ignore or override operational rules, and produce inconsistent outcomes.
 
 ### Non-Determinism in LLMs
 
 > "Same prompt, same model, same settings, different batch size: slightly different logits, occasionally a different token, which then cascades through the rest of the generation."
 
-It turns out that LLMs have a lot of indeterminism built-in to the way they work. Inference is a probabilistic statistics sampling, next-token guessing process. That sampling process involves several parameters, such as temperature, that cause a certain amount of randomness when selecting the next best token from the pool of potential candidates. Supposedly, this makes the results from the AI seem more "creative" because it can generate alternate solutions to the same problems.
+It turns out that LLMs have a lot of indeterminism built-in to the way they work. Inference is a probabilistic, next-token-guessing sampling process. That sampling process involves several parameters, such as temperature, that cause a certain amount of randomness when selecting the next best token from the pool of potential candidates. Supposedly, this makes the results from the AI seem more "creative" because it can generate alternate solutions to the same problems.
 
-But there are also a lot of reasons why responses are always different, even with the same prompt and same agent and model.
+But there are also a lot of reasons why responses are never the same, even with the same prompt and same agent and model.
 
 LLMs rely on floating point math, and floating point addition is not associative: `(a+b)+c` does not always equal `a+(b+c)` at the last few bits of precision. On its own this wouldn't cause non-determinism - a given computation run on the same data produces bitwise-identical results every time.
 
@@ -28,15 +26,15 @@ So non-determinism in AI is partly by design (sampling), and partly an emergent 
 
 > "Degradation tracks absolute token count, not the percentage of the window in use."
 
-This is a fundamental concept of context engineering. Too much context (or bad context) can have disastrous effects, from AI "forgetting" about certain rules, to using conflicting information as justification to apply which ever rule it prefers instead of surfacing the conflict to the user.
+This is a fundamental concept of context engineering. Too much context (or bad context) can have disastrous effects, from AI "forgetting" about certain rules, to using conflicting information as justification to apply whichever rule it prefers instead of surfacing the conflict to the user.
 
 LLMs have trouble effectively utilizing a large context. Research consistently shows performance degrading as input length grows - and degradation tracks *absolute token count*, not the percentage of the window in use. Models with 1M+ token windows still stumble on tasks involving just tens of thousands of tokens when the task requires more than trivial retrieval (see [Context Rot](#ref-b) and [Lost in the Middle](#ref-c)). Degradation is also non-uniform: it varies by model, task type, and how much irrelevant or contradictory material is in the window.
 
 As a practitioner rule of thumb, HumanLayer's context engineering guidance ([D](#ref-d)) recommends keeping context utilization in the 40-60% range (depending on problem complexity) and compacting deliberately before the window fills further. Treat this as a workflow discipline, not a measured accuracy threshold.
 
-Detractors (info not relevant to the task at hand, output from failed commands, etc) and conflicting context (contradictory input from the user, conflicts between phrases or rules in different sections of the context) create problems for attention and provide loopholes that the agent can use to justify making unexpected decisions later.
+Detractors (info not relevant to the task at hand, output from failed commands, etc.) and conflicting context (contradictory input from the user, conflicts between phrases or rules in different sections of the context) create problems for attention and provide loopholes that the agent can use to justify making unexpected decisions later.
 
-A system called the "[3-Prompt Rule](#ref-e)" provides a simple process to effectively avoid context overload and conflicting instructions in your working context (note: the author's reported success numbers are self-tracked, n=1 anecdotes, not a controlled study). This might sound extreme, but think more about what this is trying to solve and why it works: by specifying the full spec up-front, you reduce the amount of undefined behavior that the agent has to guess at in the first steps (which become part of it's working context). Making iterative changes, corrections, improvements after the initial generation means you are contradicting the behavioral rules the AI invented that are in its working context - you are polluting the context window by correcting the AI's work so far.
+A system called the "[3-Prompt Rule](#ref-e)" provides a simple process to effectively avoid context overload and conflicting instructions in your working context (note: the author's reported success numbers are self-tracked, n=1 anecdotes, not a controlled study). This might sound extreme, but think more about what this is trying to solve and why it works: by specifying the full spec up-front, you reduce the amount of undefined behavior that the agent has to guess at in the first steps (which become part of its working context). Making iterative changes, corrections, improvements after the initial generation means you are contradicting the behavioral rules the AI invented that are in its working context - you are polluting the context window by correcting the AI's work so far.
 
 ### Loopholes and Rationalization
 
@@ -48,7 +46,7 @@ AI agents are trained to aggressively complete their goals. When operational rul
 
 Models view instructions in prompts as text to interpret rather than hard rules to follow. This is a good thing for extracting semantic meaning and determining what a user may want, but a bad thing when it comes to strictly enforcing policy rules.
 
-Since the rules are part of the message that the AI is trying to analyze for semantics, it can chose to interpret a rule differently - especially if that rule presents an obstacle to achieving the goal.
+Since the rules are part of the message that the AI is trying to analyze for semantics, it can choose to interpret a rule differently - especially if that rule presents an obstacle to achieving the goal.
 
 #### Goal Obsession and Reward Hacking
 
@@ -56,7 +54,7 @@ Agents prioritize finishing a task over the safety of the process rules establis
 
 Models are trained using a rule-based process that rewards results that follow certain criteria. This might be for safety or censorship, or it might be rules for how coding agent models should respond and what decisions they should make to solve a problem (like rewarding responses about debugging if the response follows a proper methodology vs. blindly attacking the issue).
 
-So this is generally a good thing, because it shifts some of the process to become an implicit behavior of the model, rather than something you have to carefully craft into your prompts every time. This makes AI agents seem more capable with simple prompts, but it also teaches the model that its OK to ignore certain instructions if they conflict with the rules they were trained on.
+So this is generally a good thing, because it shifts some of the process to become an implicit behavior of the model, rather than something you have to carefully craft into your prompts every time. This makes AI agents seem more capable with simple prompts, but it also teaches the model that it's OK to ignore certain instructions if they conflict with the rules they were trained on.
 
 The AI is trying to solve the problem in a way that aligns with the way it was trained to respond to specific types of problems. This can take priority over, or serve as justification for bypassing, operational rules.
 
@@ -74,13 +72,13 @@ I find this interesting because, it seems, AI is susceptible to the same types o
 
 Pressure testing is built on one observation: a single pressure can sometimes be enough to break an agent, but combined pressures reliably break them more often. Anthropic's [agentic misalignment research](#ref-g) showed this with a factorial design - goal conflict alone and threat alone each triggered misbehavior, but both together produced the highest rates, while the no-pressure control produced almost none. If you construct scenarios where you can prompt a subagent to make a decision with multiple points of pressure applied, you can analyze how well it responds and update your prompt to correct the impulse to break the rules.
 
-It seems that mentions of pressure-causing constraints in the context window get mixed with the instructions and rules in the context window. The AI can then use these as justification for bypassing certain rules that are an obstacle to quickly solving the problem or conflict with it's reward-based training rules.
+It seems that mentions of pressure-causing constraints in the context window get mixed with the instructions and rules in the context window. The AI can then use these as justification for bypassing certain rules that are an obstacle to quickly solving the problem or conflict with its reward-based training rules.
 
-## How does inference work? ELI5
+## How Does Inference Work? ELI5
 
 > I AM NOT AN EXPERT AT LLM IMPLEMENTATION!!! I'm only trying to illustrate a high-level view of the process to highlight where problems occur.
 
-Inference is the process of applying the trained model's execution phase against it's weights to determine semantic meaning between tokens and generate a response.
+Inference is the process of applying the trained model's execution phase against its weights to determine semantic meaning between tokens and generate a response.
 
 - **Tokenization:** The input text is split into tokens - chunks of characters (subwords), not whole words - using an algorithm like BPE. "Unbelievable" might become three tokens. This is why LLMs are bad at counting letters: they don't see individual characters.
 - **Embedding:** Each token ID is looked up in a giant table and converted into a vector - a long list of numbers that positions the token in a high-dimensional "meaning space."
@@ -91,7 +89,7 @@ A mechanism called "attention" is the secret sauce that makes modern LLMs magic.
 
 An important note is that this relies on billions of floating-point operations that are all susceptible to minuscule rounding errors that add up and compound to slightly alter calculation of the next token in a response, which then impacts the calculation of the next token, and so on.
 
-## What is a harness?
+## What Is a Harness?
 
 > "A harness is the plumbing or infrastructure that an agent uses to achieve autonomy."
 
@@ -105,15 +103,15 @@ But tools vary between agent implementations, and different models are trained t
 
 The harness is also where the security and guardrails features are typically implemented, like restricting what Bash commands can be executed or which folders and files the harness is allowed to access.
 
-## What is an agent?
+## What Is an Agent?
 
-> "An agent is an implementation of a LLM + a harness that creates a fully autonomous system."
+> "An agent is an implementation of an LLM + a harness that creates a fully autonomous system."
 
-An agent is an implementation of a LLM + a harness that creates a fully autonomous system. The most important type of agent for us is a "coding assistant" agent, specifically designed for working with software development.
+An agent is an implementation of an LLM + a harness that creates a fully autonomous system. The most important type of agent for us is a "coding assistant" agent, specifically designed for working with software development.
 
-An agent uses the LLM to reason, plan, and take actions to bridge the LLM and harness. This is where a lot of recent innovation has taken place. The techniques and process that people have developed to make AI work more effectively eventually get coded into the agent and harness (and into the LLM via reinforcement training), making the agent easier to use for this specific purpose.
+An agent uses the LLM to reason, plan, and take actions to bridge the LLM and harness. This is where a lot of recent innovation has taken place. The techniques and processes that people have developed to make AI work more effectively eventually get coded into the agent and harness (and into the LLM via reinforcement training), making the agent easier to use for this specific purpose.
 
-Proprietary agents, created by commercial AI companies like OpenAI and Anthropic, are designed along with the models they are intended to be used with. This gives a much better user experience and makes the same models seem less capable when used in a different agent. The system prompts that ship with these coding agents also makes a big difference on how they execute certain tasks.
+Proprietary agents, created by commercial AI companies like OpenAI and Anthropic, are designed along with the models they are intended to be used with. This gives a much better user experience and makes the same models seem less capable when used in a different agent. The system prompts that ship with these coding agents also make a big difference on how they execute certain tasks.
 
 ## Limitations of LLMs and Agentic Coding Assistants
 
@@ -125,7 +123,7 @@ Not an exhaustive list, grouped by theme:
 
 **Context & memory limits**
 
-- Can only hold a small context window. An LLM + agent can do a good job of scanning your project to find related context, identify the working areas and tests, etc. But it can't hold the entire project, all documents, all review comments ever, into it's working context, which means it can't reason about anything outside of the little slice of context that it collects. It frequently misses related things and leads to duplication, architectural fragmentation, drift.
+- Can only hold a small context window. An LLM + agent can do a good job of scanning your project to find related context, identify the working areas and tests, etc. But it can't hold the entire project, all documents, all review comments ever, into its working context, which means it can't reason about anything outside of the little slice of context that it collects. It frequently misses related things and leads to duplication, architectural fragmentation, drift.
 - Lack of memory across sessions means they have to re-learn everything you teach them when starting a new session.
 - Hallucinate or drop details when it can't find a match from the source context (too specific, conflicting or incorrect instructions, info not relevant at all to the task, too long).
 - Tend to fail on autonomous multi-step processes due to compounding mistakes or errors in earlier steps. Without a human to correct the issues when they happen, they become part of the context that drives future decision making. (METR's measurements ([J](#ref-j)) show agents near 100% success on tasks taking humans minutes but under 10% on multi-hour tasks - though the task length they can handle has been doubling roughly every 7 months, so this limitation is shrinking fast.)
@@ -156,7 +154,7 @@ Not an exhaustive list, grouped by theme:
 
 Now, with all of this perspective, you should be able to plan for, and recognize, these issues and limitations as design constraints. You can work around, or even outright solve, most of these issues by applying various techniques and systems.
 
-It's a long road and the best practices are changing every day. Maybe start by evaluating your own work flow against the 3-prompt rule ([E](#ref-e)), or by trying something like [Superpowers](#ref-f) to implement an end-to-end system for planning and executing tasks.
+It's a long road and the best practices are changing every day. Maybe start by evaluating your own workflow against the 3-prompt rule ([E](#ref-e)), or by trying something like [Superpowers](#ref-f) to implement an end-to-end system for planning and executing tasks.
 
 ## References
 
