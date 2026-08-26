@@ -29,30 +29,60 @@ But LLMs are non-deterministic and don't always load your skills the way you exp
 - expand incrementally when new edge cases arise
 - every user-reported issue => regression eval
 
-## Issues Running Tests
-
-- need to run (first) without the skill, but skill may be auto-loaded when the agent starts up
-- contamination from other skill descriptions
-- contamination from your global AGENTS.md
-- other plugins or extensions may affect behavior or inject context (more contamination)
-- triggering the real skill may cause it to start doing actual work, which can be expensive and slow and produce junk artifacts or make undesirable changes on your system
-- managing campaign artifacts
-    
-- custom agent: system prompt and tool usage restrictions
-- run from tmp directory, don't pick up repo-level skills, rules, etc
-- can override XDG_RUNTIME_DIR to prevent loading global AGENTS.md (opencode)
-
-pi is actually a pretty good option as a test harness, because you can control most of these things with command-line arguments.
-
-- copy skill "stubs" to a tmp working space (just the descriptions, no body that will potentially start executing work)
-
 ## Custom Harness
 
+we need to do a bit of harness engineering. but do we need a custom harness or can we do something simpler?
+
+concerns:
+- isolate from other skills so they don't hijack requests
+- avoid actually triggering skill workflows or real work
+- avoid letting the agent find the skill file in the repository
+- organize test artifacts
+
+we can create a `/tmp` workspace for each test run and copy over just the yaml front-matter of the target skill, then launch an agent from that workspace directory. this isolates from the repository skills and prevents the skill from doing any actual work.
+
+isolating from other skills could be harder, if they are installed in the user's global skills directory. `opencode --pure` will prevent loading plugins but not skills installed in your agents directory. you can try changing `$XDG_RUNTIME_DIR` but that causes other issues.
+
+subagent orchestration:
+- easy and works on every harness
+- not isolated from other skills
+- not isolated from source skills (repository with real skill files)
+- no way to prevent doing actual work
+- no way to use different models in subagent sessions (at least not in opencode)
+
+cli agent orchestration:
+- can isolate from other skills, and from project-level AGENTS.md by running from a tmp directory
+- requires harness-specific commands, making it harder to support multiple harnesses
+- can specify model and system prompt
+- pi is a really good option here
+
+issues with opencodesdk custom harness:
+- matches opencode harness routing and system prompt
+- opencode lock-in or maintain multiple implementations for each harness
+
+issues with langchain custom harness:
+- completely flexible and customizable
+- does not actually match specific harness routing and system prompt
+- have to reverse-engineer a moving target to try and match
+- have to manage as a separate package/project
+
+i chose cli agent orchestration. the skill implements the testing logic, we use a script to manage a workspace directory, and we use skill reference files to hold harness-specific commands.
+
+Design changes from the skills.old version:
+- The skill file drives the campaign logic
+- The script is ported to python + asyncio + type hints
+- The `cmd_init` can use the generic `.agents` directory instead of `.opencode`
+- The script manages the test workspaces and `cmd_batch`, but does not implement the `cmd_eval`
+- We have a per-harness module that implements `cmd_eval` for that harness and outputs the verdict, starting with one for opencode.
 
 ## Integration into writing-skills
 
+TBD
 
 ## Testing writing-skills
 
+TODO
 
 ## Example
+
+TODO
