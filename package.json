@@ -2,9 +2,16 @@
   "name": "dangerpowers",
   "private": true,
   "type": "module",
-  "main": "plugins/opencode-plugin.js",
+  "main": "plugins/opencode-plugin.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@opencode-ai/plugin": "1.18.3",
     "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "typescript": "^7.0.2"
   }
 }
