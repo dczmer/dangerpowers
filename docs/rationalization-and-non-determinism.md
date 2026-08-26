@@ -121,23 +121,34 @@ Proprietary agents, created by commercial AI companies like OpenAI and Anthropic
 
 Many of the limitations I describe below can be "solved" or mitigated effectively once you know they exist, but every solution comes with tradeoffs. This article is just about understanding the limitations, not about the many complex ways you can address them.
 
-Not an exhaustive list:
+Not an exhaustive list, grouped by theme:
+
+**Context & memory limits**
 
 - Can only hold a small context window. An LLM + agent can do a good job of scanning your project to find related context, identify the working areas and tests, etc. But it can't hold the entire project, all documents, all review comments ever, into it's working context, which means it can't reason about anything outside of the little slice of context that it collects. It frequently misses related things and leads to duplication, architectural fragmentation, drift.
-- LLMs can't count. This may come as a surprise. Inference is about finding semantic meanings between tokens, it's not a procedural multi-function process. However, it can write to a file and use command line tools to count things.
+- Lack of memory across sessions means they have to re-learn everything you teach them when starting a new session.
 - Hallucinate or drop details when it can't find a match from the source context (too specific, conflicting or incorrect instructions, info not relevant at all to the task, too long).
-- Rationalize - or create reasons to justify - decisions to subvert written rules in order to achieve their goal. Your AGENTS.md rules are actually just suggestions.
-- LLMs are non-deterministic. Inference has an intentional amount of randomness, plus it depends on EXACTLY what is in your context window and how the request was worded. Floating point math precision also plays a role in the outcome consistency.
+- Tend to fail on autonomous multi-step processes due to compounding mistakes or errors in earlier steps. Without a human to correct the issues when they happen, they become part of the context that drives future decision making. (METR's measurements ([J](#ref-j)) show agents near 100% success on tasks taking humans minutes but under 10% on multi-hour tasks - though the task length they can handle has been doubling roughly every 7 months, so this limitation is shrinking fast.)
+
+**How they "think"**
+
+- LLMs can't count. This may come as a surprise. Inference is about finding semantic meanings between tokens, it's not a procedural multi-function process. However, it can write to a file and use command line tools to count things.
 - Mostly recombine patterns from training data. They generalize and remix within their training distribution remarkably well, but struggle to produce genuinely novel constructs far outside it - expect sophisticated recombination, not invention.
 - Handle reasoning well when it comes to literal meanings, but fail when reasoning requires deeper understanding of multi-step processes and nuanced interpretation.
 - Struggle with linguistic elements such as idioms, colloquialisms, and figurative language.
-- Output reflects the biases found in the training data. Web crawl data dominates training corpora, and Reddit content is valued highly enough that Google and OpenAI pay for access to it - so a nontrivial amount of Reddit discourse is baked into your model. Have you read the comments on Reddit?
-- Can't plan for the future, anticipate needs of the product or the other parts of the software lifecycle, deployment, etc.
-- Struggle writing code for new versions of languages/libraries that have been updated since the model was trained (see [Context7](#ref-i)).
-- Lack of memory across sessions means they have to re-learn everything you teach them when starting a new session.
-- Do not understand privacy concerns about the data they are evaluating, or respect chain of custody or accountability requirements. If the AI thinks the best solution to the current problem is to publish your proprietary data to the internet, well…
-- Tend to fail on autonomous multi-step processes due to compounding mistakes or errors in earlier steps. Without a human to correct the issues when they happen, they become part of the context that drives future decision making. (METR's measurements ([J](#ref-j)) show agents near 100% success on tasks taking humans minutes but under 10% on multi-hour tasks - though the task length they can handle has been doubling roughly every 7 months, so this limitation is shrinking fast.)
+
+**Unreliable behavior**
+
+- Rationalize - or create reasons to justify - decisions to subvert written rules in order to achieve their goal. Your AGENTS.md rules are actually just suggestions.
+- LLMs are non-deterministic. Inference has an intentional amount of randomness, plus it depends on EXACTLY what is in your context window and how the request was worded. Floating point math precision also plays a role in the outcome consistency.
 - Really like to "fix" unrelated things in the process of making a change.
+- Can't plan for the future, anticipate needs of the product or the other parts of the software lifecycle, deployment, etc.
+
+**Training-data baggage**
+
+- Output reflects the biases found in the training data. Web crawl data dominates training corpora, and Reddit content is valued highly enough that Google and OpenAI pay for access to it - so a nontrivial amount of Reddit discourse is baked into your model. Have you read the comments on Reddit?
+- Struggle writing code for new versions of languages/libraries that have been updated since the model was trained (see [Context7](#ref-i)).
+- Do not understand privacy concerns about the data they are evaluating, or respect chain of custody or accountability requirements. If the AI thinks the best solution to the current problem is to publish your proprietary data to the internet, well…
 
 ## Conclusion
 
