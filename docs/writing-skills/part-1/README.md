@@ -264,6 +264,7 @@ The contamination issue will also become clear when you start doing trigger and 
 * Don't assume a skill that works on a large model works on a small one. Instructions a frontier model follows fine may need to be spelled out for a smaller, faster one. ([A](#ref-a))
 * Reference `--help` output instead of documenting flags, and cross-reference other skills by name instead of repeating their content. ([F](#ref-f))
 * Match format to content: flowcharts for non-obvious decisions or loops, tables for reference data, numbered lists for linear steps. ([F](#ref-f))
+* Give reference files over ~100 lines a table of contents at the top - the AI may only partially read or preview the file, and the TOC tells it the full scope of what's available so it can jump to the section it needs. ([A](#ref-a))
 * When editing an existing skill, read it fully first - small edits to a skill you haven't read end up contradicting it. ([F](#ref-f))
 
 One convention deserves more space than a bullet allows: **description voice.** Descriptions get written in the third person - about the skill, never in its voice. "Processes Excel files and generates reports," not "I can help you with spreadsheets." All of these descriptions land in the same system prompt, and one that breaks point-of-view is harder to trigger.
