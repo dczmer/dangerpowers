@@ -276,7 +276,7 @@ An imperative trigger clause ("Use when the user asks to...") is still third per
 
 ## Example
 
-Here is our own `writing-skills` skill, based largely on the [`superpowers`](#ref-f) version. It contains everything we've covered in this document, and nothing we haven't covered yet (testing and optimization rules).
+Here is our own `writing-skills` skill, based largely on the [`superpowers`](#ref-f) version. It covers the rules from this post that apply at authoring time — plus a few this post didn't cover, kept skill-only deliberately. Testing and optimization rules are still to come.
 
 [writing-skills (without testing)](./writing-skills.md)
 

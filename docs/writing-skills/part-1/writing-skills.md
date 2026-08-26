@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when the user asks to "write a new skill", "create skill", "edit skill", "update skill", or "review skill".
+description: Use when creating a new skill, editing or updating an existing one, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files.
 ---
 
 # Writing Skills
@@ -40,9 +40,10 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 
 Two required fields: `name` and `description`.
 
-- `name`: lowercase letters, numbers, hyphens only, ≤64 chars. Prefer gerunds/verb-first: `writing-skills`, not `skill-writing`.
+- `name`: lowercase letters, numbers, hyphens only, ≤64 chars. Use a gerund or verb-first name: `writing-skills`, not `skill-writing`.
 - `description`: third person about the skill, never first or second person ("I can help you..."). Open with an imperative trigger clause ("Use when..."), then state WHAT the skill does — a few sentences to a short paragraph, ≤1024 chars.
   - Start with "Use when..." plus concrete triggering conditions and symptoms.
+  - Weave trigger terms into prose. Never use a `Keywords:`-style label or a bare list of quoted phrases.
   - State what the skill produces (one clause) so the agent can match user intent, not just internal mechanics.
   - **Never summarize the workflow.** A description that summarizes the process becomes a shortcut agents follow instead of reading the skill body.
    - Keep it concise. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
@@ -69,7 +70,7 @@ skills/
 - Keep principles, patterns, and short code inline. Move heavy reference to `references/` and reusable tools to `scripts/`, referenced one level deep from SKILL.md.
 - Use scripts for fully deterministic processes. Scripts handle their own error cases instead of failing back to the agent. No magic constants — justify every number in the script.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
-- One excellent, complete example beats several mediocre ones. No multi-language versions, no fill-in-the-blank templates — show one complete, filled-in example instead.
+- Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.
 - Use flowcharts for non-obvious decisions or loops with early exits, tables for reference data, numbered lists for linear steps.
 - When editing an existing skill, read it fully first.
 - Don't assume a skill that works on a large model works on a small one; spell out instructions a frontier model could follow implicitly.
