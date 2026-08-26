@@ -71,6 +71,7 @@ A good description should have the following properties:
 - Triggers the skill based on the phrases you intend to activate it with ([E](#ref-e)).
 - Does not "hijack" phrases that should load other skills, or not load a skill at all ([E](#ref-e)).
 - Does not paraphrase the contents of the skill - AI will cheat and not load the skill if the description already has a TLDR of what it does ([F](#ref-f)).
+- States what the skill produces, not just its internal mechanics, so the agent can match it against user intent. Weave trigger terms into prose rather than appending a `Keywords:`-style label, and keep exhaustive anti-pattern lists in the body ([F](#ref-f)).
 
 A vague description and a good one, side by side:
 
@@ -133,7 +134,7 @@ One way to make your rules more effective, and less likely to be ignored, is to 
 
 Where possible, include an example of important outputs, like templates or snippets that illustrate what you want the AI to do. Focus on one complete example and do not dilute the skill definition by duplicating examples in multiple languages - the AI can map the example to the target language ([F](#ref-f)).
 
-Including a checklist or verification procedure at the end allows the AI to self-check its work ([A](#ref-a), [D](#ref-d)). I find that this frequently surfaces issues that the AI skipped over, or that were introduced while it was refactoring. Having a verification procedure means the AI is forced to check each item in the list before it can claim the task is complete.
+Including a checklist or verification procedure at the end allows the AI to self-check its work ([A](#ref-a), [D](#ref-d)). I find that this frequently surfaces issues that the AI skipped over, or that were introduced while it was refactoring. Having a verification procedure means the AI is forced to check each item in the list before it can claim the task is complete. Create a to-do for each checklist item so none of them get skipped.
 
 ```
 ## Verification
@@ -169,6 +170,7 @@ A reference file that is ALWAYS loaded whenever you use the skill is pointless. 
 - Keep the main skill file short and only cover the "happy path."
 - Move corner-cases and error handling instructions to reference files and only load them when they are actually needed.
 - Reference files that are always loaded are pointless (they do not help managing context bloat).
+- Reference supporting files one level deep from `SKILL.md`; don't chain references to further references.
 
 ## Calibrating Specificity
 
@@ -260,6 +262,9 @@ This will also become clear when you start doing trigger and pressure testing ca
 * Scripts should handle their own error cases instead of failing and leaving the agent to figure it out. ([A](#ref-a), [C](#ref-c))
 * No magic constants in scripts. If a script sets `TIMEOUT = 30`, say why it's 30. A number you can't justify is a number the agent can't either. ([A](#ref-a))
 * Don't assume a skill that works on a large model works on a small one. Instructions a frontier model follows fine may need to be spelled out for a smaller, faster one. ([A](#ref-a))
+* Reference `--help` output instead of documenting flags, and cross-reference other skills by name instead of repeating their content. ([F](#ref-f))
+* Match format to content: flowcharts for non-obvious decisions or loops, tables for reference data, numbered lists for linear steps. ([F](#ref-f))
+* When editing an existing skill, read it fully first - small edits to a skill you haven't read end up contradicting it. ([F](#ref-f))
 
 One convention deserves more space than a bullet allows: **description voice.** Descriptions get written in the third person - about the skill, never in its voice. "Processes Excel files and generates reports", not "I can help you with". All of these descriptions land in the same system prompt, and one that breaks point-of-view is harder to trigger.
 

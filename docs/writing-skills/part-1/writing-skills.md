@@ -30,13 +30,17 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 - Does not contain no-op statements or commentary that is not relevant to the goals, constraints, or end conditions.
 - Use explicit instructions ("Always use X"), never passive phrasing ("X is recommended").
 - State constraints directly. No nuance or exemption clauses that scope a directive ("unless X", "except when Y") — fold the condition into the directive or leave it out.
+- Provide defaults, not menus. Name the one library or approach; mention the escape hatch if one exists.
+- Pick one term per concept and use it everywhere.
+- No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.
+- Include a "Gotchas" section: the things about the setup that a sensible guess gets wrong.
 - Ends with a checklist or verification procedure so the agent can verify its work.
 
 ## Frontmatter
 
 Two required fields: `name` and `description`.
 
-- `name`: lowercase letters, numbers, hyphens only. Prefer gerunds/verb-first: `writing-skills`, not `skill-writing`.
+- `name`: lowercase letters, numbers, hyphens only, ≤64 chars. Prefer gerunds/verb-first: `writing-skills`, not `skill-writing`.
 - `description`: third person about the skill, never first or second person ("I can help you..."). Open with an imperative trigger clause ("Use when..."), then state WHAT the skill does — a few sentences to a short paragraph, ≤1024 chars.
   - Start with "Use when..." plus concrete triggering conditions and symptoms.
   - State what the skill produces (one clause) so the agent can match user intent, not just internal mechanics.
@@ -63,11 +67,19 @@ skills/
 ```
 
 - Keep principles, patterns, and short code inline. Move heavy reference to `references/` and reusable tools to `scripts/`, referenced one level deep from SKILL.md.
-- Use scripts for fully deterministic processes.
+- Use scripts for fully deterministic processes. Scripts handle their own error cases instead of failing back to the agent. No magic constants — justify every number in the script.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
 - One excellent, complete example beats several mediocre ones. No multi-language versions, no fill-in-the-blank templates — show one complete, filled-in example instead.
 - Use flowcharts for non-obvious decisions or loops with early exits, tables for reference data, numbered lists for linear steps.
 - When editing an existing skill, read it fully first.
+- Don't assume a skill that works on a large model works on a small one; spell out instructions a frontier model could follow implicitly.
+
+## Gotchas
+
+- A description that summarizes the workflow stops the skill from loading — the agent decides it
+  already knows the process and skips the body. State WHAT + WHEN, never HOW.
+- Extracting to `references/` saves nothing if the file loads on every invocation — that is inline
+  content with extra steps. Load a reference only under a condition.
 
 ## Checklist
 
@@ -75,6 +87,8 @@ Create a todo for each item.
 
 **Content:**
 - [ ] No nuance clauses; no exemption clauses that try to scope
+- [ ] Includes a "Gotchas" section for setup details a sensible guess gets wrong
+- [ ] Provides defaults, not menus of options
 - [ ] Instructions written as directives
 - [ ] `SKILL.md` is <500 lines.
 - [ ] Every prescribed step is justified by fragility (irreversible, order-dependent, one correct form); steps that could vary harmlessly are stated as outcomes instead.
@@ -83,7 +97,7 @@ Create a todo for each item.
 - [ ] No reference files that are _always_ loaded by the main skill body - that does nothing to keep the skill lean.
 
 **Frontmatter:**
-- [ ] `name` is hyphens/lowercase, gerund or verb-first
+- [ ] `name` is hyphens/lowercase, ≤64 chars, gerund or verb-first
 - [ ] `description` starts with "Use when...", third person, states WHAT + WHEN — no workflow summary
 - [ ] Trigger terms woven into prose; no `Keywords:`-style label; ≤1024 chars
 
