@@ -252,13 +252,13 @@ The contamination issue will also become clear when you start doing trigger and 
 
 > "A 'gotchas' section is often the highest-value content in the whole file, because it's exactly what the model can't derive on its own."
 
-* Naming: Gerund form (`processing-pdfs`, `analyzing-spreadsheets`). Lowercase, numbers, hyphens, 64 chars. ([A](#ref-a), [C](#ref-c))
+* Naming: Gerund form (`processing-pdfs`, `analyzing-spreadsheets`) - verb-first (not `pdf-processing` or `pdf-proccessor`). Lowercase, numbers, hyphens, 64 chars. ([A](#ref-a), [C](#ref-c))
 * Scope a skill like a function - one coherent unit of work. Too narrow and you need three of them loaded at once to get anything done; too broad and no description can trigger it precisely. ([D](#ref-d))
 * Include a "gotchas" section - the things about your setup that a sensible guess gets wrong. This is often the highest-value content in the whole file, because it's exactly what the model can't derive on its own. ([D](#ref-d))
 * Provide defaults, not menus. Pick one library, one approach, and name it. Mention the escape hatch if there is one, but don't hand the agent a decision it has no basis for making. ([A](#ref-a), [D](#ref-d))
 * No time-sensitive information. "If you're doing this before August 2025" rots. If an older approach still needs documenting, put it in a clearly labeled section for legacy patterns. ([A](#ref-a))
 * Forward slashes in paths, even on Windows. ([A](#ref-a))
-* Pick one term per concept and use it everywhere. Don't rotate between field, box, element, and control. ([A](#ref-a))
+* Pick one term per concept and use it everywhere. Don't rotate between "field", "box", "element", and "control". ([A](#ref-a))
 * Scripts should handle their own error cases instead of failing and leaving the agent to figure it out. ([A](#ref-a), [C](#ref-c))
 * No magic constants in scripts. If a script sets `TIMEOUT = 30`, say why it's 30. A number you can't justify is a number the agent can't either. ([A](#ref-a))
 * Don't assume a skill that works on a large model works on a small one. Instructions a frontier model follows fine may need to be spelled out for a smaller, faster one. ([A](#ref-a))
@@ -276,7 +276,7 @@ An imperative trigger clause ("Use when the user asks to...") is still third per
 
 ## Example
 
-Here is our own `writing-skills` skill, based largely on the [`superpowers`](#ref-f) version. It covers the rules from this post that apply at authoring time — plus a few this post didn't cover, kept skill-only deliberately. Testing and optimization rules are still to come.
+Here is our own `writing-skills` skill, based largely on the [`superpowers`](#ref-f) version. Testing and optimization rules are still to come.
 
 [writing-skills (without testing)](./writing-skills.md)
 
