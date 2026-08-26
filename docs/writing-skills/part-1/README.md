@@ -2,7 +2,7 @@
 
 Have you ever written a skill that the AI couldn't actually execute? Or worse, one where it just ignored the rules you cared about most? Maybe it never fires when you expect it to, or it fires constantly and runs when you don't want it to. So you add more rules, and then you re-word the important ones to make them sound even more important, and eventually you end up with a 3K line markdown file that you are not happy with.
 
-I got into this because `superpowers` skills fire reliably and stick to their rules, so I did some research on their [`writing-skills` meta-skill](#ref-f). I also went through the [`agentskills.io` spec](#ref-c) and their advice for writing and testing skills ([D](#ref-d), [E](#ref-e)). Then I watched a [presentation by someone from the Google DeepMind team](#ref-j) that pulls it all together and gives you something close to a recipe for writing and managing skills. (All references are linked at the bottom of the document, and cited inline by their `[A]`-`[J]` key).
+I got into this because `superpowers` skills fire reliably and stick to their rules, so I did some research on their [`writing-skills` meta-skill](#ref-f). I also went through the [`agentskills.io` spec](#ref-c) and their advice for writing and testing skills ([D](#ref-d), [E](#ref-e)). Then I watched a [presentation by someone from the Google DeepMind team](#ref-i) that pulls it all together and gives you something close to a recipe for writing and managing skills. (All references are linked at the bottom of the document, and cited inline by their `[A]`-`[I]` keys).
 
 This one is just the basics. No testing, no optimization. The follow-up will cover trigger and pressure testing, and we'll build our own "eval" harness to carry out the tests.
 
@@ -17,7 +17,7 @@ my-skill/
 └── references/        # reference docs (optional)
 ```
 
-A skill is a directory with a `SKILL.md` in it ([C](#ref-c)). The frontmatter has a `name` and a `description`, and those two fields are the only part that gets pre-loaded into the system prompt at startup. Everything else is read on demand ([A](#ref-a)). So the `description` is the thing that decides whether your skill ever gets used at all ([E](#ref-e)). If it's vague, the skill never fires, and then you spend an afternoon debugging a prompt when the actual bug is one line of yaml.
+A skill is a directory with a `SKILL.md` in it ([C](#ref-c)). The frontmatter has a `name` and a `description`, and those two fields are the only part that gets pre-loaded into the system prompt at startup. Everything else is read on demand ([A](#ref-a)). So the `description` is the thing that decides whether your skill ever gets used at all ([E](#ref-e)). If it's vague, the skill never fires, and then you spend an afternoon debugging a prompt when the actual bug is one line of YAML.
 
 The rest of it comes down to four things ([A](#ref-a)):
 * Be concise, because the context window is shared with everything else the agent needs to know.
@@ -25,20 +25,20 @@ The rest of it comes down to four things ([A](#ref-a)):
 * Split content out into files that only get read when they're needed.
 * Build the evals first, before you write the doc (we'll get to evals soon).
 
-The [Google DeepMind presentation](#ref-j) puts skills into two broad categories:
+The [Google DeepMind presentation](#ref-i) puts skills into two broad categories:
 
 1. Capability: teaches the agent something it doesn't know how to do today.
 2. Preferences: encodes preferences, conventions, workflows that are specific to your project or environment.
 
 Capability skills may stop being necessary as the models get better. Preference skills are your own custom rules and will probably never get baked into a model, so they are "durable."
 
-[Superpowers](#ref-f) breaks this down into 4 types of skills, but I like the capability/preference explanation better. Superpowers does call out one thing I want to keep: "discipline" - rules you add to steer or correct agent behavior while it is executing a skill. Discipline rules that are meant to stop the agent from doing something wrong are called "prohibitions."
+[Superpowers](#ref-f) breaks this down into four types of skills, but I like the capability/preference explanation better. Superpowers does call out one thing I want to keep: "discipline" - rules you add to steer or correct agent behavior while it is executing a skill. Discipline rules that are meant to stop the agent from doing something wrong are called "prohibitions."
 
 ## Start Small
 
 > "Control what the model writes from, and never ship a skill you haven't read back cold."
 
-The [DeepMind presentation's](#ref-j) first rule is to **write the initial skill content yourself**. I'd put it a little differently, because I think the problem underneath it is narrower than "AI writing is bad."
+The [DeepMind presentation's](#ref-i) first rule is to **write the initial skill content yourself**. I'd put it a little differently, because I think the problem underneath it is narrower than "AI writing is bad."
 
 There are two ways this goes wrong:
 
@@ -93,7 +93,7 @@ So how do you write a description that fires when you want it to, and stays quie
 
 You can also define skills that do not auto-trigger, and invoke them explicitly, like slash-commands. I like this because I'm used to working in command mode, either in my terminal or in my text editor. It's also the right shape for anything with side effects, or where you want to control the timing - committing, deploying, cutting a release. As the Claude Code docs put it, "You don't want Claude deciding to deploy because your code looks ready" ([G](#ref-g)). A skill defined like this never hijacks another prompt and doesn't require any trigger testing or optimization, though its description is still loaded into context and can still color the agent's reasoning. The trade-off is that it becomes something you do explicitly, instead of implicitly based on an LLM interpreting your prompt.
 
-How you declare this depends on your agent. It isn't in the Agent Skills spec ([C](#ref-c)), so there's no portable way to express it - in Claude Code it's `disable-model-invocation: true` in the front-matter ([G](#ref-g)). Check whether your agent supports it before you rely on it.
+How you declare this depends on your agent. It isn't in the Agent Skills spec ([C](#ref-c)), so there's no portable way to express it - in Claude Code it's `disable-model-invocation: true` in the frontmatter ([G](#ref-g)). Check whether your agent supports it before you rely on it.
 
 ## Content
 
@@ -101,7 +101,7 @@ How you declare this depends on your agent. It isn't in the Agent Skills spec ([
 
 The body of your `SKILL.md` file contains the instructions or context that the agent should follow to accomplish a task.
 
-Skill files should be short: <500 lines ([A](#ref-a), [C](#ref-c)). When a skill is invoked, the entire contents of the skill file are loaded into the context window - and it stays there. This is not a one-time cost paid at invocation; the skill body sits in the conversation history for the rest of the session, and gets re-sent with every turn that follows ([G](#ref-g)). Fifty lines of preamble in a skill you trigger early is fifty lines you keep paying for while you do everything else. So every no-op statement, and every paragraph of flowery prose that could have been a concise directive, becomes bloat that wastes context space. Anything that is obvious, or that the agent can easily figure out on it's own, is also waste (we'll see how to detect that with eval tests later).
+Skill files should be short: <500 lines ([A](#ref-a), [C](#ref-c)). When a skill is invoked, the entire contents of the skill file are loaded into the context window - and it stays there. This is not a one-time cost paid at invocation; the skill body sits in the conversation history for the rest of the session, and gets re-sent with every turn that follows ([G](#ref-g)). Fifty lines of preamble in a skill you trigger early is fifty lines you keep paying for while you do everything else. So every no-op statement, and every paragraph of flowery prose that could have been a concise directive, becomes bloat that wastes context space. Anything that is obvious, or that the agent can easily figure out on its own, is also waste (we'll see how to detect that with eval tests later).
 
 A skill should start with a brief overview - a sentence or two on the principle the skill is built around ([F](#ref-f)). It should contain a section that describes when to use the skill, and when not to use the skill. These sections give the AI a chance to abort early, after triggering the skill, if it turns out it isn't actually applicable to the current problem context.
 
@@ -149,7 +149,7 @@ Before reporting the task complete:
 
 Some suggested best practices:
 - Write concise directives, not essays.
-- Keep free of no-ops, commentary, or unnecessary rules.
+- Keep it free of no-ops, commentary, or unnecessary rules.
 - Match instruction specificity to task fragility (see below).
 - Include examples to illustrate what you want.
 - Avoid passive phrasing when describing rules.
@@ -169,7 +169,7 @@ A reference file that is ALWAYS loaded whenever you use the skill is pointless. 
 
 - Keep the main skill file short and only cover the "happy path."
 - Move corner-cases and error handling instructions to reference files and only load them when they are actually needed.
-- Reference files that are always loaded are pointless (they do not help managing context bloat).
+- Reference files that are always loaded are pointless (they do not help manage context bloat).
 - Reference supporting files one level deep from `SKILL.md`; don't chain references to further references.
 
 ## Calibrating Specificity
@@ -210,11 +210,11 @@ A single skill usually needs both, so calibrate section by section instead of se
 
 > "A script is the level people reach for least and should reach for most."
 
-LLMs are non-deterministic in practice. Some of that is by design - sampling and temperature. But even at temperature zero, the same prompt against the same endpoint won't reliably give you the same tokens. [Thinking Machines](#ref-i) traced this to batch-invariance: the kernels serving your request produce slightly different floating-point results depending on the batch size they run at, and batch size depends on how much other traffic the server is handling at that moment. You don't control that. Either way, you can give an agent the same instructions many times and it will take a slightly different route to get there each time (or maybe VERY different routes).
+LLMs are non-deterministic in practice. Some of that is by design - sampling and temperature. But even at temperature zero, the same prompt against the same endpoint won't reliably give you the same tokens. [Thinking Machines](#ref-h) traced this to batch-invariance: the kernels serving your request produce slightly different floating-point results depending on the batch size they run at, and batch size depends on how much other traffic the server is handling at that moment. You don't control that. Either way, you can give an agent the same instructions many times and it will take a slightly different route to get there each time (or maybe VERY different routes).
 
-A rule from the [DeepMind presentation](#ref-j) that surprised me: on open-field tasks, let the agent find it's own way to the solution. They are designed to reason and figure out a solution with iteration. The AI will find its way there, but it will always take a different approach each time.
+A rule from the [DeepMind presentation](#ref-i) that surprised me: on open-field tasks, let the agent find its own way to the solution. They are designed to reason and figure out a solution with iteration. The AI will find its way there, but it will always take a different approach each time.
 
-You may see it doing things that obviously won't work, but eventually figure it out. My initial instinct was to lock that down with tighter rules, so it never tries to execute commands that will not work, or to tell it exactly what to do at each step. When the task had many valid routes, that backfired - the rigid execution steps caused more problems than the wandering did. Only when you see it do something bad, or consistently struggle to figure out the next step, should you add discipline rules to correct it.
+You may see it doing things that obviously won't work, but it eventually figures it out. My initial instinct was to lock that down with tighter rules, so it never tries to execute commands that will not work, or to tell it exactly what to do at each step. When the task had many valid routes, that backfired - the rigid execution steps caused more problems than the wandering did. Only when you see it do something bad, or consistently struggle to figure out the next step, should you add discipline rules to correct it.
 
 So there are three levels available, and the fragility of the task picks which one you use:
 
@@ -233,7 +233,7 @@ Keep the LLM evaluation for places where you _need_ reasoning or semantic unders
 Some issues I've observed (not counting issues with testing processes):
 
 - Too many skills bloat your context window. Try to disable plugins or skills that you don't need for the current session ([C](#ref-c), [G](#ref-g)).
-- Descriptions from other skills influencing LLM reasoning, contaminating the context window ([E](#ref-e)).
+- Descriptions from other skills influence LLM reasoning, contaminating the context window ([E](#ref-e)).
 - Skills that never seem to fire automatically, or skills that fire too broadly and hijack prompts they shouldn't receive ([E](#ref-e)).
 - LLM deciding NOT to execute a skill that should have triggered, because the skill description had a TLDR of the process it encapsulates. "I don't need to read the skill, I already know what to do from the description." ([F](#ref-f))
 - Prompt injection and over-broad tool grants from third-party skills - a description sits in your context whether the skill ever fires or not, and a skill checked into a repo carries its own `allowed-tools` ([G](#ref-g)).
@@ -246,7 +246,7 @@ I should also point out that installing a third-party skill means trusting more 
 - Workspace trust doesn't gate `allowed-tools`. Claude Code applies a project skill's grant even in a `-p` run, in a folder you've never trusted. That is why the docs tell you to review the `allowed-tools` of any skills checked into a repository before you run an agent there ([G](#ref-g)).
 - Injected `` !`command` `` lines never prompt for permission either. They do fail closed - a command that isn't already allowed aborts the invocation instead of asking you - so the real exposure is a broad grant and an injected command in the same skill.
 
-This will also become clear when you start doing trigger and pressure testing campaigns, because descriptions from other skills will frequently cause your agent to exhibit undesired behavior for the test scenario.
+The contamination issue will also become clear when you start doing trigger and pressure testing campaigns, because descriptions from other skills will frequently cause your agent to exhibit undesired behavior for the test scenario.
 
 ## Some Established Conventions
 
@@ -266,7 +266,7 @@ This will also become clear when you start doing trigger and pressure testing ca
 * Match format to content: flowcharts for non-obvious decisions or loops, tables for reference data, numbered lists for linear steps. ([F](#ref-f))
 * When editing an existing skill, read it fully first - small edits to a skill you haven't read end up contradicting it. ([F](#ref-f))
 
-One convention deserves more space than a bullet allows: **description voice.** Descriptions get written in the third person - about the skill, never in its voice. "Processes Excel files and generates reports", not "I can help you with". All of these descriptions land in the same system prompt, and one that breaks point-of-view is harder to trigger.
+One convention deserves more space than a bullet allows: **description voice.** Descriptions get written in the third person - about the skill, never in its voice. "Processes Excel files and generates reports," not "I can help you with spreadsheets." All of these descriptions land in the same system prompt, and one that breaks point-of-view is harder to trigger.
 
 *Bad:* "I can help you with spreadsheets! Just ask me to look at your Excel files and I'll figure out what you need." - first and second person throughout, and it never states the capability or the trigger phrases. It reads like chatter, not an entry in a system prompt full of skill descriptions.
 
@@ -280,7 +280,7 @@ Here is our own `writing-skills` skill, based largely on the [`superpowers`](#re
 
 [writing-skills (without testing)](./writing-skills.md)
 
-You can use this to write a new skill, iterate on a skill, or clean-up an existing skill. Whenever we run a test campaign and optimization loop, a skill like this will be loaded into context to make sure the AI follows these rules when it modifies the skill.
+You can use this to write a new skill, iterate on a skill, or clean up an existing skill. Whenever we run a test campaign and optimization loop, a skill like this will be loaded into context to make sure the AI follows these rules when it modifies the skill.
 
 In the following installments, we'll augment this skill to focus on writing optimal descriptions, writing discipline rules, and testing skills.
 
@@ -293,5 +293,5 @@ In the following installments, we'll augment this skill to focus on writing opti
 - <a id="ref-e"></a>**[E]** [Agent Skills - Optimizing skill descriptions](https://agentskills.io/skill-creation/optimizing-descriptions)
 - <a id="ref-f"></a>**[F]** [Superpowers - "writing-skills" skill](https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md)
 - <a id="ref-g"></a>**[G]** [Claude Code - Extend Claude with skills](https://code.claude.com/docs/en/skills)
-- <a id="ref-i"></a>**[I]** [Thinking Machines - Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)
-- <a id="ref-j"></a>**[J]** [Google DeepMind - Don't Ship Skills Without Evals](https://youtu.be/0vphxNt4wyk?si=j9E5D7a-scWELD6_)
+- <a id="ref-h"></a>**[H]** [Thinking Machines - Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)
+- <a id="ref-i"></a>**[I]** [Google DeepMind - Don't Ship Skills Without Evals](https://youtu.be/0vphxNt4wyk?si=j9E5D7a-scWELD6_)
