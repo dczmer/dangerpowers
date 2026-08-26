@@ -38,11 +38,11 @@ This is the fundamental concept of context engineering. Too much context (or bad
 
 LLMs have trouble making effective use of a large context. Research consistently shows performance degrading as input length grows, and the degradation tracks _absolute token count_, not the percentage of the window in use. Models with 1M+ token windows still stumble on tasks involving only tens of thousands of tokens, once the task needs more than trivial retrieval (see [Context Rot](#ref-b) and [Lost in the Middle](#ref-c)). It's also non-uniform: it varies by model, by task type, and by how much irrelevant or contradictory material is sitting in the window with everything else.
 
-As a practitioner rule of thumb, HumanLayer's context engineering guidance ([D](#ref-d)) recommends keeping context utilization in the 40-60% range (depending on how complicated the problem is) and compacting deliberately before the window fills up any further. I'd treat that as a workflow discipline and not as a measured accuracy threshold.
+As a rule of thumb, HumanLayer's context engineering guidance ([D](#ref-d)) recommends keeping context utilization in the 40-60% range (depending on how complicated the problem is) and compacting deliberately before the window fills up any further. I'd treat that as a workflow discipline and not as a measured accuracy threshold.
 
 Detractors (info that has nothing to do with the task at hand, output from failed commands, etc.) and conflicting context (contradictory input from you, conflicts between phrases or rules in different sections of the context) create problems for attention and hand the agent loopholes it can use later to justify a decision you didn't expect.
 
-The "[3-Prompt Rule](#ref-e)" is a simple process for avoiding context overload and conflicting instructions in your working context. (Note: the author's reported success numbers are self-tracked, n=1 anecdotes, and not a controlled study.) It sounds extreme at first, so think about what it's trying to solve and why it works. By specifying the full spec up-front you reduce the amount of undefined behavior the agent has to guess at in the first few steps, and those guesses are what become part of its working context. When you make iterative changes and corrections and improvements after that initial generation, you are contradicting the behavioral rules the AI invented for itself, which are already in its working context. You are polluting your own context window by correcting the AI's work so far.
+The "[3-Prompt Rule](#ref-e)" is a simple process for avoiding context overload and conflicting instructions in your working context. (Note: the author's reported success numbers are self-tracked and not a controlled study). It sounds extreme at first, so think about what it's trying to solve and why it works. By specifying the full spec up-front you reduce the amount of undefined behavior the agent has to guess at in the first few steps, and those guesses are what become part of its working context. When you make iterative changes and corrections and improvements after that initial generation, you are contradicting the behavioral rules the AI invented for itself, which are already in its working context. You are polluting your own context window by correcting the AI's work so far.
 
 # Loopholes and rationalization
 
@@ -54,7 +54,7 @@ AI agents are trained to aggressively complete their goals. When operational rul
 
 Models treat instructions in a prompt as text to interpret and not as hard rules to follow. That's a good thing for extracting semantic meaning and working out what you probably want. It's a bad thing when you need to strictly enforce a policy rule.
 
-The rules are part of the same message the AI is analyzing for semantics, so it can just decide to interpret a rule differently. Especially if that rule is in the way of the goal.
+The rules are part of the same message the AI is analyzing for semantics, so it can just decide to interpret a rule differently than you intended. Especially if that rule is in the way of the goal.
 
 ## Goal obsession and reward hacking
 
@@ -92,6 +92,8 @@ Inference is the process of running the trained model's execution phase against 
 * **Embedding:** each token ID is looked up in a giant table and converted into a vector, which is a long list of numbers that positions the token in a high-dimensional "meaning space."
 * **Transformer layers:** the vectors pass through dozens of stacked layers, each one containing attention and feed-forward computations, that progressively refine the representation of every token based on every other token.
 * **Sampling:** the final layer produces a probability distribution over every token in the vocabulary, and the next token is sampled from it. That token gets appended to the input and the whole process repeats, one token at a time.
+
+> TODO: we need visualizations here to help explain the big picture, highlight that it's matching tokens and not "thinking"
 
 A mechanism called "attention" is the secret sauce that makes modern LLMs magic. Attention lets each token weigh how much every other token matters to it, so the AI can detect dependencies in far-flung areas of a large input. That's how it tells the "bat" in "Swing the bat!" from the one in "The bat flew at night." Attention was introduced in 2014 as an improvement to earlier sequence models. The transformer architecture ([Attention Is All You Need](#ref-h), 2017) took the leap of relying on attention _alone_ and dropped recurrence entirely, and that's what made massively parallel training possible.
 
@@ -150,7 +152,7 @@ Not an exhaustive list, grouped by theme.
 * Really like to "fix" unrelated things while they're making a change.
 * Can't plan for the future or anticipate the needs of the product, the other parts of the software lifecycle, deployment, etc.
 
-**Baggage from the corpus**
+**Baggage from the training data**
 
 * Output reflects the biases in the material they were trained on. Web crawl data dominates these corpora, and Reddit content is valued highly enough that Google and OpenAI pay for access to it, so a nontrivial amount of Reddit discourse is baked into your model. Have you read the comments on Reddit?
 * Struggle to write code for new versions of languages and libraries that were updated after the model was trained (see [Context7](#ref-i)).
@@ -164,7 +166,7 @@ With all of this perspective you should be able to plan for these issues and lim
 
 It's a long road and the best practices are changing every day. Maybe start by evaluating your own workflow against the 3-prompt rule ([E](#ref-e)), or by trying something like [Superpowers](#ref-f) to get an end-to-end system for planning and executing tasks.
 
-TODO: a follow-up on the mitigations themselves (hooks that block a tool call so the model can't talk its way past it, deterministic scripts instead of inference, subagents for context isolation) and which of them actually hold up under pressure testing.
+Practice, educate yourself, and experiment.
 
 # References
 
