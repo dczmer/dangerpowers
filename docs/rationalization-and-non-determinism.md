@@ -14,19 +14,21 @@ It turns out that LLMs have a lot of indeterminism built-in to the way they work
 
 But there are also a lot of reasons why responses are always different, even with the same prompt and same agent and model.
 
-LLMs make heavy use of floating point numbers in billions of computations that run in highly-parallel threads across multiple computers at once. But computers are not good with floating point numbers. There are always minuscule rounding errors, and those errors compound over all of the computations that happen when generating a response.
+LLMs rely on floating point math, and floating point addition is not associative: `(a+b)+c` does not always equal `a+(b+c)` at the last few bits of precision. On its own this wouldn't cause non-determinism - a given computation run on the same data produces bitwise-identical results every time.
 
-The way in which an LLM breaks up computations over multiple threads is dynamic, based on many different conditions (like how much traffic the servers are under). This means that rounding-errors from computations are dependent on exactly how they were grouped and integrated. In other words, things you might expect to be associative operations, that shouldn't matter on which order the results are combined, actually do matter because the rounding errors of those values is different based on how/where it was computed.
+The problem is batching. Inference servers batch requests together to keep GPUs saturated, and the batch size your request lands in depends on how busy the server is at that moment. Standard GPU kernels are not *batch-invariant*: they choose different reduction strategies for different batch sizes, which changes the order in which floating-point values are summed - and therefore the result. Same prompt, same model, same settings, different batch size: slightly different logits, occasionally a different token, which then cascades through the rest of the generation.
 
-Massively parallel hardware splits operations across thousands of concurrent threads where completion order varies. Differences in hardware, or even different generations of the same GPU architecture, means floating point math is handled differently, leading to subtle differences depending on which GPU performed the operation. This usually means slightly different rounding errors or differences in timing.
+This is why identical requests to a busy API endpoint can diverge even at temperature 0. Separately, results are not portable across hardware: different GPU generations and library versions use different instructions and reduction orders, so bitwise-identical output across machines isn't guaranteed either.
 
-So non-determinism in AI is partly by design, and partly because it relies heavily on very complex and precise floating point math, and we haven't solved floating point math in computers yet.
+So non-determinism in AI is partly by design (sampling), and partly an emergent property of floating point math under real serving conditions. See [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/) for the deep dive.
 
 ### Context Overload
 
 This is a fundamental concept of context engineering. Too much context (or bad context) can have disastrous effects, from AI "forgetting" about certain rules, to using conflicting information as justification to apply which ever rule it prefers instead of surfacing the conflict to the user.
 
-LLMs have trouble effectively utilizing a large context in messages. As the size of the context surpasses 40% (of an assumed 200K context window), accuracy of the results begins to diminish exponentially. This is based on total tokens - a 2M context window still has the same issues around 60K tokens despite the relatively small percentage of the window in use.
+LLMs have trouble effectively utilizing a large context. Research consistently shows performance degrading as input length grows - and degradation tracks *absolute token count*, not the percentage of the window in use. Models with 1M+ token windows still stumble on tasks involving just tens of thousands of tokens when the task requires more than trivial retrieval (see [Context Rot](https://research.trychroma.com/context-rot) and [Lost in the Middle](https://arxiv.org/abs/2307.03172)). Degradation is also non-uniform: it varies by model, task type, and how much irrelevant or contradictory material is in the window.
+
+As a practitioner rule of thumb, HumanLayer's context engineering guidance recommends keeping context utilization in the 40-60% range (depending on problem complexity) and compacting deliberately before the window fills further. Treat this as a workflow discipline, not a measured accuracy threshold.
 
 Detractors (info not relevant to the task at hand, output from failed commands, etc) and conflicting context (contradictory input from the user, conflicts between phrases or rules in different sections of the context) create problems for attention and provide loopholes that the agent can use to justify making unexpected decisions later.
 
@@ -59,11 +61,11 @@ One example might be a model trained to favor "pragmatism over dogmatism" - gene
 > Pushing down on me
 > Pressing down on you
 
-Pressure refers to any force that makes an agent want to violate a rule that it already knows: time, sunk cost, authority, economics, exhaustion, social, friction and "pragmatic not dogmatic" framing.
+Pressure refers to any force that makes an agent want to violate a rule that it already knows: time, sunk cost, authority, economics, exhaustion, social, friction and "pragmatic not dogmatic" framing. (This taxonomy, and the pressure-testing technique below, come from the [Superpowers](https://github.com/obra/superpowers) skill-testing methodology.)
 
 I find this interesting because, it seems, AI is susceptible to the same types of pressure as humans. It's also interesting because this is one effective way that hackers use to break and abuse AI model safeguards.
 
-The Concept of pressure testing is built on one assumption: agents resist a single pressure and break under combined pressures. If you construct scenarios where you can prompt a subagent to make a decision with multiple points of pressure applied, you can analyze how well it responds and update your prompt to correct the impulse to break the rules.
+Pressure testing is built on one observation: a single pressure can sometimes be enough to break an agent, but combined pressures reliably break them more often. Anthropic's [agentic misalignment research](https://www.anthropic.com/research/agentic-misalignment) showed this with a factorial design - goal conflict alone and threat alone each triggered misbehavior, but both together produced the highest rates, while the no-pressure control produced almost none. If you construct scenarios where you can prompt a subagent to make a decision with multiple points of pressure applied, you can analyze how well it responds and update your prompt to correct the impulse to break the rules.
 
 It seems that mentions of pressure-causing constraints in the context window get mixed with the instructions and rules in the context window. The AI can then use these as justification for bypassing certain rules that are an obstacle to quickly solving the problem or conflict with it's reward-based training rules.
 
@@ -73,13 +75,12 @@ It seems that mentions of pressure-causing constraints in the context window get
 
 Inference is the process of applying the trained model's execution phase against it's weights to determine semantic meaning between tokens and generate a response.
 
-- **Parsing:** Analyze sentence structure, assigning parts of speech (noun, verb, adjective, etc) to each word and identifying grammatical relationships.
-- **Tokenization:** The model splits sentences into individual words (tokens), creating the building blocks for performing semantic analysis.
-- **Stemming:** Reduces words to their root form (walking => walk, etc). This ensures models treat words consistently.
-- **Entity recognition and relationship extraction:** Identify and categorize specific entities (like people or places) within the text and uncover their relationships.
-- **Word embedding:** Finally, creates a numerical representation for each word (vector), capturing its meaning and connection to other words. This allows the model to process the text and perform tasks like translation or summarization.
+- **Tokenization:** The input text is split into tokens - chunks of characters (subwords), not whole words - using an algorithm like BPE. "Unbelievable" might become three tokens. This is why LLMs are bad at counting letters: they don't see individual characters.
+- **Embedding:** Each token ID is looked up in a giant table and converted into a vector - a long list of numbers that positions the token in a high-dimensional "meaning space."
+- **Transformer layers:** The vectors pass through dozens of stacked layers, each containing attention and feed-forward computations, that progressively refine the representation of every token based on every other token.
+- **Sampling:** The final layer produces a probability distribution over every token in the vocabulary, and the next token is sampled from it. That token is appended to the input and the whole process repeats, one token at a time.
 
-A process called "attention" is the secret sauce that makes modern LLMs magic. The move to transformer architecture introduced attention as an improvement over the old process. It creates multiple weightings for tokens based on context and allows the AI to detect dependencies in far-flung areas of a large input. This allows the AI to distinguish the difference between "bat" as the subject of "Swing the bat!" vs. "The bat flew at night."
+A mechanism called "attention" is the secret sauce that makes modern LLMs magic. Attention lets each token weigh how much every other token matters to it, allowing the AI to detect dependencies in far-flung areas of a large input - distinguishing "bat" in "Swing the bat!" from "The bat flew at night." Attention was introduced in 2014 as an improvement to earlier sequence models; the transformer architecture ([Attention Is All You Need](https://arxiv.org/abs/1706.03762), 2017) took the leap of relying on attention *alone*, dropping recurrence entirely, which is what made massively parallel training possible.
 
 An important note is that this relies on billions of floating-point operations that are all susceptible to minuscule rounding errors that add up and compound to slightly alter calculation of the next token in a response, which then impacts the calculation of the next token, and so on.
 
@@ -114,15 +115,15 @@ Not an exhaustive list:
 - Hallucinate or drop details when it can't find a match from the source context (too specific, conflicting or incorrect instructions, info not relevant at all to the task, too long).
 - Rationalize - or create reasons to justify - decisions to subvert written rules in order to achieve their goal. Your AGENTS.md rules are actually just suggestions.
 - LLMs are non-deterministic. Inference has an intentional amount of randomness, plus it depends on EXACTLY what is in your context window and how the request was worded. Floating point math precision also plays a role in the outcome consistency.
-- Can only reproduce patterns from existing training data. Can't innovate or create new constructs that it hasn't already seen before.
+- Mostly recombine patterns from training data. They generalize and remix within their training distribution remarkably well, but struggle to produce genuinely novel constructs far outside it - expect sophisticated recombination, not invention.
 - Handle reasoning well when it comes to literal meanings, but fail when reasoning requires deeper understanding of multi-step processes and nuanced interpretation.
 - Struggle with linguistic elements such as idioms, colloquialisms, and figurative language.
-- Output reflects the biases found in the training data. And Reddit comments are one of the biggest sources of training data… Have you read the comments on Reddit?
+- Output reflects the biases found in the training data. Web crawl data dominates training corpora, and Reddit content is valued highly enough that Google and OpenAI pay for access to it - so a nontrivial amount of Reddit discourse is baked into your model. Have you read the comments on Reddit?
 - Can't plan for the future, anticipate needs of the product or the other parts of the software lifecycle, deployment, etc.
 - Struggle writing code for new versions of languages/libraries that have been updated since the model was trained (see [Context7](https://github.com/upstash/context7)).
 - Lack of memory across sessions means they have to re-learn everything you teach them when starting a new session.
 - Do not understand privacy concerns about the data they are evaluating, or respect chain of custody or accountability requirements. If the AI thinks the best solution to the current problem is to publish your proprietary data to the internet, well…
-- Tend to fail on autonomous multi-step processes due to compounding mistakes or errors in earlier steps. Without a human to correct the issues when they happen, they become part of the context that drives future decision making.
+- Tend to fail on autonomous multi-step processes due to compounding mistakes or errors in earlier steps. Without a human to correct the issues when they happen, they become part of the context that drives future decision making. (METR's [measurements](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/) show agents near 100% success on tasks taking humans minutes but under 10% on multi-hour tasks - though the task length they can handle has been doubling roughly every 7 months, so this limitation is shrinking fast.)
 - Really like to "fix" unrelated things in the process of making a change.
 
 ## Conclusion
@@ -133,6 +134,13 @@ It's a long road and the best practices are changing every day. Maybe start by e
 
 ## References
 
+- [Defeating Nondeterminism in LLM Inference - Thinking Machines Lab](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)
+- [Context Rot: How Increasing Input Tokens Impacts LLM Performance - Chroma](https://research.trychroma.com/context-rot)
+- [Lost in the Middle: How Language Models Use Long Contexts - Liu et al.](https://arxiv.org/abs/2307.03172)
+- [Advanced Context Engineering for Coding Agents - HumanLayer](https://www.humanlayer.dev/blog/advanced-context-engineering)
+- [Attention Is All You Need - Vaswani et al.](https://arxiv.org/abs/1706.03762)
+- [Agentic Misalignment: How LLMs Could Be Insider Threats - Anthropic](https://www.anthropic.com/research/agentic-misalignment)
+- [Measuring AI Ability to Complete Long Tasks - METR](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/)
 - [The 3-Prompt Rule: Why Limiting AI Turns Produces Better Code](https://dev.to/novaelvaris/the-3-prompt-rule-why-limiting-ai-turns-produces-better-code-399e)
 - [Context7](https://github.com/upstash/context7)
 - [Superpowers](https://github.com/obra/superpowers)
