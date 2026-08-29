@@ -22,9 +22,9 @@ Collect all three inputs before starting. Prompt the user for any that are missi
 
 ## Workflow
 
-1. Dispatch 10 subagents in parallel in a single message. Give each subagent the test query verbatim and nothing else: no added context, no instructions, no hint that this is a test, no mention of the target skill.
-2. Abort any subagent still running after 30 seconds. A triggered skill may try to execute its entire workflow; the abort only stops the token burn and never invalidates the observation.
-3. Classify each run by the skill-loaded signal in the subagent's returned output — the explicit indicator that the target skill was loaded. The signal is the only evidence; never infer a trigger from what the subagent did or said, and do not read session transcripts to decide.
+1. Dispatch 10 subagents in parallel in a single message, each with agent type `trigger-evaluator`. Give each subagent the test query verbatim and nothing else: no added context, no instructions, no hint that this is a test, no mention of the target skill.
+2. Abort any subagent still running after 30 seconds. The `trigger-evaluator` agent has only the `skill` tool — all other tools are denied and steps are capped — so post-load execution is structurally impossible and runs should finish fast; a run still running after 30 seconds is stuck, not measuring anything.
+3. Classify each run by the skill-loaded signal in the subagent's returned output — the explicit indicator that the target skill was loaded. The `trigger-evaluator` agent ends its turn with a one-line report naming the skill it loaded (or that no skill matched); that report and/or the skill-tool invocation is the signal. The signal is the only evidence; never infer a trigger from what the subagent did or said, and do not read session transcripts to decide.
    - Signal present → observed `triggered` (even if the run was aborted afterwards).
    - Run completed, no signal → observed `not-triggered`.
    - Run aborted, no signal → `void` (inconclusive; count separately, neither pass nor fail).
@@ -54,6 +54,7 @@ Collect all three inputs before starting. Prompt the user for any that are missi
 ## Gotchas
 
 - Keep the query verbatim within a round and across rounds of the same test case; editing it invalidates comparison with earlier rounds.
+- Always use the `trigger-evaluator` agent type for the subagents — never `general` or another agent. Other agents have full tool access, so a triggered skill's workflow can run arbitrary tools (including interactive ones like `question`), which can block or fail the run and destroy the observation. The `trigger-evaluator` agent is restricted to the `skill` tool, making the load decision the entire measurement.
 - An abort after the skill-loaded signal is a `triggered` observation, not a void.
 - "It behaved like it used the skill" is not a signal. A completed run without the explicit signal is `not-triggered`.
 - A skill that is not available in the current session cannot be tested this way. Confirm availability before dispatching.
@@ -62,7 +63,7 @@ Collect all three inputs before starting. Prompt the user for any that are missi
 
 - [ ] All three inputs collected before dispatching; user prompted for any missing
 - [ ] Target skill confirmed available in the current session
-- [ ] 10 subagents dispatched in parallel, each given the query verbatim and nothing else
+- [ ] 10 subagents dispatched in parallel with agent type `trigger-evaluator`, each given the query verbatim and nothing else
 - [ ] Every run classified from the skill-loaded signal only
 - [ ] All 10 runs accounted for — none skipped, no early stop
 - [ ] Report shows per-run results and pass/fail/void counts against the expectation
