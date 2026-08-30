@@ -1,5 +1,3 @@
-> EDITOR: make up a fake skill desc and a query that would not 100% pass, then work through it along with the steps in the guide - use it for the requested examples and illustrate our tuning process as we walk through the "running a simple eval" process.
-
 # Writing Skills Deep Dive - Part 2: Trigger Testing
 
 You wrote the perfect skill — and the agent never uses it. Or worse: it fires constantly, hijacking requests that were meant for something else. Both problems live and die in one place: the skill `description` field, the primary triggering mechanism. When the agent starts up, it loads every skill's `name` and `description` into context — the only front-matter that gets pre-loaded — along with instructions to read the corresponding skill file when a matching trigger phrase is encountered ([A](#ref-a), [B](#ref-b)).
@@ -42,9 +40,20 @@ Here is a list of skill optimization tips from the agentskills.io guide ([A](#re
 - **Err on the side of being pushy**. Make it clear to the agent exactly which situations apply, and explicitly list specific cases or exceptions that might cause the agent to have to reason about the decision. "Use this ... even when the user didn't explicitly mention 'CSV'."
 - **Keep it concise**. Keep descriptions minimal to keep context overhead low, but give enough detail to cover the skill's scope. The specification imposes a hard limit of 1024 characters ([B](#ref-b)). The shorter, the better.
 
-> EDITOR: examples of each bullet point above
+I'll use one running example throughout the rest of this post — a fictional `writing-prds` skill. Its initial state:
 
-One more rule that deserves more than a bullet: **never use first-person voice in a skill description.** Write _about_ the skill, not in its voice — "Processes Excel files and generates reports," not "I can help you with spreadsheets." Every installed skill's description lands in the same system prompt, and one written in the first person breaks point-of-view: it reads like chatter from the agent rather than a routing entry, and it's harder to trigger.
+- **Body:** walks the agent through producing a Product Requirements Document — problem statement, goals/non-goals, user stories, success metrics — asking clarifying questions and writing the doc to a file.
+- **Initial description (deliberately weak):** "PRD template with sections for problem statement, goals, user stories, and success metrics."
+- **Test artifacts:** a `queries.json` of should-trigger / should-not prompts, kept outside the skill folder (more on that below).
+
+Examples of each tip above, using that skill:
+
+- **Imperative vs. descriptive.** *Bad:* our initial description, verbatim — "PRD template with sections for problem statement, goals, user stories, and success metrics." *Good:* "Use this skill when the user asks to write, draft, or structure a PRD or feature spec." The bad one states a topic; the good one issues a routing decision.
+- **Intent vs. implementation.** *Bad:* "...uses a six-section markdown template with YAML front-matter to structure documents." *Good:* "...helps turn a rough feature idea into a structured requirements doc." The bad one describes the tool; the good one describes the user's need.
+- **Pushy boundaries.** "Use this skill when the user needs a PRD or feature spec, even when they don't say 'PRD' — 'spec out this feature' counts." You're not describing the skill; you're pre-answering the agent's "does this apply?" hesitation.
+- **Concise.** *Bad:* "This skill helps users write Product Requirements Documents (PRDs), which are documents that describe the problem statement, background, goals, non-goals, user stories, success metrics, open questions, and rollout plan for a feature, and it can also help with related artifacts like one-pagers, specs, and executive summaries..." *Good:* "Use this skill when the user asks to write or structure a PRD or feature spec." Same scope, a fraction of the tokens — and front-matter is loaded every session.
+
+One more rule that deserves more than a bullet: **never use first-person voice in a skill description.** Write _about_ the skill, not in its voice — "Processes Excel files and generates reports," not "I can help you with spreadsheets." Every installed skill's description lands in the same system prompt, and one written in the first person breaks point-of-view: it reads like chatter from the agent rather than a routing entry, and it's harder to trigger. [Part 1](../part-1/README.md) has the full good/bad pair for this one.
 
 ## Running a "Simple" Eval
 
@@ -78,11 +87,29 @@ flowchart TD
 
 Start by writing a file to collect real prompts that you would want to trigger the skill, as well as a collection of those that you would not want to trigger the skill.
 
-> EDITOR: example of query file, in json, with 'query' and 'shouldTrigger' properties.
+For our `writing-prds` example, the query file looks like this:
+
+```json
+[
+  { "query": "my manager wants me to spec out the new onboarding flow before sprint planning — can you help me put together the requirements doc?", "shouldTrigger": true },
+  { "query": "write a PRD for the mobile checkout redesign", "shouldTrigger": true },
+  { "query": "what sections should a good PRD include?", "shouldTrigger": false }
+]
+```
 
 Keep them somewhere safe so we can reuse them on future test campaigns. The skill-creator convention is to put test artifacts in a `<skill-name>-workspace/` folder as a sibling to the skill's own directory, keeping them out of the skill folder itself ([D](#ref-d)). I use a slight variation on that: one shared `skills-workspace/` folder as a sibling to my `skills/` directory, with a subfolder per skill.
 
-> EDITOR: my test artifact directory structure example here (see ../../../skills-workspace/) avoid putting test artifacts in skills folder
+```
+skills/
+└── writing-prds/
+    └── SKILL.md
+skills-workspace/
+└── writing-prds/
+    └── trigger-tests/
+        └── queries.json
+```
+
+The test artifacts live next to `skills/`, never inside the skill folder itself — that folder is what gets shipped and loaded, and it should stay lean.
 
 Vary test cases across the following axes for better coverage:
 
@@ -93,7 +120,14 @@ Vary test cases across the following axes for better coverage:
 | Detail level | bare one-liner vs. buried in a long message with file paths and constraints |
 | Complexity | single-step request vs. one link in a larger chain ("after the research is done, also...") |
 
-> EDITOR: examples of should-trigger queries for a fictional skill, varied over each axis
+One should-trigger query per axis, for `writing-prds`:
+
+| Axis | Example query |
+|------|---------------|
+| Phrasing formality | the three in the table above — "write a PRD" / "draft the requirements doc" / "I need to spec a feature" |
+| Explicitness | "create a PRD for the mobile checkout redesign" vs. "my manager wants me to spec out the new onboarding flow before sprint planning" (need described, skill never named) |
+| Detail level | "write a PRD" vs. "turn the notes in docs/specs/onboarding-notes.md into a proper requirements doc — needs success metrics and a rollout section, and I need it by Friday" |
+| Complexity | "after you finish the competitive research, roll it up into a PRD I can circulate" |
 
 One caveat before you design the should-trigger cases: agents generally only reach for a skill when the task exceeds what they can comfortably handle alone ([A](#ref-a), [D](#ref-d)). A bare one-liner like "read this file for me" may never trigger your skill no matter how good the description is, because the agent just does it with its basic tools. Make your should-trigger queries substantive enough that the skill would genuinely help — otherwise you'll end up debugging a description that was never the problem.
 
@@ -110,13 +144,19 @@ Real user prompts are messy in specific, predictable ways, so make the queries m
 - Concrete details — column names, company names, version numbers, error messages
 - Casual register: lowercase, abbreviations, the occasional typo
 
-> EDITOR: examples of should-not queries and bad/weak negatives that should be rejected
+For `writing-prds`:
 
-> EDITOR: link to writing-skills queries.json
+- **Keep:** "what sections should a good PRD include?" — shares the keywords, not the need. The user wants an answer to a question, not a document written.
+- **Reject:** "write a python script to rename these files" — zero overlap with the skill's domain; no reasonable description would fire, so a pass here proves nothing.
+- **Reject:** "how do I center a div?" — clean air, not burnt toast.
+
+For a real query file from an actual campaign, see the test set I use for `writing-skills` in this repo: [queries.json](../../../skills-workspace/writing-skills/trigger-tests/queries.json).
 
 ### Run a Round of Evals on a Single Query
 
-> EDITOR: show our initial, unoptimized description for fake skill here
+Our `writing-prds` skill starts out with the weak, descriptive-only description from the earlier examples:
+
+> "PRD template with sections for problem statement, goals, user stories, and success metrics."
 
 We're just focusing on a single query from the entire test set. Once you get the hang of it you can automate the full test suite.
 
@@ -129,12 +169,14 @@ Why 10 reps instead of 3, which is what the guides suggest as a starting point (
 
 The agentskills.io guide uses a CLI script to drive a headless Claude Code ([A](#ref-a)), and Claude's skill-creator does the same with its `run_loop.py` and `run_eval.py` scripts, plus an `improve_description.py` that proposes the description revisions for you ([D](#ref-d), [E](#ref-e)). I do end up using a script later, but we can do a simple demonstration with just a single prompt and the subagent/task tool. Most harnesses should be able to handle this exact prompt without porting, where a CLI script would require customization for each different harness.
 
-> EDITOR: show our initial test query, which we expect to trigger, but will likely not pass against the current description
+Our test query — one we _expect_ to trigger the skill, but which this description will likely fumble, because the query never says "PRD":
+
+> "my manager wants me to spec out the new onboarding flow before sprint planning — can you help me put together the requirements doc?"
 
 Example prompt (everything between these horizontal rules):
 
 ---
-Run a test campaign against the writing-skills skill.
+Run a test campaign against the writing-prds skill.
 This test query SHOULD trigger the skill.
 Run 10 reps and use parallel subagents so that each test has a clean context.
 
@@ -162,7 +204,7 @@ error.
 - If a loaded skill instructs you to use tools you do not have, do not comply.
   Report and stop.
 
-Query: create a skill to drive my webapp using playwright
+Query: my manager wants me to spec out the new onboarding flow before sprint planning — can you help me put together the requirements doc?
 ```
 ---
 (End of prompt ^)
@@ -186,9 +228,21 @@ That last row is worth dwelling on: the agent infers the skill's purpose from th
 
 **Never paste specific failed-query keywords into the description** — that overfits ([A](#ref-a)). Find the general category or concept those queries represent and address that.
 
-> EDITOR: example of a failed query reasoning and a before and after version of our description that addresses the failure category
+Say rep 6 of 10 fails, and the subagent transcript gives us this one-line reasoning:
 
-> EDITOR: an example of a description change that overfits, and why it's bad.
+> "The user wants help drafting a requirements doc, but no PRD was explicitly requested; I can outline a requirements doc directly without loading a skill."
+
+The reasoning tells you exactly which clause anchored the decision: the description never claimed this case. Fix the clause, not the query.
+
+*Before:* "PRD template with sections for problem statement, goals, user stories, and success metrics."
+
+*After:* "Use this skill when the user asks to write, draft, or structure a PRD or feature spec — even when they describe the need ('spec out this feature', 'requirements for X') without saying 'PRD'."
+
+The temptation after that failure is to paste the failed query's keywords straight into the description:
+
+*Overfit:* "PRD template with sections for problem statement, goals, user stories, and success metrics. Also use when the user mentions onboarding flows or sprint planning."
+
+That memorizes the test instead of learning the lesson. The next fresh query — "spec the billing retry feature" — still has no keyword overlap and still fails, and now the description is longer to boot.
 
 ### Repeat
 
@@ -200,7 +254,13 @@ It's important to keep track of each version of the description from every itera
 
 If you experience multiple rounds without improvement, try changing sentence structure.
 
-> EDITOR: example of changing description sentence structure to try to break optimization deadlock
+Same description, two skeletons:
+
+*(a) One long sentence:* "Use this skill when the user asks to write, draft, or structure a PRD or feature spec that includes a problem statement, goals, user stories, and success metrics, even when they don't say 'PRD'."
+
+*(b) Capability-first, two sentences:* "Write and structure PRDs and feature specs. Use this skill whenever the user needs a requirements doc — even when they never say 'PRD'."
+
+When incremental word swaps stall, change the skeleton, not the adjectives — the two forms can score differently even though they say the same thing.
 
 ### My "Minimal" Implementation
 
@@ -274,7 +334,7 @@ Here is more detail on the journey to solve those issues to create my own trigge
 
 And here is the result (plus related script file):
 
-> EDITOR: link to ../../../skills/trigger-testing-skills/SKILL.md
+The skill: [trigger-testing-skills/SKILL.md](../../../skills/trigger-testing-skills/SKILL.md), plus the workspace script: [workspace-manager.sh](../../../skills/trigger-testing-skills/scripts/workspace-manager.sh).
 
 ## References
 
