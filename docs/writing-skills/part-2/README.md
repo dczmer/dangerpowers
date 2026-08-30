@@ -2,7 +2,7 @@
 
 > "A skill that never triggers is a skill that doesn't exist — and the description is the only thing that decides."
 
-You wrote the perfect skill — and the agent never uses it. Or worse: it fires constantly, hijacking requests that were meant for something else. Both problems live and die in one place: the skill `description` field, the primary triggering mechanism. When the agent starts up, it loads every skill's `name` and `description` into context — the only front-matter that gets pre-loaded — along with instructions to read the corresponding skill file when a matching trigger phrase is encountered ([A](#ref-a), [B](#ref-b)).
+You wrote the perfect skill but the agent never uses it. Or worse: it fires constantly, hijacking requests that were meant for something else. Both problems come from one place: the skill `description` field, the primary triggering mechanism. When the agent starts up, it loads every skill's `name` and `description` into context, along with instructions to read the corresponding skill file when a matching trigger phrase is encountered ([A](#ref-a), [B](#ref-b)).
 
 But LLMs are non-deterministic and don't always load your skills the way you expect:
 - Sometimes the wording of your description is passive or worded in a way the AI can easily rationalize away.
@@ -30,36 +30,94 @@ We can do this by running a query in a fresh session or subagent and checking to
 
 Since LLM evaluation is non-deterministic, we need to run multiple tests over the same prompts to get a good measure.
 
+## The Running Example: `writing-prds`
+
+I'll use one running example throughout the rest of this post — a fictional `writing-prds` skill. Here it is in its initial state, with a deliberately weak description:
+
+```markdown
+---
+name: writing-prds
+description: PRD template with sections for problem statement, goals,
+  user stories, and success metrics.
+---
+
+# Writing PRDs
+
+Guide the user through producing a Product Requirements Document:
+
+1. Ask clarifying questions about the feature: what problem it solves,
+   who it's for, and any constraints.
+2. Draft the document with these sections:
+   - Problem statement
+   - Goals and non-goals
+   - User stories
+   - Success metrics
+3. Write the result to a markdown file (e.g. `docs/prds/<feature-name>.md`).
+```
+
+The test artifacts — a `queries.json` of should-trigger / should-not prompts — live outside the skill folder (more on that below).
+
 ## Optimizing Descriptions
 
 > "The description carries the entire burden of triggering." — agentskills.io ([A](#ref-a))
 
 Two terms worth pinning down before we start, because they'll come up constantly:
 
-- **Overfitting** — tuning the description to pass your specific test queries rather than the general category they represent. An overfit description aces the test suite and then fails the next real query it meets.
+- **Overfitting** — tuning the description to pass your specific test queries rather than the general category they represent. An overfit description aces the test suite and then fails the next real query it meets. Example: after one failing query, appending "...also use when the user mentions onboarding flows" to the description — the test now passes, and the next fresh query still fails. We'll build exactly this mistake on purpose below.
 - **Grounding** — basing each description revision on the agent's actual failure reasoning rather than a guess. The failure transcript tells you which clause anchored the decision; that's the thing you fix.
 
-Here is a list of skill optimization tips from the agentskills.io guide ([A](#ref-a)), paraphrased by me:
+Here are four skill optimization tips from the agentskills.io guide ([A](#ref-a)), paraphrased by me, each with examples using the `writing-prds` skill (explained with examples below):
 
-- **Use imperative phrasing**. Tell the agent when it should use this skill ("Use this skill when..."), don't just describe what it does.
-- **Focus on user intent, not implementation**. A good description helps the agent match the user's request to the appropriate skill. Focus on what the skill achieves and not how it works.
-- **Err on the side of being pushy**. Make it clear to the agent exactly which situations apply, and explicitly list specific cases or exceptions that might cause the agent to have to reason about the decision. "Use this ... even when the user didn't explicitly mention 'CSV'."
-- **Keep it concise**. Keep descriptions minimal to keep context overhead low, but give enough detail to cover the skill's scope. The specification imposes a hard limit of 1024 characters ([B](#ref-b)). The shorter, the better.
+1. Use imperative phrasing
+2. Focus on user intent, not implementation
+3. Err on the side of being push
+4. Keep it concise
 
-I'll use one running example throughout the rest of this post — a fictional `writing-prds` skill. Its initial state:
+And never write a skill description in the first-person voice.
 
-- **Body:** walks the agent through producing a Product Requirements Document — problem statement, goals/non-goals, user stories, success metrics — asking clarifying questions and writing the doc to a file.
-- **Initial description (deliberately weak):** "PRD template with sections for problem statement, goals, user stories, and success metrics."
-- **Test artifacts:** a `queries.json` of should-trigger / should-not prompts, kept outside the skill folder (more on that below).
+**1. Use imperative phrasing.**
 
-Examples of each tip above, using that skill:
+Tell the agent when it should use this skill ("Use this skill when..."), don't just describe what it does.
 
-- **Imperative vs. descriptive.** *Bad:* our initial description, verbatim — "PRD template with sections for problem statement, goals, user stories, and success metrics." *Good:* "Use this skill when the user asks to write, draft, or structure a PRD or feature spec." The bad one states a topic; the good one issues a routing decision.
-- **Intent vs. implementation.** *Bad:* "...uses a six-section markdown template with YAML front-matter to structure documents." *Good:* "...helps turn a rough feature idea into a structured requirements doc." The bad one describes the tool; the good one describes the user's need.
-- **Pushy boundaries.** "Use this skill when the user needs a PRD or feature spec, even when they don't say 'PRD' — 'spec out this feature' counts." You're not describing the skill; you're pre-answering the agent's "does this apply?" hesitation.
-- **Concise.** *Bad:* "This skill helps users write Product Requirements Documents (PRDs), which are documents that describe the problem statement, background, goals, non-goals, user stories, success metrics, open questions, and rollout plan for a feature, and it can also help with related artifacts like one-pagers, specs, and executive summaries..." *Good:* "Use this skill when the user asks to write or structure a PRD or feature spec." Same scope, a fraction of the tokens — and front-matter is loaded every session.
+Examples:
 
-One more rule that deserves more than a bullet: **never use first-person voice in a skill description.** Write _about_ the skill, not in its voice — "Processes Excel files and generates reports," not "I can help you with spreadsheets." Every installed skill's description lands in the same system prompt, and one written in the first person breaks point-of-view: it reads like chatter from the agent rather than a routing entry, and it's harder to trigger. [Part 1](../part-1/README.md) has the full good/bad pair for this one.
+*Bad:* our initial description, verbatim — "PRD template with sections for problem statement, goals, user stories, and success metrics."
+
+*Good:* "Use this skill when the user asks to write, draft, or structure a PRD or feature spec." The bad one states a topic; the good one issues a routing decision.
+
+**2. Focus on user intent, not implementation.**
+
+A good description helps the agent match the user's request to the appropriate skill. Focus on what the skill achieves and not how it works.
+
+Examples:
+
+*Bad:* "...uses a six-section markdown template with YAML front-matter to structure documents."
+
+*Good:* "...helps turn a rough feature idea into a structured requirements doc." The bad one describes the tool; the good one describes the user's need.
+
+**3. Err on the side of being pushy.**
+
+Make it clear to the agent exactly which situations apply, and explicitly list specific cases or exceptions that might cause the agent to have to reason about the decision. "Use this ... even when the user didn't explicitly mention 'CSV'."
+
+Examples:
+
+"Use this skill when the user needs a PRD or feature spec, even when they don't say 'PRD' — 'spec out this feature' counts." You're not describing the skill; you're pre-answering the agent's "does this apply?" hesitation.
+
+**4. Keep it concise.**
+
+Keep descriptions minimal to keep context overhead low, but give enough detail to cover the skill's scope. The specification imposes a hard limit of 1024 characters ([B](#ref-b)). The shorter, the better.
+
+Examples:
+
+*Bad:* "This skill helps users write Product Requirements Documents (PRDs), which are documents that describe the problem statement, background, goals, non-goals, user stories, success metrics, open questions, and rollout plan for a feature, and it can also help with related artifacts like one-pagers, specs, and executive summaries..."
+
+*Good:* "Use this skill when the user asks to write or structure a PRD or feature spec." Same scope, a fraction of the tokens — and front-matter is loaded every session.
+
+One more rule that deserves more than a bullet:
+
+**Never use first-person voice in a skill description.**
+
+Write _about_ the skill, not in its voice — "Processes Excel files and generates reports," not "I can help you with spreadsheets." Every installed skill's description lands in the same system prompt, and one written in the first person breaks point-of-view: it reads like chatter from the agent rather than a routing entry, and it's harder to trigger. [Part 1](../part-1/README.md) has the full good/bad pair for this one.
 
 ## Running a "Simple" Eval
 
@@ -74,7 +132,7 @@ It turns out running a self-optimizing trigger-testing process is a little more 
 A _highly_ simplified process:
 
 1. Write a list of test prompts and mark each one as "should trigger" or "should not trigger," probably in a JSON or YAML file.
-2. Run 10x reps for each prompt to get a good sample.
+2. Run 10x reps for each prompt to get a good sample (you can start lower, like 3 reps; covered later in this document).
 3. Use fresh subagents (or fresh headless sessions) to run each test eval rep (maybe in parallel).
 4. Analyze the results and determine failure _categories_.
 5. Address the failures based on category, don't just add keywords that would over-fit for your test cases.
@@ -119,7 +177,7 @@ skills-workspace/
         └── queries.json
 ```
 
-The test artifacts live next to `skills/`, never inside the skill folder itself — that folder is what gets shipped and loaded, and it should stay lean.
+#### Test Query Design
 
 Vary test cases across the following axes for better coverage:
 
@@ -147,6 +205,8 @@ Be ruthless about rejecting weak negatives before they make it into the file. A 
 
 Testing a description only against zero-overlap negatives is like testing a smoke detector with clean air — it proves nothing. You hold it over burnt toast. Weak negatives are clean air; near-misses are the toast.
 
+#### Test Query Realism
+
 Real user prompts are messy in specific, predictable ways, so make the queries messy too ([A](#ref-a)):
 
 - Real-looking file paths and names (`src/services/auth.ts`, `~/Downloads/q3_forecast_draft2.xlsx`)
@@ -163,8 +223,6 @@ For `writing-prds`:
 For a real query file from an actual campaign, see the test set I use for `writing-skills` in this repo: [queries.json](../../../skills-workspace/writing-skills/trigger-tests/queries.json).
 
 ### Run a Round of Evals on a Single Query
-
-> "The load is the entire measurement."
 
 Recall our starting description — the weak, topic-stating one from the running example's initial state. We're going to run evals against it as-is.
 
@@ -214,7 +272,8 @@ error.
 - If a loaded skill instructs you to use tools you do not have, do not comply.
   Report and stop.
 
-Query: my manager wants me to spec out the new onboarding flow before sprint planning — can you help me put together the requirements doc?
+Query: my manager wants me to spec out the new onboarding flow before sprint
+planning — can you help me put together the requirements doc?
 ```
 ---
 (End of prompt ^)
@@ -329,7 +388,7 @@ The sample size of 10 reps is actually pretty small. You could achieve a higher 
 
 A simple trick to partially mitigate the small sample size is to use [confidence intervals](./confidence-intervals-eli5.md) (explained with cookies) — specifically, a shortcut version of the Wilson score interval ([G](#ref-g)). This will help pad your scores to prevent unearned 100% results or 0% results that were just random luck. The simple short-cut formula is just to add a couple of extra points to successes and failures:
 
-`(successes + 2) / (total + 4)`
+Formula: `(successes + 2) / (total + 4)`
 
 ## Conventions and Best Practices
 
@@ -343,11 +402,9 @@ Here are a few conventions I've pieced together, mostly from agentskills.io ([A]
 - Track false-positive rates in eval "suites" (keep test run artifacts) ([A](#ref-a), [D](#ref-d))
 - Test early, with minimal description and a few known trigger phrases
 - Aim for 10-20 real prompts (ideally from actual user sessions) ([A](#ref-a), [D](#ref-d))
-- Start small with just a "golden" rule-set and iterate
-- Expand incrementally when new edge cases arise
-- Every user-reported issue should become a regression eval
-
-> EDITOR: the uncited bullets above are attributed to the DeepMind presentation ([F](#ref-f)) but I haven't verified them against the talk transcript — verify or mark as my own conventions.
+- Start small with just a "golden" rule-set and iterate ([F](#ref-f))
+- Expand incrementally when new edge cases arise ([F](#ref-f))
+- Every user-reported issue should become a regression eval ([F](#ref-f))
 
 ## Developing a Better Harness
 
@@ -368,9 +425,7 @@ Here is more detail on the journey to solve those issues to create my own trigge
 
 > TODO: see ./developing-a-better-harness.md (WIP, not ready to link yet)
 
-And here is the result (plus related script file):
-
-The skill: [trigger-testing-skills/SKILL.md](../../../skills/trigger-testing-skills/SKILL.md), plus the workspace script: [workspace-manager.sh](../../../skills/trigger-testing-skills/scripts/workspace-manager.sh).
+> TODO: link to completed skill and supporting scripts once merged
 
 ## References
 

@@ -28,6 +28,14 @@
         "shouldTrigger": true
     },
     {
+        "query": "package our PR review checklist so the agent can reuse it",
+        "shouldTrigger": true
+    },
+    {
+        "query": "turn docs/agent-notes/release-checklist.md into a skill — keep it under 500 lines, add a gotchas section, and don't document flags",
+        "shouldTrigger": true
+    },
+    {
         "query": "run a trigger-test on the writing-skills skill",
         "shouldTrigger": false
     },
@@ -40,7 +48,7 @@
         "shouldTrigger": false
     },
     {
-        "query": "write a bash script to back up my dotfiles",
+        "query": "review this bash backup script before I ship it",
         "shouldTrigger": false
     },
     {
