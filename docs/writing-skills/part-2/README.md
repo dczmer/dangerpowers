@@ -20,7 +20,9 @@ A trigger test campaign aims to accomplish the following:
 - Evaluate how frequently a skill triggers for pre-defined "negative" trigger phrases (false-positives).
 - Optimize the description to achieve higher positive rates and lower false-positive rates.
 
-> EDITOR: illustrative graph depicting a skill eval rates improving over multiple runs
+![Line chart of trigger-test pass rates over five description iterations. The train pass rate climbs steadily from 6 to 10 out of 10, while the validation pass rate peaks at 8 on iteration 3 and then declines to 6. Iteration 3 is circled and annotated as the best description.](./images/train-vs-validation.png)
+
+_Train keeps improving; validation peaks and declines as the description overfits to the training queries. The best description is iteration 3, not the last one._
 
 We can do this by running a query in a fresh session or subagent and checking to see if it loaded the desired skill. If your harness (Claude Code, opencode, etc.) supports it, you can even see the thinking or reasoning around _why_ it chose to load, or not to load, the skill.
 
@@ -63,7 +65,14 @@ A _highly_ simplified process:
 7. Repeat the process.
 8. Compare results across each iteration and pick the best (not necessarily the last) version.
 
-> EDITOR: mermaid flowchart covering the process in the list above
+```mermaid
+flowchart TD
+    A[Write test queries:<br>should-trigger / should-not] --> B[Run 10 reps per query,<br>each in a fresh subagent]
+    B --> C[Analyze results,<br>determine failure categories]
+    C --> D[Revise the description:<br>fix the category, not the query]
+    D --> B
+    C -->|perfect score /<br>good enough /<br>out of token budget| E[Pick the best-scoring<br>description version]
+```
 
 ### Write the Test Prompts First
 
@@ -91,6 +100,8 @@ One caveat before you design the should-trigger cases: agents generally only rea
 For the negative cases, aim for **near-misses**: queries that brush up against the skill's domain and share its vocabulary, but actually ask for something else ([A](#ref-a)). A query with zero overlap — say, `"how do I center a div?"` as a negative for a `writing-skills` skill — proves nothing, because no reasonable description would fire on it. Compare that to a real negative from my own test set for `writing-skills`: `"what does the writing-skills skill do?"` Same keywords, completely different intent — the user is asking a question _about_ the skill, not asking to write a skill.
 
 Be ruthless about rejecting weak negatives before they make it into the file. A near-miss your description correctly stays quiet on is the strongest signal in the whole set: it's the one that proves the description has a boundary, not just a keyword net.
+
+Testing a description only against zero-overlap negatives is like testing a smoke detector with clean air — it proves nothing. You hold it over burnt toast. Weak negatives are clean air; near-misses are the toast.
 
 Real user prompts are messy in specific, predictable ways, so make the queries messy too ([A](#ref-a)):
 
@@ -205,7 +216,7 @@ Here are some of the problems with this process, that you would want to consider
 
 - It might try to do real work, starting a skill workflow and trying desperately to accomplish a made up task.
 - We're not using any formal sampling methodology, so we can't be totally confident in our results.
-- Contamination from other skills and plugins can cause different skills to hijack the query. You might consider this a good thing, because it represents a typical session in your real environment, or you might consider it bad because it's not a guaranteed consistent test environment from run-to-run.
+- Contamination from other skills and plugins can cause different skills to hijack the query. Measuring a description's trigger rate with fifteen other descriptions in context is like taste-testing your soup after someone else's spices are already in the pot. You might consider this a good thing, because it represents a typical session in your real environment, or you might consider it bad because it's not a guaranteed consistent test environment from run-to-run.
 - The AI does counting, looping, and math. That shouldn't really be a problem but sometimes may not run every rep or may miscount results.
 
 These issues may not matter to you. You might be OK if you just know they exist and remember to start your agent with all plugins and skills disabled, for example. You may be OK with "anecdotal" proof from the small test samples, especially when a test performs well and receives a "strong" pass on a typical run.
@@ -215,7 +226,7 @@ These issues may not matter to you. You might be OK if you just know they exist 
 Of course this is just one run, against a single test query, and we're doing the optimization loop and description edits by hand. You will want an automated "campaign" process so you can repeat the entire process repeatedly. Making the process automated and easy makes it more likely that you will actually use it consistently over time.
 
 - Run multiple rounds of evals over all (or a sample) of the test queries
-- Use train/validate split. Split queries into two groups, optimize based on observed failures from the 'train' set, verify improved descriptions against the 'validate' set of queries.
+- Use train/validate split. Split queries into two groups, optimize based on observed failures from the 'train' set, verify improved descriptions against the 'validate' set of queries. It's the difference between cramming from past exams and sitting the real one — the validation set is the exam you didn't study for.
 - Use fresh-query sanity checks. Once you pick a winner, use a fresh query that has never been used as a training eval before
 - More math and stats to give higher confidence answers from relatively small sample sizes.
 - What to do when results seem non-deterministic over multiple runs
@@ -224,7 +235,7 @@ Of course this is just one run, against a single test query, and we're doing the
 
 The sample size of 10 reps is actually pretty small. You could achieve a higher confidence by increasing the number of reps, but tokens are expensive and so is your time. You can add dynamic batch sizing, rep bumping, early exits, and other techniques to try to get the best of both worlds, but that's going to require a whole new project to maintain. IMO, it comes down to how much you care about statistical proof vs anecdotal evidence. "Works for me every time I've tried on Claude Code with Opus" may be sufficient for your needs.
 
-A simple trick to partially mitigate the small sample size is to use [confidence intervals](./confidence-intervals-eli5.md) — specifically, a shortcut version of the Wilson score interval ([G](#ref-g)). This will help pad your scores to prevent unearned 100% results or 0% results that were just random luck. The simple short-cut formula is just to add a couple of extra points to successes and failures:
+A simple trick to partially mitigate the small sample size is to use [confidence intervals](./confidence-intervals-eli5.md) (explained with cookies) — specifically, a shortcut version of the Wilson score interval ([G](#ref-g)). This will help pad your scores to prevent unearned 100% results or 0% results that were just random luck. The simple short-cut formula is just to add a couple of extra points to successes and failures:
 
 `(successes + 2) / (total + 4)`
 

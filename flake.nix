@@ -38,6 +38,9 @@
               gh
             ];
             shellHook = ''
+              # Put C/C++ runtime libs on the loader path so manylinux wheels
+              # installed by uv/pip (numpy, matplotlib, ...) can find libstdc++.
+              export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:$LD_LIBRARY_PATH
               [[ -d .venv ]] || uv venv .venv
               source .venv/bin/activate
               which agentskills || $(uv sync && uv python install)
