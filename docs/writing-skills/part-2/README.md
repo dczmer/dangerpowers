@@ -1,5 +1,7 @@
 # Writing Skills Deep Dive - Part 2: Trigger Testing
 
+> "A skill that never triggers is a skill that doesn't exist — and the description is the only thing that decides."
+
 You wrote the perfect skill — and the agent never uses it. Or worse: it fires constantly, hijacking requests that were meant for something else. Both problems live and die in one place: the skill `description` field, the primary triggering mechanism. When the agent starts up, it loads every skill's `name` and `description` into context — the only front-matter that gets pre-loaded — along with instructions to read the corresponding skill file when a matching trigger phrase is encountered ([A](#ref-a), [B](#ref-b)).
 
 But LLMs are non-deterministic and don't always load your skills the way you expect:
@@ -11,6 +13,8 @@ But LLMs are non-deterministic and don't always load your skills the way you exp
 Trigger testing provides the feedback that drives an optimization loop. Each round, you analyze failures to identify the specific failure category, update the description, and repeat until the results improve.
 
 ## What is Trigger Testing?
+
+> "One run tells you what happened once. Ten runs tell you what your description actually does."
 
 A trigger test campaign aims to accomplish the following:
 
@@ -27,6 +31,8 @@ We can do this by running a query in a fresh session or subagent and checking to
 Since LLM evaluation is non-deterministic, we need to run multiple tests over the same prompts to get a good measure.
 
 ## Optimizing Descriptions
+
+> "The description carries the entire burden of triggering." — agentskills.io ([A](#ref-a))
 
 Two terms worth pinning down before we start, because they'll come up constantly:
 
@@ -57,7 +63,9 @@ One more rule that deserves more than a bullet: **never use first-person voice i
 
 ## Running a "Simple" Eval
 
-If you use Claude Code, try their skill-creator plugin ([C](#ref-c)). There are other tools, libraries, and eval harnesses you can probably find if you don't want to write your own, but I suggest working through the manual process once to get some insight into how it works and what trade-offs you might be making with the implementation you are using. The methodology and harness you use have more nuance and more impact on the test runs than you might expect.
+> "The methodology and harness you use have more nuance and more impact on the test runs than you might expect."
+
+If you use Claude Code, try their skill-creator plugin ([C](#ref-c)). There are other tools, libraries, and eval harnesses you can probably find if you don't want to write your own, but I suggest working through the manual process once to get some insight into how it works and what trade-offs you might be making with the implementation you are using.
 
 But I'm using opencode and pi (two minimal, scriptable coding agents) mostly, and I want to dissect how the process works for myself. So I needed to understand the process well enough to know how it works.
 
@@ -84,6 +92,8 @@ flowchart TD
 ```
 
 ### Write the Test Prompts First
+
+> "The negative cases are where your description proves it has a boundary."
 
 Start by writing a file to collect real prompts that you would want to trigger the skill, as well as a collection of those that you would not want to trigger the skill.
 
@@ -154,6 +164,8 @@ For a real query file from an actual campaign, see the test set I use for `writi
 
 ### Run a Round of Evals on a Single Query
 
+> "The load is the entire measurement."
+
 Our `writing-prds` skill starts out with the weak, descriptive-only description from the earlier examples:
 
 > "PRD template with sections for problem statement, goals, user stories, and success metrics."
@@ -215,6 +227,8 @@ You can probably guess from reading that prompt what kinds of issues I've encoun
 
 ### Evaluate the Failures and Reasoning
 
+> "Fix the category, not the query."
+
 Here are some categories of failures and how you should address them. The first three rows distill the failure-mode advice from the agentskills.io optimization loop ([A](#ref-a)); the last row is my own addition — it cost me several wasted iterations of description-tweaking before I realized the description was never the problem.
 
 | Failure | Likely cause | Action |
@@ -232,7 +246,7 @@ Say rep 6 of 10 fails, and the subagent transcript gives us this one-line reason
 
 > "The user wants help drafting a requirements doc, but no PRD was explicitly requested; I can outline a requirements doc directly without loading a skill."
 
-The reasoning tells you exactly which clause anchored the decision: the description never claimed this case. Fix the clause, not the query.
+The reasoning tells you exactly which clause anchored the decision: the description never claimed this case.
 
 *Before:* "PRD template with sections for problem statement, goals, user stories, and success metrics."
 
@@ -246,11 +260,13 @@ That memorizes the test instead of learning the lesson. The next fresh query —
 
 ### Repeat
 
+> "The winner is the best-scoring iteration, not the most recent one."
+
 After modifying the description, run the 10 eval reps again (be sure to reload the agent so it picks up the changes to the skill).
 
 Hopefully, your scores have improved. If you have a perfect 10/10 you might be able to call it there. Otherwise, you have to repeat the loop until you get a perfect score, you reach a rate you are happy with, or you run out of token budget.
 
-It's important to keep track of each version of the description from every iteration, as well as how it scored, so that you can pick the _best_ version to be the winner, which may not always be the last iteration you ran.
+It's important to keep track of each version of the description from every iteration, as well as how it scored, so that you can pick the best version at the end.
 
 If you experience multiple rounds without improvement, try changing sentence structure.
 
@@ -270,6 +286,8 @@ The skill: [example/skills/trigger-testing-skills/SKILL.md](./example/skills/tri
 
 ### Issues With This Setup
 
+> "Anecdotal evidence is fine — as long as you know that's what you have."
+
 This was an illustrative process, not a real solution (though you could probably use it if you don't mind that it's not fully automated). The intention was to illustrate the process while talking about the details, not to make a perfect implementation.
 
 Here are some of the problems with this process, that you would want to consider when choosing or implementing an actual solution:
@@ -282,6 +300,8 @@ Here are some of the problems with this process, that you would want to consider
 These issues may not matter to you. You might be OK if you just know they exist and remember to start your agent with all plugins and skills disabled, for example. You may be OK with "anecdotal" proof from the small test samples, especially when a test performs well and receives a "strong" pass on a typical run.
 
 ### What a Full Campaign Looks Like
+
+> "If it isn't automated and easy, you won't do it consistently."
 
 Of course this is just one run, against a single test query, and we're doing the optimization loop and description edits by hand. You will want an automated "campaign" process so you can repeat the entire process repeatedly. Making the process automated and easy makes it more likely that you will actually use it consistently over time.
 
@@ -301,6 +321,8 @@ A simple trick to partially mitigate the small sample size is to use [confidence
 
 ## Conventions and Best Practices
 
+> "Don't ship skills without evals." — Philipp Schmid, Google DeepMind ([F](#ref-f))
+
 Here are a few conventions I've pieced together, mostly from agentskills.io ([A](#ref-a)) and the DeepMind presentation ([F](#ref-f)):
 
 - Don't ship skills without trigger tests ([F](#ref-f))
@@ -316,6 +338,8 @@ Here are a few conventions I've pieced together, mostly from agentskills.io ([A]
 > EDITOR: the uncited bullets above are attributed to the DeepMind presentation ([F](#ref-f)) but I haven't verified them against the talk transcript — verify or mark as my own conventions.
 
 ## Developing a Better Harness
+
+> "The harness has to be more disciplined than the thing it's testing."
 
 I am surprised how well that simple example skill file has worked (admittedly I've only used it a handful of times so far). But I have some further concerns that I'd like to solve for, and I'd like to improve some of the features over the simple implementation.
 
