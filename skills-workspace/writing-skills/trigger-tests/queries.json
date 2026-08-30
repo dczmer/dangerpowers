@@ -1,0 +1,58 @@
+[
+    {
+        "query": "create a skill to drive my webapp using playwright",
+        "shouldTrigger": true
+    },
+    {
+        "query": "turn this outline into a skill",
+        "shouldTrigger": true
+    },
+    {
+        "query": "update the test-skill skill to prevent it from installing dependencies automatically",
+        "shouldTrigger": true
+    },
+    {
+        "query": "improve the test-skill skill",
+        "shouldTrigger": true
+    },
+    {
+        "query": "validate that the test-skill skill follows best practice conventions",
+        "shouldTrigger": true
+    },
+    {
+        "query": "review the imaginary-skill skill",
+        "shouldTrigger": true
+    },
+    {
+        "query": "verify the frontmatter in the frontmatter-skill skill",
+        "shouldTrigger": true
+    },
+    {
+        "query": "run a trigger-test on the writing-skills skill",
+        "shouldTrigger": false
+    },
+    {
+        "query": "which skills will help me with writing?",
+        "shouldTrigger": false
+    },
+    {
+        "query": "load the exampe-skill skill",
+        "shouldTrigger": false
+    },
+    {
+        "query": "write a bash script to back up my dotfiles",
+        "shouldTrigger": false
+    },
+    {
+        "query": "what does the writing-skills skill do?",
+        "shouldTrigger": false
+    },
+    {
+        "query": "fix the yaml parsing error in the opencode plugin",
+        "shouldTrigger": false
+    },
+    {
+        "query": "run the playwright test suite",
+        "shouldTrigger": false
+    }
+]
