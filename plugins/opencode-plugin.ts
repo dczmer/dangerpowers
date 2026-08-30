@@ -5,13 +5,14 @@
  * config — no symlinks or manual config edits required.
  *
  * Install by adding to ~/.config/opencode/opencode.json:
- *   { "plugin": ["/path/to/dangerpowers/plugins/dangerpowers.js"] }
+ *   { "plugin": ["/path/to/dangerpowers/plugins/opencode-plugin.ts"] }
  */
 
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
+import type { Config, Plugin } from '@opencode-ai/plugin';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -34,14 +35,24 @@ const AGENT_CONFIG_KEYS = new Set([
   'permission',
 ]);
 
-const extractFrontmatter = (content) => {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
-  if (!match) return { frontmatter: {}, body: content };
-  return { frontmatter: parse(match[1]) || {}, body: match[2] };
+type AgentFrontmatter = Record<string, unknown> & { name?: string };
+
+type AgentConfig = { prompt: string } & Record<string, unknown>;
+
+type DangerpowersConfig = Config & {
+  skills?: { paths?: string[] };
 };
 
-const loadAgents = () => {
-  const agents = {};
+const extractFrontmatter = (
+  content: string,
+): { frontmatter: AgentFrontmatter; body: string } => {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+  if (!match) return { frontmatter: {}, body: content };
+  return { frontmatter: (parse(match[1]) as AgentFrontmatter) || {}, body: match[2] };
+};
+
+const loadAgents = (): Record<string, AgentConfig> => {
+  const agents: Record<string, AgentConfig> = {};
   if (!fs.existsSync(agentsDir)) return agents;
 
   for (const file of fs.readdirSync(agentsDir)) {
@@ -51,7 +62,7 @@ const loadAgents = () => {
     );
     const name = frontmatter.name || path.basename(file, '.md');
 
-    const agent = { prompt: body.trim() };
+    const agent: AgentConfig = { prompt: body.trim() };
     for (const [key, value] of Object.entries(frontmatter)) {
       if (key !== 'name' && AGENT_CONFIG_KEYS.has(key)) agent[key] = value;
     }
@@ -60,7 +71,7 @@ const loadAgents = () => {
   return agents;
 };
 
-export const DangerpowersPlugin = async ({ client }) => {
+export const DangerpowersPlugin: Plugin = async ({ client }) => {
   const agents = loadAgents();
 
   await client.app.log({
@@ -74,11 +85,12 @@ export const DangerpowersPlugin = async ({ client }) => {
   return {
     // Mutate the cached config singleton so skills/agents are discovered
     // without touching the user's config files.
-    config: async (config) => {
-      config.skills = config.skills || {};
-      config.skills.paths = config.skills.paths || [];
-      if (!config.skills.paths.includes(skillsDir)) {
-        config.skills.paths.push(skillsDir);
+    config: async (config: Config) => {
+      const cfg = config as DangerpowersConfig;
+      cfg.skills = cfg.skills || {};
+      cfg.skills.paths = cfg.skills.paths || [];
+      if (!cfg.skills.paths.includes(skillsDir)) {
+        cfg.skills.paths.push(skillsDir);
       }
 
       config.agent = config.agent || {};

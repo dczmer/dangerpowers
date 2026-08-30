@@ -21,7 +21,7 @@ dangerpowers/
 │       ├── test-campaigns/    # pressure-test campaign data (some skills)
 │       └── trigger-evals/     # trigger-eval scenarios (some skills)
 ├── agents/                    # custom opencode agent definitions (*.md)
-├── plugins/                   # opencode plugin (opencode-plugin.js) registering skills/ + agents/ via config hook
+├── plugins/                   # opencode plugin (opencode-plugin.ts) registering skills/ + agents/ via config hook
 ├── .opencode/                 # opencode config
 ├── .worktrees/                # git worktrees used by plan execution
 ├── AGENTS.md                  # repo operational rules for agents
