@@ -166,9 +166,7 @@ For a real query file from an actual campaign, see the test set I use for `writi
 
 > "The load is the entire measurement."
 
-Our `writing-prds` skill starts out with the weak, descriptive-only description from the earlier examples:
-
-> "PRD template with sections for problem statement, goals, user stories, and success metrics."
+Recall our starting description — the weak, topic-stating one from the running example's initial state. We're going to run evals against it as-is.
 
 We're just focusing on a single query from the entire test set. Once you get the hang of it you can automate the full test suite.
 
@@ -292,7 +290,7 @@ This was an illustrative process, not a real solution (though you could probably
 
 Here are some of the problems with this process, that you would want to consider when choosing or implementing an actual solution:
 
-- It might try to do real work, starting a skill workflow and trying desperately to accomplish a made up task.
+- The runaway-workflow problem: once triggered, the skill may start doing real work on a made-up task — see Developing a Better Harness below for what that cost me.
 - We're not using any formal sampling methodology, so we can't be totally confident in our results.
 - Contamination from other skills and plugins can cause different skills to hijack the query. Measuring a description's trigger rate with fifteen other descriptions in context is like taste-testing your soup after someone else's spices are already in the pot. You might consider this a good thing, because it represents a typical session in your real environment, or you might consider it bad because it's not a guaranteed consistent test environment from run-to-run.
 - The AI does counting, looping, and math. That shouldn't really be a problem but sometimes may not run every rep or may miscount results.
@@ -309,8 +307,8 @@ Of course this is just one run, against a single test query, and we're doing the
 - Use train/validate split. Split queries into two groups, optimize based on observed failures from the 'train' set, verify improved descriptions against the 'validate' set of queries. It's the difference between cramming from past exams and sitting the real one — the validation set is the exam you didn't study for.
 - Use fresh-query sanity checks. Once you pick a winner, use a fresh query that has never been used as a training eval before
 - More math and stats to give higher confidence answers from relatively small sample sizes.
-- What to do when results seem non-deterministic over multiple runs
-- Keeping track of each version of the prompt and how well it scored (the winner is the best score, not the most recent iteration)
+- What to do when the same query flips outcomes between runs
+- Keeping track of each description version and its score (see Repeat above — the winner may not be the last iteration)
 - Keeping track of results and campaign details for comparisons across iterations
 
 The sample size of 10 reps is actually pretty small. You could achieve a higher confidence by increasing the number of reps, but tokens are expensive and so is your time. You can add dynamic batch sizing, rep bumping, early exits, and other techniques to try to get the best of both worlds, but that's going to require a whole new project to maintain. IMO, it comes down to how much you care about statistical proof vs anecdotal evidence. "Works for me every time I've tried on Claude Code with Opus" may be sufficient for your needs.
@@ -344,7 +342,7 @@ Here are a few conventions I've pieced together, mostly from agentskills.io ([A]
 I am surprised how well that simple example skill file has worked (admittedly I've only used it a handful of times so far). But I have some further concerns that I'd like to solve for, and I'd like to improve some of the features over the simple implementation.
 
 - Portability: I use multiple coding agents (though I've been gravitating to pi) and I'd like to be able to use these everywhere
-- Contamination from other skill files. I wanted a sterile testbed without other skills that could potentially hijack requests and make it harder to interpret the results.
+- Skill cross-talk: I wanted a sterile testbed with no other installed skills in context, so a query's outcome reflects the description under test and nothing else.
 - I'd like to use a smart/high-reasoning model to drive the optimization loop, and be able to choose one of many different models for executing the evals. This is not always possible to do with native subagents in coding agent harnesses like Claude Code or opencode.
 - Runaway workflows. This one drained my token quota for the week before I realized what was taking it so long. Once the skill triggers, it might try to start executing a workflow and do real (expensive) work. If you gave it a hypothetical situation, it might get creative about how to solve the query and start searching your system or making changes to things out of desperation.
 
