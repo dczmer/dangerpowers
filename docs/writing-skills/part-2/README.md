@@ -2,7 +2,7 @@
 
 # Writing Skills Deep Dive - Part 2: Trigger Testing
 
-The skill `description` field is the primary triggering mechanism. When the agent starts up, it loads every skill's `name` and `description` into context — the only front-matter that gets pre-loaded — along with instructions to read the corresponding skill file when a matching trigger phrase is encountered ([A](#ref-a), [B](#ref-b)).
+You wrote the perfect skill — and the agent never uses it. Or worse: it fires constantly, hijacking requests that were meant for something else. Both problems live and die in one place: the skill `description` field, the primary triggering mechanism. When the agent starts up, it loads every skill's `name` and `description` into context — the only front-matter that gets pre-loaded — along with instructions to read the corresponding skill file when a matching trigger phrase is encountered ([A](#ref-a), [B](#ref-b)).
 
 But LLMs are non-deterministic and don't always load your skills the way you expect:
 - Sometimes the wording of your description is passive or worded in a way the AI can easily rationalize away.
@@ -10,7 +10,7 @@ But LLMs are non-deterministic and don't always load your skills the way you exp
 - If the description paraphrases what the skill actually does, the AI may decide the description provides enough instruction and doesn't bother to load the skill.
 - A vaguely written description may trigger too often, hijacking requests for other skills or invoking skills at the wrong times.
 
-Trigger testing provides feedback to drive an optimization loop, analyzing failures to identify the specific failure category, updating the description, and repeating until the results are improved.
+Trigger testing provides the feedback that drives an optimization loop. Each round, you analyze failures to identify the specific failure category, update the description, and repeat until the results improve.
 
 ## What is Trigger Testing?
 
@@ -22,13 +22,16 @@ A trigger test campaign aims to accomplish the following:
 
 > EDITOR: illustrative graph depicting a skill eval rates improving over multiple runs
 
-We can do this by running a query in a fresh session or subagent and checking to see if it loaded the desired skill. If your harness supports it, you can even see the thinking or reasoning around _why_ it chose to load, or not to load, the skill.
+We can do this by running a query in a fresh session or subagent and checking to see if it loaded the desired skill. If your harness (Claude Code, opencode, etc.) supports it, you can even see the thinking or reasoning around _why_ it chose to load, or not to load, the skill.
 
 Since LLM evaluation is non-deterministic, we need to run multiple tests over the same prompts to get a good measure.
 
 ## Optimizing Descriptions
 
-> EDITOR: briefly explain "overfitting" and "grounding", and give an example of a desc that overfits to a specific test query
+Two terms worth pinning down before we start, because they'll come up constantly:
+
+- **Overfitting** — tuning the description to pass your specific test queries rather than the general category they represent. An overfit description aces the test suite and then fails the next real query it meets.
+- **Grounding** — basing each description revision on the agent's actual failure reasoning rather than a guess. The failure transcript tells you which clause anchored the decision; that's the thing you fix.
 
 Here is a list of skill optimization tips from the agentskills.io guide ([A](#ref-a)), paraphrased by me:
 
@@ -39,14 +42,13 @@ Here is a list of skill optimization tips from the agentskills.io guide ([A](#re
 
 > EDITOR: examples of each bullet point above
 
-> EDITOR: expand the following sentence fragment based on the explanation given in part-1/README.md
-Never use first-person voice in a skill description
+One more rule that deserves more than a bullet: **never use first-person voice in a skill description.** Write _about_ the skill, not in its voice — "Processes Excel files and generates reports," not "I can help you with spreadsheets." Every installed skill's description lands in the same system prompt, and one written in the first person breaks point-of-view: it reads like chatter from the agent rather than a routing entry, and it's harder to trigger.
 
 ## Running a "Simple" Eval
 
 If you use Claude Code, try their skill-creator plugin ([C](#ref-c)). There are other tools, libraries, and eval harnesses you can probably find if you don't want to write your own, but I suggest working through the manual process once to get some insight into how it works and what trade-offs you might be making with the implementation you are using. The methodology and harness you use have more nuance and more impact on the test runs than you might expect.
 
-But I'm using opencode and pi mostly, and I want to dissect how the process works for myself. So I needed to understand the process well enough to know how it works.
+But I'm using opencode and pi (two minimal, scriptable coding agents) mostly, and I want to dissect how the process works for myself. So I needed to understand the process well enough to know how it works.
 
 It turns out running a self-optimizing trigger-testing process is a little more complicated than it might seem. Even the agentskills.io guide ([A](#ref-a)) and the skill-creator plugin ([C](#ref-c), [D](#ref-d)) do not explicitly address some of the issues I have run into, like skills running away doing real work after triggering, or descriptions from other installed skills contaminating the test scenario.
 
@@ -57,7 +59,7 @@ A _highly_ simplified process:
 3. Use fresh subagents (or fresh headless sessions) to run each test eval rep (maybe in parallel).
 4. Analyze the results and determine failure _categories_.
 5. Address the failures based on category, don't just add keywords that would over-fit for your test cases.
-6. Modify the prompt to address the issues.
+6. Modify the description to address the issues.
 7. Repeat the process.
 8. Compare results across each iteration and pick the best (not necessarily the last) version.
 
@@ -167,7 +169,9 @@ Here are some categories of failures and how you should address them. The first 
 | Should-trigger query didn't fire | description too narrow | broaden scope or add context about when the skill is useful |
 | Should-not query false-triggered | description too broad | add specificity about what the skill does NOT do; clarify boundary with adjacent skills |
 | Same query fails repeatedly after tweaks | local minimum | try a structurally different framing of the description rather than incremental tweaks |
-| Same should-not query false-triggers across structurally different framings | eval labels conflict with the skill's own body | Inspect `SKILL.md` for body statements that justify the unwanted trigger (e.g. "ask clarifying questions when underspecified"). A description cannot outvote the purpose a router infers from the body. Resolve the policy conflict first — relabel the evals or rewrite the body — before spending more iterations on the description |
+| Same should-not query false-triggers across structurally different framings | eval labels conflict with the skill's own body | inspect `SKILL.md` for body statements that justify the unwanted trigger, then relabel the evals or rewrite the body |
+
+That last row is worth dwelling on: the agent infers the skill's purpose from the whole skill file, and a description cannot outvote the purpose it reads out of the body. If the body says something like "ask clarifying questions when underspecified," vague queries will keep firing it no matter what the description claims. Resolve that policy conflict before spending more iterations on description tweaks.
 
 **Never paste specific failed-query keywords into the description** — that overfits ([A](#ref-a)). Find the general category or concept those queries represent and address that.
 
