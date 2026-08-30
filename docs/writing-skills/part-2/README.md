@@ -311,6 +311,20 @@ Of course this is just one run, against a single test query, and we're doing the
 - Keeping track of each description version and its score (see Repeat above — the winner may not be the last iteration)
 - Keeping track of results and campaign details for comparisons across iterations
 
+```mermaid
+flowchart TD
+    A[Split queries into<br>train / validate sets] --> B[Run campaign round:<br>all train queries x 10 reps]
+    B --> C[Analyze failures,<br>revise description]
+    C --> B
+    C -->|perfect score /<br>good enough /<br>out of token budget| D[Check the best-scoring description<br>against the validate set]
+    D -->|holds up| E[Sanity-check with a<br>never-before-seen query]
+    D -->|validate set flops:<br>overfit| C
+    E -->|fires correctly| F[Ship the best-scoring version<br>across all iterations]
+    E -->|misses| C
+```
+
+The inner loop from the earlier diagram lives inside box B/C — the campaign wraps it with the guardrails that keep you honest: a validation set the optimization never sees, and a fresh query at the end.
+
 The sample size of 10 reps is actually pretty small. You could achieve a higher confidence by increasing the number of reps, but tokens are expensive and so is your time. You can add dynamic batch sizing, rep bumping, early exits, and other techniques to try to get the best of both worlds, but that's going to require a whole new project to maintain. IMO, it comes down to how much you care about statistical proof vs anecdotal evidence. "Works for me every time I've tried on Claude Code with Opus" may be sufficient for your needs.
 
 A simple trick to partially mitigate the small sample size is to use [confidence intervals](./confidence-intervals-eli5.md) (explained with cookies) — specifically, a shortcut version of the Wilson score interval ([G](#ref-g)). This will help pad your scores to prevent unearned 100% results or 0% results that were just random luck. The simple short-cut formula is just to add a couple of extra points to successes and failures:
