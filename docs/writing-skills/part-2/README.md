@@ -1,4 +1,4 @@
-> TODO: make up a fake skill desc and a query that would not 100% pass, then work through it along with the steps in the guide - use it for the requested examples and illustrate our tuning process as we walk through the "running a simple eval" process.
+> EDITOR: make up a fake skill desc and a query that would not 100% pass, then work through it along with the steps in the guide - use it for the requested examples and illustrate our tuning process as we walk through the "running a simple eval" process.
 
 # Writing Skills Deep Dive - Part 2: Trigger Testing
 
@@ -20,7 +20,7 @@ A trigger test campaign aims to accomplish the following:
 - Evaluate how frequently a skill triggers for pre-defined "negative" trigger phrases (false-positives).
 - Optimize the description to achieve higher positive rates and lower false-positive rates.
 
-> TODO: illustrative graph depicting a skill eval rates improving over multiple runs
+> EDITOR: illustrative graph depicting a skill eval rates improving over multiple runs
 
 We can do this by running a query in a fresh session or subagent and checking to see if it loaded the desired skill. If your harness supports it, you can even see the thinking or reasoning around _why_ it chose to load, or not to load, the skill.
 
@@ -28,7 +28,7 @@ Since LLM evaluation is non-deterministic, we need run multiple tests over the s
 
 ## Optimizing Descriptions
 
-> TODO: briefly explain "overfitting" and "grounding", and give an example of a desc that overfits to a specific test query
+> EDITOR: briefly explain "overfitting" and "grounding", and give an example of a desc that overfits to a specific test query
 
 Here is list of skill optimization tips from https://agentskills.io/skill-creation/optimizing-descriptions, paraphrased by me:
 
@@ -37,9 +37,9 @@ Here is list of skill optimization tips from https://agentskills.io/skill-creati
 - **Err on the side of being push**. Make it clear to the agent exactly which situations apply, and explicitly list specific cases or exceptions that might cause the agent to have to reason about the decision. "Use this ... even when the user didn't explicitly mention 'CSV'."
 - **Keep it concise**. Keep descriptions minimal to maintain context overhead space, but give enough detail to cover the skill's scope. The specification imposes a hard limit on description length at <= 1024 characters. The shorter, the better.
 
-> TODO: examples of each bullet point above
+> EDITOR: examples of each bullet point above
 
-> TODO: expand the following sentence fragment based on the explanation given in part-1/README.md
+> EDITOR: expand the following sentence fragment based on the explanation given in part-1/README.md
 Never use first-person voice in a skill description
 
 ## Running a "Simple" Eval
@@ -61,17 +61,17 @@ A _highly_ simplified process:
 7. Repeat the process.
 8. Compare results across each iteration and pick the best (not necessarily the last) version.
 
-> TODO: mermaid flowchart covering the process in the list above
+> EDITOR: mermaid flowchart covering the process in the list above
 
 ### Write the Test Prompts First
 
 Start by writing a file to collect real prompts that you would want to trigger the skill, as well as a collection of those that you would not want to trigger the skill.
 
-> TODO: example of query file, in json, with 'query' and 'shouldTrigger' properties.
+> EDITOR: example of query file, in json, with 'query' and 'shouldTrigger' properties.
 
 Keep them somewhere safe so we can reuse them on future test campaigns. Anthropic recommends using a `skill-workspace` folder hierarchy as a sibling to the 'skills' directory, to keep test artifacts out of the skill folder.
 
-> TODO: my test artifact directory structure example here
+> EDITOR: my test artifact directory structure example here (see ../../../skills-workspace/) avoid putting test artifacts in skills folder
 
 Vary test cases across the following axes for better coverage:
 
@@ -82,13 +82,13 @@ Vary test cases across the following axes for better coverage:
 | Detail level | bare one-liner vs. buried in a long message with file paths and constraints |
 | Complexity | single-step request vs. one link in a larger chain ("after the research is done, also...") |
 
-> TODO: examples of should-trigger queries for a fictional skill, varied over each axis
+> EDITOR: examples of should-trigger queries for a fictional skill, varied over each axis
 
 For the negative cases, use **near-miss** negatives — queries that share keywords or concepts with the skill but need something different. `"What's the weather?"` is a weak negative: it tests nothing, because no skill would trigger on it. A strong negative for `writing-prds` is "help me write a README for this library" — same surface keywords ("write", "documentation"), different need.
 
 Reject weak negatives at design time. A near-miss negative that the description correctly *doesn't* fire on is the highest-signal query in the set.
 
-> TODO: the previous two paragraphs are too close to the reference soruce agentskills.io; reword them to avoid plagiarism. same with the list directly below.
+> EDITOR: the previous two paragraphs are too close to the reference soruce agentskills.io; reword them to avoid plagiarism. same with the list directly below.
 
 Tips for realism:
 
@@ -97,13 +97,13 @@ Tips for realism:
 - Specific details (column names, company names, data values)
 - Casual language, abbreviations, and occasional typos
 
-> TODO: examples of should-not queries and bad/weak negatives that should be rejected
+> EDITOR: examples of should-not queries and bad/weak negatives that should be rejected
 
-> TODO: link to writing-skills queries.json
+> EDITOR: link to writing-skills queries.json
 
 ### Run a Round of Evals on a Single Query
 
-> TODO: show our initial, unoptimized description for fake skill here
+> EDITOR: show our initial, unoptimized description for fake skill here
 
 We're just focusing on a single query from the entire test set. Once you get the hang of it you can automate the full test suite.
 
@@ -114,7 +114,7 @@ We're just focusing on a single query from the entire test set. Once you get the
 
 The agentskills.io guide uses a CLI script to drive a headless claude code, and the claude skill creator does the same (probably because they were both made by anthropic). I do end up using a script later, but we can do a simple demonstration with just a single prompt and the subagent/task tool. Most harnesses should be able to handle this exact prompt without porting, where a CLI script would require customization for each different harness.
 
-> TODO: show our initial test query, which we expect to trigger, but will likely not pass against the current description
+> EDITOR: show our initial test query, which we expect to trigger, but will likely not pass against the current description
 
 Example prompt (everything between these horizontal rules):
 
@@ -160,7 +160,7 @@ You can probably guess from reading that prompt what kinds of issues I've encoun
 
 Here are some categories of failures and how you should address them:
 
-> TODO: find source for the table below
+> EDITOR: find source for the table below
 
 | Failure | Likely cause | Action |
 |---------|-------------|--------|
@@ -171,9 +171,9 @@ Here are some categories of failures and how you should address them:
 
 **Never paste specific failed-query keywords into the description** — that overfits (the Generalize failures rule in Description Revision Rules). Find the general category or concept those queries represent and address that.
 
-> TODO: example of a failed query reasoning and a before and after version of our description that addresses the failure category
+> EDITOR: example of a failed query reasoning and a before and after version of our description that addresses the failure category
 
-> TODO: an example of a description change that overfits, and why it's bad.
+> EDITOR: an example of a description change that overfits, and why it's bad.
 
 ### Repeat
 
@@ -185,7 +185,15 @@ It's important to keep track of each version of the description from every itera
 
 If you experience multiple rounds without improvement, try changing sentence structure.
 
-> TODO: example of changing description sentence structure to try to break optimization deadlock
+> EDITOR: example of changing description sentence structure to try to break optimization deadlock
+
+### My "Minimal" Implementation
+
+I created a simple skill based on the manual process form the examples above (using the current version of the `writing-skills` skill). This just encapsulates the simple illustrative process we have been following, but you could probably wrap this with another skill to implement a "campaign" across all of the test queries and drive the self-optimization loop.
+
+> EDITOR: link and describe ./example/skills/trigger-testing-skills/SKILL.md and the custom agent (opencode-specific) ./example/agents/trigger-evaluator.md.
+
+My preference is to NOT let this skill auto-invoke, but to run it as a command instead.
 
 ### Issues With This Setup
 
@@ -193,7 +201,6 @@ This was an illustrative process, not a real solution (though you could probably
 
 Here are some of the problems with this process, that you would want to consider when choosing or implementing an actual solution:
 
-- You have to customize the example prompt for each test query and expected result
 - It might try to do real work, starting a skill workflow and trying desperately to accomplish a made up task.
 - We're not using any formal sampling methodology, so we can't be totally confident in our results.
 - Contamination from other skills and plugins can cause different skills to hijack the query. You might consider this a good thing, because it represents a typical session in your real environment, or you might consider it bad because it's not a guaranteed consistent test environment from run-to-run.
@@ -201,29 +208,29 @@ Here are some of the problems with this process, that you would want to consider
 
 These issues may not matter to you. You might be OK if you just know they exist and remember to start your agent with all plugins and skills disabled, for example. You may be OK with "anecdotal" proof from the small test samples, especially when a test performs well and receives a "strong" pass on a typical run.
 
-### My "Minimal" Implementation
+### What a Full Campaign Looks like
 
-I created a simple skill based on the manual process form the examples above (using the current version of the `writing-skills` skill).
+Of course this is just one run, against a single test query, and we're doing the optimization loop and description edits by hand. You will want an automated "campaign" process so you can repeat the entire process repeatedly. Making the process automated and easy makes it more likely that you will actually use it consistently over time.
 
-> TODO: link and describe ./example/skills/trigger-testing-skills/SKILL.md and the custom agent (opencode-specific) ./example/agents/trigger-evaluator.md.
+- Run multiple rounds of evals over all (or a sample) of the test queries
+- Use train/validate split. Split queries into two groups, optimize based on observed failures from the 'train' set, verify improved descriptions against the 'validate' set of queries.
+- Use fresh-query sanity checks. Once you pick a winner, use a fresh query that has never been used as a training eval before
+- More math and stats to give higher confidence answers from relatively small sample sizes.
+- What to do when results seem non-deterministic over multiple runs
+- Keeping track of each version of the prompt and how well it scored (the winner is the best score, not the most recent iteration)
+- Keeping track of results and campaign details for comparisons across iterations
 
-### what a full campaign looks like
+The sample size of 10 reps is actually pretty small. You could achieve a higher confidence by increasing the number of reps, but tokens are expensive and so is your time. You can add dynamic batch sizing, rep bumping, early exits, and other techniques to try to get the best of both worlds, but that's going to require a whole new project to maintain. Imo, it comes down to how much you care about statistical proof vs anecdotal evidence. "Works for me every time I've tried on claude code with opus" may be sufficient for your needs.
 
-- run over all (or a sample) of queries
-- use train/eval split and fresh query sanity checks
-- more math and stats to give higher confidence answers
-- what to do when results seem non-deterministic over multiple runs
-- keeping track of each version of the prompt and how well it scored (the winner is the best score, not the most recent iteration)
+A simple trick to partially mitigate the small sample size is to use [confidence intervals](./confidence-intervals-eli5.md). This will help pad your scores to prevent unearned 100% results or 0% results that were just random luck. The simple short-cut formula is just to add a couple of extra points to successes and failures:
 
-the sample size of 10 reps is actually pretty small. you could achieve a higher confidence by increasing the number of reps, but tokens are expensive and so is your time. you can add dynamic batch sizing, rep bumping, early exits, and other techinques to try to get the best of both worlds, but that's going to require a whole new project to maintain. imo, it comes down to how much you care about statistical proof vs anecdotal evidence ("works for me every time i've tried on claude code with opus").
-
-The other question is how hard do you want to make this problem? Unless you are a masochist who likes to toil over these kinds of problems (no comment), then you can probably just go with a simple process and not bother with all the math. most people would probably just use an off-the-shelf solution, like skill-creator, and be done with it.
+`(successes + 2) / (total + 4)`
 
 ## Conventions and Best Practices
 
 Here are a few conventions I've pieced together, mostly from agentskills.io and the DeepMind presentation:
 
-> TODO: look for sources to cite for the following bullet list
+> EDITOR: look for sources to cite for the following bullet list
 
 - Don't ship skills without trigger tests
 - Keep descriptions short/lean; front-matter is always loaded into context
@@ -237,14 +244,16 @@ Here are a few conventions I've pieced together, mostly from agentskills.io and 
 
 ## Developing a Better Harness
 
-- portability: i use multiple coding agents (though i've been gravitating to pi) and i'd like to be able to use these everywhere
-- contamination from other skill files. i wanted a sterile testbed without other skills that could potentially hijack requests and make it harder to interpret the results.
-- i'd like to use a smart/high-reasoning model to drive the optimization loop, and be able to choose one of many different models for executing the evals. this is not always possible to do with native subagents in coding agent harnesses like claude code or opencode.
-- runaway workflows. this one drained my token quota for the week before i realized what was taking it so long. once the skill triggers, it might try to start executing a workflow and do real (expensive) work. if you gave it a hypothetical situation, it might get creative about how to solve the query and start searching your system or making changes to things out of desperation.
+I am surprised how well that simple example skill file has worked (admittedly I've only used it a hand-full of times so far). But I have some further concerns that I'd like to solve for, and I'd like to improve some of the features over the simple implementation.
 
-and we still have to write an outer loop around the whole thing so we can run a full campaign and optimization loop instead of just running a single round on a single query.
+- Portability: i use multiple coding agents (though i've been gravitating to pi) and i'd like to be able to use these everywhere
+- Contamination from other skill files. i wanted a sterile testbed without other skills that could potentially hijack requests and make it harder to interpret the results.
+- I'd like to use a smart/high-reasoning model to drive the optimization loop, and be able to choose one of many different models for executing the evals. this is not always possible to do with native subagents in coding agent harnesses like claude code or opencode.
+- Runaway workflows. this one drained my token quota for the week before i realized what was taking it so long. once the skill triggers, it might try to start executing a workflow and do real (expensive) work. if you gave it a hypothetical situation, it might get creative about how to solve the query and start searching your system or making changes to things out of desperation.
 
-i spent a lot of time on this despite the fact that i usually prefer not to auto-invoke skills and use commands instead.
+And we still have to write an outer loop around the whole thing so we can run a full campaign and optimization loop instead of just running a single round on a single query. We also have to implement the math to score and compare results, and I'd rather do that part with a deterministic script.
+
+I spent a lot of time on this despite the fact that i usually prefer not to auto-invoke skills and use commands instead :/
 
 Here is more detail on the journey to solve those issues to create my own trigger-testing skill:
 
@@ -252,7 +261,7 @@ Here is more detail on the journey to solve those issues to create my own trigge
 
 And here is the result (plus related script file):
 
-> TODO: link to ../../../skills/trigger-testing-skills/SKILL.md
+> EDITOR: link to ../../../skills/trigger-testing-skills/SKILL.md
 
 ## References
 

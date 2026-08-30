@@ -1,3 +1,7 @@
+IMPORTANT: this is a WIP consisting of raw, unorganized notes. this should not be read by the agent, used as a reference or source, or compared to any other document or implementation.
+
+---
+
 NOTE: the only places we actually need inference are for updating the description and for generating eval sets or fresh-check queries, and we can work around the later. so really we need a python app or script to drive the whole thing and only delegate to agent harness CLI to run the eval rep.
 
 ## artifact management
