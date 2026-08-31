@@ -26,13 +26,15 @@ A trigger test campaign aims to accomplish the following:
 
 _Train keeps improving; validation peaks and declines as the description overfits to the training queries. The best description is iteration 3, not the last one._
 
+(I'll explain the "train"/"validate" thing shortly).
+
 We can do this by running a query in a fresh session or subagent and checking to see if it loaded the desired skill. If your harness (Claude Code, opencode, etc.) supports it, you can even see the thinking or reasoning around _why_ it chose to load, or not to load, the skill.
 
 Since LLM evaluation is non-deterministic, we need to run multiple tests over the same prompts to get a good measure.
 
 ## The Running Example: `writing-prds`
 
-I'll use one running example throughout the rest of this post — a fictional `writing-prds` skill. Here it is in its initial state, with a deliberately weak description:
+I'll use one running example throughout the rest of this post — a fictional `writing-prds` skill. Here it is in its initial state, with a _deliberately_ weak description:
 
 ```markdown
 ---
@@ -75,49 +77,61 @@ Here are four skill optimization tips from the agentskills.io guide ([A](#ref-a)
 
 And never write a skill description in the first-person voice.
 
-**1. Use imperative phrasing.**
+### 1. Use imperative phrasing
 
 Tell the agent when it should use this skill ("Use this skill when..."), don't just describe what it does.
 
 Examples:
 
-*Bad:* our initial description, verbatim — "PRD template with sections for problem statement, goals, user stories, and success metrics."
+**Bad:** _our initial description: "PRD template with sections for problem statement, goals, user stories, and success metrics."_
 
-*Good:* "Use this skill when the user asks to write, draft, or structure a PRD or feature spec." The bad one states a topic; the good one issues a routing decision.
+**Good:** _"Use this skill when the user asks to write, draft, or structure a PRD or feature spec."_
 
-**2. Focus on user intent, not implementation.**
+The bad one states a topic; the good one issues a routing decision.
+
+### 2. Focus on user intent, not implementation
 
 A good description helps the agent match the user's request to the appropriate skill. Focus on what the skill achieves and not how it works.
 
 Examples:
 
-*Bad:* "...uses a six-section markdown template with YAML front-matter to structure documents."
+**Bad:** _"...uses a six-section markdown template with YAML front-matter to structure documents."_
 
-*Good:* "...helps turn a rough feature idea into a structured requirements doc." The bad one describes the tool; the good one describes the user's need.
+**Good:** _"...helps turn a rough feature idea into a structured requirements doc."_
 
-**3. Err on the side of being pushy.**
+The bad one describes the tool; the good one describes the user's need.
 
-Make it clear to the agent exactly which situations apply, and explicitly list specific cases or exceptions that might cause the agent to have to reason about the decision. "Use this ... even when the user didn't explicitly mention 'CSV'."
+### 3. Err on the side of being pushy
+
+Make it clear to the agent exactly which situations apply, and explicitly list specific cases or exceptions that might cause the agent to have to reason about the decision. _"Use this ... even when the user didn't explicitly mention 'CSV'."_
 
 Examples:
 
-"Use this skill when the user needs a PRD or feature spec, even when they don't say 'PRD' — 'spec out this feature' counts." You're not describing the skill; you're pre-answering the agent's "does this apply?" hesitation.
+_"Use this skill when the user needs a PRD or feature spec, even when they don't say 'PRD' — 'spec out this feature' counts."_
 
-**4. Keep it concise.**
+You're not describing the skill; you're pre-answering the agent's "does this apply?" hesitation.
+
+### 4. Keep it concise
 
 Keep descriptions minimal to keep context overhead low, but give enough detail to cover the skill's scope. The specification imposes a hard limit of 1024 characters ([B](#ref-b)). The shorter, the better.
 
 Examples:
 
-*Bad:* "This skill helps users write Product Requirements Documents (PRDs), which are documents that describe the problem statement, background, goals, non-goals, user stories, success metrics, open questions, and rollout plan for a feature, and it can also help with related artifacts like one-pagers, specs, and executive summaries..."
+**Bad:** _"This skill helps users write Product Requirements Documents (PRDs), which are documents that describe the problem statement, background, goals, non-goals, user stories, success metrics, open questions, and rollout plan for a feature, and it can also help with related artifacts like one-pagers, specs, and executive summaries..."_
 
-*Good:* "Use this skill when the user asks to write or structure a PRD or feature spec." Same scope, a fraction of the tokens — and front-matter is loaded every session.
+**Good:** _"Use this skill when the user asks to write or structure a PRD or feature spec."_
+
+Same scope, a fraction of the tokens — and front-matter is loaded every session.
+
+### No First-Person Voice
 
 One more rule that deserves more than a bullet:
 
 **Never use first-person voice in a skill description.**
 
-Write _about_ the skill, not in its voice — "Processes Excel files and generates reports," not "I can help you with spreadsheets." Every installed skill's description lands in the same system prompt, and one written in the first person breaks point-of-view: it reads like chatter from the agent rather than a routing entry, and it's harder to trigger. [Part 1](../part-1/README.md) has the full good/bad pair for this one.
+Write _about_ the skill, not in its voice — _"Processes Excel files and generates reports,"_ not _"I can help you with spreadsheets."_
+
+Every installed skill's description lands in the same system prompt, and one written in the first person breaks point-of-view: it reads like chatter from the agent rather than a routing entry, and it's harder to trigger. [Part 1](../part-1/README.md) has the full good/bad pair for this one.
 
 ## Running a "Simple" Eval
 
@@ -226,6 +240,8 @@ For a real query file from an actual campaign, see the test set I use for `writi
 
 Recall our starting description — the weak, topic-stating one from the running example's initial state. We're going to run evals against it as-is.
 
+> PRD template with sections for problem statement, goals, user stories, and success metrics.
+
 We're just focusing on a single query from the entire test set. Once you get the hang of it you can automate the full test suite.
 
 - Pick one test prompt to evaluate
@@ -305,13 +321,13 @@ Say rep 6 of 10 fails, and the subagent transcript gives us this one-line reason
 
 The reasoning tells you exactly which clause anchored the decision: the description never claimed this case.
 
-*Before:* "PRD template with sections for problem statement, goals, user stories, and success metrics."
+**Before:** _"PRD template with sections for problem statement, goals, user stories, and success metrics."_
 
-*After:* "Use this skill when the user asks to write, draft, or structure a PRD or feature spec — even when they describe the need ('spec out this feature', 'requirements for X') without saying 'PRD'."
+**After:** _"Use this skill when the user asks to write, draft, or structure a PRD or feature spec — even when they describe the need ('spec out this feature', 'requirements for X') without saying 'PRD'."_
 
 The temptation after that failure is to paste the failed query's keywords straight into the description:
 
-*Overfit:* "PRD template with sections for problem statement, goals, user stories, and success metrics. Also use when the user mentions onboarding flows or sprint planning."
+**Overfit:** _"PRD template with sections for problem statement, goals, user stories, and success metrics. Also use when the user mentions onboarding flows or sprint planning."_
 
 That memorizes the test instead of learning the lesson. The next fresh query — "spec the billing retry feature" — still has no keyword overlap and still fails, and now the description is longer to boot.
 
@@ -321,7 +337,7 @@ That memorizes the test instead of learning the lesson. The next fresh query —
 
 After modifying the description, run the 10 eval reps again (be sure to reload the agent so it picks up the changes to the skill).
 
-Hopefully, your scores have improved. If you have a perfect 10/10 you might be able to call it there. Otherwise, you have to repeat the loop until you get a perfect score, you reach a rate you are happy with, or you run out of token budget.
+Hopefully, your scores have improved. If you have a perfect 10/10 you might be able to call it there. Otherwise, you have to repeat the loop until you get a perfect score, you reach a rate you are happy with (at least <50%), or you run out of token budget.
 
 It's important to keep track of each version of the description from every iteration, as well as how it scored, so that you can pick the best version at the end.
 
