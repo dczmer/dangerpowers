@@ -236,6 +236,16 @@ def print_report(skill: str, workspace: Path, model: str | None,
         summary += (f"  wilson95: [{result.wilson_low:.3f}, "
                     f"{result.wilson_high:.3f}]  score: {result.score:.3f}")
     print(summary)
+    for i, v in enumerate(result.verdicts, start=1):
+        session = f" [session {v.session_id}]" if v.session_id else ""
+        print(f"\n  reasoning run {i} ({v.outcome}){session}:")
+        if v.detail:
+            print(f"    detail: {v.detail}")
+        if v.reasoning:
+            for line in v.reasoning.splitlines():
+                print(f"    {line}")
+        else:
+            print("    (none)")
 
 
 def cmd_run(args: argparse.Namespace) -> int:

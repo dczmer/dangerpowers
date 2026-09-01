@@ -143,24 +143,21 @@ High-level Design:
 - Skill:
     * Resolves campaign parameters
     * (Optionally) generates initial eval queries and/or fresh-check queries
+    * Generates the train/validate split from input file
     * Analyzes failures and revises the description
     * Calls a script to manage the campaign workspace
     * Calls a script to execute a run of evals and collect responses
+    * Runs fresh-query sanity check from a file of canned queries
+    * Writes the campaign log and other artifacts
 - Workspace Manager Script:
     * Initialize a temporary workspace directory and return its path
     * Sync the target skill (stub) and any configuration or custom agents to the workspace
     * Check the status of the workspace and determine if it is up-to-date or out-of-sync.
     * Compares scores across runs and picks winner
 - Evaluator script and evaluator strategy:
-    * Generates the train/validate split
-    * Manages a configurable eval loop
     * Implements harness-specific CLI command and argument mapping
     * Calculates results and applies confidence intervals
-    * Runs fresh-query sanity check from a file of canned queries
-    * Writes the campaign log and other artifacts
-- Headless CLI sessions:
     * Provides a configurable way to run a single eval query (you can parameterize just about anything)
-    * Outputs structured data about the session that can be interpreted deterministically by a script.
     * Runs from the temporary workspace to prevent leakage of project-specific skills
     * (Ideally) runs the agent harness in a 'pure' mode, without any extensions or plugins.
 
@@ -196,8 +193,6 @@ Important note when writing scripts: validate and catch failures and show the ex
 ### Evaluator Script Implementation
 
 The evaluator script has a few moving pieces and a couple of custom data structures. As always, I try to use as few dependencies as possible, outside of the python standard library.
-
-#### Part 1: The Evaluator (Tests a single query X times)
 
 > IMPORTANT NOTE: This was my design input for a minimal slice of this full script. This is not what the final product for this phase looks like. See [the actual script](../../../skills/trigger-testing-skills/scripts/evaluator.py) for the actual implementation. Use this section only as context for the desired approach and important design concerns.
 
@@ -295,18 +290,51 @@ python3 skills/trigger-testing-skills/scripts/evaluator.py run \
 # exit=0
 ```
 
-#### Part 2...
+### Implementing the Campaign and Skill
 
-### grading and keeping score
+High-level outline of how the skill works:
 
-### optimization loop
+- Resolve required parameters from the user prompt
+- Create and sync a new workspace
+- Offer to create queries.json and some initial queries, if not exists
+- Verify the queries are actionable (see "Actionable Queries" below)
+- Split queries.json into "train" and "validate" sets
 
-### artifact management
+Then start the outer campaign loop (max 3 iterations):
 
-### trigger-testing my writing-skills skill
+- For each 'train' query:
+    * Call the evaluator script to run X (default 10) reps of the eval
+    * Collect the results
+    * Write a log with the query, current description, and train score
+- Analyze failures and refine the description
+- For each 'validate' query:
+    * Call the evaluator script to run X (default 10) reps of the eval
+    * Collect the results
+    * Write a log with the query, current description, and validate score
+- Compare the verify score to the previous version
+- Repeat this outer loop until reach max iterations
+
+After the evaluation loop is done:
+
+- Select a winner (highest validate score)
+- Run a fresh query sanity check (generate one on-demand for now)
+- Log the result
+- If the sanity check failed, stop. Do not start the entire loop again. Never use a fresh query for training.
+
+At this point, we're just logging to standard out. In the next phase, we will implement better artifact management.
+
+#### Actionable Queries
+
+Some queries, like "turn this outline into a skill", WOULD trigger our target skill, but since no actual outline exists, they will instead timeout while trying to figure out what outline we're talking about, or else give up and never invoke the skill.
+
+For a query to be 'actionable' it must reference something real so the agent doesn't get stuck. In the case of the "outline" above, fabricate an outline of some process and write it to a file in the workspace, then reference it by name.
+
+If the target query is not reasonably actionable, or if it's not actually a request that an agent would process (like a statement that doesn't ask for any action), then reject it and surface to the user. Offer to revise the description and explain why it's not acceptable.
+
+### Custom Agent
+
+### Artifact Management
+
+### Trigger-Testing my `writing-skills` Skill
 
 ### Conclusion
-
-### References
-
-
