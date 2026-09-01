@@ -32,7 +32,7 @@ extract_frontmatter() {
 cmd_init() {
   local ws
   ws="$(mktemp -d /tmp/trigger-test.XXXXXXXXXX)"
-  mkdir -p "$ws/.agents/"{skills,agents}
+  mkdir -p "$ws/.agents/skills"
   echo "$ws"
 }
 

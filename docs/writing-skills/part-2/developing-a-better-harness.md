@@ -193,7 +193,87 @@ cleanup removes the workspace (--workspace or $TRIGGER_TEST_WORKSPACE).
 
 Important note when writing scripts: validate and catch failures and show the exact error reason, so the agent can self-correct. An opaque "error happened" message is not helpful.
 
-### evaluator script implementation
+### Evaluator Script Implementation
+
+The evaluator script has a few moving pieces and a couple of custom data structures. As always, I try to use as few dependencies as possible, outside of the python standard library.
+
+#### Part 1: The Evaluator (Tests a single query X times)
+
+Starting with the 'inner' workings of the evaluator, create a script that runs a series of eval reps over a single query in an existing and pre-synced workspace.
+
+My initial sketch:
+
+```mermaid
+classDiagram
+    class Evaluator {
+        +str skill
+        +str query
+        +Path workspace
+        +str|None model
+        +str|None effort
+        +str[] train_set
+        +str[] validate_set
+        +str fresh_query
+        +EvalStrategy strategy
+
+        +eval_batch(int reps) : Results
+        -score_results(): double
+    }
+    class EvalStrategy {
+        +evaluate(str skill, str query, Path workspace, str model=None, Effort effort=None) : Verdict
+    }
+    class Results {
+        +str description
+        +str query
+        +double score
+        +Verdict[] verdicts
+    }
+    class Verdict {
+        +bool triggered
+        +str reasoning
+    }
+    
+    Results o-- Verdict
+    EvalStrategy --> Verdict
+    Evaluator *-- EvalStrategy
+    Evaluator --> Results
+```
+
+Classes without any functions can be simple `dataclasses` and the EvalStrategy can just be a function that matches a protocol/interface. We also need an enum to shape the possible input values for "effort":
+
+For the target of an opencode-specific EvalStrategy, here are the relevant opencode cli command arguments:
+
+```bash
+opencode \
+    # start from workspace directory
+    --dir WORKSPACE \
+    # disable all plugins and extensions
+    --pure \
+    # select model and reasoning/effort (optional)
+    --model MODEL \
+    --variant EFFORT \
+    # use json structured output where possible
+    --format json \
+    # verbose output so we can see reasoning and other info
+    --print-logs \
+    --log-level INFO \
+    # auto-approve - this is dangerous, we'll fix it a bit later
+    --auto \
+    QUERY
+```
+
+If 'effort' and/or 'model' are not used, they are not included in the command.
+
+I fed my agent this document as an input and had it design the first version. We had a few rounds of refinement and the agent validated (or invalidated) some of my assumptions. Notably, we made some changes to the arguments for the opencode command and we added parallel reps and a smoke test rep.
+
+Here's the implementation plan for this phase: [phase-1-evaluator-script-plan](./phase-1-evaluator-script-plan.md)
+
+And here is an example of a manual run using the script on an existing workspace:
+```
+TODO
+```
+
+#### Part 2...
 
 ### grading and keeping score
 
