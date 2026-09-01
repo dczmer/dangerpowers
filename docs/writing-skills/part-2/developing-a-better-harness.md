@@ -199,6 +199,8 @@ The evaluator script has a few moving pieces and a couple of custom data structu
 
 #### Part 1: The Evaluator (Tests a single query X times)
 
+> IMPORTANT NOTE: This was my design input for a minimal slice of this full script. This is not what the final product for this phase looks like. See [the actual script](../../../skills/trigger-testing-skills/scripts/evaluator.py) for the actual implementation. Use this section only as context for the desired approach and important design concerns.
+
 Starting with the 'inner' workings of the evaluator, create a script that runs a series of eval reps over a single query in an existing and pre-synced workspace.
 
 My initial sketch:
@@ -264,13 +266,33 @@ opencode \
 
 If 'effort' and/or 'model' are not used, they are not included in the command.
 
-I fed my agent this document as an input and had it design the first version. We had a few rounds of refinement and the agent validated (or invalidated) some of my assumptions. Notably, we made some changes to the arguments for the opencode command and we added parallel reps and a smoke test rep.
+I fed my agent this document as an input and had it design the first version. We had a few rounds of refinement and the agent validated (or invalidated) some of my assumptions. Notably, we made some changes to the arguments for the opencode command and we added parallel reps and a smoke test rep. Another big change is that the AI decided to implement a more complicated form of the confidence interval calculation, which I chose to allow.
 
 Here's the implementation plan for this phase: [phase-1-evaluator-script-plan](./phase-1-evaluator-script-plan.md)
 
 And here is an example of a manual run using the script on an existing workspace:
-```
-TODO
+```bash
+python3 skills/trigger-testing-skills/scripts/evaluator.py run \
+    --skill writing-skills --workspace /tmp/trigger-test.Zp8Q9DCdzj \
+    --query "turn this outline into a skill" --expect trigger \
+    --model kimi-for-coding/k3 --variant minimal --reps 3; \
+    echo "exit=$?"
+# trigger test: writing-skills
+# workspace: /tmp/trigger-test.Zp8Q9DCdzj
+# model: kimi-for-coding/k3  variant: minimal  reps: 3  timeout: 30s
+# [rep   1] started
+# [rep   1] completed: triggered
+# [rep   2] started
+# [rep   3] started
+# [rep   2] completed: triggered
+# [rep   3] completed: not-triggered
+# 
+# query: "turn this outline into a skill"   expected: trigger
+#   run   1: triggered      pass
+#   run   2: triggered      pass
+#   run   3: not-triggered  fail
+#   summary: 2 pass / 1 fail / 0 void (3 runs)  wilson95: [0.208, 0.939]  score: 0.208
+# exit=0
 ```
 
 #### Part 2...
