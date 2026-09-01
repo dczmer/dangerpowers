@@ -1,7 +1,3 @@
-IMPORTANT: this is a WIP consisting of raw, unorganized notes. this should not be read by the agent, used as a reference or source, or compared to any other document or implementation.
-
----
-
 # Writing Skills Deep Dive - Part 2.5: Developing a Better Harness
 
 ## Remaining Concerns
@@ -300,23 +296,20 @@ High-level outline of how the skill works:
 - Verify the queries are actionable (see "Actionable Queries" below)
 - Split queries.json into "train" and "validate" sets
 
-Then start the outer campaign loop (max 3 iterations):
+Then start the outer campaign loop (max 3 iterations, early exit on a perfect train round):
 
 - For each 'train' query:
     * Call the evaluator script to run X (default 10) reps of the eval
     * Collect the results
     * Write a log with the query, current description, and train score
+- If there are no train failures, exit the loop early
 - Analyze failures and refine the description
-- For each 'validate' query:
-    * Call the evaluator script to run X (default 10) reps of the eval
-    * Collect the results
-    * Write a log with the query, current description, and validate score
-- Compare the verify score to the previous version
 - Repeat this outer loop until reach max iterations
 
 After the evaluation loop is done:
 
-- Select a winner (highest validate score)
+- Select a winner (highest train score across iterations)
+- Check the winning description against the 'validate' set (once — the held-out exam)
 - Run a fresh query sanity check (generate one on-demand for now)
 - Log the result
 - If the sanity check failed, stop. Do not start the entire loop again. Never use a fresh query for training.
@@ -329,7 +322,16 @@ Some queries, like "turn this outline into a skill", WOULD trigger our target sk
 
 For a query to be 'actionable' it must reference something real so the agent doesn't get stuck. In the case of the "outline" above, fabricate an outline of some process and write it to a file in the workspace, then reference it by name.
 
-If the target query is not reasonably actionable, or if it's not actually a request that an agent would process (like a statement that doesn't ask for any action), then reject it and surface to the user. Offer to revise the description and explain why it's not acceptable.
+If the target query is not reasonably actionable, or if it's not actually a request that an agent would process (like a statement that doesn't ask for any action), then reject it and surface to the user. Offer to revise the query and explain why it's not acceptable.
+
+#### Implementation
+
+Like the previous phase, I fed my design and this document (along with the trigger-testing guide) to the agent to develop a plan and iterate on the details.
+
+Here is the plan file that was created: (phase-2-campaign-and-skill-plan)[./phase-2-campaign-and-skill-plan.md].
+
+
+
 
 ### Custom Agent
 
