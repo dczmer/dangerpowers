@@ -278,14 +278,22 @@ no first person.)
 
 ### Inputs
 
-- **Skill name** (required) — the skill under test; `skills/<name>/SKILL.md` must exist.
+- **Skill** (required) — the skill under test, given as a name or a path. A name is
+  resolved via the driving session's skill-registry metadata (opencode exposes each
+  registered skill's file location), falling back to `./skills/<name>/SKILL.md`;
+  a path points at the skill dir (or its `SKILL.md`) directly. Skills registered
+  as built-in have no filesystem location and cannot be tested — surface that and
+  stop. The **source root** is derived from the resolved location: the directory
+  containing that `skills/` directory (for `<root>/.opencode/skills/<name>`
+  layouts, the parent of `.opencode`).
 - **Harness** (required) — e.g. `opencode`. The user MUST specify it; if missing, ask.
   Never auto-detect installed harnesses (locked decision 7).
 - **model / variant** (optional) — passed to eval executions only. The campaign-
   driving model is the session's current model.
 - **reps** (default 10), **timeout** (default 30s), **max-iterations** (default 3),
   **train-frac** (default 0.6), **seed** (optional).
-- **queries path** (default `skills-workspace/<skill>/trigger-tests/queries.json`).
+- **queries path** (default `skills-workspace/<skill>/trigger-tests/queries.json`
+  under the source root; `skills-workspace/` is created there if missing).
 
 ### Campaign scratch
 
@@ -335,8 +343,13 @@ flowchart TD
 
 1. **Resolve inputs.** Prompt for missing required ones. Never guess the harness.
 2. **Preflight** (no spend):
-   a. `evaluator.py check --harness <harness>`; on failure, stop and surface.
-   b. `skills/<skill>/SKILL.md` exists; else stop.
+   a. Resolve the Python interpreter (`python3`, else `python`, on PATH; must be
+      >= 3.10) and use it for every script invocation. Then
+      `evaluator.py check --harness <harness>`; on failure, stop and surface.
+   b. Resolve the target skill (registry-metadata location for names, else explicit
+      path); its `SKILL.md` must exist, else stop. Derive the source root from its
+      location and create `<source-root>/skills-workspace/<skill>/trigger-tests/`
+      if missing.
    c. Queries file exists; else **offer to generate** an initial set per the README
       query-design conventions (coverage axes, realism, near-miss negatives, no weak
       negatives) — the user reviews and approves before anything is saved.
@@ -350,12 +363,22 @@ flowchart TD
      outlines, tickets, or skills that will not exist in the temp workspace.
    Present all rejections at once, with the reason per query. The user fixes or drops
    entries; re-run the gate after edits. The campaign proceeds only when the set is
-   clean. (Expected: the current `writing-skills` queries.json fails this gate on its
+   clean. **Suggested fix for artifact references: inline the referenced content
+   into the query text** ("turn this outline into a skill: 1. ... 2. ..."). Pasting
+   content is what real users do, it keeps the workspace sterile, and it makes
+   near-miss negatives non-vacuous — the agent has the content in front of it, so
+   "didn't trigger" is a meaningful result. The skill may propose inlined rewrites;
+   the user approves every edit. Never scaffold files into the eval workspace
+   instead — a triggered run could then mutate shared workspace state mid-suite.
+   References to conversation context ("make it pushier") or to other skills cannot
+   be inlined; rewrite them as self-contained queries or drop them. (Expected: the
+   current `writing-skills` queries.json fails this gate on its
    first encounter — "turn this outline into a skill", the
    `docs/agent-notes/release-checklist.md` reference, dangling skill references —
    that is the gate working, not a bug.)
-4. **Workspace.** `workspace-manager.sh init` → `sync --skill <skill> --source .
-   --workspace <ws>` → `status` (must pass before any eval). Create scratch dir.
+4. **Workspace.** `workspace-manager.sh init` → `sync --skill <skill> --source
+   <source-root> --workspace <ws>` → `status` (must pass before any eval). Create
+   scratch dir.
 5. **Split.** `evaluator.py split --queries <queries> --out-dir <scratch>
    [--train-frac f] [--seed s]`. Record the printed seed.
 6. **Sealed pool** (locked decision 5). Generate 3 fresh should-trigger queries per
@@ -451,8 +474,10 @@ On sanity failure the report ends at the sanity line plus
 - Revisions touch the workspace stub only; the source file changes only on confirmed
   write-back at the end.
 - Never restart the loop after a sanity failure; never train on sealed-pool queries.
-- Never fabricate files or rewrite queries to make them actionable — reject and
-  surface instead.
+- Never fabricate workspace files or silently rewrite queries to make them
+  actionable — reject and surface instead. Proposed fixes (inlining the referenced
+  content into the query text) go through user review at the gate like any other
+  edit.
 - The validate set runs once, at the end, against the winner; it is not part of the
   optimization loop.
 - Keep queries verbatim across the whole campaign; editing mid-campaign invalidates
@@ -492,18 +517,19 @@ Run from the repo root. Use a cheap model and small reps; total validation cost
 should stay well below one real campaign.
 
 ```bash
-EV=.venv/bin/python3\ skills/trigger-testing-skills/scripts/evaluator.py   # shorthand
+EV=python3\ skills/trigger-testing-skills/scripts/evaluator.py   # shorthand
 
 # 1. check: supported harness, unsupported harness, missing binary
-.venv/bin/python3 skills/trigger-testing-skills/scripts/evaluator.py check --harness opencode
+python3 skills/trigger-testing-skills/scripts/evaluator.py check --harness opencode
 # expected: exit 0, "ok: harness 'opencode' available (...)"
-.venv/bin/python3 skills/trigger-testing-skills/scripts/evaluator.py check --harness pi
+python3 skills/trigger-testing-skills/scripts/evaluator.py check --harness pi
 # expected: exit 1, "error: unsupported harness 'pi' (supported: opencode)"
-PATH=/usr/bin:/bin .venv/bin/python3 skills/.../evaluator.py check --harness opencode
-# expected if opencode not on that PATH: exit 1, "CLI not found on PATH"
+PATH=/usr/bin:/bin python3 skills/.../evaluator.py check --harness opencode
+# expected if opencode is not on that PATH (python3 itself must still resolve
+# there): exit 1, "CLI not found on PATH"
 
 # 2. split: real file, stratification, seed print, reproducibility
-.venv/bin/python3 skills/.../evaluator.py split \
+python3 skills/.../evaluator.py split \
   --queries skills-workspace/writing-skills/trigger-tests/queries.json \
   --out-dir /tmp/tt-split --seed 42
 # expected: "split: 16 queries -> train ... / validate ... (seed 42)"; both files
@@ -514,14 +540,14 @@ PATH=/usr/bin:/bin .venv/bin/python3 skills/.../evaluator.py check --harness ope
 WS="$(skills/trigger-testing-skills/scripts/workspace-manager.sh init)"
 skills/trigger-testing-skills/scripts/workspace-manager.sh sync \
   --skill writing-skills --source . --workspace "$WS"
-.venv/bin/python3 skills/.../evaluator.py run --harness opencode \
+python3 skills/.../evaluator.py run --harness opencode \
   --skill writing-skills --workspace "$WS" \
   --query "create a skill to drive my webapp using playwright" --expect trigger \
   --model opencode/gpt-5.4-nano --reps 3 --timeout 60
 # expected: phase-1 behavior, exit 0.
 
 # 4. suite: two-query file, verify JSON structure and pooled math by hand
-.venv/bin/python3 skills/.../evaluator.py suite --harness opencode \
+python3 skills/.../evaluator.py suite --harness opencode \
   --skill writing-skills --workspace "$WS" \
   --queries /tmp/tt-two-queries.json --out /tmp/tt-suite.json \
   --model opencode/gpt-5.4-nano --reps 3 --timeout 60
@@ -529,7 +555,7 @@ skills/trigger-testing-skills/scripts/workspace-manager.sh sync \
 # the schema; totals.passed+failed+void == 6; score == pooled wilson_low.
 
 # 5. suite abort path: unreachable provider -> exit 1, NO JSON file
-.venv/bin/python3 skills/.../evaluator.py suite --harness opencode \
+python3 skills/.../evaluator.py suite --harness opencode \
   --skill writing-skills --workspace "$WS" \
   --queries /tmp/tt-two-queries.json --out /tmp/tt-should-not-exist.json \
   --model ollama/nonexistent --reps 3
@@ -575,8 +601,9 @@ Skill-level manual validation (in a live session, after the script checks pass):
 7. Overfit warning = validate score below the winner's train score; informational
    only, no threshold math, surfaced for the user's judgment.
 8. Actionability gate is all-or-nothing per attempt: all rejections presented at
-   once; the user fixes or drops; the gate re-runs after edits; the campaign proceeds
-   only on a clean set.
+   once; the user fixes or drops (the suggested fix for artifact references is
+   inlining the referenced content into the query text); the gate re-runs after
+   edits; the campaign proceeds only on a clean set.
 9. Sealed pool is generated after the split and before iteration 1; stored in scratch;
    queries are self-contained by construction.
 10. Evaluator/suite exit 1 mid-campaign -> abort, keep workspace + scratch, surface
@@ -592,16 +619,23 @@ Skill-level manual validation (in a live session, after the script checks pass):
 16. Only the opencode strategy is implemented; unsupported harness names get the
     clean registry error; pi/claude strategies are future work plugged into the same
     seam.
-17. The skill assumes it runs from a repo root containing `skills/` and
-    `skills-workspace/`; `--source` for workspace-manager is `.` (not parameterized
-    this phase).
+17. The source root is resolved from the target skill's location: names are looked
+    up in the driving session's skill-registry metadata (which exposes each
+    registered skill's file path), with `./skills/<name>/SKILL.md` as fallback and
+    explicit paths for skills not registered in the session. The source root is
+    the directory containing that `skills/` directory (the project root for
+    `.opencode/skills` layouts). `--source` for workspace-manager is the source
+    root; `skills-workspace/<skill>/trigger-tests/` is assumed or created under
+    it. The scripts are invoked by their path inside the trigger-testing-skills
+    skill directory, independent of the current working directory.
 18. Stub rewrites preserve all frontmatter fields except `description`; the body is
     never written to the stub.
 19. `suite --out` is required; the skill consumes only exit codes and JSON files,
     never prose stdout.
-20. Scripts are invoked with the repo venv python (`.venv/bin/python3`), matching the
-    phase-1 convention (stdlib-only, so any python3 works, but consistency aids
-    debugging).
+20. Scripts are stdlib-only and run under any Python >= 3.10. The skill resolves
+    the interpreter from PATH at preflight (`python3`, falling back to `python`),
+    verifies the version, and uses it for all invocations; no repo-specific
+    `.venv` path is baked in.
 21. The WIP notes doc was corrected in exactly two spots (loop description -> README
     model; "revise the description" -> "revise the query"). Other now-superseded note
     fragments (fabricate-and-rewrite actionability, on-demand fresh query,
@@ -619,8 +653,15 @@ Skill-level manual validation (in a live session, after the script checks pass):
 - Global agent configuration (`~/.config/opencode`, etc.) still loads in eval
   sessions; full contamination-proofing (XDG redirection) remains out of scope per
   the notes.
+- Session-context-dependent queries ("make it pushier", "update that skill we made
+  yesterday") and queries referencing other skills are untestable under this
+  harness; the gate rejects them and the user rewrites or drops them. If live
+  testing ever shows inlined queries triggering differently than file-on-disk
+  references, the deferred answer is skill-generated scaffolding with per-query
+  workspace reset in the tooling — not this phase.
 - No retries/backoff: provider rate limits abort the campaign (workspace kept for
   debugging).
 - No budget enforcement beyond the planned-spend report and confirmation.
-- The skill is repo-rooted (assumption 17); trigger-testing skills in other projects
-  would need the scripts available there — out of scope this phase.
+- Cross-project campaigns resolve the source root from the target skill
+  (assumption 17), but the trigger-testing-skills skill itself — including its
+  scripts — must be installed in the driving session.
