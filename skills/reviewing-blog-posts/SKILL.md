@@ -1,6 +1,9 @@
 ---
 name: reviewing-blog-posts
 description: Use when reviewing, editing, proofreading, or auditing a technical blog post or draft article — including when the user asks to fact-check claims, improve engagement, or resolve "editor" requests in a draft. Fact-checks every claim against web sources and repository documents, fixes spelling and grammar in place, and produces a numbered audit report of proposed structural and engagement improvements for incremental review.
+disable-model-invocation: true
+metadata.opencode/slash: true
+metadata.opencode/autoinvoke: false
 ---
 
 # Reviewing Blog Posts
