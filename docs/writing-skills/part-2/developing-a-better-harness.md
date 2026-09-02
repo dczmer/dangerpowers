@@ -359,7 +359,26 @@ I did some research on how the Claude Code skill-creator skill handles the situa
 
 ### Artifact Management
 
+Important artifacts to manage:
+
+- queries.json
+- per-campaign query sets
+- description from each iteration in the run
+- campaign logs
+
+suggestion:
+- skills-workspace/<SKILL_NAME>/trigger-tests/queries.json
+- skills-workspace/<SKILL_NAME>/trigger-tests/campaign-XXXX/ to hold the fresh queries and campaign logs. maybe using a datestring as the "XXXX" part, and appending a "-N" sequentially at the end if multiple campaigns on the same date.
+- standardize templates/schemas for each type of artifact
+- maybe just keep all of the campaign files in the campaign-XXXX folder instead of making a new temp scratch space next to the actual workspace
+
+additionally, a manifest file mapping the skill content checksum to the last date and score of a successful test campaign. we expect to have multiple types of tests later, so we want a specific key for trigger-testing.
+
 ### Trigger-Testing my `writing-skills` Skill
+
+as part of the verification procedure for the final phase of this implementation, i ran a test campaign against the writing-skills skill. it chose to use the free 'bigpickle' model from opencode to control costs.
+
+after validating that the campaign actually works from end-to-end, i started a new campaign using kimi k3 (minimal), and then again against my heavily quantized qwen3.8 27b model with medium effort.
 
 ### Conclusion
 
