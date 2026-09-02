@@ -330,13 +330,16 @@ Like the previous phase, I fed my design and this document (along with the trigg
 
 Here is the plan file that was created: (phase-2-campaign-and-skill-plan)[./phase-2-campaign-and-skill-plan.md].
 
+### Custom Agent and Harness Config (permissions)
 
-
-
-### Custom Agent
 
 ### Artifact Management
 
 ### Trigger-Testing my `writing-skills` Skill
 
 ### Conclusion
+
+- runaway workflows
+- stubs stop the workflow part
+- but queries that are not self-contained cause the agent to search for context they need to solve an impossible problem
+- break up plans as they get more and more complicated. it's so easy to miss important details in complex implementation plans, and then you have to rework everything built on top of that. (almost credited each iteration score to the subsequent iteration instead of the one that was actually tested).
