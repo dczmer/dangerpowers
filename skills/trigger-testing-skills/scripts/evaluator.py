@@ -766,6 +766,44 @@ def cmd_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_failures(args: argparse.Namespace) -> int:
+    """Print every failed run (query, run number, detail, full reasoning)
+    from a suite result JSON. Extraction only; analysis is the agent's job.
+    Exit 0 even when failures exist — this is an extractor, not a gate."""
+    path = Path(args.results)
+    if not path.exists():
+        print(f"error: results file not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
+        return 1
+    if not isinstance(data, dict) or not isinstance(data.get("queries"), list):
+        print(f"error: {path}: not a suite result file (missing 'queries' "
+              f"list)", file=sys.stderr)
+        return 1
+    n_failures = 0
+    for q in data["queries"]:
+        failures = q.get("failures") or []
+        if not failures:
+            continue
+        expect = "trigger" if q.get("should_trigger") else "not-trigger"
+        print(f'query: "{q.get("query")}"   expected: {expect}')
+        for f in failures:
+            n_failures += 1
+            timeout = " (timeout)" if f.get("timeout") else ""
+            print(f"  run {f.get('run')}: {f.get('outcome')}{timeout} — "
+                  f"{f.get('detail', '')}")
+            reasoning = f.get("reasoning") or "(no reasoning captured)"
+            for line in reasoning.splitlines():
+                print(f"    {line}")
+        print()
+    if n_failures == 0:
+        print(f"no failed runs in {path}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="evaluator.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -810,6 +848,9 @@ def main() -> int:
     record.add_argument("--campaign")
     record.add_argument("--date")
 
+    failures = sub.add_parser("failures")
+    failures.add_argument("--results", required=True)
+
     args = parser.parse_args()
     if args.command == "check":
         return cmd_check(args)
@@ -819,6 +860,8 @@ def main() -> int:
         return cmd_suite(args)
     if args.command == "record":
         return cmd_record(args)
+    if args.command == "failures":
+        return cmd_failures(args)
     return cmd_run(args)
 
 

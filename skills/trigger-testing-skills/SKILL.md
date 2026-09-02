@@ -76,7 +76,7 @@ flowchart TD
 7. **Iteration loop** (`i = 1..max-iterations`):
    a. `evaluator.py suite --harness <h> --skill <s> --workspace <ws> --queries <campaign>/train.json --out <campaign>/iter-<i>-train.json [--model m] [--variant v] --reps r --timeout t`. The suite mirrors all progress output to `<campaign>/iter-<i>-train.log`. On exit 1: abort the campaign (see "Error handling").
    b. Read the result JSON. Record `{iteration, description, train score}` in context, where `description` is the one this iteration's suite evaluated — the source description for iteration 1, otherwise the revision written at the end of the previous iteration. Save the evaluated description to `<campaign>/iter-<i>-description.md` (a frontmatter-only copy of the stub as evaluated this iteration). If `totals.score` is null (all runs void): abort as broken conditions (see "Error handling"). Otherwise, if `totals.failed == 0`: **early exit** — a perfect train round ends the loop immediately.
-   c. Otherwise analyze failures (below), revise the description (guardrails below), and write the revision **to the workspace stub only**.
+   c. Otherwise analyze failures (below): run `evaluator.py failures --results <campaign>/iter-<i>-train.json` and read every failed run's reasoning. Assign each failure a category only with a cited phrase from that run's reasoning — never from the query text or the outcome pattern alone. Then revise the description (guardrails below) and write the revision **to the workspace stub only**.
 8. **Winner selection.** Highest `totals.score` across iterations; ties go to the earlier iteration. If the winner is not the current stub contents, rewrite the stub to the winner's description before continuing.
 9. **Validate pass** (skipped when `validate.json` is empty — the <= 10 queries case): `suite --queries <campaign>/validate.json --out <campaign>/validate-results.json`. If the validate score is below the winner's train score, flag an **overfit warning** in the report (informational only; no restart, no automatic action). An all-void validate pass aborts the campaign like a train round.
 10. **Sanity check.** Take the first entry of the sealed pool, write it as a single-query file `<campaign>/sanity.json` (`[{"query": ..., "shouldTrigger": true}]`), run `suite --queries <campaign>/sanity.json --out <campaign>/sanity-results.json`. Pass = `triggered` observed in >= 60% of non-void runs; all-void = inconclusive (reported as such, not failed). On failure: stop — report the failure, offer no write-back, never restart the loop, never train on sealed-pool queries. The user decides what to do next.
@@ -88,6 +88,8 @@ flowchart TD
 Vary should-trigger queries across coverage axes: phrasing formality ("write a PRD" vs. "draft the requirements doc"), explicitness (names the domain vs. describes a need without naming the skill), detail level (bare one-liner vs. buried in a long message), and complexity (single-step vs. one link in a larger chain). Make them substantive enough that the skill would genuinely help — a bare trivial ask may never trigger any description. Make them realistic: real-looking file paths and names, personal stakes and backstory, concrete details, casual register. For negatives, aim for near-misses that share the skill's vocabulary but ask for something else; reject zero-overlap weak negatives — a pass against them proves nothing. Generated queries must be self-contained by construction (no references to files or context that don't exist in a bare workspace).
 
 ### Failure analysis
+
+The evidence for every categorization is the failed runs' reasoning, extracted with `evaluator.py failures --results <suite json>` — never the bare query text or outcome counts. Cite the deciding phrase per failed run before assigning a category; a category without a citation is a guess, not an analysis.
 
 Check the `timeouts` counts **before** analyzing failures: under the restricted evaluator agent, toil-driven timeouts are structurally impossible, so a cluster of `timeouts` (passes resting on interrupted-run intent, or voids) points at infrastructure — slow provider, step cap — not the description. Investigate conditions (or raise `--timeout`) instead of revising the description on that evidence.
 
@@ -118,6 +120,8 @@ train: 9 queries   validate: 7 queries   reps: 3   seed: 42   iterations run: 2 
 
 iter 1: train score 0.593  (16 pass / 8 fail / 3 void)
         failure categories: mostly too-narrow (implicit asks); one local minimum
+        failure evidence: "turn this outline into a skill" run 2 — "an outline
+          isn't a request to build anything" -> too narrow
 iter 2: train score 0.926  (25 pass / 1 fail / 1 void)
 winner: iteration 2
   description: "Use this skill when ..."
@@ -131,7 +135,7 @@ The winning description differs from the source. Apply it to
 skills/writing-skills/SKILL.md? [awaiting confirmation]
 ```
 
-The `suspect queries` block appears only when failure analysis flagged any. The `manifest:` line reads `updated (...)` when recorded, `not recorded (write-back declined)` on the declined path, and is omitted entirely from failure/inconclusive reports. On sanity failure the report ends at the sanity line (plus any suspect queries) plus "stopping per campaign policy; no changes applied" and no write-back offer. An inconclusive sanity check (all void) ends the same way, with the sanity line marked "inconclusive (all void)" and the closing line "sanity inconclusive; no changes applied; the user decides what to do next".
+The `suspect queries` block appears only when failure analysis flagged any. There is one `failure evidence:` line per failed run, quoting the deciding phrase (≤ 15 words) from that run's reasoning; iterations with zero failures omit the line. The `manifest:` line reads `updated (...)` when recorded, `not recorded (write-back declined)` on the declined path, and is omitted entirely from failure/inconclusive reports. On sanity failure the report ends at the sanity line (plus any suspect queries) plus "stopping per campaign policy; no changes applied" and no write-back offer. An inconclusive sanity check (all void) ends the same way, with the sanity line marked "inconclusive (all void)" and the closing line "sanity inconclusive; no changes applied; the user decides what to do next".
 
 ## Error handling
 
@@ -167,6 +171,7 @@ The `suspect queries` block appears only when failure analysis flagged any. The 
 - [ ] Split seed recorded; sealed pool written before iteration 1
 - [ ] Every suite run's JSON read from `--out`; no prose parsing
 - [ ] Each iteration's evaluated description saved to <campaign>/iter-<i>-description.md
+- [ ] Every failure category backed by a cited phrase from the run's reasoning (via `evaluator.py failures`)
 - [ ] Early exit only on zero train failures; max 3 iterations
 - [ ] Winner = highest train score; stub matches winner before validate/sanity
 - [ ] Validate once; overfit warning if below winner's train score

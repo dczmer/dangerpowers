@@ -7,7 +7,9 @@ rejected skill calls, and opencode's silent agent fallback.
 """
 
 import argparse
+import contextlib
 import hashlib
+import io
 import json
 import subprocess
 import tempfile
@@ -206,6 +208,76 @@ class RecordTests(unittest.TestCase):
     def test_score_out_of_range(self):
         self.assertEqual(self._record(score=1.5), 1)
         self.assertFalse(self.manifest.exists())
+
+
+class FailuresTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.results = Path(self.tmp.name) / "iter-1-train.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write(self, queries: list) -> None:
+        self.results.write_text(json.dumps({"queries": queries}))
+
+    def _run(self, path: Path | None = None) -> tuple[int, str]:
+        args = argparse.Namespace(results=str(path or self.results))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = evaluator.cmd_failures(args)
+        return rc, buf.getvalue()
+
+    def _failure(self, run: int = 2, reasoning: str = "it looked\nrelevant"):
+        return {"run": run, "outcome": "triggered",
+                "detail": "skill tool completed load",
+                "reasoning": reasoning, "timeout": False}
+
+    def test_extracts_failed_runs_with_reasoning(self):
+        self._write([{"query": "q1", "should_trigger": False,
+                      "failures": [self._failure()]}])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn('query: "q1"   expected: not-trigger', out)
+        self.assertIn("run 2: triggered — skill tool completed load", out)
+        self.assertIn("    it looked\n    relevant", out)
+
+    def test_query_without_failures_produces_no_block(self):
+        self._write([{"query": "q-pass", "should_trigger": True,
+                      "failures": []},
+                     {"query": "q-fail", "should_trigger": True,
+                      "failures": [self._failure()]}])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertNotIn("q-pass", out)
+        self.assertIn("q-fail", out)
+
+    def test_no_failures_reports_none(self):
+        self._write([{"query": "q1", "should_trigger": True, "failures": []}])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("no failed runs", out)
+
+    def test_missing_reasoning_marker(self):
+        self._write([{"query": "q1", "should_trigger": True,
+                      "failures": [self._failure(reasoning="")]}])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("(no reasoning captured)", out)
+
+    def test_missing_file(self):
+        rc, _ = self._run(Path(self.tmp.name) / "nope.json")
+        self.assertEqual(rc, 1)
+
+    def test_invalid_json(self):
+        self.results.write_text("not json")
+        rc, _ = self._run()
+        self.assertEqual(rc, 1)
+
+    def test_missing_queries_key(self):
+        self.results.write_text(json.dumps({"totals": {}}))
+        rc, _ = self._run()
+        self.assertEqual(rc, 1)
 
 
 if __name__ == "__main__":
