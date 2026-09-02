@@ -328,10 +328,34 @@ If the target query is not reasonably actionable, or if it's not actually a requ
 
 Like the previous phase, I fed my design and this document (along with the trigger-testing guide) to the agent to develop a plan and iterate on the details.
 
+The first attempt to build this out surfaced a major issue that this phased implementation plan hadn't accounted for: queries like "turn this outline into a skill", which should be valid test cases because they match real user queries, would cause the agent to toil and timeout trying to figure out what outline it was supposed to read. This caused almost all evals to fail and timeout, and never load the skill because they couldn't resolve the required inputs.
+
+So we had to add the "custom agent" that I has planned as a follow-up phase (described in the section below). The custom agent is another harness-specific thing, and adding it here increased the scope and complexity of this phase. Probably the smart thing would have been to do just the custom agent part first, on it's own, then to continue with this phase.
+
 Here are the plan files that were created: [phase-2-campaign-and-skill-plan](./phase-2-campaign-and-skill-plan.md) (split into three sub-plans: 2a restricted evaluator agent, 2b campaign tooling, 2c campaign skill).
+
+And the evaluator script can be found in the skill folder: [evaluator.py](../../../skills/trigger-testing-skills/scripts/evaluator.py).
+
+I think the agent did a pretty good job executing the plan overall, but there are some very long functions and some complex conditionals. The cyclomatic complexity of some of the code is much higher than I'd accept in a code review at work. But generated code is cheap and the AI makes it all consistent. It just means you can never, ever edit this by hand or risk missing tiny updates that make things inconsistent.
 
 ### Custom Agent and Harness Config (permissions)
 
+I thought I had come up with a plan that would make this harness-specific custom agent file obsolete. However, it turns out that it was actually critical to getting a running because some prompts don't contain enough context to be actionable - it won't trigger the skill until it has enough context to do so, even if it already realized that it _should_ invoke the skill.
+
+The custom agent file does the following:
+- Limit maximum number of turns
+- Restrict ALL tools except for `skill`
+- Provide a custom system prompt with instructions to decide if it would trigger a skill and just say so.
+
+But there are a couple of problems here (which I have accepted as trade-offs):
+1. 
+
+- install custom agent to restrict tool usage, cap number of steps, and provide instructions to either trigger the skill or state that you would not trigger
+- TODO: install config file (if needed)
+
+I did some research on how the Claude Code skill-creator skill handles the situations of runaway workflows and toil over non-actionable queries. It looks like they run the evals with a process that streams the messages from the agent and kills the session after the very first tool call. If the tool call was a `read` or `skill` call targeting the skill, then it passes. I would say they actually don't solve the toil issue, because you can still send non-actionable queries that will fail even though the agent would have triggered them if it had all of the context.
+
+(Opencode-specific custom agent)[../../../skills/trigger-testing-skills/agents/trigger-evaluator.opencode.md].
 
 ### Artifact Management
 
@@ -345,3 +369,4 @@ Here are the plan files that were created: [phase-2-campaign-and-skill-plan](./p
 - break up plans as they get more and more complicated. it's so easy to miss important details in complex implementation plans, and then you have to rework everything built on top of that. (almost credited each iteration score to the subsequent iteration instead of the one that was actually tested).
 - keeping a blog in the same repository as your project causes the ai to read the blog as a source of truth for how the code should work :(
 - note to self: add probe testing to planning/scouting and context bundles
+- 

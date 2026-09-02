@@ -28,7 +28,7 @@ splitting, scoring) lives in the scripts. Queries, labels, and results stay in c
 scratch so the eval workspace remains a sterile testbed.
 
 ```mermaid
-flowchart LR
+flowchart TD
     USER(["user"])
     QFILE["skills-workspace/{skill}/trigger-tests/queries.json<br/>the query set"]
     SRC["skills/{skill}/SKILL.md<br/>source — untouched until confirmed write-back"]
