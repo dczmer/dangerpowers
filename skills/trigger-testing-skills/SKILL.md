@@ -21,7 +21,7 @@ Collect all inputs before starting. Prompt the user for any required one that is
 - **Skill** (required) — the skill under test, as a name or a path. Resolve a name via the driving session's skill-registry metadata (which exposes each registered skill's file location), falling back to `./skills/<name>/SKILL.md`; a path points at the skill dir (or its `SKILL.md`) directly. A skill registered as built-in has no filesystem location and cannot be tested — surface that and stop. Derive the **source root** from the resolved location: the directory containing that `skills/` directory, for every layout (for `<root>/.opencode/skills/<name>`, the source root is `<root>/.opencode`, so artifacts live at `<root>/.opencode/skills-workspace/`). If the resolved skill is not under a directory named `skills/`, no source root can be derived — stop and surface that.
 - **Harness** (required) — e.g. `opencode`. The user MUST specify it; if missing, ask. Never auto-detect installed harnesses.
 - **model / variant** (optional) — passed to eval executions only. The campaign-driving model is the session's current model.
-- **reps** (default 10), **timeout** (default 30s), **max-iterations** (default 3; hard cap 3 — clamp a higher requested value to 3 and tell the user), **train-frac** (default 0.6), **seed** (optional).
+- **reps** (default 3), **timeout** (default 30s), **max-iterations** (default 3; hard cap 3 — clamp a higher requested value to 3 and tell the user), **train-frac** (default 0.6), **seed** (optional).
 - **queries path** (default `<source-root>/skills-workspace/<skill>/trigger-tests/queries.json`; create `skills-workspace/` there if missing).
 
 ## Campaign scratch
@@ -112,15 +112,15 @@ The stub is tiny, so revisions rewrite the whole stub file: frontmatter with the
 
 ```
 campaign: writing-skills   harness: opencode   model: <m>   variant: <v>
-train: 9 queries   validate: 7 queries   reps: 10   seed: 42   iterations run: 2 of 3
+train: 9 queries   validate: 7 queries   reps: 3   seed: 42   iterations run: 2 of 3
 
-iter 1: train score 0.548  (55 pass / 29 fail / 6 void)
+iter 1: train score 0.593  (16 pass / 8 fail / 3 void)
         failure categories: mostly too-narrow (implicit asks); one local minimum
-iter 2: train score 0.903  (84 pass / 3 fail / 3 void)
+iter 2: train score 0.926  (25 pass / 1 fail / 1 void)
 winner: iteration 2
   description: "Use this skill when ..."
-validate: score 0.810  (58 pass / 6 fail / 6 void)   [overfit warning if below train]
-sanity: "<sealed query>" -> triggered 9/10 -> pass
+validate: score 0.810  (17 pass / 2 fail / 2 void)   [overfit warning if below train]
+sanity: "<sealed query>" -> triggered 3/3 -> pass
 suspect queries: "turn this outline into a skill" — failed under all candidates in
   all iterations (timeouts: 2); likely query-side, consider pruning or rewriting
 

@@ -727,7 +727,7 @@ def main() -> int:
                      choices=["trigger", "not-trigger"])
     run.add_argument("--model")
     run.add_argument("--variant")
-    run.add_argument("--reps", type=int, default=10)
+    run.add_argument("--reps", type=int, default=3)
     run.add_argument("--timeout", type=int, default=30)
 
     split = sub.add_parser("split")
@@ -744,7 +744,7 @@ def main() -> int:
     suite.add_argument("--out", required=True)
     suite.add_argument("--model")
     suite.add_argument("--variant")
-    suite.add_argument("--reps", type=int, default=10)
+    suite.add_argument("--reps", type=int, default=3)
     suite.add_argument("--timeout", type=int, default=30)
 
     args = parser.parse_args()
