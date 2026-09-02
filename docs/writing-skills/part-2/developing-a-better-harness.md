@@ -328,7 +328,7 @@ If the target query is not reasonably actionable, or if it's not actually a requ
 
 Like the previous phase, I fed my design and this document (along with the trigger-testing guide) to the agent to develop a plan and iterate on the details.
 
-Here is the plan file that was created: (phase-2-campaign-and-skill-plan)[./phase-2-campaign-and-skill-plan.md].
+Here are the plan files that were created: [phase-2-campaign-and-skill-plan](./phase-2-campaign-and-skill-plan.md) (split into three sub-plans: 2a restricted evaluator agent, 2b campaign tooling, 2c campaign skill).
 
 ### Custom Agent and Harness Config (permissions)
 
@@ -343,3 +343,5 @@ Here is the plan file that was created: (phase-2-campaign-and-skill-plan)[./phas
 - stubs stop the workflow part
 - but queries that are not self-contained cause the agent to search for context they need to solve an impossible problem
 - break up plans as they get more and more complicated. it's so easy to miss important details in complex implementation plans, and then you have to rework everything built on top of that. (almost credited each iteration score to the subsequent iteration instead of the one that was actually tested).
+- keeping a blog in the same repository as your project causes the ai to read the blog as a source of truth for how the code should work :(
+- note to self: add probe testing to planning/scouting and context bundles
