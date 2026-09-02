@@ -419,5 +419,6 @@ Use when authoring or maintaining agent skill definitions — creating a new ski
 - keeping a blog in the same repository as your project causes the ai to read the blog as a source of truth for how the code should work :(
 - note to self: add probe testing to planning/scouting and context bundles
 - agent would frequently run campaigns and filter with `grep` to reduce output, but that hides the reasoning for each failure from the agent that needs to rewrite the description.
+- pass=load required, or infer intent to load ok?
 - you can't force an agent to read all of the output or not try to optimize output by grepping and filtering, but you can close the loopholes that make it easy for the agent to rely on that trick:
     * requiring a command to produce the failure data instead of reading from the stdout

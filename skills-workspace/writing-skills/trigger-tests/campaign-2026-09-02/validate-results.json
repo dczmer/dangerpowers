@@ -1,0 +1,111 @@
+{
+  "skill": "writing-skills",
+  "harness": "opencode",
+  "model": "kimi-for-coding/k3",
+  "variant": "minimal",
+  "reps": 3,
+  "timeout": 30,
+  "queries": [
+    {
+      "query": "package our PR review checklist so the agent can reuse it",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "review this bash backup script before I ship it",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "turn docs/agent-notes/release-checklist.md into a skill \u2014 keep it under 500 lines, add a gotchas section, and don't document flags",
+      "should_trigger": true,
+      "passed": 2,
+      "failed": 0,
+      "void": 1,
+      "timeouts": 1,
+      "wilson_low": 0.34237195288961925,
+      "wilson_high": 1.0,
+      "score": 0.34237195288961925,
+      "failures": []
+    },
+    {
+      "query": "which skills will help me with writing?",
+      "should_trigger": false,
+      "passed": 2,
+      "failed": 1,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.2076549551264879,
+      "wilson_high": 0.9385096847238394,
+      "score": 0.2076549551264879,
+      "failures": [
+        {
+          "run": 1,
+          "outcome": "triggered",
+          "detail": "skill tool completed load",
+          "reasoning": "Which skills help with writing? Available: writing-skills. Load it.\nReport outcome.",
+          "timeout": false
+        }
+      ]
+    },
+    {
+      "query": "validate that the test-skill skill follows best practice conventions",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "update the test-skill skill to prevent it from installing dependencies automatically",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "fix the yaml parsing error in the opencode plugin",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    }
+  ],
+  "totals": {
+    "passed": 19,
+    "failed": 1,
+    "void": 1,
+    "timeouts": 1,
+    "wilson_low": 0.7638641064874331,
+    "wilson_high": 0.9911187805671268,
+    "score": 0.7638641064874331
+  }
+}

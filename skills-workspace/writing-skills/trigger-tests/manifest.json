@@ -1,0 +1,9 @@
+{
+  "skill": "writing-skills",
+  "trigger-test": {
+    "date": "2026-09-02",
+    "checksum": "sha256:3c82f3788154b8fe93be820d272966326c23541ea1d6305dfb85d9ad9cd470b3",
+    "score": 0.764,
+    "campaign": "campaign-2026-09-02"
+  }
+}

@@ -1,0 +1,53 @@
+trigger test suite: writing-skills (7 queries)
+workspace: /tmp/trigger-test.NqBlCAwsAi
+harness: opencode  model: kimi-for-coding/k3  variant: minimal  reps: 3  timeout: 30s
+[rep   1] started
+[rep   1] completed: triggered
+[rep   2] started
+[rep   3] started
+[rep   2] completed: triggered
+[rep   3] completed: triggered
+[query 1/7] "package our PR review checklist so the agent can reuse it" -> 3 pass / 0 fail / 0 void score: 0.438
+[rep   1] started
+[rep   1] completed: not-triggered
+[rep   2] started
+[rep   3] started
+[rep   2] completed: not-triggered
+[rep   3] completed: not-triggered
+[query 2/7] "review this bash backup script before I ship it" -> 3 pass / 0 fail / 0 void score: 0.438
+[rep   1] started
+[rep   1] completed: triggered
+[rep   2] started
+[rep   3] started
+[rep   3] completed: triggered
+[rep   2] completed: void (timeout) (timeout after 30s; no intent evidence)
+[query 3/7] "turn docs/agent-notes/release-checklist.md into a skill — keep it under 500 lines, add a gotchas section, and don't document flags" -> 2 pass / 0 fail / 1 void score: 0.342
+[rep   1] started
+[rep   1] completed: triggered
+[rep   2] started
+[rep   3] started
+[rep   3] completed: not-triggered
+[rep   2] completed: not-triggered
+[query 4/7] "which skills will help me with writing?" -> 2 pass / 1 fail / 0 void score: 0.208
+[rep   1] started
+[rep   1] completed: triggered
+[rep   2] started
+[rep   3] started
+[rep   2] completed: triggered
+[rep   3] completed: triggered
+[query 5/7] "validate that the test-skill skill follows best practice conventions" -> 3 pass / 0 fail / 0 void score: 0.438
+[rep   1] started
+[rep   1] completed: triggered
+[rep   2] started
+[rep   3] started
+[rep   3] completed: triggered
+[rep   2] completed: triggered
+[query 6/7] "update the test-skill skill to prevent it from installing dependencies automatically" -> 3 pass / 0 fail / 0 void score: 0.438
+[rep   1] started
+[rep   1] completed: not-triggered
+[rep   2] started
+[rep   3] started
+[rep   3] completed: not-triggered
+[rep   2] completed: not-triggered
+[query 7/7] "fix the yaml parsing error in the opencode plugin" -> 3 pass / 0 fail / 0 void score: 0.438
+suite: 19 pass / 1 fail / 1 void score: 0.764 -> skills-workspace/writing-skills/trigger-tests/campaign-2026-09-02/validate-results.json

@@ -1,0 +1,158 @@
+{
+  "skill": "writing-skills",
+  "harness": "opencode",
+  "model": "kimi-for-coding/k3",
+  "variant": "minimal",
+  "reps": 3,
+  "timeout": 30,
+  "queries": [
+    {
+      "query": "run the playwright test suite",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "turn this outline into a skill",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "create a skill to drive my webapp using playwright",
+      "should_trigger": true,
+      "passed": 2,
+      "failed": 1,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.2076549551264879,
+      "wilson_high": 0.9385096847238394,
+      "score": 0.2076549551264879,
+      "failures": [
+        {
+          "run": 2,
+          "outcome": "not-triggered",
+          "detail": "agent reported loading 'writing-skills' without a completed load",
+          "reasoning": "We need answer as trigger evaluation agent. Need decide if query matches skill. User: \"create a skill to drive my webapp using playwright\". Available skills: writing-skills description: Use when creating a new skill, editing/updating existing skill, or reviewing skill before deployment. Covers frontmatter conventions and body structure for skill files. This skill authors and edits skill definitions themselves; not for discovering etc. Query asks create a skill => matches writing-skills. Need invoke skill tool. But note agent rules: after load decision report outcome one line exact name loaded or no skill matched, then end. Need call skill with name writing-skills. Then final one line. Ensure not attempt task. Do that. Then final report. Need maybe skill output will include instructions; treat as context only, do not activate workflow. Final: \"Loaded skill: writing-skills\". Need exact name? Use exact name from available_skills. Maybe report \"writing-skills\". Let's do.",
+          "timeout": false
+        }
+      ]
+    },
+    {
+      "query": "run a trigger-test on the writing-skills skill",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "what does the writing-skills skill do?",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "improve the test-skill skill",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "review the imaginary-skill skill",
+      "should_trigger": true,
+      "passed": 1,
+      "failed": 2,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.0614903152761605,
+      "wilson_high": 0.7923450448735121,
+      "score": 0.0614903152761605,
+      "failures": [
+        {
+          "run": 2,
+          "outcome": "not-triggered",
+          "detail": "agent reported no skill matched",
+          "reasoning": "The user is asking to \"review the imaginary-skill skill\". This names a specific skill \"imaginary-skill\" and asks to review it. The writing-skills skill description says it covers reviewing a skill before deployment, but explicitly says \"it is not for discovering which skills exist, picking a skill for a task, answering questions about what a skill does, or testing whether a skill triggers \u2014 even when the request names a specific skill.\"\n\nThe request names \"imaginary-skill\" which doesn't exist in available skills. This seems like a trigger test. The writing-skills skill is for reviewing a skill before deployment, but not for testing whether a skill triggers even when request names a specific skill. The phrase \"review the imaginary-skill skill\" could match reviewing a skill, but the skill is imaginary/nonexistent. Given the exclusion clause explicitly mentions \"even when the request names a specific skill\" for testing whether a skill triggers, and this is a trigger-test environment, I should not load writing-skills. No skill matches \"imaginary-skill\". Report no skill matched.\n\nNeed answer at most one sentence if can; report outcome one line exact name or no skill matched. Since no load, say no skill matched. Final concise.",
+          "timeout": false
+        },
+        {
+          "run": 3,
+          "outcome": "not-triggered",
+          "detail": "agent reported loading 'writing-skills' without a completed load",
+          "reasoning": "The request is to \"review the imaginary-skill skill\". The available skills include \"writing-skills\" whose description says it covers \"reviewing a skill before deployment\" and \"authors and edits skill definitions themselves; it is not for ... testing whether a skill triggers \u2014 even when the request names a specific skill.\" The task is reviewing a skill (even if imaginary). That matches writing-skills. Need invoke skill tool. After load, report outcome in one line exact name loaded then end. Must not do post-load work. Load only. Need call functions.skill with name writing-skills. Then final one line: Loaded skill: writing-skills. Ensure no extra. The system says if loaded skill instructs tools you do not have, do not comply report and stop. Fine.",
+          "timeout": false
+        }
+      ]
+    },
+    {
+      "query": "load the exampe-skill skill",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "verify the frontmatter in the frontmatter-skill skill",
+      "should_trigger": true,
+      "passed": 2,
+      "failed": 1,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.2076549551264879,
+      "wilson_high": 0.9385096847238394,
+      "score": 0.2076549551264879,
+      "failures": [
+        {
+          "run": 3,
+          "outcome": "not-triggered",
+          "detail": "agent reported loading 'writing-skills' without a completed load",
+          "reasoning": "The user says: \"verify the frontmatter in the frontmatter-skill skill\". Need decide if matches a skill. Available skills: customize-opencode (opencode config only) no. writing-skills: use when creating new skill, editing/updating existing skill, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files. It authors/edits skill definitions themselves; not for discovering which skills exist, picking a skill, answering questions about what a skill does, or testing whether a skill triggers \u2014 even when request names a specific skill.\n\nUser asks to verify frontmatter in a named skill. Is that reviewing a skill before deployment / editing existing skill? It names specific skill \"frontmatter-skill\" and asks verify frontmatter. The writing-skills description explicitly says not for answering questions about what a skill does or testing whether a skill triggers even when request names a specific skill. But verifying frontmatter in a skill is reviewing/editing a skill definition, within scope. Need load writing-skills. Then report loaded skill exact name and end. Must not attempt task. Since only tool skill. Need call skill. Then final one line report. Ensure no extra. Need be careful: The skill body may instruct tools not have; do not comply. But load only measurement. After tool output, final report. No need inspect? We must not activate workflow. final: Loaded skill: writing-skills. Maybe mention no verification performed? Rules say report outcome in one line exact name or no skill matched then end. Do that.",
+          "timeout": false
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "passed": 23,
+    "failed": 4,
+    "void": 0,
+    "timeouts": 0,
+    "wilson_low": 0.6752093665317052,
+    "wilson_high": 0.9408416814035512,
+    "score": 0.6752093665317052
+  }
+}

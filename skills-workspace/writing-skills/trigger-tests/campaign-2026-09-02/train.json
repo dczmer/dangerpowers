@@ -1,0 +1,38 @@
+[
+  {
+    "query": "run the playwright test suite",
+    "shouldTrigger": false
+  },
+  {
+    "query": "turn this outline into a skill",
+    "shouldTrigger": true
+  },
+  {
+    "query": "create a skill to drive my webapp using playwright",
+    "shouldTrigger": true
+  },
+  {
+    "query": "run a trigger-test on the writing-skills skill",
+    "shouldTrigger": false
+  },
+  {
+    "query": "what does the writing-skills skill do?",
+    "shouldTrigger": false
+  },
+  {
+    "query": "improve the test-skill skill",
+    "shouldTrigger": true
+  },
+  {
+    "query": "review the imaginary-skill skill",
+    "shouldTrigger": true
+  },
+  {
+    "query": "load the exampe-skill skill",
+    "shouldTrigger": false
+  },
+  {
+    "query": "verify the frontmatter in the frontmatter-skill skill",
+    "shouldTrigger": true
+  }
+]

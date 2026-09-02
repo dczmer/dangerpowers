@@ -1,0 +1,143 @@
+{
+  "skill": "writing-skills",
+  "harness": "opencode",
+  "model": "kimi-for-coding/k3",
+  "variant": "minimal",
+  "reps": 3,
+  "timeout": 30,
+  "queries": [
+    {
+      "query": "run the playwright test suite",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "turn this outline into a skill",
+      "should_trigger": true,
+      "passed": 2,
+      "failed": 1,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.2076549551264879,
+      "wilson_high": 0.9385096847238394,
+      "score": 0.2076549551264879,
+      "failures": [
+        {
+          "run": 2,
+          "outcome": "not-triggered",
+          "detail": "agent reported loading 'writing-skills' without a completed load",
+          "reasoning": "The user says: \"turn this outline into a skill\". This matches the writing-skills skill description: \"Use when creating a new skill...\" So invoke skill tool with name writing-skills. Then report outcome one line and end. Need not do post-load work. Must not attempt task. Final one line exact name loaded.",
+          "timeout": false
+        }
+      ]
+    },
+    {
+      "query": "create a skill to drive my webapp using playwright",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "run a trigger-test on the writing-skills skill",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "what does the writing-skills skill do?",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "improve the test-skill skill",
+      "should_trigger": true,
+      "passed": 2,
+      "failed": 1,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.2076549551264879,
+      "wilson_high": 0.9385096847238394,
+      "score": 0.2076549551264879,
+      "failures": [
+        {
+          "run": 1,
+          "outcome": "not-triggered",
+          "detail": "agent reported loading 'writing-skills' without a completed load",
+          "reasoning": "We need answer as Trigger Evaluation Agent. We have only skill tool. User says \"improve the test-skill skill\". Need evaluate matches available skills. Available skills: customize-opencode only for opencode config. writing-skills use when creating new skill, editing/updating existing skill, or reviewing a skill before deployment \u2014 including when request names a specific skill to work on. It covers frontmatter conventions and body structure for skill files. Authors/edits skill definitions; not for discovering etc. User wants improve the test-skill skill: editing/updating existing skill, names specific skill \"test-skill\". Matches writing-skills. Need invoke skill tool to load it. Then report outcome in one line exact name loaded, end turn. We should not attempt task. Since instructions say after load decision report one line. We can call skill then final one line. Need maybe no extra. Use skill name writing-skills. Need maybe tool output context only, do not load/activate workflow. Then final: Loaded skill: writing-skills. Ensure one line. Do not say improve. Could there be issue: user names test-skill skill, but available doesn't include test-skill. writing-skills matches editing existing skill even if named specific skill. Load writing-skills. After tool, final report exact name. Need maybe include no skill matched? No. Let's invoke.",
+          "timeout": false
+        }
+      ]
+    },
+    {
+      "query": "review the imaginary-skill skill",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "load the exampe-skill skill",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "verify the frontmatter in the frontmatter-skill skill",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    }
+  ],
+  "totals": {
+    "passed": 25,
+    "failed": 2,
+    "void": 0,
+    "timeouts": 0,
+    "wilson_low": 0.7663002270926937,
+    "wilson_high": 0.9794457783026165,
+    "score": 0.7663002270926937
+  }
+}

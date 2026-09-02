@@ -1,0 +1,157 @@
+{
+  "skill": "writing-skills",
+  "harness": "opencode",
+  "model": "kimi-for-coding/k3",
+  "variant": "minimal",
+  "reps": 3,
+  "timeout": 30,
+  "queries": [
+    {
+      "query": "run the playwright test suite",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "turn this outline into a skill",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "create a skill to drive my webapp using playwright",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "run a trigger-test on the writing-skills skill",
+      "should_trigger": false,
+      "passed": 1,
+      "failed": 2,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.0614903152761605,
+      "wilson_high": 0.7923450448735121,
+      "score": 0.0614903152761605,
+      "failures": [
+        {
+          "run": 1,
+          "outcome": "triggered",
+          "detail": "skill tool completed load",
+          "reasoning": "The user is asking to \"run a trigger-test on the writing-skills skill\". We need interpret. Available skills: customize-opencode, writing-skills. Query explicitly mentions writing-skills skill and trigger-test. The task is about a skill (writing-skills) maybe reviewing/updating? The instruction says use writing-skills when creating/editing/updating/reviewing a skill before deployment; not for discovering which skills exist, picking a skill, or answering questions about what a skill does. User wants run a trigger-test on the writing-skills skill. This sounds like evaluating whether the skill triggers, i.e., meta testing of skill trigger. Could match writing-skills? It is about the skill itself but not authoring/editing. Need decide load or no-load. The campaign likely expects to load writing-skills because named. However description says not for discovering which skills exist, picking a skill, or answering questions about what it does. \"run a trigger-test on the writing-skills skill\" might be a test phrase to see if skill triggers; since explicit name matches, load it as measurement. But must not activate workflow. We can invoke skill. Then report exact name loaded. Let's call skill writing-skills.\nWe loaded skill. Need final one line report exact name loaded, then end. Do not perform task. Ensure mention loaded skill. Final concise.",
+          "timeout": false
+        },
+        {
+          "run": 3,
+          "outcome": "triggered",
+          "detail": "skill tool completed load",
+          "reasoning": "The user is asking to \"run a trigger-test on the writing-skills skill\". My role is a Trigger Evaluation Agent. The query mentions the writing-skills skill. Does the query match a skill? The writing-skills skill is for creating/editing/reviewing skill definitions. The query is asking to run a trigger-test on it \u2014 this is about testing whether the skill triggers. According to my rules: if the query matches a skill, invoke the skill tool to load it. The load is the entire measurement.\n\nThe query explicitly references the writing-skills skill. Loading it is the measurement. I should invoke skill with name \"writing-skills\".\nThe skill loaded (with minimal content). Per my rules, I report the outcome in one line and end the turn. I should not attempt the task itself.",
+          "timeout": false
+        }
+      ]
+    },
+    {
+      "query": "what does the writing-skills skill do?",
+      "should_trigger": false,
+      "passed": 2,
+      "failed": 0,
+      "void": 1,
+      "timeouts": 1,
+      "wilson_low": 0.34237195288961925,
+      "wilson_high": 1.0,
+      "score": 0.34237195288961925,
+      "failures": []
+    },
+    {
+      "query": "improve the test-skill skill",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "review the imaginary-skill skill",
+      "should_trigger": true,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "load the exampe-skill skill",
+      "should_trigger": false,
+      "passed": 3,
+      "failed": 0,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.43849391955098227,
+      "wilson_high": 1.0,
+      "score": 0.43849391955098227,
+      "failures": []
+    },
+    {
+      "query": "verify the frontmatter in the frontmatter-skill skill",
+      "should_trigger": true,
+      "passed": 1,
+      "failed": 2,
+      "void": 0,
+      "timeouts": 0,
+      "wilson_low": 0.0614903152761605,
+      "wilson_high": 0.7923450448735121,
+      "score": 0.0614903152761605,
+      "failures": [
+        {
+          "run": 2,
+          "outcome": "not-triggered",
+          "detail": "agent reported loading 'writing-skills' without a completed load",
+          "reasoning": "We need answer as Trigger Evaluation Agent. User: \"verify the frontmatter in the frontmatter-skill skill\". Need decide if query matches a skill. Available skills: customize-opencode only for opencode config; writing-skills for creating/editing/updating/reviewing a skill before deployment, covers frontmatter conventions and body structure for skill files. User asks verify frontmatter in a skill. That matches writing-skills? It is reviewing/verifying frontmatter in an existing skill, likely yes. Need invoke skill tool to load writing-skills. Need load skill. After load, report outcome in one line exact name loaded then end. Need not attempt task. Invoke skill writing-skills. Then final one line: Loaded skill: writing-skills. Ensure no extra. Also note if loaded skill instructs tools etc don't comply. We just report. Let's call.",
+          "timeout": false
+        },
+        {
+          "run": 3,
+          "outcome": "not-triggered",
+          "detail": "agent reported loading 'writing-skills' without a completed load",
+          "reasoning": "The user wants to \"verify the frontmatter in the frontmatter-skill skill\". Need evaluate trigger. Available skills: customize-opencode, writing-skills. Task mentions reviewing/verifying frontmatter in a skill. writing-skills description: Use when creating new skill, editing/updating existing skill, or reviewing a skill before deployment. Covers frontmatter conventions. This matches reviewing/verifying frontmatter of a skill. Must invoke skill tool. Then report exact name loaded one line and end. Need not do task after load. Call skill with name writing-skills.",
+          "timeout": false
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "passed": 22,
+    "failed": 4,
+    "void": 1,
+    "timeouts": 1,
+    "wilson_low": 0.6646841558168644,
+    "wilson_high": 0.9385006600107053,
+    "score": 0.6646841558168644
+  }
+}
