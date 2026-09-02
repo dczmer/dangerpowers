@@ -13,6 +13,7 @@ Scope: the inner core only (eval_batch). One invocation = one query.
 import argparse
 import json
 import math
+import random
 import re
 import shutil
 import subprocess
@@ -517,6 +518,199 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# Campaign tooling: split + suite
+
+def load_queries(path_str: str) -> list[EvalCase] | None:
+    """Read and strictly validate a query file. On any violation prints
+    `error: <exact reason>` to stderr and returns None."""
+    path = Path(path_str)
+    if not path.exists():
+        print(f"error: query file not found: {path}", file=sys.stderr)
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
+        return None
+    if not isinstance(data, list):
+        print(f"error: {path}: expected a JSON list of query objects",
+              file=sys.stderr)
+        return None
+    cases: list[EvalCase] = []
+    for i, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            print(f"error: {path}: entry {i} is not an object",
+                  file=sys.stderr)
+            return None
+        q = entry.get("query")
+        if not isinstance(q, str) or not q:
+            print(f"error: {path}: entry {i} missing 'query' (non-empty "
+                  f"string)", file=sys.stderr)
+            return None
+        st = entry.get("shouldTrigger")
+        if not isinstance(st, bool):
+            print(f"error: {path}: entry {i} missing 'shouldTrigger' "
+                  f"(boolean)", file=sys.stderr)
+            return None
+        cases.append(EvalCase(query=q, should_trigger=st))
+    return cases
+
+
+def cmd_split(args: argparse.Namespace) -> int:
+    if not (0.0 < args.train_frac < 1.0):
+        print("error: --train-frac must be in (0, 1)", file=sys.stderr)
+        return 1
+    cases = load_queries(args.queries)
+    if cases is None:
+        return 1
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.seed is not None:
+        seed = args.seed
+    else:
+        seed = random.SystemRandom().randrange(2**63)
+        print(f"seed: {seed}")
+
+    n = len(cases)
+    if n <= 10:
+        train, validate = cases, []
+        print(f"note: <=10 queries, no validate split (train={n}, validate=0)")
+    else:
+        rng = random.Random(seed)
+        train, validate = [], []
+        for cls in (True, False):
+            group = [c for c in cases if c.should_trigger == cls]
+            rng.shuffle(group)
+            n_validate = int(len(group) * (1 - args.train_frac) + 0.5)
+            n_validate = max(0, min(n_validate, len(group) - 1))
+            validate.extend(group[:n_validate])
+            train.extend(group[n_validate:])
+        rng.shuffle(train)
+        rng.shuffle(validate)
+
+    def dump(name: str, items: list[EvalCase]) -> None:
+        (out_dir / name).write_text(json.dumps(
+            [{"query": c.query, "shouldTrigger": c.should_trigger}
+             for c in items], indent=2) + "\n")
+
+    dump("train.json", train)
+    dump("validate.json", validate)
+    (out_dir / "split.json").write_text(json.dumps(
+        {"seed": seed, "train": len(train), "validate": len(validate)}) + "\n")
+
+    print(f"split: {n} queries -> train {len(train)} / validate "
+          f"{len(validate)} (seed {seed})")
+    for cls in (True, False):
+        label = "shouldTrigger=true" if cls else "shouldTrigger=false"
+        t = sum(1 for c in train if c.should_trigger == cls)
+        v = sum(1 for c in validate if c.should_trigger == cls)
+        print(f"  {label}: train {t} / validate {v}")
+    return 0
+
+
+def _score_counts(passed: int, failed: int) -> tuple[float | None, float | None,
+                                                   float | None]:
+    n = passed + failed
+    if n == 0:
+        return None, None, None
+    low, high = wilson_interval(passed, n)
+    return low, high, low
+
+
+def cmd_suite(args: argparse.Namespace) -> int:
+    strategy_cls = resolve_strategy(args.harness)
+    workspace = Path(args.workspace)
+    stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
+    if not stub.exists():
+        print(f"error: skill stub not synced: {stub}; "
+              f"run workspace-manager.sh sync", file=sys.stderr)
+        return 1
+    if args.reps < 1:
+        print("error: --reps must be >= 1", file=sys.stderr)
+        return 1
+    if args.timeout < 1:
+        print("error: --timeout must be >= 1", file=sys.stderr)
+        return 1
+    check_harness(args.harness, strategy_cls)
+    cases = load_queries(args.queries)
+    if cases is None:
+        return 1
+    out = Path(args.out)
+    if not out.parent.exists():
+        print(f"error: --out parent directory does not exist: {out.parent}",
+              file=sys.stderr)
+        return 1
+
+    def empty_result() -> dict:
+        return {"skill": args.skill, "harness": args.harness,
+                "model": args.model, "variant": args.variant,
+                "reps": args.reps, "timeout": args.timeout, "queries": [],
+                "totals": {"passed": 0, "failed": 0, "void": 0, "timeouts": 0,
+                           "wilson_low": None, "wilson_high": None,
+                           "score": None}}
+
+    if not cases:
+        out.write_text(json.dumps(empty_result(), indent=2) + "\n")
+        print("note: empty query file, wrote zeroed result")
+        return 0
+
+    strategy = strategy_cls(timeout=args.timeout)
+    strategy.install(workspace)
+
+    print(f"trigger test suite: {args.skill} ({len(cases)} queries)")
+    print(f"workspace: {workspace}")
+    print(f"harness: {args.harness}  model: {args.model or '(default)'}  "
+          f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
+          f"timeout: {args.timeout}s")
+
+    query_results = []
+    tot_passed = tot_failed = tot_void = tot_timeouts = 0
+    for i, case in enumerate(cases, start=1):
+        result = eval_batch(strategy, args.skill, case, workspace,
+                            args.model, args.variant, args.reps)
+        timeouts = sum(1 for v in result.verdicts if v.timeout)
+        failures = [
+            {"run": n, "outcome": v.outcome, "detail": v.detail,
+             "reasoning": v.reasoning, "timeout": v.timeout}
+            for n, v in enumerate(result.verdicts, start=1)
+            if v.outcome != "void"
+            and (v.outcome == "triggered") != case.should_trigger
+        ]
+        query_results.append({
+            "query": case.query, "should_trigger": case.should_trigger,
+            "passed": result.passed, "failed": result.failed,
+            "void": result.void, "timeouts": timeouts,
+            "wilson_low": result.wilson_low, "wilson_high": result.wilson_high,
+            "score": result.score, "failures": failures,
+        })
+        score_s = f"{result.score:.3f}" if result.score is not None else "n/a"
+        print(f'[query {i}/{len(cases)}] "{case.query}" -> {result.passed} '
+              f'pass / {result.failed} fail / {result.void} void '
+              f'score: {score_s}', flush=True)
+        tot_passed += result.passed
+        tot_failed += result.failed
+        tot_void += result.void
+        tot_timeouts += timeouts
+
+    low, high, score = _score_counts(tot_passed, tot_failed)
+    result_json = {"skill": args.skill, "harness": args.harness,
+                   "model": args.model, "variant": args.variant,
+                   "reps": args.reps, "timeout": args.timeout,
+                   "queries": query_results,
+                   "totals": {"passed": tot_passed, "failed": tot_failed,
+                              "void": tot_void, "timeouts": tot_timeouts,
+                              "wilson_low": low, "wilson_high": high,
+                              "score": score}}
+    out.write_text(json.dumps(result_json, indent=2) + "\n")
+    score_s = f"{score:.3f}" if score is not None else "n/a"
+    print(f"suite: {tot_passed} pass / {tot_failed} fail / {tot_void} void "
+          f"score: {score_s} -> {out}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="evaluator.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -535,9 +729,31 @@ def main() -> int:
     run.add_argument("--variant")
     run.add_argument("--reps", type=int, default=10)
     run.add_argument("--timeout", type=int, default=30)
+
+    split = sub.add_parser("split")
+    split.add_argument("--queries", required=True)
+    split.add_argument("--out-dir", required=True)
+    split.add_argument("--train-frac", type=float, default=0.6)
+    split.add_argument("--seed", type=int)
+
+    suite = sub.add_parser("suite")
+    suite.add_argument("--harness", required=True)
+    suite.add_argument("--skill", required=True)
+    suite.add_argument("--workspace", required=True)
+    suite.add_argument("--queries", required=True)
+    suite.add_argument("--out", required=True)
+    suite.add_argument("--model")
+    suite.add_argument("--variant")
+    suite.add_argument("--reps", type=int, default=10)
+    suite.add_argument("--timeout", type=int, default=30)
+
     args = parser.parse_args()
     if args.command == "check":
         return cmd_check(args)
+    if args.command == "split":
+        return cmd_split(args)
+    if args.command == "suite":
+        return cmd_suite(args)
     return cmd_run(args)
 
 
