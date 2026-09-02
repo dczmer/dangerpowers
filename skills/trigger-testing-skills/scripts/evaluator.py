@@ -11,6 +11,7 @@ Scope: the inner core only (eval_batch). One invocation = one query.
 """
 
 import argparse
+import hashlib
 import json
 import math
 import random
@@ -20,6 +21,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -363,8 +365,19 @@ def check_harness(name: str, strategy_cls: type[OpencodeStrategy]) -> None:
 # --------------------------------------------------------------------------
 # Batch mechanics
 
+_log_file = None  # campaign log handle; set by cmd_suite, None under `run`
+
+
+def emit(msg: str = "", *, err: bool = False) -> None:
+    """Print a progress line and mirror it to the campaign log when one is set."""
+    print(msg, file=sys.stderr if err else sys.stdout, flush=True)
+    if _log_file is not None:
+        _log_file.write(msg + "\n")
+        _log_file.flush()
+
+
 def log_start(n: int) -> None:
-    print(f"[rep {n:>3}] started", flush=True)
+    emit(f"[rep {n:>3}] started")
 
 
 def log_complete(n: int, verdict: Verdict) -> None:
@@ -373,7 +386,7 @@ def log_complete(n: int, verdict: Verdict) -> None:
         line += " (timeout)"
     if verdict.outcome == "void":
         line += f" ({verdict.detail})"
-    print(line, flush=True)
+    emit(line)
 
 
 def run_rep(strategy: EvalStrategy, skill: str, case: EvalCase,
@@ -394,7 +407,7 @@ def eval_batch(strategy: EvalStrategy, skill: str, case: EvalCase,
     try:
         verdicts[1] = run_rep(strategy, skill, case, workspace, model, effort, 1)
     except HarnessExecutionError as e:
-        print(f"error: harness could not execute the query: {e}", file=sys.stderr)
+        emit(f"error: harness could not execute the query: {e}", err=True)
         sys.exit(1)
 
     # Remaining reps in parallel batches of at most MAX_WORKERS.
@@ -416,8 +429,8 @@ def eval_batch(strategy: EvalStrategy, skill: str, case: EvalCase,
                         first_error = (n, str(e))
         if first_error is not None:
             n, detail = first_error
-            print(f"error: rep {n} could not execute: {detail}", file=sys.stderr)
-            print("error: batch aborted", file=sys.stderr)
+            emit(f"error: rep {n} could not execute: {detail}", err=True)
+            emit("error: batch aborted", err=True)
             sys.exit(1)
 
     result = BatchResult(case=case)
@@ -621,6 +634,7 @@ def _score_counts(passed: int, failed: int) -> tuple[float | None, float | None,
 
 
 def cmd_suite(args: argparse.Namespace) -> int:
+    global _log_file
     strategy_cls = resolve_strategy(args.harness)
     workspace = Path(args.workspace)
     stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
@@ -643,6 +657,8 @@ def cmd_suite(args: argparse.Namespace) -> int:
         print(f"error: --out parent directory does not exist: {out.parent}",
               file=sys.stderr)
         return 1
+    log_path = out.with_suffix(".log")
+    _log_file = log_path.open("w")
 
     def empty_result() -> dict:
         return {"skill": args.skill, "harness": args.harness,
@@ -654,17 +670,17 @@ def cmd_suite(args: argparse.Namespace) -> int:
 
     if not cases:
         out.write_text(json.dumps(empty_result(), indent=2) + "\n")
-        print("note: empty query file, wrote zeroed result")
+        emit("note: empty query file, wrote zeroed result")
         return 0
 
     strategy = strategy_cls(timeout=args.timeout)
     strategy.install(workspace)
 
-    print(f"trigger test suite: {args.skill} ({len(cases)} queries)")
-    print(f"workspace: {workspace}")
-    print(f"harness: {args.harness}  model: {args.model or '(default)'}  "
-          f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
-          f"timeout: {args.timeout}s")
+    emit(f"trigger test suite: {args.skill} ({len(cases)} queries)")
+    emit(f"workspace: {workspace}")
+    emit(f"harness: {args.harness}  model: {args.model or '(default)'}  "
+         f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
+         f"timeout: {args.timeout}s")
 
     query_results = []
     tot_passed = tot_failed = tot_void = tot_timeouts = 0
@@ -687,9 +703,9 @@ def cmd_suite(args: argparse.Namespace) -> int:
             "score": result.score, "failures": failures,
         })
         score_s = f"{result.score:.3f}" if result.score is not None else "n/a"
-        print(f'[query {i}/{len(cases)}] "{case.query}" -> {result.passed} '
-              f'pass / {result.failed} fail / {result.void} void '
-              f'score: {score_s}', flush=True)
+        emit(f'[query {i}/{len(cases)}] "{case.query}" -> {result.passed} '
+             f'pass / {result.failed} fail / {result.void} void '
+             f'score: {score_s}')
         tot_passed += result.passed
         tot_failed += result.failed
         tot_void += result.void
@@ -706,8 +722,47 @@ def cmd_suite(args: argparse.Namespace) -> int:
                               "score": score}}
     out.write_text(json.dumps(result_json, indent=2) + "\n")
     score_s = f"{score:.3f}" if score is not None else "n/a"
-    print(f"suite: {tot_passed} pass / {tot_failed} fail / {tot_void} void "
-          f"score: {score_s} -> {out}")
+    emit(f"suite: {tot_passed} pass / {tot_failed} fail / {tot_void} void "
+         f"score: {score_s} -> {out}")
+    return 0
+
+
+def cmd_record(args: argparse.Namespace) -> int:
+    """Write/update trigger-tests/manifest.json after a successful campaign.
+    Overwrites only the `trigger-test` key; unknown keys are preserved."""
+    skill_md = Path(args.skill_path)
+    if not skill_md.exists():
+        print(f"error: skill file not found: {skill_md}", file=sys.stderr)
+        return 1
+    if not (0.0 <= args.score <= 1.0):
+        print("error: --score must be in [0, 1]", file=sys.stderr)
+        return 1
+    checksum = "sha256:" + hashlib.sha256(skill_md.read_bytes()).hexdigest()
+
+    manifest = Path(args.manifest)
+    data: dict = {}
+    if manifest.exists():
+        try:
+            data = json.loads(manifest.read_text())
+        except json.JSONDecodeError as e:
+            print(f"error: invalid JSON in {manifest}: {e}", file=sys.stderr)
+            return 1
+        if not isinstance(data, dict):
+            print(f"error: {manifest}: expected a JSON object",
+                  file=sys.stderr)
+            return 1
+
+    entry = {"date": args.date or date.today().isoformat(),
+             "checksum": checksum, "score": args.score}
+    if args.campaign is not None:
+        entry["campaign"] = args.campaign
+    data["skill"] = args.skill
+    data["trigger-test"] = entry
+
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(json.dumps(data, indent=2) + "\n")
+    print(f"recorded: {manifest} "
+          f"(date {entry['date']}, score {args.score}, {checksum[:26]}…)")
     return 0
 
 
@@ -747,6 +802,14 @@ def main() -> int:
     suite.add_argument("--reps", type=int, default=3)
     suite.add_argument("--timeout", type=int, default=30)
 
+    record = sub.add_parser("record")
+    record.add_argument("--skill", required=True)
+    record.add_argument("--skill-path", required=True)
+    record.add_argument("--manifest", required=True)
+    record.add_argument("--score", type=float, required=True)
+    record.add_argument("--campaign")
+    record.add_argument("--date")
+
     args = parser.parse_args()
     if args.command == "check":
         return cmd_check(args)
@@ -754,6 +817,8 @@ def main() -> int:
         return cmd_split(args)
     if args.command == "suite":
         return cmd_suite(args)
+    if args.command == "record":
+        return cmd_record(args)
     return cmd_run(args)
 
 

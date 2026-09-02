@@ -5,11 +5,15 @@ usage() {
   cat >&2 <<'EOF'
 usage:
   trigger-test.sh init
+  trigger-test.sh campaign-init --root DIR
   trigger-test.sh sync --skill NAME --source DIR --workspace DIR
   trigger-test.sh status --skll NAME --source DIR --workspace DIR
   trigger-test.sh cleanup --workspace DIR
 
 init    creates one campaign workspace and prints its path on stdout.
+campaign-init creates one persistent campaign directory under --root, named
+        campaign-YYYY-MM-DD (suffixed -2, -3, ... on same-day reruns), and
+        prints its path on stdout.
 sync    copys the source skill (front-matter only) to the target workspace,
         along with any other required resources for the campaign.
         run after every description change to sync the stub file.
@@ -34,6 +38,28 @@ cmd_init() {
   ws="$(mktemp -d /tmp/trigger-test.XXXXXXXXXX)"
   mkdir -p "$ws/.agents/skills"
   echo "$ws"
+}
+
+cmd_campaign_init() {
+  local root=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --root) root="$2"; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  [ -n "$root" ] || { echo "error: --root DIR is required" >&2; usage; }
+  local datestamp base dir n
+  datestamp="$(date +%F)"
+  base="$root/campaign-$datestamp"
+  dir="$base"
+  n=2
+  while [ -e "$dir" ]; do
+    dir="$base-$n"
+    n=$((n + 1))
+  done
+  mkdir -p "$dir"
+  echo "$dir"
 }
 
 cmd_sync() {
@@ -110,6 +136,7 @@ cmd_cleanup() {
 cmd="$1"; shift
 case "$cmd" in
   init) cmd_init "$@" ;;
+  campaign-init) cmd_campaign_init "$@" ;;
   sync) cmd_sync "$@" ;;
   status) cmd_status "$@" ;;
   cleanup) cmd_cleanup "$@" ;;

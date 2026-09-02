@@ -380,6 +380,36 @@ as part of the verification procedure for the final phase of this implementation
 
 after validating that the campaign actually works from end-to-end, i started a new campaign using kimi k3 (minimal), and then again against my heavily quantized qwen3.8 27b model with medium effort.
 
+initial description:
+```
+Use when creating a new skill, editing or updating an existing one, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files.
+```
+
+iteration 1:
+
+one failed query (3/3):
+```
+{
+    "query": "which skills will help me with writing?",
+    "shouldTrigger": false
+},
+```
+
+revised:
+```
+Use when creating a new skill, editing or updating an existing skill, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files. This skill authors and edits skill definitions themselves; it is not for discovering which skills exist, picking a skill for a task, or answering questions about what a skill does.
+```
+
+iteration 2:
+
+one fail for same query (1/3)
+
+revised:
+```
+Use when authoring or maintaining agent skill definitions — creating a new skill, editing or updating an existing skill, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files. This skill writes skill definitions themselves; never use it to discover which skills exist, pick a skill for a task, or explain what a skill does.
+```
+
+
 ### Conclusion
 
 - runaway workflows
@@ -388,4 +418,6 @@ after validating that the campaign actually works from end-to-end, i started a n
 - break up plans as they get more and more complicated. it's so easy to miss important details in complex implementation plans, and then you have to rework everything built on top of that. (almost credited each iteration score to the subsequent iteration instead of the one that was actually tested).
 - keeping a blog in the same repository as your project causes the ai to read the blog as a source of truth for how the code should work :(
 - note to self: add probe testing to planning/scouting and context bundles
-- 
+- agent would frequently run campaigns and filter with `grep` to reduce output, but that hides the reasoning for each failure from the agent that needs to rewrite the description.
+- you can't force an agent to read all of the output or not try to optimize output by grepping and filtering, but you can close the loopholes that make it easy for the agent to rely on that trick:
+    * requiring a command to produce the failure data instead of reading from the stdout

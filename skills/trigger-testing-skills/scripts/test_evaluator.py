@@ -6,8 +6,11 @@ edge paths: interrupted runs (subprocess timeout and step-cap cutoff),
 rejected skill calls, and opencode's silent agent fallback.
 """
 
+import argparse
+import hashlib
 import json
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -131,6 +134,78 @@ class VerdictTests(unittest.TestCase):
         with self.assertRaises(evaluator.HarnessExecutionError):
             self._evaluate(stdout=ndjson(text_event("No skill matched.")),
                            stderr=stderr)
+
+
+class RecordTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.skill_md = self.root / "SKILL.md"
+        self.skill_md.write_text("---\nname: test-skill\n---\nbody\n")
+        self.manifest = self.root / "trigger-tests" / "manifest.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _record(self, **overrides) -> int:
+        args = argparse.Namespace(
+            skill="test-skill", skill_path=str(self.skill_md),
+            manifest=str(self.manifest), score=0.81,
+            campaign="campaign-2026-09-02", date=None)
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        return evaluator.cmd_record(args)
+
+    def test_creates_manifest_with_schema(self):
+        rc = self._record()
+        self.assertEqual(rc, 0)
+        data = json.loads(self.manifest.read_text())
+        self.assertEqual(data["skill"], "test-skill")
+        entry = data["trigger-test"]
+        self.assertEqual(set(entry), {"date", "checksum", "score", "campaign"})
+        self.assertEqual(entry["score"], 0.81)
+        self.assertEqual(entry["campaign"], "campaign-2026-09-02")
+
+    def test_checksum_is_whole_file_sha256(self):
+        self._record()
+        data = json.loads(self.manifest.read_text())
+        expected = ("sha256:"
+                    + hashlib.sha256(self.skill_md.read_bytes()).hexdigest())
+        self.assertEqual(data["trigger-test"]["checksum"], expected)
+
+    def test_update_preserves_unknown_keys(self):
+        self.manifest.parent.mkdir(parents=True)
+        self.manifest.write_text(json.dumps(
+            {"future-test": {"date": "x"},
+             "trigger-test": {"date": "old", "checksum": "sha256:old",
+                              "score": 0.5}}))
+        rc = self._record(score=0.9)
+        self.assertEqual(rc, 0)
+        data = json.loads(self.manifest.read_text())
+        self.assertEqual(data["future-test"], {"date": "x"})
+        self.assertEqual(data["trigger-test"]["score"], 0.9)
+
+    def test_malformed_manifest_refused_untouched(self):
+        self.manifest.parent.mkdir(parents=True)
+        self.manifest.write_text("not json")
+        rc = self._record()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.manifest.read_text(), "not json")
+
+    def test_missing_skill_file(self):
+        rc = self._record(skill_path=str(self.root / "no-such-SKILL.md"))
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
+
+    def test_campaign_omitted_when_not_given(self):
+        rc = self._record(campaign=None)
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertNotIn("campaign", entry)
+
+    def test_score_out_of_range(self):
+        self.assertEqual(self._record(score=1.5), 1)
+        self.assertFalse(self.manifest.exists())
 
 
 if __name__ == "__main__":

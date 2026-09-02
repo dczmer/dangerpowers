@@ -19,7 +19,8 @@ dangerpowers/
 │       ├── scripts/           # helper scripts (some skills)
 │       ├── references/        # reference docs (some skills)
 │       └── agents/            # supporting agent configs/schemas (some skills)
-├── skills-workspace/          # per-skill test artifacts (e.g. trigger-tests/queries.json)
+├── skills-workspace/          # per-skill test artifacts (e.g. trigger-tests/queries.json);
+                               # trigger-test campaign dirs (campaign-YYYY-MM-DD[-N]/) are persistent and committed
 ├── docs/                      # documentation and deep-dives (index: docs/README.md)
 ├── agents/                    # custom opencode agent definitions (*.md)
 ├── plugins/                   # opencode plugin (opencode-plugin.ts) registering skills/ + agents/ via config hook
