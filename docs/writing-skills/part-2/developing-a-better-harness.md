@@ -23,16 +23,28 @@ These are the issues that I'm most concerned with:
 - Use a script to drive the eval loop, score results, and do any other math or counting
 - Use a strategy pattern to map an eval description to harness-specific CLI command
 - Use a train/validate partition (if >10 cases)
-- Apply [Wilson intervals][wilson] to pad the small sample size
+- Apply [Wilson intervals](./confidence-intervals-eli5.md) ([Wikipedia][wilson]) to pad the small sample size
 - Use a fresh query sanity check to make sure we haven't overfit our test queries
 - Put a cap on the number of iterations the optimization loop can run
 - Create per-skill directories to manage artifacts and campaign logs, and a manifest file to track test status of the skill
 
 ### Contamination from other skills
 
-When we test software, it's important to test in a stable, consistent environment where conditions are exactly the same between runs. Otherwise you can't count on your results to be consistent or accurate. You can't know for sure if the change you made actually fixed the issue or if something in your test environment affected the behavior to make it pass, or was the reason it failed on the last run.
+When we test software, it's important to test in a stable, consistent environment where conditions are exactly the same between runs. Otherwise you can't count on your results to be consistent or accurate. You can't know for sure if the change you made actually fixed the issue or if something in your test environment affected the behavior to make it pass, or was the reason it failed on the last run. Running a trigger test with your full skill load-out is like running a chemistry experiment in a dirty lab — you can't attribute the result to the variable you changed.
 
 Other skills from your project, global settings, or plugins and extensions contain description text which is in your system prompt on every run. These descriptions can influence agent reasoning and affect decision making, possibly causing it to not load your skill or to load another skill.
+
+```mermaid
+flowchart LR
+    subgraph SP["System prompt on every run"]
+        A["description under test"]
+        B["other skill descriptions"]
+        C["global / plugin descriptions"]
+    end
+    A -->|"should decide"| D["trigger decision"]
+    B -.->|"can nudge"| D
+    C -.->|"can nudge"| D
+```
 
 You may not consider this a problem for testing skills, since you would probably intend to use your skill in your normal agent load-out, where it will live alongside other skills and extensions you use day to day. It's also somewhat difficult to solve this completely without writing a custom harness that ignores your global settings and skills (~/.agents, ~/.claude, etc).
 
@@ -77,6 +89,12 @@ Since this is sampling results across an infinite source set, running the entire
 But even a single campaign could require looping over the entire test suite multiple times, as it optimizes the description.
 
 Testing against the exact same queries repeatedly ensures the description is well-tuned for those specific queries. But one technique from ML we can borrow to vary our tests is the "[train/validate split][train-validate]": Split queries into two groups, optimize the description based on observed failures from the 'train' set, verify improved descriptions against the 'validate' set of queries. You still end up testing all of the queries in your list, just some are tested for tuning the description and others are the final test of the improved description. We only bother with the split when there are more than 10 queries; below that, every query is used for both tuning and the final check.
+
+```
+queries.json
+  ├─ train set     → optimize the description against observed failures
+  └─ validate set  → the held-out final exam, run once on the winner
+```
 
 One more point here: you don't want the optimization loop to run forever if it gets stuck. Put a cap on the number of iterations the loop can make and pick the best result from the campaign.
 
@@ -131,9 +149,26 @@ My take on harness engineering is that we should apply it when we need the follo
 1. You want to cleanly separate deterministic actions from actions that require inference. I think you should always try to do this as much as possible. This includes implementing complex workflows by taking away the chained-command execution responsibility from the executing agent.
 2. You want to automate a task that requires some sort of action or interaction that the agent isn't good at. For most things you can just write a skill, but some things are hard to fix with prompting, like tightly integrated math and asking the AI to do something that requires strategy.
 
-For number 1, you can usually do this with the options provided by your coding agent and by delegating deterministic actions to scripts. It only gets complicated when you have complex situations like an agent session calling a script that invokes a headless CLI client, that runs a script that invokes an agent, ... The only reason you would do something so convoluted is because you need to mix deterministic actions between/around points where you need inference. Then you need a custom agent implementation.
+For number 1, you can usually do this with the options provided by your coding agent and by delegating deterministic actions to scripts. It only gets complicated when you have complex situations like an agent session calling a script that invokes a headless CLI client, that runs a script that invokes an agent, ...
+
+```
+agent session
+  └─ runs script
+      └─ launches headless CLI agent
+          └─ runs script
+              └─ launches agent ...
+```
+
+The only reason you would do something so convoluted is because you need to mix deterministic actions between/around points where you need inference. Then you need a custom agent implementation.
 
 For number 2, you might be surprised how often you run into this (if you pay attention). One example I have encountered was an experiment to write a skill that plays connect-4 against a computer controlled opponent and self-optimized the skill until it could beat/tie a "[minimax][minimax]" implementation. The problem was that the AI had trouble reading the board, identifying the coordinates of opponent pieces and open spaces, and picking coordinates for its own moves. It seems that the coordinate detection process involves splitting the contents of the target row into a list of terms, then comparing them by index to the labels row to identify the cell. But due to issues with tokenizing text when the white-space IS content, the AI would frequently choose nonsense coordinates and accuse the game of changing the board.
+
+```
+labels:    1   2   3   4   5   6   7
+row:     |   |   | X |   | O |   |   |
+```
+
+Given a row like the one above, the model would read the `X` at column 3 but report coordinate 5 — splitting the row string on whitespace and pipes, then matching by index against the labels row, goes wrong exactly where the whitespace is the content.
 
 A custom harness using something like langchain would give you ultimate control. You can write a deterministic program and call the LLM directly whenever you need inference. You can write every deterministic step with python or typescript (don't worry, you can still use AI to write the deterministic code).
 
