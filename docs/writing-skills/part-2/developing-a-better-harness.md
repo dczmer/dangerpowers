@@ -1,8 +1,14 @@
 # Writing Skills Deep Dive - Part 2.5: Developing a Better Harness
 
+Ready to burn some tokens?
+
+This section may not be interesting to you unless you are interested in the implementation details and how I approached this problem and the tiny amount of harness engineering required.
+
 I want to build a better test than what we made in [part 2](./README.md), and I have some very specific concerns from attempting this a few times before.
 
 ## Remaining Concerns
+
+> Every one of these failure modes has already burned me at least once.
 
 These are the issues that I'm most concerned with:
 
@@ -15,6 +21,8 @@ These are the issues that I'm most concerned with:
 - Artifact management
 
 ### TLDR; Design Decisions to Address Concerns
+
+> Isolate, stub, script the math, and never trust the loop to stop itself.
 
 - Run CLI with parameters to control model, effort, sources of contamination (mostly)
 - Run from temp directory to isolate from actual project source
@@ -30,7 +38,9 @@ These are the issues that I'm most concerned with:
 
 ### Contamination from other skills
 
-When we test software, it's important to test in a stable, consistent environment where conditions are exactly the same between runs. Otherwise you can't count on your results to be consistent or accurate. You can't know for sure if the change you made actually fixed the issue or if something in your test environment affected the behavior to make it pass, or was the reason it failed on the last run. Running a trigger test with your full skill load-out is like running a chemistry experiment in a dirty lab — you can't attribute the result to the variable you changed.
+> If the test environment isn't identical between runs, a passing test proves nothing.
+
+When we test software, it's important to test in a stable, consistent environment where conditions are exactly the same between runs. Otherwise you can't count on your results to be consistent or accurate. You can't know for sure if the change you made actually fixed the issue or if something in your test environment affected the behavior to make it pass, or was the reason it failed on the last run. Running a trigger test with your full skill load-out is like running a chemistry experiment in a dirty lab — you can't confidently attribute the result to the variable you changed.
 
 Other skills from your project, global settings, or plugins and extensions contain description text which is in your system prompt on every run. These descriptions can influence agent reasoning and affect decision making, possibly causing it to not load your skill or to load another skill.
 
@@ -54,6 +64,8 @@ When using opencode, I can't really prevent it from loading global configuration
 
 ### Runaway Workflows
 
+> The agent doesn't know it's in a test — it will sincerely try to solve your nonsense query against your real files.
+
 Some skills just provide information to keep in context, that the AI can use when making its own decisions later. Other skills drive a workflow or procedure. What happens when your trigger test loads a skill that tries to run a workflow that does actual work?
 
 In the best case scenario, it burns a bunch of extra tokens and makes each test eval take exponentially longer to run. In the worst case, it makes a bunch of changes you didn't want. If the test query you gave it makes no sense for its current state, and the state of the current working directory, the AI still has to try to "solve" your problem. It doesn't know this was a test, so it starts reasoning and rationalizing about what you wanted and digging through your host system for context. This leads to nonsense edits and changes to your project (or your host system if you don't have good guardrails in place).
@@ -66,11 +78,15 @@ I also cap the number of turns the agent can take at 3 and run the eval reps wit
 
 ### AI Math and Counting
 
+> Never let the model count. Script everything deterministic; spend inference only on judgment.
+
 On a good day, your agent would write stats to files on disk and/or write a program to drive the parts that require counting and math. On a bad day it will just rely on inference alone and produce inaccurate results.
 
 We can take that decision away by writing a deterministic script to drive the campaign and do the math and looping. In fact, we should try to do as much of the deterministic stuff with scripting as we possibly can, and only use the AI for decision making and semantic evaluation.
 
 ### Portability
+
+> The skill format is standard; everything around it is not.
 
 I'd like to support opencode, Claude Code, and pi, at minimum.
 
@@ -80,9 +96,18 @@ The other issue is translating a description of a test eval into a harness-speci
 
 ### Stats, Confidence, and Sample Size
 
+> We're not betting on these numbers — we just need an approximation honest about its own uncertainty.
+
 This is another "how hard do you want to make it" question. For most of us, a simple campaign that shows a majority of passes over a set of X reps is enough. In the world of ML and training, you would want as many samples and repetitions as possible to refine your results into a number you can be confident about.
 
 I'm pretty content with the 10x reps to give better confidence than the [recommended starting point of 3 reps][run-eval]. 10x reps are more likely to give a better sample than 3, but even that is probably a miniscule sample size compared to what we'd need to be confident when the results are not repeated perfect scores across multiple models.
+
+```
+3/3 passes   → wilson95 lower bound ≈ 0.44
+10/10 passes → wilson95 lower bound ≈ 0.72
+```
+
+Perfect scores with small samples still score low — the interval punishes small n, which is the whole argument for 10 reps over 3. (The 0.44 above is not hypothetical: it's the actual score for 3/3 passes in my first campaign log.)
 
 Since this is sampling results across an infinite source set, running the entire trigger testing campaign repeatedly gets us closer and closer to a number that you could bet on. We don't plan to bet on these results, we just need a decent approximation.
 
@@ -100,6 +125,8 @@ One more point here: you don't want the optimization loop to run forever if it g
 
 ### Artifact Management
 
+> Don't ship without evals — and keep enough record to prove you didn't.
+
 You are going to want to save your set of test queries, so you can reuse them on future campaigns and so you can add more cases to them over time.
 
 You also should keep some kind of record that the target skill has had a successful trigger-test run (don't ship without evals), along with the score it received. I don't know if it's necessary to keep a full history of every past campaign but you should at least keep the previous run for reference.
@@ -116,17 +143,40 @@ When we are running the optimization loop, we also have to keep track of the sco
 
 ### Actionable Queries
 
+> A query the agent can't act on will fail for the wrong reason — and teach the optimizer the wrong lesson.
+
 Some queries, like "turn this outline into a skill", WOULD trigger our target skill, but since no actual outline exists, they will instead timeout while trying to figure out what outline we're talking about, or else give up and never invoke the skill.
 
 For a query to be 'actionable' it must reference something real so the agent doesn't get stuck, or else "inline" all of the relevant content into the query. In the case of the "outline" above, you could fabricate an outline of some process and write it to a file in the workspace, then reference it by name. In-lining works more reliably, but doesn't match how real user queries are typically written.
+
+- ❌ **Bad:** `"turn this outline into a skill"` — no outline exists anywhere; the agent toils searching for it and times out.
+- ✅ **Good:** `"turn this outline into a skill: 1. load config 2. validate paths 3. run sync"` — all context is inline; the trigger decision is about the description, not a scavenger hunt.
+- ✅ **Also good:** fabricate `outline.md` in the temp workspace and reference it by name — matches how real users write queries, at the cost of workspace setup.
+
+The "Bad" example isn't necessarily bad - in fact, it's how a normal user would write a query, so it _should_ be a valid test query. So I'd like to support these types of queries in our eval process.
 
 This is somewhat difficult to deal with reliably. The best I've come up with is to create a custom agent that limits tool calls, turns, and gives a custom system prompt to simply reply if it would trigger. The Claude Code skill-creator addresses this, kind of, by stopping the agent after the first message and fails if that message was not the expected skill load. I'm not sure which approach is better - my implementation gives the agent a hint to avoid timing out digging for context but skill-creator will just call it a fail.
 
 ### Custom Agent
 
+> The hint I almost didn't give turned out to be the thing that made the campaign work.
+
 A custom agent lets you set a system prompt and control various options like model, tools, and number of steps allowed (options available are harness-specific, and so is the format). We can use it to restrict the agent to prevent runaway workflows and ensure we have multiple lines of defense by capping the number of turns as well.
 
 I thought I had come up with a plan that would make this harness-specific custom agent file obsolete. However, it turns out that it was actually critical to getting the campaign to work because some prompts don't contain enough context to be actionable - it won't trigger the skill until it has enough context to do so, even if it already realized that it _should_ invoke the skill.
+
+Real output from my first campaign log shows both outcomes:
+
+- ❌ **Bad** — the agent burns its turns without producing a verdict:
+  ```
+  [rep   2] completed: not-triggered
+  [rep   3] completed: void (timeout) (step-cap cutoff (final report missing); no intent evidence)
+  ```
+- ✅ **Good** — the restricted agent answers in a single turn:
+  ```
+  [rep   1] started
+  [rep   1] completed: triggered
+  ```
 
 The custom agent file does the following:
 - Restrict ALL tools except for `skill`
@@ -142,6 +192,8 @@ Since the custom agent file I wrote is opencode-specific, each evaluator strateg
 [Opencode-specific custom agent](../../../skills/trigger-testing-skills/agents/trigger-evaluator.opencode.md).
 
 ## Flirting with Harness Engineering
+
+> A custom harness gives better control between inference and deterministic actions, but doesn't match your harness' real routing and system prompt.
 
 Do we need a custom harness? Not really. Well, we don't need [langchain][langchain] or SDKs just yet. Coding agent harnesses have largely assimilated the best innovations from popular custom harnesses and provide enough utility that we can execute most coding-related tasks without writing our own harness. Custom agents, skills, headless agent sessions with command line arguments, hooks, and harness-specific extensions give you all the seams you need for most tasks.
 
@@ -196,6 +248,8 @@ Only parts 1, 2, 5b, and 6 require an LLM at all. Using an LLM to control the lo
 
 ## Design
 
+> The LLM handles four steps; the script handles everything else, deterministically and for free.
+
 High-level Design:
 
 - Skill:
@@ -223,6 +277,8 @@ We'll build and test the workspace manager, then build and test the evaluator sc
 
 ### Workspace Manager Script
 
+> Stubbing the skill is what makes the whole campaign safe to run.
+
 This seems like the logical place to start. It's the foundation and building block of our test setup and the "stubbing" stops my number one concern, runaway workflows.
 
 Write a good "help" menu so the agent can work with the script accurately based on high-level instructions.
@@ -249,6 +305,8 @@ cleanup removes the workspace (--workspace or $TRIGGER_TEST_WORKSPACE).
 Important note when writing scripts: validate and catch failures and show the exact error reason, so the agent can self-correct. An opaque "error happened" message is not helpful.
 
 ### Evaluator Script Implementation
+
+> Design input, not gospel — the agent invalidated several of my assumptions and the script is better for it.
 
 The evaluator script has a few moving pieces and a couple of custom data structures. As always, I try to use as few dependencies as possible, outside of the python standard library.
 
@@ -350,6 +408,8 @@ python3 skills/trigger-testing-skills/scripts/evaluator.py run \
 
 ### Implementing the Campaign and Skill
 
+> Tune on train, exam on validate, sanity-check on a query the loop has never seen — then stop, even if it fails.
+
 High-level outline of how the skill works:
 
 - Resolve required parameters from the user prompt
@@ -376,6 +436,8 @@ After the evaluation loop is done:
 - If the sanity check failed, stop. Do not start the entire loop again. Never use a fresh query for training.
 
 ### Trigger-Testing my `writing-skills` Skill
+
+> Smarter models don't necessarily trigger better — you have to tune against both ends of the capability range.
 
 As part of the verification procedure for the final phase of this implementation, I ran a test campaign against the writing-skills skill. It chose to use the free ['Big Pickle' model][zen] from opencode to control costs.
 
@@ -412,7 +474,11 @@ One thing that surprised me is that the smarter models don't always get better s
 
 ## Conclusion
 
+> No langchain, no SDK — just a script that knows when it needs a model. That's harness engineering enough.
+
 This came out a bit more complicated than I planned (evaluator.py seems a bit "sloppy") but seems to match my design and constraints. I don't plan on modifying it very often or increasing the scope, so I'm not concerned with making this perfect.
+
+To me, the important thing is that we started from a clear design informed by domain knowledge and (some) experience. We didn't let the AI "take the wheel" and do the thinking. And even if some of the generated code is a bit more messy than I'd like, the "seams" that I designed are still there. This is much like designing a system as an architect and letting a junior engineer implement it - it's not exactly how I would write it, but it's good enough to ship.
 
 We didn't write a custom harness with langchain or anything, but we did write a program that launches CLI agents and uses deterministic code everywhere that LLM inference isn't required. I think that counts as harness-engineering. Writing this with langchain might have actually been easier, but it wouldn't match harness-specific routing and environment details, so it's not the best test of what your actual system would do in practice.
 
