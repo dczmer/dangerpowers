@@ -9,7 +9,20 @@ dependencies = [
     "flake8>=7.3.0",
     "isort>=8.0.1",
     "matplotlib>=3.10.0",
+    "mermaidx>=0.9.5",
     "pyright>=1.1.411",
     "ruff>=0.15.7",
     "skills-ref>=0.1.1",
 ]
+
+[tool.black]
+line-length = 79
+target-version = ["py314"]
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+# E203 (whitespace before ':') conflicts with black's slice formatting.
+select = ["E", "W", "F", "I", "DTZ", "PLW", "EXE"]
+ignore = ["E203"]

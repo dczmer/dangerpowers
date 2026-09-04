@@ -285,6 +285,10 @@ You can use this to write a new skill, iterate on a skill, or clean up an existi
 
 In the following installments, we'll augment this skill to focus on writing optimal descriptions, writing discipline rules, and testing skills.
 
+## Next
+
+See how to test and improve how accurately your skills fire, using trigger testing, in [Writing Sills Deep Dive - Part 2: Trigger Testing](../part-2/README.md).
+
 ## References
 
 - <a id="ref-a"></a>**[A]** [Anthropic - Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)

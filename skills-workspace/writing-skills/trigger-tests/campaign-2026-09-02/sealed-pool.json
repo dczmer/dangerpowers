@@ -1,0 +1,14 @@
+[
+  {
+    "query": "I want to add a new skill to my opencode setup that captures how our team runs database migrations. Can you help me draft the SKILL.md from scratch — frontmatter, structure, the whole thing?",
+    "shouldTrigger": true
+  },
+  {
+    "query": "Every few weeks I find myself re-explaining to the agent how we cut a release here — tagging, changelog, version bump, the lot. I'd like to turn that into a reusable instruction file it can pick up whenever release work comes up, but I'm not sure how to phrase the trigger conditions or lay it out. Can you help me put that together?",
+    "shouldTrigger": true
+  },
+  {
+    "query": "Hey — before I merge this, could you give my ~/agents-config/skills/docker-debugging/SKILL.md a once-over? I wrote it last week and I'm about to share it with the team. Specifically I want to know if the description is going to fire when it should and whether the body follows the usual conventions. It's my first one so be brutal.",
+    "shouldTrigger": true
+  }
+]

@@ -1,5 +1,7 @@
 # Writing Skills Deep Dive - Part 2: Trigger Testing
 
+This is part 2 of "Writing Skills Deep Dive", continuing from [Writing Skills Deep Dive - Part 1: Basics](../part-1/README.md).
+
 > "A skill that never triggers is a skill that doesn't exist — and the description is the only thing that decides."
 
 You write the perfect skill and the agent never touches it. Or worse, it fires on everything, hijacking requests that were meant for some other skill. Both problems trace back to the same spot: the skill's `description` field, which is basically the only lever you have for triggering. When the agent starts up, it loads every skill's `name` and `description` into context along with instructions to go read the actual skill file once a matching trigger phrase shows up ([A](#ref-a), [B](#ref-b)).
@@ -173,9 +175,18 @@ For our `writing-prds` example, the query file looks like this:
 
 ```json
 [
-  { "query": "my manager wants me to spec out the new onboarding flow before sprint planning — can you help me put together the requirements doc?", "shouldTrigger": true },
-  { "query": "write a PRD for the mobile checkout redesign", "shouldTrigger": true },
-  { "query": "what sections should a good PRD include?", "shouldTrigger": false }
+  {
+    "query": "my manager wants me to spec out the new onboarding flow before sprint planning — can you help me put together the requirements doc?",
+    "shouldTrigger": true
+  },
+  {
+    "query": "write a PRD for the mobile checkout redesign",
+    "shouldTrigger": true
+  },
+  {
+    "query": "what sections should a good PRD include?",
+    "shouldTrigger": false
+  }
 ]
 ```
 
@@ -439,9 +450,7 @@ I spent a lot of time on this despite the fact that I usually prefer not to auto
 
 Here is more detail on the journey to solve those issues to create my own trigger-testing skill:
 
-> TODO: see ./developing-a-better-harness.md (WIP, not ready to link yet)
-
-> TODO: link to completed skill and supporting scripts once merged
+[Developing a Better Test Harness](./developing-a-better-harness.md).
 
 ## References
 

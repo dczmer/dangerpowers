@@ -22,10 +22,11 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
 6. **Propose a call-out quote for the start of every section**, distilling the section's most important point or central thesis. A paraphrased or synthesized quote is acceptable when no single sentence in the section covers it.
 7. **Audit repetition.** Repetition is acceptable only when all of these hold: the concept is important enough to drill into the reader, it is relevant in each section where it appears, and it is worded differently enough each time that it does not feel repetitive. Flag any repetition failing one of these.
 8. **Resolve `> EDITOR:` lines.** Any line starting with `> EDITOR:` is a direct request from the author. Resolve each one and remove or rewrite the marker line as appropriate.
+9. **Audit markdown formatting.** Flag any link not written as `[label](url)` — malformed link markup renders as raw text or a dead element in HTML. Flag any multi-line code block with lines longer than 80 characters — code blocks are not word-wrapped when rendered to HTML, so a long line forces an annoying horizontal scrollbar. The 80-character limit applies to code blocks only, not to blockquotes or other preformatted elements.
 
 ## Audit report
 
-Write a detailed report to the user covering steps 3-8 (and the fact-check findings from step 1). Follow these rules:
+Write a detailed report to the user covering steps 3-9 (and the fact-check findings from step 1). Follow these rules:
 
 - Use numbered sections with lettered items (1.a, 1.b, ...) so the user can reference findings and work through fixes interactively, one at a time.
 - Include an example or concrete suggestion for each proposed fix.
@@ -47,3 +48,5 @@ Write a detailed report to the user covering steps 3-8 (and the fact-check findi
 - [ ] Every `> EDITOR:` line resolved
 - [ ] Call-out quote proposed for every section
 - [ ] Each repeated concept evaluated against all three repetition criteria
+- [ ] Every link verified to use `[label](url)` format
+- [ ] Every multi-line code block checked for lines over 80 characters
