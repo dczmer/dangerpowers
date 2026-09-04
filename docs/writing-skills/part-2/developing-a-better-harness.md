@@ -31,7 +31,7 @@ These are the issues that I'm most concerned with:
 - Use a script to drive the eval loop, score results, and do any other math or counting
 - Use a strategy pattern to map an eval description to harness-specific CLI command
 - Use a train/validate partition (if >10 cases)
-- Apply [Wilson intervals](./confidence-intervals-eli5.md) ([Wikipedia][wilson]) to pad the small sample size
+- Apply [Wilson intervals](./confidence-intervals-eli5.md) ([Wikipedia](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval)) to pad the small sample size
 - Use a fresh query sanity check to make sure we haven't overfit our test queries
 - Put a cap on the number of iterations the optimization loop can run
 - Create per-skill directories to manage artifacts and campaign logs, and a manifest file to track test status of the skill
@@ -60,7 +60,7 @@ You may not consider this a problem for testing skills, since you would probably
 
 My approach is to use the CLI to launch a headless agent session and use parameters to disable as many sources of contamination as possible. I also run the agent instance from a temporary directory so it doesn't automatically pick up any local repository-defined skills or settings and so it doesn't accidentally start making changes to my source.
 
-When using opencode, I can't really prevent it from loading global configuration and skills at startup (you could mess with XDG environment variables to point to a fake ~/.config location, but that has other problems). But I can disable all plugins and extensions with a [`--pure` argument][opencode-cli].
+When using opencode, I can't really prevent it from loading global configuration and skills at startup (you could mess with XDG environment variables to point to a fake ~/.config location, but that has other problems). But I can disable all plugins and extensions with a [`--pure` argument](https://opencode.ai/docs/cli/).
 
 ### Runaway Workflows
 
@@ -90,7 +90,7 @@ We can take that decision away by writing a deterministic script to drive the ca
 
 I'd like to support opencode, Claude Code, and pi, at minimum.
 
-This has been a difficult problem so far. Even though "[agentskills][agentskills]" is a standard, the way you use tools, CLI commands, custom agents, and deal with contamination sources are all different. Some agents may not even support all of the options and concepts we want to include.
+This has been a difficult problem so far. Even though "[agentskills](https://agentskills.io)" is a standard, the way you use tools, CLI commands, custom agents, and deal with contamination sources are all different. Some agents may not even support all of the options and concepts we want to include.
 
 The other issue is translating a description of a test eval into a harness-specific CLI command. The solution I chose for this was to factor-out an "evaluator" object from the test harness and implement a strategy pattern. Each target harness has its own evaluator implementation with its own `evaluate` method. The evaluator turns a list of general eval parameters into a specific CLI command and parses the results to return a standard verdict response.
 
@@ -100,7 +100,7 @@ The other issue is translating a description of a test eval into a harness-speci
 
 This is another "how hard do you want to make it" question. For most of us, a simple campaign that shows a majority of passes over a set of X reps is enough. In the world of ML and training, you would want as many samples and repetitions as possible to refine your results into a number you can be confident about.
 
-I'm pretty content with the 10x reps to give better confidence than the [recommended starting point of 3 reps][run-eval]. 10x reps are more likely to give a better sample than 3, but even that is probably a miniscule sample size compared to what we'd need to be confident when the results are not repeated perfect scores across multiple models.
+I'm pretty content with the 10x reps to give better confidence than the [recommended starting point of 3 reps](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/run_eval.py). 10x reps are more likely to give a better sample than 3, but even that is probably a miniscule sample size compared to what we'd need to be confident when the results are not repeated perfect scores across multiple models.
 
 ```
 3/3 passes   → wilson95 lower bound ≈ 0.44
@@ -113,7 +113,7 @@ Since this is sampling results across an infinite source set, running the entire
 
 But even a single campaign could require looping over the entire test suite multiple times, as it optimizes the description.
 
-Testing against the exact same queries repeatedly ensures the description is well-tuned for those specific queries. But one technique from ML we can borrow to vary our tests is the "[train/validate split][train-validate]": Split queries into two groups, optimize the description based on observed failures from the 'train' set, verify improved descriptions against the 'validate' set of queries. You still end up testing all of the queries in your list, just some are tested for tuning the description and others are the final test of the improved description. We only bother with the split when there are more than 10 queries; below that, every query is used for both tuning and the final check.
+Testing against the exact same queries repeatedly ensures the description is well-tuned for those specific queries. But one technique from ML we can borrow to vary our tests is the "[train/validate split](https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets)": Split queries into two groups, optimize the description based on observed failures from the 'train' set, verify improved descriptions against the 'validate' set of queries. You still end up testing all of the queries in your list, just some are tested for tuning the description and others are the final test of the improved description. We only bother with the split when there are more than 10 queries; below that, every query is used for both tuning and the final check.
 
 ```
 queries.json
@@ -133,7 +133,7 @@ You also should keep some kind of record that the target skill has had a success
 
 So you will need some place to store these artifacts and keep them organized. I chose the following:
 
-1. A 'test workspace' in a separate directory to manage all artifacts. I have been using a 'skills-workspace' directory as a sibling directory to the main 'skills' directory, with subdirectories for each skill. Anthropic uses a [`<SKILL_NAME>-workspace` convention][skill-creator]. I'm not sure if it matters, and there isn't an industry standard.
+1. A 'test workspace' in a separate directory to manage all artifacts. I have been using a 'skills-workspace' directory as a sibling directory to the main 'skills' directory, with subdirectories for each skill. Anthropic uses a [`<SKILL_NAME>-workspace` convention](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md). I'm not sure if it matters, and there isn't an industry standard.
 2. Keep a top-level `manifest.json` that maps the version (checksum of the skill file) to the date and score of its last run. If the skill file changes, the checksum will change and we'll know it needs another test campaign.
 3. I expect to run other types of tests later, so I'm using subdirectories for organizing the type of test: `skills-workspace/writing-skills/trigger-test/`. The manifest file should also support mapping multiple test types to the skill file version.
 4. Keep the test queries in a file called `queries.json` under that `trigger-test` subdirectory.
@@ -185,7 +185,7 @@ The custom agent file does the following:
 
 Since we've restricted all tool usage, we no longer need the dangerous `--auto` argument for opencode to work around permissions issues.
 
-I did some research on how the Claude Code skill-creator skill handles the situations of runaway workflows and toil over non-actionable queries. It looks like they [run the evals with a process that streams the messages from the agent][run-eval] and kills the session after the very first tool call. If the tool call was a `Read` or `Skill` call targeting the skill, then it passes. I would say they actually don't solve the toil issue, because you can still send non-actionable queries that will fail even though the agent would have triggered them if it had all of the context.
+I did some research on how the Claude Code skill-creator skill handles the situations of runaway workflows and toil over non-actionable queries. It looks like they [run the evals with a process that streams the messages from the agent](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/run_eval.py) and kills the session after the very first tool call. If the tool call was a `Read` or `Skill` call targeting the skill, then it passes. I would say they actually don't solve the toil issue, because you can still send non-actionable queries that will fail even though the agent would have triggered them if it had all of the context.
 
 Since the custom agent file I wrote is opencode-specific, each evaluator strategy implementation expects its own matching agent definition (only opencode exists so far).
 
@@ -195,7 +195,7 @@ Since the custom agent file I wrote is opencode-specific, each evaluator strateg
 
 > A custom harness gives better control between inference and deterministic actions, but doesn't match your harness' real routing and system prompt.
 
-Do we need a custom harness? Not really. Well, we don't need [langchain][langchain] or SDKs just yet. Coding agent harnesses have largely assimilated the best innovations from popular custom harnesses and provide enough utility that we can execute most coding-related tasks without writing our own harness. Custom agents, skills, headless agent sessions with command line arguments, hooks, and harness-specific extensions give you all the seams you need for most tasks.
+Do we need a custom harness? Not really. Well, we don't need [langchain](https://www.langchain.com/) or SDKs just yet. Coding agent harnesses have largely assimilated the best innovations from popular custom harnesses and provide enough utility that we can execute most coding-related tasks without writing our own harness. Custom agents, skills, headless agent sessions with command line arguments, hooks, and harness-specific extensions give you all the seams you need for most tasks.
 
 My take on harness engineering is that we should apply it when we need the following:
 1. You want to cleanly separate deterministic actions from actions that require inference. I think you should always try to do this as much as possible. This includes implementing complex workflows by taking away the chained-command execution responsibility from the executing agent.
@@ -213,7 +213,7 @@ agent session
 
 The only reason you would do something so convoluted is because you need to mix deterministic actions between/around points where you need inference. Then you need a custom agent implementation.
 
-For number 2, you might be surprised how often you run into this (if you pay attention). One example I have encountered was an experiment to write a skill that plays connect-4 against a computer controlled opponent and self-optimized the skill until it could beat/tie a "[minimax][minimax]" implementation. The problem was that the AI had trouble reading the board, identifying the coordinates of opponent pieces and open spaces, and picking coordinates for its own moves. It seems that the coordinate detection process involves splitting the contents of the target row into a list of terms, then comparing them by index to the labels row to identify the cell. But due to issues with tokenizing text when the white-space IS content, the AI would frequently choose nonsense coordinates and accuse the game of changing the board.
+For number 2, you might be surprised how often you run into this (if you pay attention). One example I have encountered was an experiment to write a skill that plays connect-4 against a computer controlled opponent and self-optimized the skill until it could beat/tie a "[minimax](https://en.wikipedia.org/wiki/Minimax)" implementation. The problem was that the AI had trouble reading the board, identifying the coordinates of opponent pieces and open spaces, and picking coordinates for its own moves. It seems that the coordinate detection process involves splitting the contents of the target row into a list of terms, then comparing them by index to the labels row to identify the cell. But due to issues with tokenizing text when the white-space IS content, the AI would frequently choose nonsense coordinates and accuse the game of changing the board.
 
 ```
 labels:    1   2   3   4   5   6   7
@@ -439,7 +439,7 @@ After the evaluation loop is done:
 
 > Smarter models don't necessarily trigger better — you have to tune against both ends of the capability range.
 
-As part of the verification procedure for the final phase of this implementation, I ran a test campaign against the writing-skills skill. It chose to use the free ['Big Pickle' model][zen] from opencode to control costs.
+As part of the verification procedure for the final phase of this implementation, I ran a test campaign against the writing-skills skill. It chose to use the free ['Big Pickle' model](https://opencode.ai/docs/zen/) from opencode to control costs.
 
 After validating that the campaign actually works from end-to-end, I started a new campaign using kimi k3 (minimal), and then again against my heavily quantized Qwen3.8 27B local model with medium effort.
 
@@ -486,12 +486,12 @@ In the next post, on pressure testing skills, we'll face a similar problem: cont
 
 ## References
 
-1. [opencode-cli]: [opencode CLI documentation](https://opencode.ai/docs/cli/) — `run` command flags (`--dir`, `--model`, `--variant`, `--format`, `--auto`) and global flags (`--pure`, `--print-logs`, `--log-level`)
-2. [agentskills]: [Agent Skills open standard](https://agentskills.io) — the cross-harness skill format originally developed by Anthropic
-3. [skill-creator]: [anthropics/skills — skill-creator SKILL.md](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md) — `<skill-name>-workspace/` sibling directory convention and the 3-runs-per-query default for trigger evals
-4. [run-eval]: [anthropics/skills — skill-creator `scripts/run_eval.py`](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/run_eval.py) — streams `claude -p` output and decides pass/fail at the first tool call (`Skill`/`Read` targeting the skill), default 3 runs per query
-5. [wilson]: [Wikipedia — Binomial proportion confidence interval (Wilson score interval)](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval)
-6. [train-validate]: [Wikipedia — Training, validation, and test data sets](https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets)
-7. [minimax]: [Wikipedia — Minimax](https://en.wikipedia.org/wiki/Minimax)
-8. [langchain]: [LangChain](https://www.langchain.com/)
-9. [zen]: [opencode Zen documentation](https://opencode.ai/docs/zen/) — model list and pricing, including the free Big Pickle stealth model and Kimi K3
+1. [opencode CLI documentation](https://opencode.ai/docs/cli/) — `run` command flags (`--dir`, `--model`, `--variant`, `--format`, `--auto`) and global flags (`--pure`, `--print-logs`, `--log-level`)
+2. [Agent Skills open standard](https://agentskills.io) — the cross-harness skill format originally developed by Anthropic
+3. [anthropics/skills — skill-creator SKILL.md](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md) — `<skill-name>-workspace/` sibling directory convention and the 3-runs-per-query default for trigger evals
+4. [anthropics/skills — skill-creator `scripts/run_eval.py`](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/run_eval.py) — streams `claude -p` output and decides pass/fail at the first tool call (`Skill`/`Read` targeting the skill), default 3 runs per query
+5. [Wikipedia — Binomial proportion confidence interval (Wilson score interval)](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval)
+6. [Wikipedia — Training, validation, and test data sets](https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets)
+7. [Wikipedia — Minimax](https://en.wikipedia.org/wiki/Minimax)
+8. [LangChain](https://www.langchain.com/)
+9. [opencode Zen documentation](https://opencode.ai/docs/zen/) — model list and pricing, including the free Big Pickle stealth model and Kimi K3
