@@ -28,19 +28,31 @@ def ndjson(*events: dict) -> str:
 
 
 def reasoning_event(text: str) -> dict:
-    return {"type": "reasoning", "sessionID": "s1",
-            "part": {"type": "reasoning", "text": text}}
+    return {
+        "type": "reasoning",
+        "sessionID": "s1",
+        "part": {"type": "reasoning", "text": text},
+    }
 
 
 def text_event(text: str) -> dict:
-    return {"type": "text", "sessionID": "s1",
-            "part": {"type": "text", "text": text}}
+    return {
+        "type": "text",
+        "sessionID": "s1",
+        "part": {"type": "text", "text": text},
+    }
 
 
 def skill_tool_event(name: str, status: str) -> dict:
-    return {"type": "tool_use", "sessionID": "s1",
-            "part": {"type": "tool", "tool": "skill",
-                     "state": {"status": status, "input": {"name": name}}}}
+    return {
+        "type": "tool_use",
+        "sessionID": "s1",
+        "part": {
+            "type": "tool",
+            "tool": "skill",
+            "state": {"status": status, "input": {"name": name}},
+        },
+    }
 
 
 class VerdictTests(unittest.TestCase):
@@ -48,24 +60,32 @@ class VerdictTests(unittest.TestCase):
         self.strategy = strategies.OpencodeStrategy(timeout=30)
         self.ws = Path("/tmp/fake-workspace")
 
-    def _evaluate(self, stdout: str = "", stderr: str = "",
-                  returncode: int = 0) -> evaluator.Verdict:
-        proc = subprocess.CompletedProcess(args=[], returncode=returncode,
-                                           stdout=stdout, stderr=stderr)
-        with mock.patch.object(strategies.subprocess, "run", return_value=proc):
+    def _evaluate(
+        self, stdout: str = "", stderr: str = "", returncode: int = 0
+    ) -> evaluator.Verdict:
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout=stdout, stderr=stderr
+        )
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
             return self.strategy.evaluate(SKILL, "test query", self.ws)
 
     def _evaluate_timeout(self, partial_stdout: str) -> evaluator.Verdict:
-        err = subprocess.TimeoutExpired(cmd=["opencode"], timeout=30,
-                                        output=partial_stdout)
+        err = subprocess.TimeoutExpired(
+            cmd=["opencode"], timeout=30, output=partial_stdout
+        )
         with mock.patch.object(strategies.subprocess, "run", side_effect=err):
             return self.strategy.evaluate(SKILL, "test query", self.ws)
 
     def test_timeout_with_intent_partial_stream(self):
         # Interrupted run with clear intent evidence but no completed load:
         # triggered, flagged timeout: true.
-        partial = ndjson(reasoning_event(
-            "I should load the `writing-skills` skill for this."))
+        partial = ndjson(
+            reasoning_event(
+                "I should load the `writing-skills` skill for this."
+            )
+        )
         verdict = self._evaluate_timeout(partial)
         self.assertEqual(verdict.outcome, "triggered")
         self.assertTrue(verdict.timeout)
@@ -108,8 +128,9 @@ class VerdictTests(unittest.TestCase):
     def test_step_cap_cutoff_with_intent(self):
         # Clean exit, parseable events, no error, but no mandated report and
         # no completed load -> rule-3 step-cap intent path.
-        stdout = ndjson(reasoning_event(
-            "I should load the `writing-skills` skill here."))
+        stdout = ndjson(
+            reasoning_event("I should load the `writing-skills` skill here.")
+        )
         verdict = self._evaluate(stdout)
         self.assertEqual(verdict.outcome, "triggered")
         self.assertTrue(verdict.timeout)
@@ -124,19 +145,25 @@ class VerdictTests(unittest.TestCase):
 
     def test_step_cap_cutoff_without_intent_is_void(self):
         # A bare mention of the skill name is not intent evidence.
-        stdout = ndjson(reasoning_event(
-            "This is not about writing-skills at all; it is a cooking "
-            "question."))
+        stdout = ndjson(
+            reasoning_event(
+                "This is not about writing-skills at all; it is a cooking "
+                "question."
+            )
+        )
         verdict = self._evaluate(stdout)
         self.assertEqual(verdict.outcome, "void")
         self.assertTrue(verdict.timeout)
 
     def test_agent_fallback_stderr_aborts(self):
-        stderr = (f'agent "{self.strategy.agent_name}" not found. '
-                  f'Falling back to default agent\n')
+        stderr = (
+            f'agent "{self.strategy.agent_name}" not found. '
+            f"Falling back to default agent\n"
+        )
         with self.assertRaises(evaluator.HarnessExecutionError):
-            self._evaluate(stdout=ndjson(text_event("No skill matched.")),
-                           stderr=stderr)
+            self._evaluate(
+                stdout=ndjson(text_event("No skill matched.")), stderr=stderr
+            )
 
 
 class RecordTests(unittest.TestCase):
@@ -152,9 +179,13 @@ class RecordTests(unittest.TestCase):
 
     def _record(self, **overrides) -> int:
         args = argparse.Namespace(
-            skill="test-skill", skill_path=str(self.skill_md),
-            manifest=str(self.manifest), score=0.81,
-            campaign="campaign-2026-09-02", date=None)
+            skill="test-skill",
+            skill_path=str(self.skill_md),
+            manifest=str(self.manifest),
+            score=0.81,
+            campaign="campaign-2026-09-02",
+            date=None,
+        )
         for k, v in overrides.items():
             setattr(args, k, v)
         return evaluator.cmd_record(args)
@@ -173,6 +204,8 @@ class RecordTests(unittest.TestCase):
         self._record()
         data = json.loads(self.manifest.read_text())
         frontmatter = evaluator.extract_frontmatter(self.skill_md.read_text())
+        self.assertIsNotNone(frontmatter)
+        assert frontmatter is not None  # narrowing for the type checker
         expected = "sha256:" + hashlib.sha256(frontmatter.encode()).hexdigest()
         self.assertEqual(data["trigger-test"]["checksum"], expected)
 
@@ -187,8 +220,9 @@ class RecordTests(unittest.TestCase):
     def test_frontmatter_edit_changes_checksum(self):
         self._record()
         first = json.loads(self.manifest.read_text())["trigger-test"]
-        self.skill_md.write_text("---\nname: test-skill\ndescription: x\n---"
-                                 "\nbody\n")
+        self.skill_md.write_text(
+            "---\nname: test-skill\ndescription: x\n---" "\nbody\n"
+        )
         self._record()
         second = json.loads(self.manifest.read_text())["trigger-test"]
         self.assertNotEqual(first["checksum"], second["checksum"])
@@ -201,10 +235,18 @@ class RecordTests(unittest.TestCase):
 
     def test_update_preserves_unknown_keys(self):
         self.manifest.parent.mkdir(parents=True)
-        self.manifest.write_text(json.dumps(
-            {"future-test": {"date": "x"},
-             "trigger-test": {"date": "old", "checksum": "sha256:old",
-                              "score": 0.5}}))
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "future-test": {"date": "x"},
+                    "trigger-test": {
+                        "date": "old",
+                        "checksum": "sha256:old",
+                        "score": 0.5,
+                    },
+                }
+            )
+        )
         rc = self._record(score=0.9)
         self.assertEqual(rc, 0)
         data = json.loads(self.manifest.read_text())
@@ -253,13 +295,24 @@ class FailuresTests(unittest.TestCase):
         return rc, buf.getvalue()
 
     def _failure(self, run: int = 2, reasoning: str = "it looked\nrelevant"):
-        return {"run": run, "outcome": "triggered",
-                "detail": "skill tool completed load",
-                "reasoning": reasoning, "timeout": False}
+        return {
+            "run": run,
+            "outcome": "triggered",
+            "detail": "skill tool completed load",
+            "reasoning": reasoning,
+            "timeout": False,
+        }
 
     def test_extracts_failed_runs_with_reasoning(self):
-        self._write([{"query": "q1", "should_trigger": False,
-                      "failures": [self._failure()]}])
+        self._write(
+            [
+                {
+                    "query": "q1",
+                    "should_trigger": False,
+                    "failures": [self._failure()],
+                }
+            ]
+        )
         rc, out = self._run()
         self.assertEqual(rc, 0)
         self.assertIn('query: "q1"   expected: not-trigger', out)
@@ -267,10 +320,16 @@ class FailuresTests(unittest.TestCase):
         self.assertIn("    it looked\n    relevant", out)
 
     def test_query_without_failures_produces_no_block(self):
-        self._write([{"query": "q-pass", "should_trigger": True,
-                      "failures": []},
-                     {"query": "q-fail", "should_trigger": True,
-                      "failures": [self._failure()]}])
+        self._write(
+            [
+                {"query": "q-pass", "should_trigger": True, "failures": []},
+                {
+                    "query": "q-fail",
+                    "should_trigger": True,
+                    "failures": [self._failure()],
+                },
+            ]
+        )
         rc, out = self._run()
         self.assertEqual(rc, 0)
         self.assertNotIn("q-pass", out)
@@ -283,8 +342,15 @@ class FailuresTests(unittest.TestCase):
         self.assertIn("no failed runs", out)
 
     def test_missing_reasoning_marker(self):
-        self._write([{"query": "q1", "should_trigger": True,
-                      "failures": [self._failure(reasoning="")]}])
+        self._write(
+            [
+                {
+                    "query": "q1",
+                    "should_trigger": True,
+                    "failures": [self._failure(reasoning="")],
+                }
+            ]
+        )
         rc, out = self._run()
         self.assertEqual(rc, 0)
         self.assertIn("(no reasoning captured)", out)

@@ -9,6 +9,18 @@ Newly created skills should be created under skills/ and NOT as per-project skil
 - Skills live under the `skills` directory below the project root. When told to load, use, or test a skill, use the Glob tool to look under `./skills` instead of inventing plausible-sounding paths or searching the system.
 - Never reference other files by line number (e.g. `SKILL.md:42` or "see line 24") in skills, references, or docs — line numbers drift on edit. Reference by file path and section/heading name instead.
 
+## Auditing Python / shell
+
+Configs live in pyproject.toml (`[tool.black]`, `[tool.ruff]`, line-length 79) and `.flake8`; bare invocations from the repo root just work:
+
+- `uv run flake8 <files>` — catches pycodestyle indentation rules (E1xx) ruff lacks
+- `uv run ruff check <files>` — lint (E/W/F/I/DTZ/PLW/EXE); overlaps flake8 but not a superset, so run both
+- `uv run black <files>` (format) / `uv run black --check <files>` (audit)
+- `uv run pyright <paths>` — type check
+- `shellcheck <files>` — shell scripts
+
+Gotchas: E203 is ignored everywhere (black mandates its slice style); black needs `target-version = py314` or it infers py315 from requires-python and errors.
+
 ## Project Layout
 
 ```

@@ -18,11 +18,17 @@ import random
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import TextIO
 
-from strategies import (EvalStrategy, HarnessExecutionError, Verdict,
-                        check_harness, resolve_strategy)
+from strategies import (
+    EvalStrategy,
+    HarnessExecutionError,
+    Verdict,
+    check_harness,
+    resolve_strategy,
+)
 
 MAX_WORKERS = 10
 
@@ -37,15 +43,17 @@ class EvalCase:
 class BatchResult:
     case: EvalCase
     verdicts: list[Verdict] = field(default_factory=list)
-    passed: int = 0         # non-void runs matching expectation
-    failed: int = 0         # non-void runs mismatching expectation
+    passed: int = 0  # non-void runs matching expectation
+    failed: int = 0  # non-void runs mismatching expectation
     void: int = 0
-    wilson_low: float | None = None   # None when passed + failed == 0
+    wilson_low: float | None = None  # None when passed + failed == 0
     wilson_high: float | None = None
-    score: float | None = None        # == wilson_low
+    score: float | None = None  # == wilson_low
 
 
-def wilson_interval(passed: int, n: int, z: float = 1.96) -> tuple[float, float]:
+def wilson_interval(
+    passed: int, n: int, z: float = 1.96
+) -> tuple[float, float]:
     p = passed / n
     denom = 1 + z * z / n
     center = (p + z * z / (2 * n)) / denom
@@ -56,15 +64,19 @@ def wilson_interval(passed: int, n: int, z: float = 1.96) -> tuple[float, float]
 # --------------------------------------------------------------------------
 # Batch mechanics
 
-_log_file = None  # campaign log handle; set by cmd_suite, None under `run`
+
+class _Log:
+    """Campaign log handle; set by cmd_suite, None under `run`."""
+
+    file: TextIO | None = None
 
 
 def emit(msg: str = "", *, err: bool = False) -> None:
-    """Print a progress line and mirror it to the campaign log when one is set."""
+    """Print a progress line; also mirror it to the campaign log if set."""
     print(msg, file=sys.stderr if err else sys.stdout, flush=True)
-    if _log_file is not None:
-        _log_file.write(msg + "\n")
-        _log_file.flush()
+    if _Log.file is not None:
+        _Log.file.write(msg + "\n")
+        _Log.file.flush()
 
 
 def log_start(n: int) -> None:
@@ -80,23 +92,37 @@ def log_complete(n: int, verdict: Verdict) -> None:
     emit(line)
 
 
-def run_rep(strategy: EvalStrategy, skill: str, case: EvalCase,
-            workspace: Path, model: str | None, effort: str | None,
-            n: int) -> Verdict:
+def run_rep(
+    strategy: EvalStrategy,
+    skill: str,
+    case: EvalCase,
+    workspace: Path,
+    model: str | None,
+    effort: str | None,
+    n: int,
+) -> Verdict:
     log_start(n)
     verdict = strategy.evaluate(skill, case.query, workspace, model, effort)
     log_complete(n, verdict)
     return verdict
 
 
-def eval_batch(strategy: EvalStrategy, skill: str, case: EvalCase,
-               workspace: Path, model: str | None, effort: str | None,
-               reps: int) -> BatchResult:
+def eval_batch(
+    strategy: EvalStrategy,
+    skill: str,
+    case: EvalCase,
+    workspace: Path,
+    model: str | None,
+    effort: str | None,
+    reps: int,
+) -> BatchResult:
     verdicts: dict[int, Verdict] = {}
 
     # Smoke rep runs alone; a harness failure here aborts before further spend.
     try:
-        verdicts[1] = run_rep(strategy, skill, case, workspace, model, effort, 1)
+        verdicts[1] = run_rep(
+            strategy, skill, case, workspace, model, effort, 1
+        )
     except HarnessExecutionError as e:
         emit(f"error: harness could not execute the query: {e}", err=True)
         sys.exit(1)
@@ -104,11 +130,13 @@ def eval_batch(strategy: EvalStrategy, skill: str, case: EvalCase,
     # Remaining reps in parallel batches of at most MAX_WORKERS.
     remaining = list(range(2, reps + 1))
     for i in range(0, len(remaining), MAX_WORKERS):
-        group = remaining[i:i + MAX_WORKERS]
+        end = i + MAX_WORKERS
+        group = remaining[i:end]
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             futures = {
-                pool.submit(run_rep, strategy, skill, case, workspace,
-                            model, effort, n): n
+                pool.submit(
+                    run_rep, strategy, skill, case, workspace, model, effort, n
+                ): n
                 for n in group
             }
             first_error: tuple[int, str] | None = None
@@ -137,18 +165,19 @@ def eval_batch(strategy: EvalStrategy, skill: str, case: EvalCase,
 
     n_scored = result.passed + result.failed
     if n_scored > 0:
-        result.wilson_low, result.wilson_high = wilson_interval(result.passed,
-                                                                n_scored)
+        result.wilson_low, result.wilson_high = wilson_interval(
+            result.passed, n_scored
+        )
         result.score = result.wilson_low
     return result
 
 
-def print_report(skill: str, workspace: Path, model: str | None,
-                 variant: str | None, reps: int, timeout: int,
-                 result: BatchResult) -> None:
+def print_report(result: BatchResult) -> None:
     print()
-    print(f'query: "{result.case.query}"   expected: '
-          f'{"trigger" if result.case.should_trigger else "not-trigger"}')
+    print(
+        f'query: "{result.case.query}"   expected: '
+        f'{"trigger" if result.case.should_trigger else "not-trigger"}'
+    )
     for i, v in enumerate(result.verdicts, start=1):
         if v.outcome == "void":
             mark = "—"
@@ -163,13 +192,17 @@ def print_report(skill: str, workspace: Path, model: str | None,
             line += f"  detail: {v.detail}"
         print(line)
     total = result.passed + result.failed + result.void
-    summary = (f"  summary: {result.passed} pass / {result.failed} fail / "
-               f"{result.void} void ({total} runs)")
+    summary = (
+        f"  summary: {result.passed} pass / {result.failed} fail / "
+        f"{result.void} void ({total} runs)"
+    )
     if result.wilson_low is None:
         summary += "  wilson95: n/a (all void)  score: n/a"
     else:
-        summary += (f"  wilson95: [{result.wilson_low:.3f}, "
-                    f"{result.wilson_high:.3f}]  score: {result.score:.3f}")
+        summary += (
+            f"  wilson95: [{result.wilson_low:.3f}, "
+            f"{result.wilson_high:.3f}]  score: {result.score:.3f}"
+        )
     print(summary)
     for i, v in enumerate(result.verdicts, start=1):
         session = f" [session {v.session_id}]" if v.session_id else ""
@@ -188,8 +221,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace)
     stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
     if not stub.exists():
-        print(f"error: skill stub not synced: {stub}; "
-              f"run workspace-manager.sh sync", file=sys.stderr)
+        print(
+            f"error: skill stub not synced: {stub}; "
+            f"run workspace-manager.sh sync",
+            file=sys.stderr,
+        )
         return 1
     if args.reps < 1:
         print("error: --reps must be >= 1", file=sys.stderr)
@@ -198,21 +234,30 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("error: --timeout must be >= 1", file=sys.stderr)
         return 1
 
-    case = EvalCase(query=args.query,
-                    should_trigger=(args.expect == "trigger"))
+    case = EvalCase(
+        query=args.query, should_trigger=(args.expect == "trigger")
+    )
     strategy = strategy_cls(timeout=args.timeout)
     strategy.install(workspace)
 
     print(f"trigger test: {args.skill}")
     print(f"workspace: {workspace}")
-    print(f"harness: {args.harness}  model: {args.model or '(default)'}  "
-          f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
-          f"timeout: {args.timeout}s")
+    print(
+        f"harness: {args.harness}  model: {args.model or '(default)'}  "
+        f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
+        f"timeout: {args.timeout}s"
+    )
 
-    result = eval_batch(strategy, args.skill, case, workspace,
-                        args.model, args.variant, args.reps)
-    print_report(args.skill, workspace, args.model, args.variant,
-                 args.reps, args.timeout, result)
+    result = eval_batch(
+        strategy,
+        args.skill,
+        case,
+        workspace,
+        args.model,
+        args.variant,
+        args.reps,
+    )
+    print_report(result)
     return 0
 
 
@@ -224,6 +269,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------------
 # Campaign tooling: split + suite
+
 
 def load_queries(path_str: str) -> list[EvalCase] | None:
     """Read and strictly validate a query file. On any violation prints
@@ -238,24 +284,33 @@ def load_queries(path_str: str) -> list[EvalCase] | None:
         print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
         return None
     if not isinstance(data, list):
-        print(f"error: {path}: expected a JSON list of query objects",
-              file=sys.stderr)
+        print(
+            f"error: {path}: expected a JSON list of query objects",
+            file=sys.stderr,
+        )
         return None
     cases: list[EvalCase] = []
     for i, entry in enumerate(data):
         if not isinstance(entry, dict):
-            print(f"error: {path}: entry {i} is not an object",
-                  file=sys.stderr)
+            print(
+                f"error: {path}: entry {i} is not an object", file=sys.stderr
+            )
             return None
         q = entry.get("query")
         if not isinstance(q, str) or not q:
-            print(f"error: {path}: entry {i} missing 'query' (non-empty "
-                  f"string)", file=sys.stderr)
+            print(
+                f"error: {path}: entry {i} missing 'query' (non-empty "
+                f"string)",
+                file=sys.stderr,
+            )
             return None
         st = entry.get("shouldTrigger")
         if not isinstance(st, bool):
-            print(f"error: {path}: entry {i} missing 'shouldTrigger' "
-                  f"(boolean)", file=sys.stderr)
+            print(
+                f"error: {path}: entry {i} missing 'shouldTrigger' "
+                f"(boolean)",
+                file=sys.stderr,
+            )
             return None
         cases.append(EvalCase(query=q, should_trigger=st))
     return cases
@@ -296,17 +351,30 @@ def cmd_split(args: argparse.Namespace) -> int:
         rng.shuffle(validate)
 
     def dump(name: str, items: list[EvalCase]) -> None:
-        (out_dir / name).write_text(json.dumps(
-            [{"query": c.query, "shouldTrigger": c.should_trigger}
-             for c in items], indent=2) + "\n")
+        (out_dir / name).write_text(
+            json.dumps(
+                [
+                    {"query": c.query, "shouldTrigger": c.should_trigger}
+                    for c in items
+                ],
+                indent=2,
+            )
+            + "\n"
+        )
 
     dump("train.json", train)
     dump("validate.json", validate)
-    (out_dir / "split.json").write_text(json.dumps(
-        {"seed": seed, "train": len(train), "validate": len(validate)}) + "\n")
+    (out_dir / "split.json").write_text(
+        json.dumps(
+            {"seed": seed, "train": len(train), "validate": len(validate)}
+        )
+        + "\n"
+    )
 
-    print(f"split: {n} queries -> train {len(train)} / validate "
-          f"{len(validate)} (seed {seed})")
+    print(
+        f"split: {n} queries -> train {len(train)} / validate "
+        f"{len(validate)} (seed {seed})"
+    )
     for cls in (True, False):
         label = "shouldTrigger=true" if cls else "shouldTrigger=false"
         t = sum(1 for c in train if c.should_trigger == cls)
@@ -315,8 +383,9 @@ def cmd_split(args: argparse.Namespace) -> int:
     return 0
 
 
-def _score_counts(passed: int, failed: int) -> tuple[float | None, float | None,
-                                                   float | None]:
+def _score_counts(
+    passed: int, failed: int
+) -> tuple[float | None, float | None, float | None]:
     n = passed + failed
     if n == 0:
         return None, None, None
@@ -325,13 +394,15 @@ def _score_counts(passed: int, failed: int) -> tuple[float | None, float | None,
 
 
 def cmd_suite(args: argparse.Namespace) -> int:
-    global _log_file
     strategy_cls = resolve_strategy(args.harness)
     workspace = Path(args.workspace)
     stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
     if not stub.exists():
-        print(f"error: skill stub not synced: {stub}; "
-              f"run workspace-manager.sh sync", file=sys.stderr)
+        print(
+            f"error: skill stub not synced: {stub}; "
+            f"run workspace-manager.sh sync",
+            file=sys.stderr,
+        )
         return 1
     if args.reps < 1:
         print("error: --reps must be >= 1", file=sys.stderr)
@@ -345,19 +416,33 @@ def cmd_suite(args: argparse.Namespace) -> int:
         return 1
     out = Path(args.out)
     if not out.parent.exists():
-        print(f"error: --out parent directory does not exist: {out.parent}",
-              file=sys.stderr)
+        print(
+            f"error: --out parent directory does not exist: {out.parent}",
+            file=sys.stderr,
+        )
         return 1
     log_path = out.with_suffix(".log")
-    _log_file = log_path.open("w")
+    _Log.file = log_path.open("w")
 
     def empty_result() -> dict:
-        return {"skill": args.skill, "harness": args.harness,
-                "model": args.model, "variant": args.variant,
-                "reps": args.reps, "timeout": args.timeout, "queries": [],
-                "totals": {"passed": 0, "failed": 0, "void": 0, "timeouts": 0,
-                           "wilson_low": None, "wilson_high": None,
-                           "score": None}}
+        return {
+            "skill": args.skill,
+            "harness": args.harness,
+            "model": args.model,
+            "variant": args.variant,
+            "reps": args.reps,
+            "timeout": args.timeout,
+            "queries": [],
+            "totals": {
+                "passed": 0,
+                "failed": 0,
+                "void": 0,
+                "timeouts": 0,
+                "wilson_low": None,
+                "wilson_high": None,
+                "score": None,
+            },
+        }
 
     if not cases:
         out.write_text(json.dumps(empty_result(), indent=2) + "\n")
@@ -369,52 +454,87 @@ def cmd_suite(args: argparse.Namespace) -> int:
 
     emit(f"trigger test suite: {args.skill} ({len(cases)} queries)")
     emit(f"workspace: {workspace}")
-    emit(f"harness: {args.harness}  model: {args.model or '(default)'}  "
-         f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
-         f"timeout: {args.timeout}s")
+    emit(
+        f"harness: {args.harness}  model: {args.model or '(default)'}  "
+        f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
+        f"timeout: {args.timeout}s"
+    )
 
     query_results = []
     tot_passed = tot_failed = tot_void = tot_timeouts = 0
     for i, case in enumerate(cases, start=1):
-        result = eval_batch(strategy, args.skill, case, workspace,
-                            args.model, args.variant, args.reps)
+        result = eval_batch(
+            strategy,
+            args.skill,
+            case,
+            workspace,
+            args.model,
+            args.variant,
+            args.reps,
+        )
         timeouts = sum(1 for v in result.verdicts if v.timeout)
         failures = [
-            {"run": n, "outcome": v.outcome, "detail": v.detail,
-             "reasoning": v.reasoning, "timeout": v.timeout}
+            {
+                "run": n,
+                "outcome": v.outcome,
+                "detail": v.detail,
+                "reasoning": v.reasoning,
+                "timeout": v.timeout,
+            }
             for n, v in enumerate(result.verdicts, start=1)
             if v.outcome != "void"
             and (v.outcome == "triggered") != case.should_trigger
         ]
-        query_results.append({
-            "query": case.query, "should_trigger": case.should_trigger,
-            "passed": result.passed, "failed": result.failed,
-            "void": result.void, "timeouts": timeouts,
-            "wilson_low": result.wilson_low, "wilson_high": result.wilson_high,
-            "score": result.score, "failures": failures,
-        })
+        query_results.append(
+            {
+                "query": case.query,
+                "should_trigger": case.should_trigger,
+                "passed": result.passed,
+                "failed": result.failed,
+                "void": result.void,
+                "timeouts": timeouts,
+                "wilson_low": result.wilson_low,
+                "wilson_high": result.wilson_high,
+                "score": result.score,
+                "failures": failures,
+            }
+        )
         score_s = f"{result.score:.3f}" if result.score is not None else "n/a"
-        emit(f'[query {i}/{len(cases)}] "{case.query}" -> {result.passed} '
-             f'pass / {result.failed} fail / {result.void} void '
-             f'score: {score_s}')
+        emit(
+            f'[query {i}/{len(cases)}] "{case.query}" -> {result.passed} '
+            f"pass / {result.failed} fail / {result.void} void "
+            f"score: {score_s}"
+        )
         tot_passed += result.passed
         tot_failed += result.failed
         tot_void += result.void
         tot_timeouts += timeouts
 
     low, high, score = _score_counts(tot_passed, tot_failed)
-    result_json = {"skill": args.skill, "harness": args.harness,
-                   "model": args.model, "variant": args.variant,
-                   "reps": args.reps, "timeout": args.timeout,
-                   "queries": query_results,
-                   "totals": {"passed": tot_passed, "failed": tot_failed,
-                              "void": tot_void, "timeouts": tot_timeouts,
-                              "wilson_low": low, "wilson_high": high,
-                              "score": score}}
+    result_json = {
+        "skill": args.skill,
+        "harness": args.harness,
+        "model": args.model,
+        "variant": args.variant,
+        "reps": args.reps,
+        "timeout": args.timeout,
+        "queries": query_results,
+        "totals": {
+            "passed": tot_passed,
+            "failed": tot_failed,
+            "void": tot_void,
+            "timeouts": tot_timeouts,
+            "wilson_low": low,
+            "wilson_high": high,
+            "score": score,
+        },
+    }
     out.write_text(json.dumps(result_json, indent=2) + "\n")
     score_s = f"{score:.3f}" if score is not None else "n/a"
-    emit(f"suite: {tot_passed} pass / {tot_failed} fail / {tot_void} void "
-         f"score: {score_s} -> {out}")
+    emit(
+        f"suite: {tot_passed} pass / {tot_failed} fail / {tot_void} void "
+        f"score: {score_s} -> {out}"
+    )
     return 0
 
 
@@ -447,8 +567,10 @@ def cmd_record(args: argparse.Namespace) -> int:
         return 1
     frontmatter = extract_frontmatter(skill_md.read_text())
     if frontmatter is None:
-        print(f"error: missing or unterminated frontmatter in {skill_md}",
-              file=sys.stderr)
+        print(
+            f"error: missing or unterminated frontmatter in {skill_md}",
+            file=sys.stderr,
+        )
         return 1
     checksum = "sha256:" + hashlib.sha256(frontmatter.encode()).hexdigest()
 
@@ -461,12 +583,16 @@ def cmd_record(args: argparse.Namespace) -> int:
             print(f"error: invalid JSON in {manifest}: {e}", file=sys.stderr)
             return 1
         if not isinstance(data, dict):
-            print(f"error: {manifest}: expected a JSON object",
-                  file=sys.stderr)
+            print(
+                f"error: {manifest}: expected a JSON object", file=sys.stderr
+            )
             return 1
 
-    entry = {"date": args.date or date.today().isoformat(),
-             "checksum": checksum, "score": args.score}
+    entry = {
+        "date": args.date or datetime.now(UTC).date().isoformat(),
+        "checksum": checksum,
+        "score": args.score,
+    }
     if args.campaign is not None:
         entry["campaign"] = args.campaign
     data["skill"] = args.skill
@@ -474,8 +600,10 @@ def cmd_record(args: argparse.Namespace) -> int:
 
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps(data, indent=2) + "\n")
-    print(f"recorded: {manifest} "
-          f"(date {entry['date']}, score {args.score}, {checksum[:26]}…)")
+    print(
+        f"recorded: {manifest} "
+        f"(date {entry['date']}, score {args.score}, {checksum[:26]}…)"
+    )
     return 0
 
 
@@ -493,8 +621,11 @@ def cmd_failures(args: argparse.Namespace) -> int:
         print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
         return 1
     if not isinstance(data, dict) or not isinstance(data.get("queries"), list):
-        print(f"error: {path}: not a suite result file (missing 'queries' "
-              f"list)", file=sys.stderr)
+        print(
+            f"error: {path}: not a suite result file (missing 'queries' "
+            f"list)",
+            file=sys.stderr,
+        )
         return 1
     n_failures = 0
     for q in data["queries"]:
@@ -506,8 +637,10 @@ def cmd_failures(args: argparse.Namespace) -> int:
         for f in failures:
             n_failures += 1
             timeout = " (timeout)" if f.get("timeout") else ""
-            print(f"  run {f.get('run')}: {f.get('outcome')}{timeout} — "
-                  f"{f.get('detail', '')}")
+            print(
+                f"  run {f.get('run')}: {f.get('outcome')}{timeout} — "
+                f"{f.get('detail', '')}"
+            )
             reasoning = f.get("reasoning") or "(no reasoning captured)"
             for line in reasoning.splitlines():
                 print(f"    {line}")
@@ -529,8 +662,9 @@ def main() -> int:
     run.add_argument("--skill", required=True)
     run.add_argument("--workspace", required=True)
     run.add_argument("--query", required=True)
-    run.add_argument("--expect", required=True,
-                     choices=["trigger", "not-trigger"])
+    run.add_argument(
+        "--expect", required=True, choices=["trigger", "not-trigger"]
+    )
     run.add_argument("--model")
     run.add_argument("--variant")
     run.add_argument("--reps", type=int, default=3)
