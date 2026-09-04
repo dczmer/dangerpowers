@@ -4,3 +4,6 @@ result
 .venv/
 node_modules
 __pycache__
+
+# choosing to gitignore the per-campaign artifacts and only keep the manifest
+skills-workspace/*/trigger-tests/campaign-*/*
