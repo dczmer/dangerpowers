@@ -30,40 +30,6 @@ Create one persistent directory per campaign via `workspace-manager.sh campaign-
 
 ## Workflow
 
-The flow at a glance:
-
-```mermaid
-flowchart TD
-    A["1. Resolve inputs — prompt for missing; never guess the harness"] --> B["2. Preflight — harness check, files exist"]
-    B --> D["3. Workspace init + sync + status; campaign-init"]
-    D --> E["4. Split — train.json / validate.json; record the seed"]
-    E --> SP["5. Planned-spend report + confirm — before the first eval"]
-    SP --> F["6. Sealed pool — 3 fresh queries written to the campaign dir"]
-    F --> G["7. suite on train.json — iteration i"]
-    G --> H{"totals.failed == 0?"}
-    H -->|"no"| AN["analyze failures; revise description; write to the workspace stub only"]
-    AN --> K{"more iterations left?"}
-    K -->|"yes"| G
-    K -->|"no"| I["8. Winner — highest train score; stub rewritten to the winner if needed"]
-    H -->|"yes — early exit"| I
-    I --> L{"validate set non-empty?"}
-    L -->|"yes"| V["9. Validate pass — overfit warning if below winner's train score"]
-    L -->|"no — 10 or fewer queries"| M["10. Sanity check — sealed query via single-query suite"]
-    V --> M
-    M --> N{"sanity passed?"}
-    N -->|"no / inconclusive"| O["report — stop per policy; no write-back offer"]
-    N -->|"yes"| Q{"winner differs from source?"}
-    Q -->|"no"| QN["11. Report — no change needed"]
-    Q -->|"yes"| QR["11. Report — winning description verbatim"]
-    QR --> R{"user confirms write-back?"}
-    R -->|"yes"|     S["replace only the description field in source SKILL.md"]
-    S --> REC["record manifest — evaluator.py record"]
-    QN --> REC
-    REC --> P["12. Cleanup — remove workspace"]
-    R -->|"no"| P
-    O --> P
-```
-
 1. **Resolve inputs.** Prompt for missing required ones. Never guess the harness.
 2. **Preflight** (no spend):
    a. Resolve the Python interpreter (`python3`, else `python`, on PATH; must be >= 3.10) and use it for every script invocation. Then run `evaluator.py check --harness <harness>`; on failure, stop and surface the exact message.

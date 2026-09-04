@@ -21,6 +21,10 @@ Configs live in pyproject.toml (`[tool.black]`, `[tool.ruff]`, line-length 79) a
 
 Gotchas: E203 is ignored everywhere (black mandates its slice style); black needs `target-version = py314` or it infers py315 from requires-python and errors.
 
+## Mermaid diagrams
+
+To validate or render mermaid diagrams (e.g. in SKILL.md files), use the installed `mermaidx` Python library — no npm/mmdc needed. `mermaidx.render(src)` parses with real mermaid.js (v11) and raises on syntax errors; the returned `Diagram` has `.svg()`, `.png()`, `.ascii()`, `.save(path)` methods. Runs via `uv run python`, default `quickjs` backend (use `backend="v8"` for speed, but it can't render mindmaps).
+
 ## Project Layout
 
 ```
