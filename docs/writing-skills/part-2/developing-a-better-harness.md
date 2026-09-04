@@ -72,7 +72,7 @@ In the best case scenario, it burns a bunch of extra tokens and makes each test 
 
 My solution for solving this issue is to manage a "test workspace" in a temporary directory, and to copy out the skill under test to this workspace, but only the frontmatter part and not the body. When the test triggers the skill, the skill does nothing because it has no body content and no workflow to launch.
 
-Another mitigation I use is to write a custom agent definition that limits tool calls to only "skill" and "read", and has a system prompt that tells the agent that it can't use any tools and should just load the skill and report. This is not 100% portable, as support for custom agents is harness-specific and they don't have standard frontmatter schemas from harness to harness.
+Another mitigation I use is a custom agent definition that restricts tools to just loading the skill and reporting back — details (and why it ended up being critical) are in the [Custom Agent](#custom-agent) section below. This is not 100% portable, as support for custom agents is harness-specific and they don't have standard frontmatter schemas from harness to harness.
 
 I also cap the number of turns the agent can take at 3 and run the eval reps with a 30s timeout to handle anything that gets past those other layers.
 
@@ -155,7 +155,7 @@ For a query to be 'actionable' it must reference something real so the agent doe
 
 The "Bad" example isn't necessarily bad - in fact, it's how a normal user would write a query, so it _should_ be a valid test query. So I'd like to support these types of queries in our eval process.
 
-This is somewhat difficult to deal with reliably. The best I've come up with is to create a custom agent that limits tool calls, turns, and gives a custom system prompt to simply reply if it would trigger. The Claude Code skill-creator addresses this, kind of, by stopping the agent after the first message and fails if that message was not the expected skill load. I'm not sure which approach is better - my implementation gives the agent a hint to avoid timing out digging for context but skill-creator will just call it a fail.
+This is somewhat difficult to deal with reliably. The best I've come up with is to create a custom agent that limits tool calls, turns, and gives a custom system prompt to simply reply if it would trigger. The Claude Code skill-creator addresses this, kind of, by killing the session at the first tool call and failing the run if that call wasn't the expected skill load. I'm not sure which approach is better - my implementation gives the agent a hint to avoid timing out digging for context but skill-creator will just call it a fail.
 
 ### Custom Agent
 
@@ -480,7 +480,7 @@ This came out a bit more complicated than I planned (evaluator.py seems a bit "s
 
 To me, the important thing is that we started from a clear design informed by domain knowledge and (some) experience. We didn't let the AI "take the wheel" and do the thinking. And even if some of the generated code is a bit more messy than I'd like, the "seams" that I designed are still there. This is much like designing a system as an architect and letting a junior engineer implement it - it's not exactly how I would write it, but it's good enough to ship.
 
-We didn't write a custom harness with langchain or anything, but we did write a program that launches CLI agents and uses deterministic code everywhere that LLM inference isn't required. I think that counts as harness-engineering. Writing this with langchain might have actually been easier, but it wouldn't match harness-specific routing and environment details, so it's not the best test of what your actual system would do in practice.
+We didn't write a custom harness with langchain or anything, but I think this still counts as harness-engineering. Writing this with langchain might have actually been easier, but it wouldn't match harness-specific routing and environment details, so it's not the best test of what your actual system would do in practice.
 
 In the next post, on pressure testing skills, we'll face a similar problem: context leaks in and influences the agent's decision making. In this case it's much worse though, because you are testing how likely the agent is to stick to the rules in your skill. Conflicting instructions from context leaks will give the AI more room to rationalize and discard your discipline rules. Context leaks from your global AGENTS.md/CLAUDE.md are a challenge because it's hard to exclude those while still using the actual client, where you could avoid that with langchain but then you don't have the right system prompt (and it's important here).
 
