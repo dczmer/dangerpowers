@@ -1,11 +1,14 @@
 # Writing Skills Deep Dive - Part 2.5: Developing a Better Harness
 
+I want to build a better test than what we made in [part 2](./README.md), and I have some very specific concerns from attempting this a few times before.
+
 ## Remaining Concerns
 
 These are the issues with that I'm most concerned with:
 
 - Contamination from other skills
 - Runaway workflows
+- Agents "toiling" to find context for vague prompts and timing out before decision
 - AI math and counting
 - Portability
 - Stats confidence and sample sizes
@@ -13,11 +16,12 @@ These are the issues with that I'm most concerned with:
 
 ### TLDR; Design Decisions to Address Concerns
 
-- Run CLI with parameters to control sources of contamination (mostly)
+- Run CLI with parameters to control model, effort, sources of contamination (mostly)
 - Run from temp directory to isolate from actual project source
+- Install "stub" files - just the skill front-matter part with no body - to prevent the skills from launching workflows.
+- Use a custom agent definition to prevent timeouts due to agent toil trying to resolve ambiguous test queries.
 - Use a script to drive the eval loop, score results, and any other math or counting
 - Use a strategy pattern to map an eval description to harness-specific CLI command
-- Use simple, static 10x reps (no bumps, dynamic reps, etc)
 - Use a train/validate partition (if >10 cases)
 - Apply Wilson intervals to pad the small sample size
 - Use fresh query sanity check to make sure we haven't overfit our test queries
@@ -60,8 +64,6 @@ I'd like to support opencode, Claude Code, and pi, at minimum.
 
 This has been a difficult problem so far. Even though "agentskills" is a standard, the way you use tools, CLI commands, custom agents, deal with contamination sources are all different. Some agents may not even support all of the options and concepts we want to include.
 
-I'm using the standard `.agents/skills` layout inside of the temporary workspace directory because most harnesses support this standard. That makes the harness-specific directory layout issue easier.
-
 The other issues is translating a description of a test eval into a harness-specific CLI command. The solution I chose for this was to factor-out an "evaluator" object from the test harness and implement a strategy pattern. Each target harness has it's own evaluator implementation with it's own `evaluate` method. The evaluator turns a list of general eval parameters into a specific CLI command and parses the results to return a standard verdict response.
 
 ### Stats, Confidence, and Sample Size
@@ -69,8 +71,6 @@ The other issues is translating a description of a test eval into a harness-spec
 This is another "how hard do you want to make it" question. For most of us, a simple campaign that shows a majority of passes over a set of X reps is enough. In the world of ML and training, you would want as many samples and repetitions as possible to refine your results into a number you can be confident about.
 
 I'm pretty content with the 10x reps to give better confidence than the recommended starting point of 3 reps. 10x reps are more likely to give a better sample than 3, but even that is probably a miniscule sample size compared to what we'd need to be confident when the results are not repeated perfect scores across multiple models.
-
-Some techniques used in ML training evals involve dynamically altering the eval plan to add reps and introducing more complicated math and statistics concepts that I am not that familiar with myself. I'm choosing to keep the simple, static 10x loop and apply Wilson Confidence Intervals to pad out the results.
 
 Since this is sampling results across an infinite source set, running the entire trigger testing campaign repeatedly gets us closer and closer to a number that you could bet on. We don't plan to bet on these results, we just need a decent approximation.
 
@@ -98,10 +98,10 @@ When we are running the optimization loop, we also have to keep track of the sco
 
 ## Flirting with Harness Engineering
 
-Do we need a custom harness? Not really. Coding agent harnesses have largely assimilated the best innovations from popular custom harnesses and provide enough utility that we can execute most coding-related tasks without writing our own harness. Custom agents, skills, headless agent sessions with command line arguments, hooks, and harness-specific extensions give you all the seams you need for most tasks.
+Do we need a custom harness? Not really. Well, we don't need langchain or SDKs just yet. Coding agent harnesses have largely assimilated the best innovations from popular custom harnesses and provide enough utility that we can execute most coding-related tasks without writing our own harness. Custom agents, skills, headless agent sessions with command line arguments, hooks, and harness-specific extensions give you all the seams you need for most tasks.
 
 My take on harness engineering is that we should apply it when we need the following:
-1. You want to cleanly separate deterministic actions from actions that require inference. I think you should always try to do this as much as possible.
+1. You want to cleanly separate deterministic actions from actions that require inference. I think you should always try to do this as much as possible. This includes implementing complex workflows by taking away the chained-command execution responsibility from the executing agent.
 2. You want to automate a task that requires some sort of action or interaction that the agent isn't good at. For most things you can just write a skill, but some things are hard to fix with prompting, like tightly integrated math and asking the AI to do something that requires strategy.
 
 For number 1, you can usually do this with the options provided by your coding agent and by deterministic actions delegating to scripts. It only gets complicated when you have complex situations like an agent session calling a script that invokes a headless CLI client, that runs a script that invokes an agent, ... The only reason you would do something so convoluted is because you need to mix deterministic actions between/around points where you need inference. Then you need a custom agent implementation.
@@ -139,22 +139,22 @@ High-level Design:
 - Skill:
     * Resolves campaign parameters
     * (Optionally) generates initial eval queries and/or fresh-check queries
-    * Generates the train/validate split from input file
     * Analyzes failures and revises the description
     * Calls a script to manage the campaign workspace
     * Calls a script to execute a run of evals and collect responses
     * Runs fresh-query sanity check from a file of canned queries
-    * Writes the campaign log and other artifacts
 - Workspace Manager Script:
     * Initialize a temporary workspace directory and return its path
     * Sync the target skill (stub) and any configuration or custom agents to the workspace
     * Check the status of the workspace and determine if it is up-to-date or out-of-sync.
-    * Compares scores across runs and picks winner
 - Evaluator script and evaluator strategy:
     * Implements harness-specific CLI command and argument mapping
+    * Generates the train/validate split from input file
     * Calculates results and applies confidence intervals
     * Provides a configurable way to run a single eval query (you can parameterize just about anything)
     * Runs from the temporary workspace to prevent leakage of project-specific skills
+    * Compares scores across runs and picks winner
+    * Writes the campaign log and other artifacts
     * (Ideally) runs the agent harness in a 'pure' mode, without any extensions or plugins.
 
 We'll build and test the workspace manager, then build and test the evaluator script while manually managing the workspace. Then we tie it all together with the skill and implement the optimization loop.
@@ -293,7 +293,6 @@ High-level outline of how the skill works:
 - Resolve required parameters from the user prompt
 - Create and sync a new workspace
 - Offer to create queries.json and some initial queries, if not exists
-- Verify the queries are actionable (see "Actionable Queries" below)
 - Split queries.json into "train" and "validate" sets
 
 Then start the outer campaign loop (max 3 iterations, early exit on a perfect train round):
@@ -314,111 +313,72 @@ After the evaluation loop is done:
 - Log the result
 - If the sanity check failed, stop. Do not start the entire loop again. Never use a fresh query for training.
 
-At this point, we're just logging to standard out. In the next phase, we will implement better artifact management.
-
-#### Actionable Queries
+### Actionable Queries
 
 Some queries, like "turn this outline into a skill", WOULD trigger our target skill, but since no actual outline exists, they will instead timeout while trying to figure out what outline we're talking about, or else give up and never invoke the skill.
 
-For a query to be 'actionable' it must reference something real so the agent doesn't get stuck. In the case of the "outline" above, fabricate an outline of some process and write it to a file in the workspace, then reference it by name.
+For a query to be 'actionable' it must reference something real so the agent doesn't get stuck, or else "inline" all of the relevant content into the query. In the case of the "outline" above, you could fabricate an outline of some process and write it to a file in the workspace, then reference it by name. In-lining works more reliably, but doesn't match how real user queries are typically written.
 
-If the target query is not reasonably actionable, or if it's not actually a request that an agent would process (like a statement that doesn't ask for any action), then reject it and surface to the user. Offer to revise the query and explain why it's not acceptable.
+This is somewhat difficult to deal with reliably. The best I've come up with is to create a custom agent that limits tool calls, turns, and gives a custom system prompt to simply reply if it would trigger. The Claude Code skill-creator addresses this, kind of, by stopping the agent after the first message and fails if that message was not the expected skill load. I'm not sure which approach is better - my implementation gives the agent a hint to avoid timing out digging for context but skill-creator will just call it a fail.
 
-#### Implementation
+### Custom Agent
 
-Like the previous phase, I fed my design and this document (along with the trigger-testing guide) to the agent to develop a plan and iterate on the details.
+A custom agent lets you set a system prompt and control various options like model, tools, and number of steps allowed (options available are harness-specific, and so is the format). We can use it to restrict the agent to prevent runaway workflows and ensure we have multiple lines of defense by capping the number of turns as well.
 
-The first attempt to build this out surfaced a major issue that this phased implementation plan hadn't accounted for: queries like "turn this outline into a skill", which should be valid test cases because they match real user queries, would cause the agent to toil and timeout trying to figure out what outline it was supposed to read. This caused almost all evals to fail and timeout, and never load the skill because they couldn't resolve the required inputs.
-
-So we had to add the "custom agent" that I has planned as a follow-up phase (described in the section below). The custom agent is another harness-specific thing, and adding it here increased the scope and complexity of this phase. Probably the smart thing would have been to do just the custom agent part first, on it's own, then to continue with this phase.
-
-Here are the plan files that were created: [phase-2-campaign-and-skill-plan](./phase-2-campaign-and-skill-plan.md) (split into three sub-plans: 2a restricted evaluator agent, 2b campaign tooling, 2c campaign skill).
-
-And the evaluator script can be found in the skill folder: [evaluator.py](../../../skills/trigger-testing-skills/scripts/evaluator.py).
-
-I think the agent did a pretty good job executing the plan overall, but there are some very long functions and some complex conditionals. The cyclomatic complexity of some of the code is much higher than I'd accept in a code review at work. But generated code is cheap and the AI makes it all consistent. It just means you can never, ever edit this by hand or risk missing tiny updates that make things inconsistent.
-
-### Custom Agent and Harness Config (permissions)
-
-I thought I had come up with a plan that would make this harness-specific custom agent file obsolete. However, it turns out that it was actually critical to getting a running because some prompts don't contain enough context to be actionable - it won't trigger the skill until it has enough context to do so, even if it already realized that it _should_ invoke the skill.
+I thought I had come up with a plan that would make this harness-specific custom agent file obsolete. However, it turns out that it was actually critical to getting the campaign to work because some prompts don't contain enough context to be actionable - it won't trigger the skill until it has enough context to do so, even if it already realized that it _should_ invoke the skill.
 
 The custom agent file does the following:
-- Limit maximum number of turns
 - Restrict ALL tools except for `skill`
+- Limit maximum number of turns
 - Provide a custom system prompt with instructions to decide if it would trigger a skill and just say so.
 
-But there are a couple of problems here (which I have accepted as trade-offs):
-1. 
-
-- install custom agent to restrict tool usage, cap number of steps, and provide instructions to either trigger the skill or state that you would not trigger
-- TODO: install config file (if needed)
+Since we've restricted all tool usage, we no longer need the dangerous `--auto` argument for opencode to work around permissions issues.
 
 I did some research on how the Claude Code skill-creator skill handles the situations of runaway workflows and toil over non-actionable queries. It looks like they run the evals with a process that streams the messages from the agent and kills the session after the very first tool call. If the tool call was a `read` or `skill` call targeting the skill, then it passes. I would say they actually don't solve the toil issue, because you can still send non-actionable queries that will fail even though the agent would have triggered them if it had all of the context.
 
-(Opencode-specific custom agent)[../../../skills/trigger-testing-skills/agents/trigger-evaluator.opencode.md].
+Since the version I made was opencode-specific, I wrote this to expect a specific version to go with each evaluator strategy implementation (only opencode so far).
 
-### Artifact Management
-
-Important artifacts to manage:
-
-- queries.json
-- per-campaign query sets
-- description from each iteration in the run
-- campaign logs
-
-suggestion:
-- skills-workspace/<SKILL_NAME>/trigger-tests/queries.json
-- skills-workspace/<SKILL_NAME>/trigger-tests/campaign-XXXX/ to hold the fresh queries and campaign logs. maybe using a datestring as the "XXXX" part, and appending a "-N" sequentially at the end if multiple campaigns on the same date.
-- standardize templates/schemas for each type of artifact
-- maybe just keep all of the campaign files in the campaign-XXXX folder instead of making a new temp scratch space next to the actual workspace
-
-additionally, a manifest file mapping the skill content checksum to the last date and score of a successful test campaign. we expect to have multiple types of tests later, so we want a specific key for trigger-testing.
+[Opencode-specific custom agent](../../../skills/trigger-testing-skills/agents/trigger-evaluator.opencode.md).
 
 ### Trigger-Testing my `writing-skills` Skill
 
-as part of the verification procedure for the final phase of this implementation, i ran a test campaign against the writing-skills skill. it chose to use the free 'bigpickle' model from opencode to control costs.
+As part of the verification procedure for the final phase of this implementation, i ran a test campaign against the writing-skills skill. It chose to use the free 'bigpickle' model from opencode to control costs.
 
-after validating that the campaign actually works from end-to-end, i started a new campaign using kimi k3 (minimal), and then again against my heavily quantized qwen3.8 27b model with medium effort.
+After validating that the campaign actually works from end-to-end, i started a new campaign using kimi k3 (minimal), and then again against my heavily quantized qwen3.8 27b model with medium effort.
 
-initial description:
+Below is a quick example of how the writing-skills description evolved during one campaign. The common problem with this description was that it was firing too often for should-not queries, so the description needed more detail about what it actually does and _when to use it_ (or when not to use it).
+
+Initial description:
 ```
-Use when creating a new skill, editing or updating an existing one, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files.
-```
-
-iteration 1:
-
-one failed query (3/3):
-```
-{
-    "query": "which skills will help me with writing?",
-    "shouldTrigger": false
-},
+Use when creating a new skill, editing or updating an existing one, or
+reviewing a skill before deployment. Covers frontmatter conventions and body
+structure for skill files.
 ```
 
-revised:
+Iteration 2:
 ```
-Use when creating a new skill, editing or updating an existing skill, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files. This skill authors and edits skill definitions themselves; it is not for discovering which skills exist, picking a skill for a task, or answering questions about what a skill does.
-```
-
-iteration 2:
-
-one fail for same query (1/3)
-
-revised:
-```
-Use when authoring or maintaining agent skill definitions — creating a new skill, editing or updating an existing skill, or reviewing a skill before deployment. Covers frontmatter conventions and body structure for skill files. This skill writes skill definitions themselves; never use it to discover which skills exist, pick a skill for a task, or explain what a skill does.
+Use when creating a new skill, editing or updating an existing skill, or
+reviewing a skill before deployment. Covers frontmatter conventions and body
+structure for skill files. This skill authors and edits skill definitions
+themselves; it is not for discovering which skills exist, picking a skill for a
+task, or answering questions about what a skill does.
 ```
 
+Iteration 3:
+```
+Use when authoring or maintaining agent skill definitions — creating a new
+skill, editing or updating an existing skill, or reviewing a skill before
+deployment. Covers frontmatter conventions and body structure for skill files.
+This skill writes skill definitions themselves; never use it to discover which
+skills exist, pick a skill for a task, or explain what a skill does.
+```
+
+One thing that surprised me is that the smarter models don't always get better scores with the same inputs. It seems Kimi K3 was more likely to invoke the skill for should-not queries until we tuned it to be more specific. You really do need to train against a smaller, low-reasoning model AND a frontier model with high reasoning to cover everything.
 
 ### Conclusion
 
-- runaway workflows
-- stubs stop the workflow part
-- but queries that are not self-contained cause the agent to search for context they need to solve an impossible problem
-- break up plans as they get more and more complicated. it's so easy to miss important details in complex implementation plans, and then you have to rework everything built on top of that. (almost credited each iteration score to the subsequent iteration instead of the one that was actually tested).
-- keeping a blog in the same repository as your project causes the ai to read the blog as a source of truth for how the code should work :(
-- note to self: add probe testing to planning/scouting and context bundles
-- agent would frequently run campaigns and filter with `grep` to reduce output, but that hides the reasoning for each failure from the agent that needs to rewrite the description.
-- pass=load required, or infer intent to load ok?
-- you can't force an agent to read all of the output or not try to optimize output by grepping and filtering, but you can close the loopholes that make it easy for the agent to rely on that trick:
-    * requiring a command to produce the failure data instead of reading from the stdout
+This came out a bit more complicated than i planned (evaluator.py seems a bit "sloppy") but seems to match my design and constraints. I don't plan on modifying it very often or increasing the scope, so i'm not concerned with making this perfect.
+
+We didn't write a custom harness with langchain or anything, but we did write a program that launches CLI agents and uses deterministic code everywhere that LLM inference isn't required. I think that counts as harness-engineering. Writing this with langchain might have actually been easier, but it wouldn't match harness-specific routing and environment details, so it's not the best test of what your actual system would do in practice.
+
+In the next session, on pressure testing skills, we'll face a similar problem: context leaks-in and influences the agent's decision making. In this case it's much worse though, because you are testing how likely the agent is to stick to the rules in your skill. Conflicting instructions from context leaks will give the AI more room to rationalize and discard your discipline rules. Context leak from your global AGENTS.md/CLAUDE.md are a challenge because it's hard to exclude those while still using the actual client, where you could avoid that with langchain but then you don't have the right system prompt (and it's important here).
