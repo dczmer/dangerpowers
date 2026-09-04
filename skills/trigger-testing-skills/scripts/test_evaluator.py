@@ -168,12 +168,35 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(entry["score"], 0.81)
         self.assertEqual(entry["campaign"], "campaign-2026-09-02")
 
-    def test_checksum_is_whole_file_sha256(self):
+    def test_checksum_is_frontmatter_sha256(self):
         self._record()
         data = json.loads(self.manifest.read_text())
-        expected = ("sha256:"
-                    + hashlib.sha256(self.skill_md.read_bytes()).hexdigest())
+        frontmatter = evaluator.extract_frontmatter(self.skill_md.read_text())
+        expected = "sha256:" + hashlib.sha256(frontmatter.encode()).hexdigest()
         self.assertEqual(data["trigger-test"]["checksum"], expected)
+
+    def test_body_edit_does_not_change_checksum(self):
+        self._record()
+        first = json.loads(self.manifest.read_text())["trigger-test"]
+        self.skill_md.write_text("---\nname: test-skill\n---\nnew body\n")
+        self._record()
+        second = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(first["checksum"], second["checksum"])
+
+    def test_frontmatter_edit_changes_checksum(self):
+        self._record()
+        first = json.loads(self.manifest.read_text())["trigger-test"]
+        self.skill_md.write_text("---\nname: test-skill\ndescription: x\n---"
+                                 "\nbody\n")
+        self._record()
+        second = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertNotEqual(first["checksum"], second["checksum"])
+
+    def test_missing_frontmatter_refused_untouched(self):
+        self.skill_md.write_text("no frontmatter here\n")
+        rc = self._record()
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
 
     def test_update_preserves_unknown_keys(self):
         self.manifest.parent.mkdir(parents=True)

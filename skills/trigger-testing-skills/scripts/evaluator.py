@@ -727,6 +727,23 @@ def cmd_suite(args: argparse.Namespace) -> int:
     return 0
 
 
+def extract_frontmatter(text: str) -> str | None:
+    """The frontmatter block exactly as workspace-manager.sh
+    extract_frontmatter produces it: the opening `---` line through the
+    closing `---` line, inclusive. These are the same bytes the eval stub
+    carries, so they are what a recorded score was measured against.
+    Returns None when the file has no terminated frontmatter block."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].rstrip("\n") != "---":
+        return None
+    block = [lines[0]]
+    for line in lines[1:]:
+        block.append(line)
+        if line.rstrip("\n") == "---":
+            return "".join(block)
+    return None
+
+
 def cmd_record(args: argparse.Namespace) -> int:
     """Write/update trigger-tests/manifest.json after a successful campaign.
     Overwrites only the `trigger-test` key; unknown keys are preserved."""
@@ -737,7 +754,12 @@ def cmd_record(args: argparse.Namespace) -> int:
     if not (0.0 <= args.score <= 1.0):
         print("error: --score must be in [0, 1]", file=sys.stderr)
         return 1
-    checksum = "sha256:" + hashlib.sha256(skill_md.read_bytes()).hexdigest()
+    frontmatter = extract_frontmatter(skill_md.read_text())
+    if frontmatter is None:
+        print(f"error: missing or unterminated frontmatter in {skill_md}",
+              file=sys.stderr)
+        return 1
+    checksum = "sha256:" + hashlib.sha256(frontmatter.encode()).hexdigest()
 
     manifest = Path(args.manifest)
     data: dict = {}
