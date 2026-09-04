@@ -6,6 +6,8 @@ Dissecting popular frameworks like superpowers and building my own - to learn an
 
 A "foundational" plugin for agentic coding: core development and orchestration system implemented as skills, inspired by `superpowers` and `humanlayer`.
 
+I've also been writing about the concepts I've learned and applied along the way [in a series of blog-like documents](./docs/README.md).
+
 ## Motivation
 
 When I first installed [superpowers](https://github.com/obra/superpowers), I was amazed by how consistently the skills fired, and how well they enforced the operational constraints without the AI rationalizing or working around the rules.

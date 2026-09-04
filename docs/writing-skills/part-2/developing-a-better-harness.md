@@ -379,7 +379,7 @@ If 'effort' and/or 'model' are not used, they are not included in the command.
 
 I fed my agent this document as an input and had it design the first version. We had a few rounds of refinement and the agent validated (or invalidated) some of my assumptions. Notably, we made some changes to the arguments for the opencode command and we added parallel reps and a smoke test rep. Another big change is that the AI decided to implement a more complicated form of the confidence interval calculation, which I chose to allow.
 
-Here's the implementation plan for this phase: [phase-1-evaluator-script-plan](./phase-1-evaluator-script-plan.md)
+Here's the implementation plan for this phase: [phase-1-evaluator-script-plan](./plans/phase-1-evaluator-script-plan.md)
 
 And here is an example of a manual run using the script on an existing workspace:
 ```bash
