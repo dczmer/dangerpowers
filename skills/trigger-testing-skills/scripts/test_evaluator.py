@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 import evaluator
+import strategies
 
 SKILL = "writing-skills"
 
@@ -44,20 +45,20 @@ def skill_tool_event(name: str, status: str) -> dict:
 
 class VerdictTests(unittest.TestCase):
     def setUp(self):
-        self.strategy = evaluator.OpencodeStrategy(timeout=30)
+        self.strategy = strategies.OpencodeStrategy(timeout=30)
         self.ws = Path("/tmp/fake-workspace")
 
     def _evaluate(self, stdout: str = "", stderr: str = "",
                   returncode: int = 0) -> evaluator.Verdict:
         proc = subprocess.CompletedProcess(args=[], returncode=returncode,
                                            stdout=stdout, stderr=stderr)
-        with mock.patch.object(evaluator.subprocess, "run", return_value=proc):
+        with mock.patch.object(strategies.subprocess, "run", return_value=proc):
             return self.strategy.evaluate(SKILL, "test query", self.ws)
 
     def _evaluate_timeout(self, partial_stdout: str) -> evaluator.Verdict:
         err = subprocess.TimeoutExpired(cmd=["opencode"], timeout=30,
                                         output=partial_stdout)
-        with mock.patch.object(evaluator.subprocess, "run", side_effect=err):
+        with mock.patch.object(strategies.subprocess, "run", side_effect=err):
             return self.strategy.evaluate(SKILL, "test query", self.ws)
 
     def test_timeout_with_intent_partial_stream(self):
