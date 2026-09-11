@@ -36,6 +36,14 @@
         "shouldTrigger": true
     },
     {
+        "query": "draft a skill file for our incident-triage process, modeled on the existing runbook skill",
+        "shouldTrigger": true
+    },
+    {
+        "query": "write an example skill for the docs that walks through our onboarding process — illustrative, not a full implementation",
+        "shouldTrigger": true
+    },
+    {
         "query": "run a trigger-test on the writing-skills skill",
         "shouldTrigger": false
     },
