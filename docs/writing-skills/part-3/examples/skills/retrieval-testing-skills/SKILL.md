@@ -21,11 +21,27 @@ Collect all inputs before starting. Prompt the user for any that are missing.
 - **Skill name** — the reference skill under test. It must appear in this session's available-skills list; subagents can only load skills the parent session can see. If it is not available, stop and tell the user. Resolve its filesystem location and derive the **source root**: the directory containing the `skills/` directory the skill lives in — not necessarily the repo root (for `<root>/.opencode/skills/<name>`, the source root is `<root>/.opencode`).
 - **Queries file** — path to a populated `queries.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/queries.json`, so test artifacts live next to the skill under test, wherever it is registered.
 
-After resolving the source root, read the skill under test fully and extract every documented fact into a fact inventory. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise compare the inventory against the queries file: if any fact lacks a covering query — or the file does not exist at all — offer to generate the missing test queries and expectations. With the user's approval, add them to the queries file following the format below — creating any fixtures they reference under `fixtures/` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
+After resolving the source root, read the skill under test fully and build the fact inventory (see Fact inventory). If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise compare the inventory against the queries file: if any fact lacks a covering query — or the file does not exist at all — present a proposal for the missing test queries and expectations (see Proposal format). With the user's approval, add them to the queries file following the format below — creating any fixtures they reference under `fixtures/` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
+
+## Fact inventory
+
+A fact is a body statement that changes an agent's output if unknown. Keep a statement if it passes one test:
+
+- **directive** — prescribes or prohibits: "never passive phrasing"
+- **threshold** — an unguessable number or limit: "<500 lines"
+- **taxonomy** — a classification or mapping: "tables for reference data"
+- **structure** — requires or forbids a document element: "include a Gotchas section"
+- **routing** — where something goes instead: "durable facts → AGENTS.md"
+- **scope** — when the technique does or doesn't apply: "don't create for one-offs"
+- **assumption-correction** — reverses a competent default: "spell out what a frontier model does implicitly"
+
+Drop rationales, restatements, illustrative examples, and transitions. Frontmatter-convention guidance is out of scope.
+
+Dedupe repeated rules; mine their examples for query material. Cluster facts a single task-shaped query naturally elicits into one entry; the facets become rubric bullets. Derive each query from the failure mode — what the agent does wrong without the fact — shaped as bait (a request that asks for the violation) or review (text already committing it).
 
 ## Query file format
 
-Each entry tests one documented fact:
+Each entry tests one fact cluster:
 
 ```json
 [
@@ -121,6 +137,35 @@ Campaign rules:
 - Keep queries verbatim across campaigns; editing a query invalidates comparison. If a query is bad — asks for nothing, depends on context the bare session lacks — prune it and say so in the report.
 - A scenario still failing after a doc fix gets one more doc revision. Still failing after that: surface it to the user — the fact likely needs restructuring, not rewording.
 
+## Proposal format
+
+Before writing or running anything, present the inventory and planned entries in this fixed layout:
+
+    retrieval test proposal: acme-api — 2026-09-11
+    source: skills/acme-api/SKILL.md (body: 210 lines)
+    queries file: skills-workspace/acme-api/retrieval-tests/queries.json (missing — generating)
+    scope: frontmatter-convention facts excluded
+
+    inventory: 6 facts
+    F-uploads-01  [Uploads]  reads Retry-After, value interpreted as seconds
+    F-uploads-02  [Uploads]  no retries on other 4xx codes
+    ...
+
+    coverage: 6 facts / 5 entries / 0 excluded
+    id                  facts          gist (≤12 words)
+    retry-after-header  F-uploads-01   "add retry handling for 429 responses"
+    ...
+    folds: F-uploads-02 → folded into retry-after-header
+
+    cost: 5 entries × 2 arms = 10 runs, single parallel dispatch, 120 s timeout
+    fixtures: none (all queries inline)
+
+- Fact ids are section-anchored (`F-<section-slug>-<nn>`) so doc edits never renumber other sections; keep them stable across campaigns.
+- One line per fact: imperative restatement, ≤15 words, no rationale.
+- Account for every fact exactly once — in a coverage row, a fold line, or an exclusion with a stated reason.
+- Cost is a formula — entries × 2 arms — and the fixtures line is always present, even when `none`.
+- Per-entry explanations (fact covered, why this query, why these expectations) go below the block.
+
 ## Report format
 
     retrieval test: acme-api — 2026-09-11
@@ -166,7 +211,7 @@ Campaign rules:
 
 ## Checklist
 
-- [ ] Inputs collected; skill confirmed available in the session; queries file exists, is non-empty, and covers the fact inventory — any generated entries explained and approved by the user
+- [ ] Inputs collected; skill confirmed available in the session; fact inventory built per the taxonomy; proposal presented in the fixed format and approved; queries file exists, is non-empty, and covers the inventory
 - [ ] Every query is task-shaped, self-contained or backed by an existing fixture, and free of section hints and rubric text
 - [ ] Two subagents per entry (skill arm + control arm), dispatched in parallel in a single message, each given exactly the template prompt
 - [ ] Every referenced fixture staged in a unique `/tmp/opencode/retrieval-test/` subdirectory per subagent run before dispatch — no two runs share a fixture file
