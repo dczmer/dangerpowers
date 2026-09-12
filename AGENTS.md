@@ -19,7 +19,7 @@ Configs live in pyproject.toml (`[tool.black]`, `[tool.ruff]`, line-length 79) a
 - `uv run pyright <paths>` — type check
 - `shellcheck <files>` — shell scripts
 
-Gotchas: E203 is ignored everywhere (black mandates its slice style); black needs `target-version = py314` or it infers py315 from requires-python and errors.
+Gotchas: E203 is ignored everywhere (black mandates its slice style); black targets py310 (`target-version = ["py310"]`) because tools/test-harness scripts must stay Python >= 3.10-grammar-safe (enforced by an ast.parse feature_version=(3, 10) unit test) — do not raise it, or black rewrites the parenthesized except-tuple into PEP 758 bare-tuple syntax.
 
 ## Mermaid diagrams
 
@@ -37,6 +37,9 @@ dangerpowers/
 │       └── agents/            # supporting agent configs/schemas (some skills)
 ├── skills-workspace/          # per-skill test artifacts (e.g. trigger-tests/queries.json);
                                # trigger-test campaign dirs (campaign-YYYY-MM-DD[-N]/) are persistent and committed
+├── tools/test-harness/      # shared headless eval-harness scripts for the
+│                            # trigger/retrieval testing skills (evaluator.py,
+│                            # strategies.py, workspace-manager.sh, test_evaluator.py)
 ├── docs/                      # documentation and deep-dives (index: docs/README.md)
 ├── agents/                    # custom opencode agent definitions (*.md)
 ├── plugins/                   # opencode plugin (opencode-plugin.ts) registering skills/ + agents/ via config hook
