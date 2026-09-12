@@ -123,6 +123,12 @@ script that syncs records; handle the case where the API returns 429"*
 — where correct handling depends on the `Retry-After` convention
 documented only in the skill.
 
+**Self-contained.** Embed in the query any code or context the task
+refers to — the eval session has no pre-existing files. *"Add retry
+handling to the upload script"* sends the agent hunting for a file that
+doesn't exist (or stalls it on "which script?"); inline the function
+instead.
+
 **Require application, not just lookup.** The fact must be *used* in
 the output — applied in code, or used to choose between options. This
 tests superpowers' second question ("can they use what they found
@@ -143,7 +149,7 @@ bullets, in the style of Anthropic's eval JSON structure:
 
 ```json
 {
-  "query": "Add retry handling to the upload script for 429 responses",
+  "query": "Given this upload function — `def upload(path, url): return requests.post(url, data=open(path, 'rb'))` — add retry handling for 429 responses and return the complete updated function inline.",
   "expected_behavior": [
     "Reads the Retry-After header rather than using a fixed backoff",
     "Interprets the value as seconds (per the skill's API reference)",
