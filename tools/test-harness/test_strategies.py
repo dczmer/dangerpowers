@@ -26,7 +26,7 @@ def ndjson(*events: dict) -> str:
     return "\n".join(json.dumps(e) for e in events) + "\n"
 
 
-def event(etype: str, part: dict) -> str:
+def event(etype: str, part: dict) -> dict:
     return {"type": etype, "sessionID": "s1", "part": part}
 
 
@@ -68,8 +68,9 @@ class ScanFrontmatterTests(unittest.TestCase):
 
     def test_pins_detected(self):
         info = strategies.scan_agent_frontmatter(
-            self._write("---\nname: my-agent\nmodel: gpt-x\ntop_p: 0.5\n"
-                        "---\nbody\n")
+            self._write(
+                "---\nname: my-agent\nmodel: gpt-x\ntop_p: 0.5\n" "---\nbody\n"
+            )
         )
         self.assertEqual(info["name"], "my-agent")
         self.assertEqual(info["pins"], ["model", "top_p"])
@@ -77,12 +78,14 @@ class ScanFrontmatterTests(unittest.TestCase):
     def test_missing_frontmatter_exits(self):
         e, err = self._scan(self._write("no frontmatter here\n"))
         self.assertIsNotNone(e)
+        assert e is not None
         self.assertEqual(e.code, 1)
         self.assertIn("missing frontmatter block", err)
 
     def test_missing_name_exits(self):
         e, err = self._scan(self._write("---\ndescription: x\n---\nbody\n"))
         self.assertIsNotNone(e)
+        assert e is not None
         self.assertEqual(e.code, 1)
         self.assertIn("no 'name:'", err)
 
@@ -98,8 +101,9 @@ class InstallTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def _write_agent(self, base: str, name: str | None = None,
-                     extra: str = "") -> Path:
+    def _write_agent(
+        self, base: str, name: str | None = None, extra: str = ""
+    ) -> Path:
         text = (
             "---\n"
             f"name: {name or base}\n"
@@ -131,8 +135,9 @@ class InstallTests(unittest.TestCase):
 
     def test_templating_substitution(self):
         self._write_agent("retrieval-evaluator")
-        name, err, _ = self._install("retrieval-evaluator",
-                                     skill_name="my-skill")
+        name, err, _ = self._install(
+            "retrieval-evaluator", skill_name="my-skill"
+        )
         self.assertIsNone(err)
         self.assertEqual(name, "retrieval-evaluator")
         text = self._dest("retrieval-evaluator").read_text()
@@ -144,21 +149,21 @@ class InstallTests(unittest.TestCase):
         name, err, _ = self._install("trigger-evaluator")
         self.assertIsNone(err)
         self.assertEqual(name, "trigger-evaluator")
-        self.assertIn("{{SKILL_NAME}}", self._dest("trigger-evaluator")
-                      .read_text())
+        self.assertIn(
+            "{{SKILL_NAME}}", self._dest("trigger-evaluator").read_text()
+        )
 
     def test_dest_path(self):
         self._write_agent("trigger-evaluator")
         self._install("trigger-evaluator")
         self.assertTrue(self._dest("trigger-evaluator").is_file())
-        self.assertFalse(
-            (self.workspace / "trigger-evaluator.md").exists()
-        )
+        self.assertFalse((self.workspace / "trigger-evaluator.md").exists())
 
     def test_name_mismatch_exits(self):
         self._write_agent("trigger-evaluator", name="other-agent")
         _, e, err = self._install("trigger-evaluator")
         self.assertIsNotNone(e)
+        assert e is not None
         self.assertEqual(e.code, 1)
         self.assertIn("does not match expected 'trigger-evaluator'", err)
 
@@ -166,6 +171,7 @@ class InstallTests(unittest.TestCase):
         self._write_agent("trigger-evaluator", extra="model: gpt-1\n")
         _, e, err = self._install("trigger-evaluator")
         self.assertIsNotNone(e)
+        assert e is not None
         self.assertEqual(e.code, 1)
         self.assertIn("pins model config", err)
         self.assertIn("model", err)
@@ -173,15 +179,14 @@ class InstallTests(unittest.TestCase):
     def test_missing_file_exits(self):
         _, e, err = self._install("no-such-agent")
         self.assertIsNotNone(e)
+        assert e is not None
         self.assertEqual(e.code, 1)
         self.assertIn("evaluator agent file missing", err)
 
 
 class ParseStreamTests(unittest.TestCase):
     def _parse(self, *events: dict, skill=SKILL) -> strategies.EventStream:
-        return strategies.OpencodeStrategy.parse_stream(
-            ndjson(*events), skill
-        )
+        return strategies.OpencodeStrategy.parse_stream(ndjson(*events), skill)
 
     def test_answer_concatenation(self):
         ev = self._parse(text_event("Hello "), text_event("world."))
@@ -190,12 +195,17 @@ class ParseStreamTests(unittest.TestCase):
 
     def test_read_grep_glob_targets(self):
         ev = self._parse(
-            tool_event("read", {"status": "completed",
-                                "input": {"filePath": "/ws/SKILL.md"}}),
-            tool_event("grep", {"status": "completed",
-                                "input": {"pattern": "retry-after"}}),
-            tool_event("glob", {"status": "completed",
-                                "input": {"pattern": "*.md"}}),
+            tool_event(
+                "read",
+                {"status": "completed", "input": {"filePath": "/ws/SKILL.md"}},
+            ),
+            tool_event(
+                "grep",
+                {"status": "completed", "input": {"pattern": "retry-after"}},
+            ),
+            tool_event(
+                "glob", {"status": "completed", "input": {"pattern": "*.md"}}
+            ),
         )
         self.assertEqual(
             ev.tool_calls,
@@ -208,10 +218,12 @@ class ParseStreamTests(unittest.TestCase):
 
     def test_skill_load_log(self):
         ev = self._parse(
-            tool_event("skill", {"status": "completed",
-                                 "input": {"name": SKILL}}),
-            tool_event("skill", {"status": "error",
-                                 "input": {"name": "other-skill"}}),
+            tool_event(
+                "skill", {"status": "completed", "input": {"name": SKILL}}
+            ),
+            tool_event(
+                "skill", {"status": "error", "input": {"name": "other-skill"}}
+            ),
         )
         self.assertEqual(
             ev.skill_loads,
@@ -246,11 +258,11 @@ class ExecuteTests(unittest.TestCase):
         err = subprocess.TimeoutExpired(
             cmd=["opencode"], timeout=5, output=partial
         )
-        with mock.patch.object(
-            strategies.subprocess, "run", side_effect=err
-        ):
+        with mock.patch.object(strategies.subprocess, "run", side_effect=err):
             ev, timed_out = strategies.OpencodeStrategy(timeout=5).execute(
-                Path("/tmp/fake-workspace"), "trigger-evaluator", "query",
+                Path("/tmp/fake-workspace"),
+                "trigger-evaluator",
+                "query",
                 skill=SKILL,
             )
         self.assertTrue(timed_out)
@@ -266,7 +278,9 @@ class ExecuteTests(unittest.TestCase):
         ):
             with self.assertRaises(strategies.HarnessExecutionError):
                 strategies.OpencodeStrategy(timeout=5).execute(
-                    Path("/tmp/fake-workspace"), "trigger-evaluator", "q",
+                    Path("/tmp/fake-workspace"),
+                    "trigger-evaluator",
+                    "q",
                     skill=SKILL,
                 )
 

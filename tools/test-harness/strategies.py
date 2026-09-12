@@ -15,7 +15,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NoReturn
 
 Outcome = Literal["triggered", "not-triggered", "void"]
 
@@ -205,7 +205,7 @@ def _reject_agent_fallback(stderr: str) -> None:
 MODEL_PIN_KEYS = ("model", "variant", "temperature", "top_p")
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> NoReturn:
     print(f"error: {message}", file=sys.stderr)
     sys.exit(1)
 
@@ -254,8 +254,14 @@ class EvalStrategy:
     def agent_file(self, agents_dir: Path, base: str) -> Path:
         return agents_dir / f"{base}.{self.harness}.md"
 
-    def install(self, workspace: Path, agents_dir: Path, base: str,
-                *, skill_name: str | None = None) -> str:
+    def install(
+        self,
+        workspace: Path,
+        agents_dir: Path,
+        base: str,
+        *,
+        skill_name: str | None = None,
+    ) -> str:
         """Resolve, validate, install one eval agent. Pre-spend: every
         failure exits 1 with an exact message. Returns the agent name —
         file base == frontmatter name == CLI value, by construction."""
@@ -286,18 +292,33 @@ class EvalStrategy:
             _fail(f"could not install evaluator agent to {dest}: {e}")
         return base
 
-    def parse_stream(self, stdout: str, skill: str | None) -> EventStream:
+    @staticmethod
+    def parse_stream(stdout: str, skill: str | None) -> EventStream:
         raise NotImplementedError
 
-    def execute(self, workspace: Path, agent: str, query: str,
-                model: str | None = None, effort: str | None = None,
-                skill: str | None = None) -> tuple[EventStream, bool]:
+    def execute(
+        self,
+        workspace: Path,
+        agent: str,
+        query: str,
+        model: str | None = None,
+        effort: str | None = None,
+        skill: str | None = None,
+    ) -> tuple[EventStream, bool]:
         """One headless eval run. Returns (parsed stream, timed_out).
         Timeout yields a partial stream, never an exception.
         HarnessExecutionError = operational failure, never a verdict."""
         cmd = [
-            self.binary, "run", "--pure", "--thinking", "--format", "json",
-            "--dir", str(workspace), "--agent", agent,
+            self.binary,
+            "run",
+            "--pure",
+            "--thinking",
+            "--format",
+            "json",
+            "--dir",
+            str(workspace),
+            "--agent",
+            agent,
         ]
         if model is not None:
             cmd += ["--model", model]
@@ -306,8 +327,11 @@ class EvalStrategy:
         cmd.append(query)
         try:
             proc = subprocess.run(
-                cmd, capture_output=True, text=True,
-                timeout=self.timeout, check=False,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
             )
         except FileNotFoundError:
             raise HarnessExecutionError(

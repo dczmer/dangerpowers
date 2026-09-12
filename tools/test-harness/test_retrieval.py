@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import evaluator
@@ -339,7 +340,7 @@ class RunRecordTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def _record(self, ev, arm="skill_arm", skill="demo-skill", **kwargs):
-        defaults = dict(
+        defaults: dict[str, Any] = dict(
             query_dispatched="the query",
             timed_out=False,
             ws_root=self.ws,
