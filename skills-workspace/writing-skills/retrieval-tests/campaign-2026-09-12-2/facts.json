@@ -1,0 +1,31 @@
+{
+  "skill": "writing-skills",
+  "generated": "2026-09-12",
+  "facts": [
+    {"id": "F-overview-01", "section": "Overview", "statement": "write reusable technique references, never narratives of one solved problem", "entries": ["technique-not-narrative"]},
+    {"id": "F-when-01", "section": "When to Create a Skill", "statement": "refuse one-off solutions and well-documented standard practices", "entries": ["when-to-create-triage"]},
+    {"id": "F-when-02", "section": "When to Create a Skill", "statement": "route durable every-session facts to AGENTS.md", "entries": ["when-to-create-triage"]},
+    {"id": "F-when-03", "section": "When to Create a Skill", "statement": "automate mechanically-enforceable constraints; don't document them", "entries": ["when-to-create-triage"]},
+    {"id": "F-content-01", "section": "Content", "statement": "write explicit imperative directives, never passive phrasing", "entries": ["directives-not-passive"]},
+    {"id": "F-content-02", "section": "Content", "statement": "keep SKILL.md under 500 lines", "entries": ["skill-length-extraction"]},
+    {"id": "F-content-03", "section": "Content", "statement": "prescribe exact steps only for fragile operations; state outcomes elsewhere", "entries": ["specificity-matches-fragility"]},
+    {"id": "F-content-04", "section": "Content", "statement": "no unless/except exemption clauses; fold condition in or drop it", "entries": ["no-exemption-clauses"]},
+    {"id": "F-content-05", "section": "Content", "statement": "name one unconditional default; alternatives only as condition-scoped switches, never framed as an open choice", "entries": ["defaults-not-menus"]},
+    {"id": "F-content-06", "section": "Content", "statement": "pick one term per concept, use it everywhere", "entries": ["one-term-per-concept"]},
+    {"id": "F-content-07", "section": "Content", "statement": "no time-sensitive information; legacy approaches in labeled legacy section", "entries": ["no-time-sensitive-info"]},
+    {"id": "F-content-08", "section": "Content", "statement": "include a Gotchas section", "entries": ["skill-skeleton-sections"]},
+    {"id": "F-content-09", "section": "Content", "statement": "end with a checklist or verification procedure", "entries": ["skill-skeleton-sections"]},
+    {"id": "F-content-10", "section": "Content", "statement": "cut no-op statements and commentary irrelevant to goals/constraints/end conditions", "entries": ["technique-not-narrative"]},
+    {"id": "F-structure-01", "section": "Structure", "statement": "heavy reference to references/, tools to scripts/, one level deep", "entries": ["skill-length-extraction"]},
+    {"id": "F-structure-02", "section": "Structure", "statement": "scripts handle own errors; justify every numeric constant", "entries": ["deterministic-scripts"]},
+    {"id": "F-structure-03", "section": "Structure", "statement": "defer flags to --help; cross-reference skills by name, never repeat content", "entries": ["help-reference-and-subskills"]},
+    {"id": "F-structure-04", "section": "Structure", "statement": "one complete filled-in example; no multi-language, no templates", "entries": ["one-complete-example"]},
+    {"id": "F-structure-05", "section": "Structure", "statement": "tables for reference data, numbered lists for steps, flowcharts for decisions", "entries": ["structure-format-choice"]},
+    {"id": "F-structure-06", "section": "Structure", "statement": "read an existing skill fully before editing it", "entries": ["read-before-editing"]},
+    {"id": "F-structure-07", "section": "Structure", "statement": "spell out what a frontier model does implicitly for smaller models", "entries": ["small-model-explicitness"]},
+    {"id": "F-gotchas-01", "section": "Gotchas", "statement": "load reference files only under a condition, never every invocation", "entries": ["skill-length-extraction"]}
+  ],
+  "excluded": [
+    {"id": "F-checklist-01", "section": "Checklist", "reason": "session mechanics for consuming the checklist, not a skill-content fact"}
+  ]
+}

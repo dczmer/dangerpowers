@@ -1,0 +1,85 @@
+retrieval test suite: writing-skills (16 queries)
+skill workspace: /tmp/retrieval-test.9QsjPr0vEu
+control workspace: /tmp/retrieval-test.3xgQgsXhBs
+harness: opencode  model: kimi-for-coding/kimi-for-coding  variant: (none)  reps: 1  timeout: 120s
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[1/16] when-to-create-triage
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[2/16] technique-not-narrative
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[3/16] directives-not-passive
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[4/16] skill-length-extraction
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[5/16] specificity-matches-fragility
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[6/16] no-exemption-clauses
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[7/16] defaults-not-menus
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[8/16] one-term-per-concept
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[9/16] no-time-sensitive-info
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[10/16] skill-skeleton-sections
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[11/16] deterministic-scripts
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[12/16] help-reference-and-subskills
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[13/16] one-complete-example
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[14/16] structure-format-choice
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[15/16] read-before-editing
+[rep   1] started
+[rep   1] completed
+[rep   1] started
+[rep   1] completed
+[16/16] small-model-explicitness
+retrieval suite: 16 entries -> /home/dave/source/dangerpowers/skills-workspace/writing-skills/retrieval-tests/campaign-2026-09-12-2/results.json
