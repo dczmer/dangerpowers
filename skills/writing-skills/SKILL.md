@@ -30,11 +30,12 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 - Does not contain no-op statements or commentary that is not relevant to the goals, constraints, or end conditions.
 - Use explicit instructions ("Always use X"), never passive phrasing ("X is recommended").
 - State constraints directly. No nuance or exemption clauses that scope a directive ("unless X", "except when Y") — fold the condition into the directive or leave it out.
-- Provide defaults, not menus. Name the one library or approach; mention the escape hatch if one exists.
+- Provide defaults, not menus. Name the one approach unconditionally. Give alternatives only as condition-scoped switches — each gated on the concrete condition that disqualifies the default ("use setuptools when the build compiles C extensions"). Never frame the choice as open: no neutral comparisons, no "pick whichever fits."
 - Pick one term per concept and use it everywhere.
 - No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.
 - Include a "Gotchas" section: the things about the setup that a sensible guess gets wrong.
 - Ends with a checklist or verification procedure so the agent can verify its work.
+- When a request asks for something this skill forbids — a menu of options, a multi-format example, a fill-in-the-blank template — decline the forbidden part explicitly, then produce the compliant artifact.
 
 ## Frontmatter
 
