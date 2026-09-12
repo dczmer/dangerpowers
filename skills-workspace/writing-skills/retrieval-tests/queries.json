@@ -119,7 +119,8 @@
     "expect": [
       "does not add a duplicate credential-cache warning",
       "reports that the warning already exists (or returns the file essentially unchanged)"
-    ]
+    ],
+    "fixtures": ["existing-skill.md"]
   },
   {
     "id": "small-model-explicitness",
