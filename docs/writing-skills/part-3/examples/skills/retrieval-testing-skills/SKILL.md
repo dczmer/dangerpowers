@@ -21,7 +21,7 @@ Collect all inputs before starting. Prompt the user for any that are missing.
 - **Skill name** — the reference skill under test. It must appear in this session's available-skills list; subagents can only load skills the parent session can see. If it is not available, stop and tell the user. Resolve its filesystem location and derive the **source root**: the directory containing the `skills/` directory the skill lives in — not necessarily the repo root (for `<root>/.opencode/skills/<name>`, the source root is `<root>/.opencode`).
 - **Queries file** — path to a populated `queries.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/queries.json`, so test artifacts live next to the skill under test, wherever it is registered.
 
-After resolving the source root, read the skill under test fully and extract every documented fact into a fact inventory. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise compare the inventory against the queries file: if any fact lacks a covering query — or the file does not exist at all — offer to generate the missing test queries and expectations. With the user's approval, add them to the queries file following the format below, and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
+After resolving the source root, read the skill under test fully and extract every documented fact into a fact inventory. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise compare the inventory against the queries file: if any fact lacks a covering query — or the file does not exist at all — offer to generate the missing test queries and expectations. With the user's approval, add them to the queries file following the format below — creating any fixtures they reference under `fixtures/` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
 
 ## Query file format
 
@@ -42,8 +42,16 @@ Each entry tests one documented fact:
 ```
 
 - `id` — stable fact identifier; never reuse ids across facts.
-- `query` — a realistic, task-shaped prompt that stands alone: self-contained by construction (embed any code or context the task refers to — the eval session has no pre-existing files for the agent to find), never names the section or file holding the fact, never hints at the answer, never quotes rubric text.
+- `query` — a realistic, task-shaped prompt that stands alone: embed any code or context the task refers to inline, or reference a fixture that exists in the eval workspace (see Fixtures). Never sends the agent hunting for an artifact that does not exist, never names the section or file holding the fact, never hints at the answer, never quotes rubric text.
 - `expect` — objective rubric bullets. A scenario passes only if every bullet is met by the returned answer.
+
+### Fixtures
+
+Default to inline, self-contained queries. "Rewrite the upload script" is not a test if there is no script for the agent to find — but a large file or multi-file state can be impractical to embed, and then the query references a fixture instead.
+
+Store canonical fixtures under `fixtures/` next to the queries file. Before dispatch, stage each run's copy in a unique temp directory — `mkdir -p /tmp/opencode/retrieval-test` once, then `mktemp -d /tmp/opencode/retrieval-test/<query-id>.XXXXXXXXXX` per subagent run, skill arm and control arm of the same entry included — copy the fixture in, and substitute the run-specific path into the query. No two runs ever share a fixture file: the read-only claim is a guardrail, not enforcement, and a subagent that mutates a shared fixture contaminates every parallel run pointing at it. Staging under `/tmp` keeps fixture copies out of the repository, so the `git status` contamination check stays meaningful.
+
+Per-run path substitution is isolation mechanics, not query editing — the task text stays verbatim across campaigns.
 
 ## Subagent prompt
 
@@ -82,7 +90,7 @@ Do not give the subagent any additional information and do not inform it that th
 ## Workflow
 
 1. Confirm the skill is available in the session and read the queries file. If it is missing or empty, stop — never invent queries mid-campaign.
-2. Dispatch all subagents in parallel in a single message, using the harness's general-purpose subagent type: for each query-file entry, one skill-arm subagent AND one control-arm subagent. Give each exactly the template prompt — no added context, no rubric text, no hint that this is a test.
+2. For each entry that references a fixture, stage a copy in a unique `mktemp -d` directory under `/tmp/opencode/retrieval-test/` per subagent run and substitute the run-specific path into the query. Dispatch all subagents in parallel in a single message, using the harness's general-purpose subagent type: for each query-file entry, one skill-arm subagent AND one control-arm subagent. Give each exactly the template prompt — no added context, no rubric text, no hint that this is a test.
 3. Abort any subagent still running after 120 seconds. Retrieval runs read a doc and write an inline answer; a run going longer has ignored the rules and started real work. It is measuring nothing; kill it.
 4. Verify the skill-loaded signal in each skill-arm result — the skill-tool invocation for the exact skill name. No signal → `void` (the doc was never in context; the run measured nothing). A control-arm run that loaded any skill → `void` (contaminated baseline).
 5. If any run's output or transcript shows a file mutation happened despite the rules: void the run, check `git status` for repository contamination, restore if needed, and note it in the report.
@@ -159,8 +167,9 @@ Campaign rules:
 ## Checklist
 
 - [ ] Inputs collected; skill confirmed available in the session; queries file exists, is non-empty, and covers the fact inventory — any generated entries explained and approved by the user
-- [ ] Every query is task-shaped, self-contained, and free of section hints and rubric text
+- [ ] Every query is task-shaped, self-contained or backed by an existing fixture, and free of section hints and rubric text
 - [ ] Two subagents per entry (skill arm + control arm), dispatched in parallel in a single message, each given exactly the template prompt
+- [ ] Every referenced fixture staged in a unique `/tmp/opencode/retrieval-test/` subdirectory per subagent run before dispatch — no two runs share a fixture file
 - [ ] Every skill-arm run verified for the skill-loaded signal; missing signal → void
 - [ ] Every run checked for repository mutation; mutating runs voided and `git status` verified clean
 - [ ] Scoring from the returned inline answer only, bullet by bullet; pass requires all bullets
