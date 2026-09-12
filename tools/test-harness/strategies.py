@@ -244,7 +244,7 @@ class OpencodeStrategy(EvalStrategy):
         for line in stdout.splitlines():
             try:
                 event = json.loads(line)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 continue
             ev.parseable += 1
             if not ev.session_id and isinstance(event.get("sessionID"), str):
