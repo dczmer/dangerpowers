@@ -58,6 +58,10 @@ class EventStream:
     answer_parts: list[str] = field(default_factory=list)
     tool_calls: list[dict] = field(default_factory=list)
     skill_loads: list[dict] = field(default_factory=list)
+    # Permanently empty: opencode emits no denied-attempt event type —
+    # denied tools are absent from the model's toolset, so nothing ever
+    # appends here (verified in campaign-2026-09-12-2, 32 runs). Kept
+    # only for results.json schema stability.
     denied_tool_attempts: list[dict] = field(default_factory=list)
     completed_load: bool = False  # skill tool_use on target, status completed
     attempted_load: bool = False  # skill tool_use on target, other status
@@ -432,11 +436,6 @@ class OpencodeStrategy(EvalStrategy):
                             or "",
                         }
                     )
-            elif etype in ("permission_denied", "tool_denied"):
-                # UNVERIFIED event shape — denied tools may simply be absent
-                # from the model's toolset, making this dead code by
-                # construction. Belt-and-suspenders only; never load-bearing.
-                ev.denied_tool_attempts.append(event)
             elif etype == "error":
                 error = event.get("error", {})
                 message = error.get("data", {}).get("message")

@@ -245,10 +245,13 @@ class ParseStreamTests(unittest.TestCase):
         self.assertEqual(ev.report_loaded, SKILL)
         self.assertTrue(ev.report_no_match)
 
-    def test_denied_hook_never_load_bearing(self):
+    def test_denied_hook_removed_field_stays_empty(self):
+        # opencode never emits denied-attempt events (dead code pruned in
+        # Phase 11); the parse branch is gone, so even a hypothetical
+        # denied event leaves the field empty.
         denied = {"type": "tool_denied", "part": {}}
         ev = self._parse(denied, text_event("No skill matched."))
-        self.assertEqual(ev.denied_tool_attempts, [denied])
+        self.assertEqual(ev.denied_tool_attempts, [])
         self.assertTrue(ev.report_no_match)
 
 
