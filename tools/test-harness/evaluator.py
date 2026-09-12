@@ -20,6 +20,7 @@ import random
 import re
 import shutil
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -43,6 +44,11 @@ MAX_WORKERS = 10
 TRIGGER_AGENT = "trigger-evaluator"
 RETRIEVAL_EVALUATOR_AGENT = "retrieval-evaluator"
 RETRIEVAL_CONTROL_AGENT = "retrieval-control"
+
+# Log label per retrieval arm, used as a [tag] prefix on every progress line
+# so interleaved arm output stays attributable when both arms run in
+# parallel. The skill arm is padded to the control arm's width.
+ARM_TAGS = {"skill_arm": " skill ", "control_arm": "control"}
 
 
 @dataclass
@@ -83,16 +89,22 @@ class _Log:
     file: TextIO | None = None
 
 
+_EMIT_LOCK = threading.Lock()
+
+
 def emit(msg: str = "", *, err: bool = False) -> None:
-    """Print a progress line; also mirror it to the campaign log if set."""
-    print(msg, file=sys.stderr if err else sys.stdout, flush=True)
-    if _Log.file is not None:
-        _Log.file.write(msg + "\n")
-        _Log.file.flush()
+    """Print a progress line; also mirror it to the campaign log if set.
+    Serialized: arms and reps log concurrently from worker threads."""
+    with _EMIT_LOCK:
+        print(msg, file=sys.stderr if err else sys.stdout, flush=True)
+        if _Log.file is not None:
+            _Log.file.write(msg + "\n")
+            _Log.file.flush()
 
 
-def log_start(n: int) -> None:
-    emit(f"[rep {n:>3}] started")
+def log_start(n: int, tag: str | None = None) -> None:
+    prefix = f"[{tag}] " if tag else ""
+    emit(f"{prefix}[rep {n:>3}] started")
 
 
 def log_complete(n: int, verdict: Verdict) -> None:
@@ -747,6 +759,105 @@ def cmd_failures(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_retrieval_evidence(args: argparse.Namespace) -> int:
+    """Print the per-run scoring evidence from a retrieval-suite results
+    JSON: per entry, the expect rubric and, for every arm/rep, the answer
+    text, sources consulted, void signals, and tool-call targets. The
+    trigger track's `failures` equivalent: extraction only, so the driver
+    scores from presented evidence instead of hand-rolling JSON walks.
+    Exit 0 with an entry count line; exit 1 only on a malformed file."""
+    path = Path(args.results)
+    if not path.exists():
+        print(f"error: results file not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
+        return 1
+    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
+        print(
+            f"error: {path}: not a retrieval-suite results file "
+            f"(missing 'entries' list)",
+            file=sys.stderr,
+        )
+        return 1
+
+    n_printed = 0
+    for i, entry in enumerate(data["entries"]):
+        if not isinstance(entry, dict):
+            print(
+                f"error: {path}: entry {i} is not an object", file=sys.stderr
+            )
+            return 1
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            print(
+                f"error: {path}: entry {i} missing 'id' (non-empty string)",
+                file=sys.stderr,
+            )
+            return 1
+        if args.entry is not None and eid != args.entry:
+            continue
+        skill_arm = entry.get("skill_arm")
+        control_arm = entry.get("control_arm")
+        if (
+            not isinstance(skill_arm, dict)
+            or not isinstance(skill_arm.get("runs"), list)
+            or not isinstance(control_arm, dict)
+            or not isinstance(control_arm.get("runs"), list)
+        ):
+            print(
+                f"error: {path}: entry {eid} is missing arm run lists",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(f"## {eid}")
+        print(f'query: "{entry.get("query", "")}"')
+        expect = entry.get("expect") or []
+        print("expect:")
+        for b in expect:
+            print(f"  - {b}")
+        print()
+        for arm_key, arm in (
+            ("skill_arm", skill_arm),
+            ("control_arm", control_arm),
+        ):
+            for n, run in enumerate(arm["runs"], start=1):
+                timeout = "timeout" if run.get("timeout") else "ok"
+                session = run.get("session_id") or "no-session"
+                print(
+                    f"[{ARM_TAGS[arm_key]}] rep {n:>3} ({session}, {timeout})"
+                )
+                answer = run.get("answer_text") or "(empty answer)"
+                print("answer:")
+                for line in answer.splitlines():
+                    print(f"  {line}")
+                src = run.get("sources_consulted")
+                if src:
+                    print(f"sources consulted: {src}")
+                signals = run.get("void_signals") or []
+                joined = ", ".join(signals) if signals else "none"
+                print(f"void signals: {joined}")
+                targets = [
+                    c.get("target")
+                    for c in run.get("tool_calls") or []
+                    if c.get("target")
+                ]
+                print(
+                    f"tool calls: {', '.join(targets) if targets else 'none'}"
+                )
+                print()
+        n_printed += 1
+
+    if args.entry is not None and n_printed == 0:
+        print(f"error: no entry with id: {args.entry}", file=sys.stderr)
+        return 1
+    print(f"evidence: {n_printed} entries from {path}")
+    return 0
+
+
 # --------------------------------------------------------------------------
 # Retrieval campaign tooling: retrieval-suite + scored-check
 
@@ -901,10 +1012,11 @@ def run_records_batch(
 ) -> list[dict]:
     fixtures_dir = Path(args.queries).parent / "fixtures"
     skill = args.skill if arm == "skill_arm" else None
+    tag = ARM_TAGS[arm]
     runs: dict[int, dict] = {}
 
     def run_rep(n: int) -> dict:
-        log_start(n)
+        log_start(n, tag)
         dispatched = stage_and_dispatch(
             entry, arm, n, args.reps, arm_ws, fixtures_dir
         )
@@ -919,7 +1031,7 @@ def run_records_batch(
         record = build_run_record(
             ev, dispatched, timed_out, arm_ws, arm, args.skill
         )
-        line = f"[rep {n:>3}] completed"
+        line = f"[{tag}] [rep {n:>3}] completed"
         if timed_out:
             line += " (timeout)"
         if record["void_signals"]:
@@ -932,7 +1044,10 @@ def run_records_batch(
     try:
         runs[1] = run_rep(1)
     except HarnessExecutionError as e:
-        emit(f"error: harness could not execute the query: {e}", err=True)
+        emit(
+            f"error: [{tag}] harness could not execute the query: {e}",
+            err=True,
+        )
         sys.exit(1)
 
     # Remaining reps in parallel batches of at most MAX_WORKERS.
@@ -950,7 +1065,9 @@ def run_records_batch(
                         first_error = (n, str(e))
         if first_error is not None:
             n, detail = first_error
-            emit(f"error: rep {n} could not execute: {detail}", err=True)
+            emit(
+                f"error: [{tag}] rep {n} could not execute: {detail}", err=True
+            )
             emit("error: batch aborted", err=True)
             sys.exit(1)
 
@@ -1034,15 +1151,33 @@ def cmd_retrieval_suite(args: argparse.Namespace) -> int:
             "query": entry["query"],
             "expect": entry["expect"],
         }
-        for arm, ws, agent in (
-            ("skill_arm", skill_ws, RETRIEVAL_EVALUATOR_AGENT),
-            ("control_arm", control_ws, RETRIEVAL_CONTROL_AGENT),
-        ):
-            record[arm] = {
-                "runs": run_records_batch(
-                    strategy, entry, arm, ws, agent, args
+        # Both arms in parallel, like eval_batch parallelizes trigger reps:
+        # each arm still runs its smoke rep alone before its rep batches, but
+        # the arms no longer wait on each other. A harness failure in either
+        # arm aborts the campaign (no JSON, workspaces kept).
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = {
+                pool.submit(
+                    run_records_batch, strategy, entry, arm, ws, agent, args
+                ): arm
+                for arm, ws, agent in (
+                    ("skill_arm", skill_ws, RETRIEVAL_EVALUATOR_AGENT),
+                    ("control_arm", control_ws, RETRIEVAL_CONTROL_AGENT),
                 )
             }
+            for fut, arm in futures.items():
+                try:
+                    record[arm] = {"runs": fut.result()}
+                except SystemExit as e:
+                    # The worker emitted the exact error and exited 1;
+                    # propagate the abort in the main thread.
+                    return e.code if isinstance(e.code, int) else 1
+                except HarnessExecutionError as e:
+                    emit(
+                        f"error: [{ARM_TAGS[arm]}] could not execute: {e}",
+                        err=True,
+                    )
+                    return 1
         results.append(record)
         emit(f"[{len(results)}/{len(entries)}] {entry['id']}")
     out.write_text(
@@ -1082,7 +1217,11 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
     """Validate scored.json against the results JSON it claims to cover.
     The driver owns judgment; this keeps the audit artifact honest. Exact
     messages, exit 1 on any violation; exit 0 with a coverage line when
-    every results id is accounted for exactly once."""
+    every results id is accounted for exactly once. Beyond the schema:
+    ablation_flag must equal (control == "pass"), missed_bullets must be
+    verbatim rubric text from the entry's expect list, and when the
+    record-step counts are passed (--passes/--fails/--gaps/--voids) they
+    must match the scored sums."""
     results_path = Path(args.results)
     scored_path = Path(args.scored)
     if not results_path.exists():
@@ -1099,6 +1238,7 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
             f"(missing 'entries' list)"
         )
     results_ids: list[str] = []
+    results_expect: dict[str, list[str]] = {}
     for i, e in enumerate(results["entries"]):
         eid = e.get("id") if isinstance(e, dict) else None
         if not isinstance(eid, str) or not eid:
@@ -1107,6 +1247,8 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
                 f"(non-empty string)"
             )
         results_ids.append(eid)
+        expect = e.get("expect") if isinstance(e, dict) else None
+        results_expect[eid] = expect if isinstance(expect, list) else []
 
     if not scored_path.exists():
         return _err(f"scored file not found: {scored_path}")
@@ -1166,6 +1308,15 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
             return _err(
                 f"{scored_path}: entry {eid}: ablation_flag must be a " f"bool"
             )
+        # Deterministic derivation: a control pass is exactly what makes
+        # the entry an ablation flag; the scorer must not improvise it.
+        if entry["ablation_flag"] != (control == "pass"):
+            return _err(
+                f"{scored_path}: entry {eid}: ablation_flag must be true "
+                f"exactly when control is 'pass', got "
+                f"ablation_flag={entry['ablation_flag']} with "
+                f"control={control!r}"
+            )
 
         missed = entry.get("missed_bullets")
         if missed is not None and (
@@ -1181,6 +1332,18 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
                 f"{scored_path}: entry {eid}: missed_bullets required "
                 f"(non-empty) for result '{result}'"
             )
+        if missed:
+            # Missed bullets name rubric text verbatim — anything else is
+            # a scoring artifact, not evidence against the doc.
+            not_in_expect = [
+                b for b in missed if b not in results_expect.get(eid, [])
+            ]
+            if not_in_expect:
+                return _err(
+                    f"{scored_path}: entry {eid}: missed_bullets not in "
+                    f"the entry's expect rubric: "
+                    f"{', '.join(not_in_expect)}"
+                )
 
     missing = [eid for eid in results_ids if eid not in covered]
     if missing:
@@ -1188,6 +1351,29 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
             f"{scored_path}: missing scored entries for results ids: "
             f"{', '.join(missing)}"
         )
+
+    # Optional count gate: when the record-step counts are given, they
+    # must equal what the scored entries actually sum to.
+    given = [
+        getattr(args, n, None) for n in ("passes", "fails", "gaps", "voids")
+    ]
+    if any(c is not None for c in given):
+        if not all(c is not None for c in given):
+            return _err(
+                "--passes/--fails/--gaps/--voids must be given together"
+            )
+        computed = {
+            r: sum(1 for e in scored["entries"] if e.get("result") == r)
+            for r in ("pass", "fail", "gap", "void")
+        }
+        if tuple(given) != tuple(computed[r] for r in computed):
+            return _err(
+                f"counts do not match scored results: computed "
+                f"{computed['pass']} pass / {computed['fail']} fail / "
+                f"{computed['gap']} gap / {computed['void']} void, got "
+                f"{given[0]} pass / {given[1]} fail / {given[2]} gap / "
+                f"{given[3]} void"
+            )
     print(f"ok: {scored_path} covers {len(results_ids)} entries")
     return 0
 
@@ -1263,9 +1449,17 @@ def main() -> int:
     retrieval.add_argument("--reps", type=int, default=1)
     retrieval.add_argument("--timeout", type=int, default=120)
 
+    evidence = sub.add_parser("retrieval-evidence")
+    evidence.add_argument("--results", required=True)
+    evidence.add_argument("--entry")
+
     scored = sub.add_parser("scored-check")
     scored.add_argument("--results", required=True)
     scored.add_argument("--scored", required=True)
+    scored.add_argument("--passes", type=int)
+    scored.add_argument("--fails", type=int)
+    scored.add_argument("--gaps", type=int)
+    scored.add_argument("--voids", type=int)
 
     args = parser.parse_args()
     if args.command == "check":
@@ -1280,6 +1474,8 @@ def main() -> int:
         return cmd_failures(args)
     if args.command == "retrieval-suite":
         return cmd_retrieval_suite(args)
+    if args.command == "retrieval-evidence":
+        return cmd_retrieval_evidence(args)
     if args.command == "scored-check":
         return cmd_scored_check(args)
     return cmd_run(args)

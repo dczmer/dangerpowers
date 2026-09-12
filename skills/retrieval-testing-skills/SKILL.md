@@ -155,13 +155,21 @@ scripts the agent cannot run.
    --skill-workspace <skill-ws> --control-workspace <control-ws> \
    --queries <queries> --out <campaign>/results.json \
    [--model m] [--variant v] [--reps r] [--timeout t]`
-9. Score each entry from the results JSON: bullets from `answer_text`
-   only; voids via `void_signals`; classifications from `tool_calls` with
-   `sources_consulted` as cross-check and `reasoning` as fallback; control
-   comparison → ablation flags. Reps > 1: entry result = worst non-void
-   run outcome (void only if every run is void).
+   The two arms of each entry run in parallel (the same
+   ThreadPoolExecutor pattern the trigger reps use); every progress
+   line is arm-tagged — `[ skill ]` for the skill arm, `[control]`
+   for the control arm — so interleaved output stays attributable.
+9. `evaluator.py retrieval-evidence --results <campaign>/results.json \
+   [--entry <id>]` → score from the presented evidence; never hand-roll
+   JSON walks against results.json. Bullets from `answer_text`
+   only; voids via `void_signals`; classifications from `tool_calls`
+   with `sources_consulted` as cross-check and `reasoning` as fallback;
+   control comparison → ablation flags. Reps > 1: entry result = worst
+   non-void run outcome (void only if every run is void).
 10. Write `<campaign>/scored.json` (schema per the scored-check section);
-    `evaluator.py scored-check --results … --scored …`.
+    `evaluator.py scored-check --results … --scored … \
+    [--passes P --fails F --gaps G --voids V]` — with the counts given
+    (all four, matching the report summary), the check gates `record`.
 11. Report (existing format + `artifacts:`/`manifest:` lines).
 12. Confirmed doc fixes → mini-campaign re-run of failed entries only
     (second campaign dir, filtered queries file) — confirmation, never
@@ -302,9 +310,15 @@ against the results before anything is recorded. Schema:
   `result` is `fail` (a `gap` is a result, not a classification), absent
   or null otherwise.
 - `control` — the control-arm outcome: `pass`, `fail`, or `void`.
-- `ablation_flag` — boolean.
+- `ablation_flag` — boolean, deterministic: true exactly when `control`
+  is `pass`. A control pass schedules the redundancy re-check; the check
+  rejects any other combination.
 - `missed_bullets` — list of strings, required non-empty for `fail` and
-  `gap`.
+  `gap`; each bullet must be a verbatim string from the entry's `expect`
+  rubric — paraphrases are rejected.
+- Optional `--passes/--fails/--gaps/--voids` (all four together) must
+  equal the scored sums; pass the counts from the report summary so an
+  arithmetic slip fails here, before `record`.
 - Every `results.json` entry id must be accounted for exactly once —
   missing, duplicate, or unknown ids fail validation.
 
@@ -331,9 +345,9 @@ against the results before anything is recorded. Schema:
 - [ ] Skill synced `--full` into the skill workspace and verified with `status --full`; control workspace contains no skill bytes
 - [ ] Campaign dir created under the retrieval-tests root; queries.json, facts.json, and the verified synced skill dir snapshotted into it with the exact commands recorded
 - [ ] Planned spend (entries × 2 arms × reps) confirmed by the user before the first eval run
-- [ ] `retrieval-suite` invoked with both workspaces and the agents dir; results.json written; only exit codes and JSON consumed
-- [ ] Scoring from `answer_text` only, bullet by bullet; voids via `void_signals`; every failure classified (gap / findability / clarity); control comparison → ablation flags; reps > 1 resolved by the worst-non-void rule
-- [ ] scored.json written for every results entry and `scored-check` exits 0
+- [ ] `retrieval-suite` invoked with both workspaces and the agents dir; arms ran in parallel with arm-tagged progress lines; results.json written; only exit codes and JSON consumed
+- [ ] Scoring evidence gathered with `retrieval-evidence` (no ad-hoc JSON scripts); scored from `answer_text` only, bullet by bullet; voids via `void_signals`; every failure classified (gap / findability / clarity); control comparison → ablation flags; reps > 1 resolved by the worst-non-void rule
+- [ ] scored.json written for every results entry and `scored-check` exits 0 — including the report-summary counts when passed
 - [ ] Report shows per-scenario results, summary counts, failure classifications, recommended doc fixes, and the `artifacts:`/`manifest:` lines
 - [ ] `record --scope dir` run only after a completed full campaign — never aborted, never a mini-campaign
 - [ ] Doc edits applied only after the full pass completes and only with user confirmation; failed scenarios re-run afterwards as a never-recorded mini-campaign

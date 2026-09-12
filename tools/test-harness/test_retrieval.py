@@ -11,6 +11,8 @@ import ast
 import io
 import json
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -465,7 +467,10 @@ class ScoredCheckTests(unittest.TestCase):
             json.dumps(
                 {
                     "config": {"skill": "demo-skill"},
-                    "entries": [{"id": "a"}, {"id": "b"}],
+                    "entries": [
+                        {"id": "a", "expect": ["missed one", "kept bullet"]},
+                        {"id": "b", "expect": ["b bullet"]},
+                    ],
                 }
             )
         )
@@ -478,14 +483,14 @@ class ScoredCheckTests(unittest.TestCase):
         entry = {
             "id": eid,
             "result": "pass",
-            "control": "pass",
+            "control": "fail",
             "ablation_flag": False,
             "missed_bullets": [],
         }
         entry.update(overrides)
         return entry
 
-    def _check(self, entries) -> int:
+    def _check(self, entries, **overrides) -> int:
         self.scored.write_text(
             json.dumps(
                 {
@@ -496,8 +501,15 @@ class ScoredCheckTests(unittest.TestCase):
             )
         )
         args = argparse.Namespace(
-            results=str(self.results), scored=str(self.scored)
+            results=str(self.results),
+            scored=str(self.scored),
+            passes=None,
+            fails=None,
+            gaps=None,
+            voids=None,
         )
+        for key, value in overrides.items():
+            setattr(args, key, value)
         return evaluator.cmd_scored_check(args)
 
     def test_complete_scored_passes(self):
@@ -579,6 +591,80 @@ class ScoredCheckTests(unittest.TestCase):
             1,
         )
 
+    def test_ablation_flag_required_on_control_pass(self):
+        self.assertEqual(
+            self._check(
+                [
+                    self._entry("a"),
+                    self._entry("b", control="pass", ablation_flag=True),
+                ]
+            ),
+            0,
+        )
+
+    def test_ablation_flag_false_on_control_pass_rejected(self):
+        self.assertEqual(
+            self._check(
+                [
+                    self._entry("a"),
+                    self._entry("b", control="pass", ablation_flag=False),
+                ]
+            ),
+            1,
+        )
+
+    def test_ablation_flag_true_on_control_fail_rejected(self):
+        self.assertEqual(
+            self._check(
+                [
+                    self._entry("a"),
+                    self._entry("b", control="fail", ablation_flag=True),
+                ]
+            ),
+            1,
+        )
+
+    def test_missed_bullet_not_in_expect_rejected(self):
+        self.assertEqual(
+            self._check(
+                [
+                    self._entry(
+                        "a",
+                        result="fail",
+                        classification="clarity",
+                        control="fail",
+                        missed_bullets=["not a rubric bullet"],
+                    ),
+                    self._entry("b"),
+                ]
+            ),
+            1,
+        )
+
+    def test_counts_matching_pass(self):
+        rc = self._check(
+            [self._entry("a"), self._entry("b")],
+            passes=2,
+            fails=0,
+            gaps=0,
+            voids=0,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_counts_mismatch_rejected(self):
+        rc = self._check(
+            [self._entry("a"), self._entry("b")],
+            passes=1,
+            fails=0,
+            gaps=0,
+            voids=0,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_partial_counts_rejected(self):
+        rc = self._check([self._entry("a"), self._entry("b")], passes=2)
+        self.assertEqual(rc, 1)
+
 
 class ControlPurityTests(unittest.TestCase):
     """cmd_retrieval_suite pre-spend validation: a control workspace that
@@ -636,6 +722,224 @@ class ControlPurityTests(unittest.TestCase):
                     evaluator.cmd_retrieval_suite(self._args())
         self.assertEqual(cm.exception.code, 1)
         self.assertFalse(self.out.exists())
+
+
+class ParallelArmTests(unittest.TestCase):
+    """cmd_retrieval_suite runs the skill and control arms of an entry in
+    parallel (same ThreadPoolExecutor pattern as the trigger reps) and tags
+    every progress line with its arm so interleaved output stays readable."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "retrieval-evaluator.opencode.md").write_text(
+            "---\nname: retrieval-evaluator\nmode: primary\n---\n"
+            "load {{SKILL_NAME}}\n"
+        )
+        (self.agents_dir / "retrieval-control.opencode.md").write_text(
+            "---\nname: retrieval-control\nmode: primary\n---\nbody\n"
+        )
+        self.skill_ws = self.root / "skill-ws"
+        (self.skill_ws / ".agents" / "skills" / "demo-skill").mkdir(
+            parents=True
+        )
+        self.control_ws = self.root / "control-ws"
+        (self.control_ws / ".agents").mkdir(parents=True)
+        (self.root / "fixtures").mkdir()
+        self.queries = self.root / "queries.json"
+        self.queries.write_text(
+            json.dumps(
+                [
+                    {"id": "a", "query": "q1", "expect": ["b"]},
+                    {"id": "c", "query": "q2", "expect": ["d"]},
+                ]
+            )
+        )
+        self.out = self.root / "results.json"
+
+    def tearDown(self):
+        evaluator._Log.file = None
+        self.tmp.cleanup()
+
+    class _FakeStrategy:
+        """execute() sleeps briefly and tracks concurrency across calls."""
+
+        def __init__(self):
+            self.active = 0
+            self.max_active = 0
+            self.lock = threading.Lock()
+
+        def agent_file(self, agents_dir, base):
+            return Path(agents_dir) / f"{base}.opencode.md"
+
+        def install(self, *args, **kwargs):
+            return None
+
+        def execute(self, ws, agent, query, model, variant, skill=None):
+            with self.lock:
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            time.sleep(0.05)
+            with self.lock:
+                self.active -= 1
+            ev = EventStream(
+                answer_parts=["answer"],
+                completed_load=skill is not None,
+            )
+            return ev, False
+
+    def _run(self):
+        fake = self._FakeStrategy()
+        args = argparse.Namespace(
+            harness="opencode",
+            skill="demo-skill",
+            agents_dir=str(self.agents_dir),
+            skill_workspace=str(self.skill_ws),
+            control_workspace=str(self.control_ws),
+            queries=str(self.queries),
+            out=str(self.out),
+            model=None,
+            variant=None,
+            reps=1,
+            timeout=120,
+        )
+        buf = io.StringIO()
+        with mock.patch.object(evaluator, "check_harness", lambda *a: None):
+            with mock.patch.object(
+                evaluator,
+                "resolve_strategy",
+                lambda h: lambda timeout=30: fake,
+            ):
+                with redirect_stdout(buf):
+                    rc = evaluator.cmd_retrieval_suite(args)
+        return rc, buf.getvalue(), fake
+
+    def test_arms_of_an_entry_run_concurrently(self):
+        rc, out, fake = self._run()
+        self.assertEqual(rc, 0)
+        # reps=1 -> one run per arm per entry; parallel arms overlap at
+        # least once across the two entries.
+        self.assertGreaterEqual(fake.max_active, 2)
+
+    def test_progress_lines_are_arm_tagged(self):
+        rc, out, _ = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("[ skill ] [rep   1] started", out)
+        self.assertIn("[control] [rep   1] started", out)
+        self.assertIn("[ skill ] [rep   1] completed", out)
+        self.assertIn("[control] [rep   1] completed", out)
+
+    def test_results_json_has_both_arms(self):
+        rc, _, _ = self._run()
+        self.assertEqual(rc, 0)
+        data = json.loads(self.out.read_text())
+        self.assertEqual(len(data["entries"]), 2)
+        for entry in data["entries"]:
+            self.assertEqual(len(entry["skill_arm"]["runs"]), 1)
+            self.assertEqual(len(entry["control_arm"]["runs"]), 1)
+
+
+class RetrievalEvidenceTests(unittest.TestCase):
+    """cmd_retrieval_evidence: extraction only — expect rubric plus per
+    arm/rep answer text, sources consulted, void signals, and tool-call
+    targets, arm-tagged like the suite progress lines."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.results = self.root / "results.json"
+        self.results.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        {
+                            "id": "a",
+                            "query": "q1",
+                            "expect": ["bullet one"],
+                            "skill_arm": {
+                                "runs": [
+                                    {
+                                        "answer_text": "the answer",
+                                        "sources_consulted": "Uploads",
+                                        "tool_calls": [
+                                            {"target": "SKILL.md"},
+                                            {"target": "uploads.md"},
+                                        ],
+                                        "void_signals": ["skill-not-loaded"],
+                                        "session_id": "ses_1",
+                                        "timeout": False,
+                                    }
+                                ]
+                            },
+                            "control_arm": {
+                                "runs": [
+                                    {
+                                        "answer_text": "baseline",
+                                        "sources_consulted": None,
+                                        "tool_calls": [],
+                                        "void_signals": [],
+                                        "session_id": "",
+                                        "timeout": True,
+                                    }
+                                ]
+                            },
+                        },
+                        {
+                            "id": "b",
+                            "query": "q2",
+                            "expect": ["bullet two"],
+                            "skill_arm": {"runs": []},
+                            "control_arm": {"runs": []},
+                        },
+                    ],
+                }
+            )
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, **overrides):
+        args = argparse.Namespace(results=str(self.results), entry=None)
+        for key, value in overrides.items():
+            setattr(args, key, value)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = evaluator.cmd_retrieval_evidence(args)
+        return rc, buf.getvalue()
+
+    def test_prints_all_evidence_arm_tagged(self):
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("## a", out)
+        self.assertIn("- bullet one", out)
+        self.assertIn("[ skill ] rep   1 (ses_1, ok)", out)
+        self.assertIn("the answer", out)
+        self.assertIn("sources consulted: Uploads", out)
+        self.assertIn("void signals: skill-not-loaded", out)
+        self.assertIn("tool calls: SKILL.md, uploads.md", out)
+        self.assertIn("[control] rep   1 (no-session, timeout)", out)
+        self.assertIn("void signals: none", out)
+        self.assertIn("evidence: 2 entries", out)
+
+    def test_entry_filter(self):
+        rc, out = self._run(entry="b")
+        self.assertEqual(rc, 0)
+        self.assertIn("## b", out)
+        self.assertNotIn("## a", out)
+        self.assertIn("evidence: 1 entries", out)
+
+    def test_unknown_entry_rejected(self):
+        rc, _ = self._run(entry="zzz")
+        self.assertEqual(rc, 1)
+
+    def test_malformed_results_rejected(self):
+        self.results.write_text('{"entries": "nope"}')
+        rc, _ = self._run()
+        self.assertEqual(rc, 1)
 
 
 class GrammarCompatTests(unittest.TestCase):
