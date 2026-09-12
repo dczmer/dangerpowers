@@ -1,6 +1,6 @@
 ---
 name: retrieval-testing-skills
-description: Use when the user asks to run a retrieval test or retrieval-testing campaign against a reference skill, verify that agents can find and correctly apply documented facts, or surface gaps and unclear sections in a reference doc. Runs task-shaped eval queries from a queries file through read-only subagents and reports per-fact pass/fail with failure classifications.
+description: Use when the user asks to run a retrieval test or retrieval-testing campaign against a reference skill, verify that agents can find and correctly apply documented facts, or surface gaps and unclear sections in a reference doc. Runs task-shaped eval queries from a queries file through headless harness runs in sterile temp workspaces (skill arm plus an uncontaminated control arm) and reports per-fact pass/fail with failure classifications.
 disable-model-invocation: true
 metadata.opencode/slash: true
 metadata.opencode/autoinvoke: false
@@ -14,13 +14,19 @@ Run one retrieval-test campaign for a reference skill against a file of eval que
 
 The skill under test is force-loaded by instruction in every scenario. Retrieval testing measures the skill *body*; whether the description triggers at all is the separate trigger-testing track.
 
+Staging, capture, validation, and manifest recording live in `tools/test-harness/` (`workspace-manager.sh`, `evaluator.py`), invoked from this skill's resolved directory. Consume exit codes and JSON from those scripts only — never parse their prose stdout.
+
 ## Inputs
 
 Collect all inputs before starting. Prompt the user for any that are missing.
 
-- **Skill name** — the reference skill under test. It must appear in this session's available-skills list; subagents can only load skills the parent session can see. If it is not available, stop and tell the user. Resolve its filesystem location and derive the **source root**: the directory containing the `skills/` directory the skill lives in — not necessarily the repo root (for `<root>/.opencode/skills/<name>`, the source root is `<root>/.opencode`).
+- **Skill name or path** — the reference skill under test. Accept either a path or a bare name: a path is used directly; a name is resolved against the known skills roots. From the resolved location, derive the **source root**: the directory containing the `skills/` directory the skill lives in — not necessarily the repo root (for `<root>/.opencode/skills/<name>`, the source root is `<root>/.opencode`). The harness measures the bytes on disk, so whether the driving session can load the skill is irrelevant.
+- **Harness** — required, user-specified (e.g. `opencode`). It selects the eval strategy: the binary, the agent-file suffix, and the install location. There is no default.
 - **Queries file** — path to a populated `queries.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/queries.json`, so test artifacts live next to the skill under test, wherever it is registered.
 - **Facts manifest** — path to the persisted fact inventory, `facts.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/facts.json`, next to the queries file (see Fact inventory).
+- **Model / variant** — optional passthroughs to the harness run, and the only model-selection path: the eval agents pin no model config, so sweeps measure what they claim.
+- **Reps** — runs per entry per arm; default 1.
+- **Timeout** — per-run abort, in seconds; default 120.
 
 After resolving the source root, read the skill under test fully and build the fact inventory fresh from the current doc (see Fact inventory) — the manifest is a diff baseline, never a cache. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise diff the inventory against the manifest (see Fact inventory for the diff rules) and present a proposal for whatever the diff requires (see Proposal format). With the user's approval, apply the changes to the queries file — creating any fixtures new entries reference under `fixtures/` and regenerating `facts.json` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
 
@@ -77,70 +83,97 @@ Each entry tests one fact cluster:
       "interprets the value as seconds",
       "does not retry on other 4xx codes"
     ]
+  },
+  {
+    "id": "upload-script-review",
+    "query": "Review {RUN_DIR}/upload.py for the retry behavior you would add for 429 responses, and report the complete updated function inline.",
+    "expect": [
+      "reads the Retry-After header rather than using a fixed backoff",
+      "interprets the value as seconds"
+    ],
+    "fixtures": ["upload.py"]
   }
 ]
 ```
 
 - `id` — stable fact identifier; never reuse ids across facts.
-- `query` — a realistic, task-shaped prompt that stands alone: embed any code or context the task refers to inline, or reference a fixture that exists in the eval workspace (see Fixtures). Never sends the agent hunting for an artifact that does not exist, never names the section or file holding the fact, never hints at the answer, never quotes rubric text.
+- `query` — a realistic, task-shaped prompt that stands alone: embed any code or context the task refers to inline, or reference staged fixtures through the `{RUN_DIR}` token (see Fixtures). Never sends the agent hunting for an artifact that does not exist, never names the section or file holding the fact, never hints at the answer, never quotes rubric text. The stored query is canonical — reported verbatim, `{RUN_DIR}` token included, across campaigns; only the per-run dispatched copy substitutes the staged path.
 - `expect` — objective rubric bullets. A scenario passes only if every bullet is met by the returned answer.
+- `fixtures` — optional list of fixture filenames, each existing under a `fixtures/` directory next to the queries file. Required exactly when the query contains `{RUN_DIR}`: the harness rejects a token without a fixtures entry and fixtures without a token before any spend.
 
 ### Fixtures
 
 Default to inline, self-contained queries. "Rewrite the upload script" is not a test if there is no script for the agent to find — but a large file or multi-file state can be impractical to embed, and then the query references a fixture instead.
 
-Store canonical fixtures under `fixtures/` next to the queries file. Before dispatch, stage each run's copy in a unique temp directory — `mkdir -p /tmp/opencode/retrieval-test` once, then `mktemp -d /tmp/opencode/retrieval-test/<query-id>.XXXXXXXXXX` per subagent run, skill arm and control arm of the same entry included — copy the fixture in, and substitute the run-specific path into the query. No two runs ever share a fixture file: the read-only claim is a guardrail, not enforcement, and a subagent that mutates a shared fixture contaminates every parallel run pointing at it. Staging under `/tmp` keeps fixture copies out of the repository, so the `git status` contamination check stays meaningful.
+Store canonical fixtures under `fixtures/` next to the queries file. Staging is scripted, not improvised: the harness gives each run its own run directory inside the eval workspace — `<workspace>/fixtures/<entry-id>/<arm>` (suffixed `-repN` when reps > 1) — copies the entry's fixture files in fresh, and substitutes that run-specific path for `{RUN_DIR}` in the dispatched query. No two runs ever share a fixture file, and no run ever writes into the repository: the eval workspaces are disposable temp directories, never the repo.
 
 Per-run path substitution is isolation mechanics, not query editing — the task text stays verbatim across campaigns.
 
-## Subagent prompt
+## Eval agents
 
-Give each skill-arm subagent this prompt exactly, replacing `{{SKILL NAME}}` and `{{TEST QUERY}}`:
+Eval runs execute under two restricted agent definitions in this skill's
+`agents/` directory, installed into each eval workspace by the harness
+before the first run:
 
-    You are in a read-only session: file-modification tools are disabled and
-    shell commands that change filesystem or repository state will fail. This
-    is expected, not an error — plan around it.
+- `retrieval-evaluator.opencode.md` (skill arm) — `skill: allow`;
+  read/grep/glob/list allowed; edit, bash, task, todowrite, webfetch,
+  websearch, question denied. The install step substitutes
+  `{{SKILL_NAME}}` with the skill under test; the per-run prompt is the
+  bare query — the measured query never names the skill.
+- `retrieval-control.opencode.md` (control arm) — identical except
+  `skill: deny`; runs in the control workspace, which never contains the
+  skill, and answers from its own knowledge.
 
-    **Rules:**
-    - Before anything else, load the skill named {{SKILL NAME}} using the skill
-      tool. It is your reference documentation for the task; read it, and read
-      whatever files it directs you to.
-    - Perform the task below. General programming knowledge may fill in the
-      basics, but any fact the skill documents must come from the skill.
-    - NEVER create, modify, rename, or delete any file. NEVER run a mutating
-      command — no redirects into files, no package installs, no git
-      operations, no rm/mv/mkdir/chmod. Reading, searching, and loading
-      skills is all you may do.
-    - If the task asks you to change something, produce the would-be result
-      inline instead: complete code in fenced blocks, prose as prose. An
-      answer that exists only on disk counts as no answer.
-    - Do not ask clarifying questions. Make a reasonable assumption, state it
-      in one line, and proceed.
-    - Finish with a "Sources consulted:" list naming the exact skill sections
-      and files you actually used, then end the turn.
+Neither agent pins `model`/`variant`/`temperature`/`top_p` — the installer
+asserts this and aborts before any spend, so campaign `--model`/`--variant`
+flags are the only model-selection path and sweeps measure what they
+claim. Read-only is enforced by the harness permission layer, not claimed
+in a prompt; the old `git status` contamination check is retired (the repo
+is never the working directory).
 
-    Task: {{TEST QUERY}}
-
-The control-arm prompt is identical except the first rule is replaced with: "Do NOT load any skill. Answer entirely from your own knowledge." and the "Sources consulted" requirement is dropped.
-
-The "read-only session" claim is a behavioral guardrail, not a real restriction — the subagent actually has full tools. The rules above, the inline-output requirement, and the timeout in the workflow are the only mitigation against repository mutation.
-
-Do not give the subagent any additional information and do not inform it that this is a test.
+Known limitation: `bash: deny` means a skill whose value includes
+executable `scripts/` cannot have that value exercised — the syncer copies
+scripts the agent cannot run.
 
 ## Workflow
 
-1. Confirm the skill is available in the session and read the queries file. If it is missing or empty, stop — never invent queries mid-campaign.
-2. For each entry that references a fixture, stage a copy in a unique `mktemp -d` directory under `/tmp/opencode/retrieval-test/` per subagent run and substitute the run-specific path into the query. Dispatch all subagents in parallel in a single message, using the harness's general-purpose subagent type: for each query-file entry, one skill-arm subagent AND one control-arm subagent. Give each exactly the template prompt — no added context, no rubric text, no hint that this is a test.
-3. Abort any subagent still running after 120 seconds. Retrieval runs read a doc and write an inline answer; a run going longer has ignored the rules and started real work. It is measuring nothing; kill it.
-4. Verify the skill-loaded signal in each skill-arm result — the skill-tool invocation for the exact skill name. No signal → `void` (the doc was never in context; the run measured nothing). A control-arm run that loaded any skill → `void` (contaminated baseline).
-5. If any run's output or transcript shows a file mutation happened despite the rules: void the run, check `git status` for repository contamination, restore if needed, and note it in the report.
-6. Score each non-void skill-arm run against its rubric, bullet by bullet, using ONLY the returned inline answer — never what the subagent claims it did or found. All bullets met → `pass`; otherwise `fail`, recording exactly which bullets missed.
-7. Classify every failed skill-arm run from its "Sources consulted" list (fall back to the session transcript if the list is missing or looks wrong):
-   - Fact's home section never consulted, and the fact IS in the doc → `findability`
-   - Home section consulted, answer still wrong → `clarity`
-   - Fact absent from the doc entirely → `gap`
-8. Compare each scenario against its control run: control passed → flag the fact for ablation review. Control failed and skill arm passed → the doc is confirmed load-bearing for that fact.
-9. Account for every entry in the queries file. Never drop a scenario from the report because it was inconvenient or void.
+1. Preflight (no spend): resolve python3 (>= 3.10);
+   `evaluator.py check --harness <h>`.
+2. `workspace-manager.sh init --prefix retrieval-test` → skill-ws;
+   `workspace-manager.sh init --prefix retrieval-test` → control-ws.
+3. `sync --skill <s> --source <root> --workspace <skill-ws> --full`
+   (the control workspace is NEVER synced).
+4. `status --skill <s> --source <root> --workspace <skill-ws> --full`.
+5. `campaign-init --root <root>/skills-workspace/<s>/retrieval-tests`.
+6. Snapshot into the campaign dir (plain cp, record the exact commands):
+   `queries.json`, `facts.json`, and the verified synced skill dir — the
+   exact bytes being measured.
+7. Planned-spend confirmation: entries × 2 arms × reps runs, confirmed by
+   the user before the first eval — EVERY campaign, including re-runs.
+8. `evaluator.py retrieval-suite --harness <h> --skill <s> \
+   --agents-dir <retrieval-skill-dir>/agents \
+   --skill-workspace <skill-ws> --control-workspace <control-ws> \
+   --queries <queries> --out <campaign>/results.json \
+   [--model m] [--variant v] [--reps r] [--timeout t]`
+9. Score each entry from the results JSON: bullets from `answer_text`
+   only; voids via `void_signals`; classifications from `tool_calls` with
+   `sources_consulted` as cross-check and `reasoning` as fallback; control
+   comparison → ablation flags. Reps > 1: entry result = worst non-void
+   run outcome (void only if every run is void).
+10. Write `<campaign>/scored.json` (schema per the scored-check section);
+    `evaluator.py scored-check --results … --scored …`.
+11. Report (existing format + `artifacts:`/`manifest:` lines).
+12. Confirmed doc fixes → mini-campaign re-run of failed entries only
+    (second campaign dir, filtered queries file) — confirmation, never
+    recorded.
+13. After every completed FULL campaign (pass or fail, never aborted,
+    never a mini-campaign): `evaluator.py record --skill <s> \
+    --skill-path <skill dir> --manifest <root>/skills-workspace/<s>/manifest.json \
+    --scope dir --campaign <name> --passes N --fails M --gaps G --voids V`
+14. `cleanup --workspace <ws> --prefix retrieval-test` — twice.
+
+(`<retrieval-skill-dir>` = this skill's own resolved absolute path, same
+convention as the trigger track.)
 
 ## Improving the skill definition
 
@@ -157,8 +190,8 @@ Campaign rules:
 
 - Fix between campaigns, never mid-campaign: complete the full pass, then apply edits. Mid-campaign doc edits invalidate every later result.
 - Present recommended edits to the user and apply them only after confirmation.
-- After edits land, re-run ONLY the failed scenarios (with their controls) as a mini-campaign to confirm.
-- Keep queries verbatim across campaigns; editing a query invalidates comparison. If a query is bad — asks for nothing, depends on context the bare session lacks — prune it and say so in the report.
+- After edits land, re-run ONLY the failed scenarios (with their controls) as a mini-campaign to confirm: a second campaign dir, a filtered queries file holding just the re-run entries — and never recorded in the manifest.
+- Keep queries verbatim across campaigns, `{RUN_DIR}` token included; editing a query invalidates comparison. If a query is bad — asks for nothing, depends on context the bare session lacks — prune it and say so in the report.
 - A scenario still failing after a doc fix gets one more doc revision. Still failing after that: surface it to the user — the fact likely needs restructuring, not rewording.
 
 ## Proposal format
@@ -195,7 +228,7 @@ Before writing or running anything, present the inventory and planned entries as
 
     coverage: 6 facts / 5 entries / 0 excluded
     excluded: none
-    cost: 5 entries × 2 arms = 10 runs, single parallel dispatch, 120 s timeout
+    cost: 5 entries × 2 arms = 10 runs, 120 s timeout
     fixtures: none (all queries inline)
 
 - Fact ids are section-anchored (`F-<section-slug>-<nn>`) so doc edits never renumber other sections; keep them stable across campaigns.
@@ -203,12 +236,14 @@ Before writing or running anything, present the inventory and planned entries as
 - Multi-fact cards list each fact on its own line — imperative restatement, ≤15 words, no rationale; single-fact cards inline the fact on the `covers:` line.
 - Show the full query text in every card — a proposal without query text is unreviewable.
 - Account for every fact exactly once — in a card's `covers:` line or an exclusion with a stated reason.
-- Cost is a formula — entries × 2 arms — and the fixtures line is always present, even when `none`.
+- Cost is a formula — entries × 2 arms, gaining `× reps` when reps > 1 — and the fixtures line is always present, even when `none`. The per-campaign spend confirmation itself lives in Workflow step 7, not in this proposal.
 
 ## Report format
 
     retrieval test: acme-api — 2026-09-11
     queries: skills-workspace/acme-api/retrieval-tests/queries.json (6 entries)
+    artifacts: <source-root>/skills-workspace/<skill>/retrieval-tests/campaign-YYYY-MM-DD[-n]/
+    manifest: recorded (sha256:…, N pass / M fail / G gap / V void)
 
     id                    result   control
     retry-after-header    pass     fail (load-bearing)
@@ -234,31 +269,72 @@ Before writing or running anything, present the inventory and planned entries as
     error-code-table — control answered correctly without the skill;
       re-check next campaign, retire if the baseline keeps passing.
 
+`manifest:` reads `not recorded (aborted)` or `not recorded
+(mini-campaign)` on those paths — only a completed full campaign is
+recorded.
+
+## scored-check
+
+The driver scores entries offline from `results.json` (zero spend) and
+writes `<campaign>/scored.json`; `evaluator.py scored-check` validates it
+against the results before anything is recorded. Schema:
+
+```json
+{
+  "campaign": "campaign-2026-09-12",
+  "skill": "writing-skills",
+  "entries": [
+    {
+      "id": "retry-after-header",
+      "result": "fail",
+      "missed_bullets": ["states the Retry-After header is required"],
+      "classification": "findability",
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "read uploads.md but missed the header rule"
+    }
+  ]
+}
+```
+
+- `result` — one of `pass`, `fail`, `gap`, `void`.
+- `classification` — `findability` or `clarity`; required exactly when
+  `result` is `fail` (a `gap` is a result, not a classification), absent
+  or null otherwise.
+- `control` — the control-arm outcome: `pass`, `fail`, or `void`.
+- `ablation_flag` — boolean.
+- `missed_bullets` — list of strings, required non-empty for `fail` and
+  `gap`.
+- Every `results.json` entry id must be accounted for exactly once —
+  missing, duplicate, or unknown ids fail validation.
+
 ## Gotchas
 
 - Never name the section or file holding the fact in a query — that tests following directions, not retrieval.
-- Never put rubric text in a subagent prompt; score from the returned answer only. Extra framing contaminates the measurement.
-- Never provide additional information, besides the prescribed prompt text to the subagent.
-- Never let the subagent know that this is a test.
-- The read-only claim is a guardrail, not enforcement. If a run mutates the repo anyway: void it, check `git status`, restore if needed, report the contamination.
-- "It clearly used the doc" is not evidence. Only the returned inline answer is scored, bullet by bullet.
+- Score from `answer_text` only — never what the agent claims it did or found. "It clearly used the doc" is not evidence.
+- Never put rubric text in a run prompt; the per-run prompt is the bare query. Extra framing contaminates the measurement.
+- Never provide additional information besides the prescribed query text to the eval agent.
+- Never let the eval agent know that this is a test.
+- Keep the query verbatim within and across campaigns, `{RUN_DIR}` token included; editing it invalidates comparison with earlier campaigns.
+- The harness is always user-specified; never assume or default it.
+- Campaign artifacts (results, scored, snapshots) live in the persistent campaign dir under `skills-workspace/` — never inside the temp eval workspaces.
+- NEVER sync the skill into the control workspace — one contaminated baseline voids the whole campaign.
 - A missing skill-load signal is `void`, not `fail` — the doc was never in context.
 - A control pass is a flag, not a verdict: one clean baseline answer doesn't prove redundancy, it schedules a re-check.
 - Don't stack pressure or obstacles into retrieval queries — that's the discipline track. Plain, realistic tasks only.
-- Keep the query verbatim within and across campaigns; editing it invalidates comparison with earlier campaigns.
-- A skill that is not available in the current session cannot be tested this way. Confirm availability before dispatching.
 
 ## Checklist
 
-- [ ] Inputs collected; skill confirmed available in the session; fact inventory built fresh from the current doc; proposal presented in the fixed format and approved; queries file exists, is non-empty, and covers the inventory; facts manifest regenerated to match
-- [ ] Every query is task-shaped, self-contained or backed by an existing fixture, and free of section hints and rubric text
-- [ ] Two subagents per entry (skill arm + control arm), dispatched in parallel in a single message, each given exactly the template prompt
-- [ ] Every referenced fixture staged in a unique `/tmp/opencode/retrieval-test/` subdirectory per subagent run before dispatch — no two runs share a fixture file
-- [ ] Every skill-arm run verified for the skill-loaded signal; missing signal → void
-- [ ] Every run checked for repository mutation; mutating runs voided and `git status` verified clean
-- [ ] Scoring from the returned inline answer only, bullet by bullet; pass requires all bullets
-- [ ] Every failure classified (gap / findability / clarity) from the sources-consulted list, with transcript fallback
-- [ ] Control passes flagged for ablation review, not auto-retired
-- [ ] Every queries-file entry accounted for in the report — none dropped
-- [ ] Report shows per-scenario results, summary counts, failure classifications, and recommended doc fixes
-- [ ] Doc edits applied only after the full pass completes and only with user confirmation; failed scenarios re-run afterwards
+- [ ] Inputs collected: skill resolved name-or-path, source root derived, harness user-specified, model/variant/reps/timeout settled; fact inventory built fresh from the current doc; proposal presented in the fixed format and approved; queries file exists, is non-empty, and covers the inventory; facts manifest regenerated to match
+- [ ] Every query is task-shaped, self-contained or backed by a matching `fixtures` entry and `{RUN_DIR}` token, and free of section hints and rubric text
+- [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` exit 0; two workspaces initialized with `--prefix retrieval-test`
+- [ ] Skill synced `--full` into the skill workspace and verified with `status --full`; control workspace contains no skill bytes
+- [ ] Campaign dir created under the retrieval-tests root; queries.json, facts.json, and the verified synced skill dir snapshotted into it with the exact commands recorded
+- [ ] Planned spend (entries × 2 arms × reps) confirmed by the user before the first eval run
+- [ ] `retrieval-suite` invoked with both workspaces and the agents dir; results.json written; only exit codes and JSON consumed
+- [ ] Scoring from `answer_text` only, bullet by bullet; voids via `void_signals`; every failure classified (gap / findability / clarity); control comparison → ablation flags; reps > 1 resolved by the worst-non-void rule
+- [ ] scored.json written for every results entry and `scored-check` exits 0
+- [ ] Report shows per-scenario results, summary counts, failure classifications, recommended doc fixes, and the `artifacts:`/`manifest:` lines
+- [ ] `record --scope dir` run only after a completed full campaign — never aborted, never a mini-campaign
+- [ ] Doc edits applied only after the full pass completes and only with user confirmation; failed scenarios re-run afterwards as a never-recorded mini-campaign
+- [ ] `cleanup --workspace` run twice — skill-ws and control-ws — with `--prefix retrieval-test`

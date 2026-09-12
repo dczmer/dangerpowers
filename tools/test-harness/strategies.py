@@ -15,12 +15,9 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NoReturn
 
 Outcome = Literal["triggered", "not-triggered", "void"]
-
-SKILL_DIR = Path(__file__).resolve().parents[1]
-AGENTS_DIR = SKILL_DIR / "agents"
 
 
 @dataclass
@@ -58,6 +55,14 @@ class EventStream:
 
     session_id: str = ""
     reasoning_parts: list[str] = field(default_factory=list)
+    answer_parts: list[str] = field(default_factory=list)
+    tool_calls: list[dict] = field(default_factory=list)
+    skill_loads: list[dict] = field(default_factory=list)
+    # Permanently empty: opencode emits no denied-attempt event type —
+    # denied tools are absent from the model's toolset, so nothing ever
+    # appends here (verified in campaign-2026-09-12-2, 32 runs). Kept
+    # only for results.json schema stability.
+    denied_tool_attempts: list[dict] = field(default_factory=list)
     completed_load: bool = False  # skill tool_use on target, status completed
     attempted_load: bool = False  # skill tool_use on target, other status
     other_skill: str | None = None
@@ -198,6 +203,45 @@ def _reject_agent_fallback(stderr: str) -> None:
 
 
 # --------------------------------------------------------------------------
+# Agent resolution: frontmatter scan + pre-spend assertions
+
+
+MODEL_PIN_KEYS = ("model", "variant", "temperature", "top_p")
+
+
+def _fail(message: str) -> NoReturn:
+    print(f"error: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def scan_agent_frontmatter(agent_file: Path) -> dict:
+    """Stdlib line-scan of an agent file's YAML frontmatter.
+
+    pyyaml is deliberately NOT used: scripts run on any python3 >= 3.10 on
+    PATH (trigger SKILL.md preflight contract). Returns {"name", "pins"}."""
+    try:
+        lines = agent_file.read_text().splitlines()
+    except OSError as e:
+        _fail(f"could not read agent file {agent_file}: {e}")
+    if not lines or lines[0].strip() != "---":
+        _fail(f"agent file {agent_file}: missing frontmatter block")
+    name = None
+    pins: list[str] = []
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        m = re.match(r"^name:\s*(\S+)\s*$", line)
+        if m:
+            name = m.group(1)
+        for key in MODEL_PIN_KEYS:
+            if re.match(rf"^{key}\s*:", line):
+                pins.append(key)
+    if name is None:
+        _fail(f"agent file {agent_file}: frontmatter has no 'name:'")
+    return {"name": name, "pins": pins}
+
+
+# --------------------------------------------------------------------------
 # Strategy protocol and registry
 
 
@@ -205,15 +249,111 @@ class EvalStrategy:
     """Base class for harness strategies."""
 
     binary: str  # CLI binary name, used by the preflight check
-    agent_name: str  # passed to the harness per rep
-    agent_source: Path  # .../agents/trigger-evaluator.<harness>.md
-    agent_dest: str  # workspace-relative install path
+    harness: str  # also the agent-file suffix, e.g. "opencode"
+    agent_install_dir: str  # workspace-relative, e.g. ".opencode/agent"
 
     def __init__(self, timeout: int = 30):
         self.timeout = timeout
 
-    def install(self, workspace: Path) -> None:
+    def agent_file(self, agents_dir: Path, base: str) -> Path:
+        return agents_dir / f"{base}.{self.harness}.md"
+
+    def install(
+        self,
+        workspace: Path,
+        agents_dir: Path,
+        base: str,
+        *,
+        skill_name: str | None = None,
+    ) -> str:
+        """Resolve, validate, install one eval agent. Pre-spend: every
+        failure exits 1 with an exact message. Returns the agent name —
+        file base == frontmatter name == CLI value, by construction."""
+        source = self.agent_file(agents_dir, base)
+        if not source.exists():
+            _fail(f"evaluator agent file missing: {source}")
+        info = scan_agent_frontmatter(source)
+        if info["name"] != base:
+            _fail(
+                f"agent file {source}: frontmatter name "
+                f"'{info['name']}' does not match expected '{base}'"
+            )
+        if info["pins"]:
+            _fail(
+                f"agent file {source} pins model config "
+                f"({', '.join(info['pins'])}); eval agents must not pin "
+                "model/variant/temperature/top_p — selection flows "
+                "through --model/--variant only"
+            )
+        text = source.read_text()
+        if skill_name is not None:
+            text = text.replace("{{SKILL_NAME}}", skill_name)
+        dest = workspace / self.agent_install_dir / f"{base}.md"
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text)
+        except OSError as e:
+            _fail(f"could not install evaluator agent to {dest}: {e}")
+        return base
+
+    @staticmethod
+    def parse_stream(stdout: str, skill: str | None) -> EventStream:
         raise NotImplementedError
+
+    def execute(
+        self,
+        workspace: Path,
+        agent: str,
+        query: str,
+        model: str | None = None,
+        effort: str | None = None,
+        skill: str | None = None,
+    ) -> tuple[EventStream, bool]:
+        """One headless eval run. Returns (parsed stream, timed_out).
+        Timeout yields a partial stream, never an exception.
+        HarnessExecutionError = operational failure, never a verdict."""
+        cmd = [
+            self.binary,
+            "run",
+            "--pure",
+            "--thinking",
+            "--format",
+            "json",
+            "--dir",
+            str(workspace),
+            "--agent",
+            agent,
+        ]
+        if model is not None:
+            cmd += ["--model", model]
+        if effort is not None:
+            cmd += ["--variant", effort]
+        cmd.append(query)
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
+        except FileNotFoundError:
+            raise HarnessExecutionError(
+                f"harness CLI '{self.binary}' not found on PATH"
+            )
+        except subprocess.TimeoutExpired as e:
+            return self.parse_stream(_as_text(e.stdout), skill), True
+        _reject_agent_fallback(proc.stderr)
+        ev = self.parse_stream(proc.stdout, skill)
+        if ev.error_message is not None:
+            raise HarnessExecutionError(ev.error_message)
+        if proc.returncode != 0:
+            raise HarnessExecutionError(
+                f"exit {proc.returncode}: {proc.stderr[-500:]}"
+            )
+        if ev.parseable == 0:
+            raise HarnessExecutionError("no parseable events (exit 0)")
+        return ev, False
 
     def evaluate(
         self,
@@ -228,15 +368,12 @@ class EvalStrategy:
 
 class OpencodeStrategy(EvalStrategy):
     binary = "opencode"
-    agent_name = "trigger-evaluator"
-    agent_source = AGENTS_DIR / "trigger-evaluator.opencode.md"
-    agent_dest = ".opencode/agent/trigger-evaluator.md"
-
-    def __init__(self, timeout: int = 30):
-        self.timeout = timeout
+    harness = "opencode"
+    agent_install_dir = ".opencode/agent"
+    agent_name = "trigger-evaluator"  # trigger-track eval agent base name
 
     @staticmethod
-    def parse_stream(stdout: str, skill: str) -> EventStream:
+    def parse_stream(stdout: str, skill: str | None) -> EventStream:
         """Normalize opencode's `run --format json` NDJSON event schema into
         an EventStream. This is the opencode-specific adapter; classify() and
         everything downstream of it are harness-agnostic."""
@@ -244,7 +381,7 @@ class OpencodeStrategy(EvalStrategy):
         for line in stdout.splitlines():
             try:
                 event = json.loads(line)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 continue
             ev.parseable += 1
             if not ev.session_id and isinstance(event.get("sessionID"), str):
@@ -260,27 +397,45 @@ class OpencodeStrategy(EvalStrategy):
             elif etype == "text":
                 text = part.get("text")
                 if isinstance(text, str):
+                    ev.answer_parts.append(text)
                     m = REPORT_LOADED_RE.search(text)
                     if m and ev.report_loaded is None:
                         ev.report_loaded = m.group(1)
                     if REPORT_NO_MATCH_RE.search(text):
                         ev.report_no_match = True
             elif etype == "tool_use":
-                if part.get("tool") == "skill":
-                    state = part.get("state")
-                    if not isinstance(state, dict):
-                        state = {}
-                    inp = state.get("input")
-                    if not isinstance(inp, dict):
-                        inp = {}
+                tool = part.get("tool")
+                state = part.get("state")
+                if not isinstance(state, dict):
+                    state = {}
+                inp = state.get("input")
+                if not isinstance(inp, dict):
+                    inp = {}
+                if tool == "skill":
+                    ev.skill_loads.append(
+                        {
+                            "name": inp.get("name"),
+                            "status": state.get("status"),
+                        }
+                    )
                     name = inp.get("name")
-                    if name == skill:
+                    if name is not None and name == skill:
                         if state.get("status") == "completed":
                             ev.completed_load = True
                         else:
                             ev.attempted_load = True
                     elif name is not None and ev.other_skill is None:
                         ev.other_skill = name
+                elif tool in ("read", "grep", "glob"):
+                    ev.tool_calls.append(
+                        {
+                            "tool": tool,
+                            "target": inp.get("filePath")
+                            or inp.get("path")
+                            or inp.get("pattern")
+                            or "",
+                        }
+                    )
             elif etype == "error":
                 error = event.get("error", {})
                 message = error.get("data", {}).get("message")
@@ -290,33 +445,6 @@ class OpencodeStrategy(EvalStrategy):
                     ev.error_message = message
         return ev
 
-    def install(self, workspace: Path) -> None:
-        """Copy the restricted evaluator agent into the workspace. Idempotent:
-        every invocation re-copies. Any failure is an operational error before
-        any spend."""
-        if not self.agent_source.exists():
-            print(
-                f"error: evaluator agent file missing: {self.agent_source}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        dest = workspace / self.agent_dest
-        try:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(self.agent_source, dest)
-        except OSError as e:
-            print(
-                f"error: could not install evaluator agent to {dest}: {e}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        if not dest.exists():
-            print(
-                f"error: evaluator agent install failed: {dest} not created",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
     def evaluate(
         self,
         skill: str,
@@ -325,49 +453,16 @@ class OpencodeStrategy(EvalStrategy):
         model: str | None = None,
         effort: str | None = None,
     ) -> Verdict:
-        cmd = [
-            self.binary,
-            "run",
-            "--pure",
-            "--thinking",
-            "--format",
-            "json",
-            "--dir",
-            str(workspace),
-            "--agent",
-            self.agent_name,
-        ]
-        if model is not None:
-            cmd += ["--model", model]
-        if effort is not None:
-            cmd += ["--variant", effort]
-        cmd.append(query)
-
-        try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-                check=False,
-            )
-        except FileNotFoundError:
-            raise HarnessExecutionError(
-                f"harness CLI '{self.binary}' not found on PATH"
-            ) from None
-        except subprocess.TimeoutExpired as e:
-            stderr = _as_text(e.stderr)
-            _reject_agent_fallback(stderr)
-            ev = self.parse_stream(_as_text(e.stdout), skill)
-            return classify(
-                ev, skill, interrupted_cause=f"timeout after {self.timeout}s"
-            )
-
-        _reject_agent_fallback(proc.stderr)
-        ev = self.parse_stream(proc.stdout, skill)
-        return classify(
-            ev, skill, returncode=proc.returncode, stderr=proc.stderr
+        ev, timed_out = self.execute(
+            workspace, self.agent_name, query, model, effort, skill=skill
         )
+        if timed_out:
+            return classify(
+                ev,
+                skill,
+                interrupted_cause=f"timeout after {self.timeout}s",
+            )
+        return classify(ev, skill)
 
 
 STRATEGIES: dict[str, type[EvalStrategy]] = {"opencode": OpencodeStrategy}
@@ -386,21 +481,13 @@ def resolve_strategy(name: str) -> type[EvalStrategy]:
 
 
 def check_harness(name: str, strategy_cls: type[EvalStrategy]) -> None:
-    """Preflight: CLI on PATH and evaluator-agent source present. Verifies the
-    binary exists, not that it is configured — the smoke rep covers
-    configuration."""
+    """Preflight: CLI on PATH. Verifies the binary exists, not that it is
+    configured — the smoke rep covers configuration."""
     resolved = shutil.which(strategy_cls.binary)
     if resolved is None:
         print(
             f"error: harness '{name}' CLI not found on PATH "
             f"(looked for '{strategy_cls.binary}')",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if not strategy_cls.agent_source.exists():
-        print(
-            f"error: evaluator agent file missing: "
-            f"{strategy_cls.agent_source}",
             file=sys.stderr,
         )
         sys.exit(1)

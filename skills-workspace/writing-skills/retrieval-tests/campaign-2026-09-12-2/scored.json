@@ -1,0 +1,134 @@
+{
+  "campaign": "campaign-2026-09-12-2",
+  "skill": "writing-skills",
+  "entries": [
+    {
+      "id": "when-to-create-triage",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "All 3 bullets met (skill/AGENTS.md/automation carve-outs, named sections). Control also routed all three correctly (AGENTS.md pointers, CI hook primary) \u2014 baseline knowledge suffices."
+    },
+    {
+      "id": "technique-not-narrative",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "Full reframe to a directive technique guide; narrative dropped; sources name Content/Structure sections. Control kept the Black Friday narrative framing inside the produced skill \u2014 missed the drop-narrative bullet."
+    },
+    {
+      "id": "directives-not-passive",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Rewritten as bare imperatives, zero passive phrasing. Control produced equivalent imperatives from general knowledge."
+    },
+    {
+      "id": "skill-length-extraction",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "Stated the <500-line ceiling, moved table to references/ and script to scripts/, made the load conditional. Control never stated the 500-line rule \u2014 missed bullet 1."
+    },
+    {
+      "id": "specificity-matches-fragility",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Exact ordered steps + end conditions for migration; goals/constraints/end-conditions for release notes. Control gave the same prescriptive/outcome split unprompted."
+    },
+    {
+      "id": "no-exemption-clauses",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "Exemption folded into the directive trigger ('deploys that changes application code'), terse variant drops it. Control kept an 'unless' carve-out \u2014 missed bullet 1."
+    },
+    {
+      "id": "defaults-not-menus",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "Named hatch as the single unconditional default; every alternative gated on a disqualifying condition. Control produced a 5-way comparison table with 'pick it when' rows \u2014 a menu."
+    },
+    {
+      "id": "one-term-per-concept",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Unified to 'repository root' across all sentences; converted passive observation to directive. Control also used 'repository root' consistently."
+    },
+    {
+      "id": "no-time-sensitive-info",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "Date/'recently' framing removed; v1 moved to a labeled '## Legacy:' section. Control mentioned v1 as deprecated inline \u2014 no labeled legacy section, not dropped."
+    },
+    {
+      "id": "skill-skeleton-sections",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "Outline includes an explicit Gotchas section and ends with a Checklist. Control's outline has Troubleshooting but no Gotchas-style setup-details section and ends with References."
+    },
+    {
+      "id": "deterministic-scripts",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Magic constant eliminated (DST-aware offset derived), argv validated, usage/error exits. Control documented the constant (--fixed-offset) and added argparse + error handling."
+    },
+    {
+      "id": "help-reference-and-subskills",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Defers exhaustive flags to deployctl --help; cross-references the retry skill by name, no copying. Control gave the same advice (earned-verbosity flags + reference-by-name)."
+    },
+    {
+      "id": "one-complete-example",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "fail",
+      "ablation_flag": false,
+      "notes": "Declined the multi-format/template request per the skill's forbidden-request handling; produced one filled YAML example. Control produced all three formats plus a fill-in-the-blank template \u2014 both bullets missed."
+    },
+    {
+      "id": "structure-format-choice",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Table / numbered list / flowchart assignment exactly per the taxonomy. Control assigned lookup table, numbered runbook, and decision tree/pseudocode \u2014 functionally the flowchart equivalent."
+    },
+    {
+      "id": "read-before-editing",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Read the fixture fully, found the warning already in Gotchas, returned the file essentially unchanged. Control also detected the existing warning and returned it unchanged (fixture was readable in the control workspace too)."
+    },
+    {
+      "id": "small-model-explicitness",
+      "result": "pass",
+      "missed_bullets": [],
+      "control": "pass",
+      "ablation_flag": true,
+      "notes": "Cited the skill's portability rule and converted implicit steps to exact commands with an inline example. Control gave the same class of advice (explicit if/then, numbered procedures) from general knowledge."
+    }
+  ]
+}
