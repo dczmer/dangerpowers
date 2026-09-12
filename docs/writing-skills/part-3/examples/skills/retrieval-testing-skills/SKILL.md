@@ -20,8 +20,9 @@ Collect all inputs before starting. Prompt the user for any that are missing.
 
 - **Skill name** — the reference skill under test. It must appear in this session's available-skills list; subagents can only load skills the parent session can see. If it is not available, stop and tell the user. Resolve its filesystem location and derive the **source root**: the directory containing the `skills/` directory the skill lives in — not necessarily the repo root (for `<root>/.opencode/skills/<name>`, the source root is `<root>/.opencode`).
 - **Queries file** — path to a populated `queries.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/queries.json`, so test artifacts live next to the skill under test, wherever it is registered.
+- **Facts manifest** — path to the persisted fact inventory, `facts.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/facts.json`, next to the queries file (see Fact inventory).
 
-After resolving the source root, read the skill under test fully and build the fact inventory (see Fact inventory). If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise compare the inventory against the queries file: if any fact lacks a covering query — or the file does not exist at all — present a proposal for the missing test queries and expectations (see Proposal format). With the user's approval, add them to the queries file following the format below — creating any fixtures they reference under `fixtures/` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
+After resolving the source root, read the skill under test fully and build the fact inventory fresh from the current doc (see Fact inventory) — the manifest is a diff baseline, never a cache. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise diff the inventory against the manifest (see Fact inventory for the diff rules) and present a proposal for whatever the diff requires (see Proposal format). With the user's approval, apply the changes to the queries file — creating any fixtures new entries reference under `fixtures/` and regenerating `facts.json` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
 
 ## Fact inventory
 
@@ -38,6 +39,29 @@ A fact is a body statement that changes an agent's output if unknown. Keep a sta
 Drop rationales, restatements, illustrative examples, and transitions. Frontmatter-convention guidance is out of scope.
 
 Dedupe repeated rules; mine their examples for query material. Cluster facts a single task-shaped query naturally elicits into one entry; the facets become rubric bullets. Derive each query from the failure mode — what the agent does wrong without the fact — shaped as bait (a request that asks for the violation) or review (text already committing it).
+
+### Facts manifest
+
+Persist the inventory as `facts.json` next to the queries file: fact id, home section, statement, covering entries, and exclusions with reasons — nothing else. Never duplicate query text or expectations into the manifest; the queries file is the single source for verbatim queries.
+
+```json
+{
+  "skill": "acme-api",
+  "generated": "2026-09-11",
+  "facts": [
+    {"id": "F-uploads-01", "section": "Uploads", "statement": "reads Retry-After, value interpreted as seconds", "entries": ["retry-after-header"]}
+  ],
+  "excluded": [
+    {"id": "F-errors-01", "section": "Errors", "reason": "restates the HTTP spec; baseline knowledge"}
+  ]
+}
+```
+
+The manifest is a diff baseline, never a cache — rebuild the inventory fresh from the doc every campaign. Regenerate the manifest at proposal time and whenever entries are added or retired; never hand-maintain it between campaigns. Each campaign's diff against the previous manifest drives the work:
+
+- New fact (no manifest id) → propose queries.
+- Changed fact (same id, different statement) → flag its entries for re-scoring this campaign; queries stay verbatim.
+- Deleted fact → propose pruning its entries; a query testing an undocumented fact measures nothing.
 
 ## Query file format
 
@@ -138,33 +162,48 @@ Campaign rules:
 - A scenario still failing after a doc fix gets one more doc revision. Still failing after that: surface it to the user — the fact likely needs restructuring, not rewording.
 
 ## Proposal format
-
-Before writing or running anything, present the inventory and planned entries in this fixed layout:
+Before writing or running anything, present the inventory and planned entries as one self-contained card per entry, in this fixed layout:
 
     retrieval test proposal: acme-api — 2026-09-11
     source: skills/acme-api/SKILL.md (body: 210 lines)
     queries file: skills-workspace/acme-api/retrieval-tests/queries.json (missing — generating)
     scope: frontmatter-convention facts excluded
 
-    inventory: 6 facts
-    F-uploads-01  [Uploads]  reads Retry-After, value interpreted as seconds
-    F-uploads-02  [Uploads]  no retries on other 4xx codes
+    ## 1. retry-after-header
+    covers: F-uploads-01, F-uploads-02
+
+    facts:
+    - F-uploads-01  [Uploads]  reads Retry-After, value interpreted as seconds
+    - F-uploads-02  [Uploads]  no retries on other 4xx codes
+
+    query:
+    Given this upload function — `def upload(path, url): return requests.post(url, data=open(path, 'rb'))` — add retry handling for 429 responses and return the complete updated function inline.
+
+    expect:
+    - reads the Retry-After header rather than using a fixed backoff
+    - interprets the value as seconds
+    - does not retry on other 4xx codes
+
+    why: the bare function invites a fixed backoff; one realistic task pins all
+    three documented behaviors — the header, its unit, and the 4xx boundary.
+
+    ## 2. upload-chunk-size
+    covers: F-uploads-03 [Uploads] — upload in 4 MiB chunks
+
+    query:
     ...
 
     coverage: 6 facts / 5 entries / 0 excluded
-    id                  facts          gist (≤12 words)
-    retry-after-header  F-uploads-01   "add retry handling for 429 responses"
-    ...
-    folds: F-uploads-02 → folded into retry-after-header
-
+    excluded: none
     cost: 5 entries × 2 arms = 10 runs, single parallel dispatch, 120 s timeout
     fixtures: none (all queries inline)
 
 - Fact ids are section-anchored (`F-<section-slug>-<nn>`) so doc edits never renumber other sections; keep them stable across campaigns.
-- One line per fact: imperative restatement, ≤15 words, no rationale.
-- Account for every fact exactly once — in a coverage row, a fold line, or an exclusion with a stated reason.
+- One card per entry, numbered in dispatch order: `covers:` names the facts tested, then the full query text, the rubric bullets, and a `why:` line explaining why this query and why these expectations.
+- Multi-fact cards list each fact on its own line — imperative restatement, ≤15 words, no rationale; single-fact cards inline the fact on the `covers:` line.
+- Show the full query text in every card — a proposal without query text is unreviewable.
+- Account for every fact exactly once — in a card's `covers:` line or an exclusion with a stated reason.
 - Cost is a formula — entries × 2 arms — and the fixtures line is always present, even when `none`.
-- Per-entry explanations (fact covered, why this query, why these expectations) go below the block.
 
 ## Report format
 
@@ -211,7 +250,7 @@ Before writing or running anything, present the inventory and planned entries in
 
 ## Checklist
 
-- [ ] Inputs collected; skill confirmed available in the session; fact inventory built per the taxonomy; proposal presented in the fixed format and approved; queries file exists, is non-empty, and covers the inventory
+- [ ] Inputs collected; skill confirmed available in the session; fact inventory built fresh from the current doc; proposal presented in the fixed format and approved; queries file exists, is non-empty, and covers the inventory; facts manifest regenerated to match
 - [ ] Every query is task-shaped, self-contained or backed by an existing fixture, and free of section hints and rubric text
 - [ ] Two subagents per entry (skill arm + control arm), dispatched in parallel in a single message, each given exactly the template prompt
 - [ ] Every referenced fixture staged in a unique `/tmp/opencode/retrieval-test/` subdirectory per subagent run before dispatch — no two runs share a fixture file
