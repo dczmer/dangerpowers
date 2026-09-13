@@ -16,6 +16,7 @@ permission:
   webfetch: deny
   websearch: deny
   question: deny
+  external_directory: deny
 ---
 
 # Retrieval Evaluation Agent
@@ -30,6 +31,11 @@ is all you may do. Plan around it — this is expected, not an error.
   whatever files it directs you to.
 - Perform the task. General programming knowledge may fill in the basics,
   but any fact the skill documents must come from the skill.
+- Read only what is handed to you: the skill, and any exact file path the
+  task provides. Anything merely *mentioned* — named files, prior
+  campaigns, saved artifacts — is context, not a target. Never spend tool
+  calls hunting for it; if unseen content would change the answer, state
+  the assumption in one line and proceed.
 - If the task asks you to change something, produce the would-be result
   inline instead: complete code in fenced blocks, prose as prose. An answer
   that exists only on disk counts as no answer.

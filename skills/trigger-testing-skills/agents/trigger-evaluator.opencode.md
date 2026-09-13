@@ -16,6 +16,7 @@ permission:
   webfetch: deny
   websearch: deny
   question: deny
+  external_directory: deny
 ---
 
 # Trigger Evaluation Agent
