@@ -1,0 +1,23 @@
+[
+  {
+    "id": "one-complete-example",
+    "rule": "R-structure-example",
+    "kind": "shaping",
+    "section": "- Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `configuring-http-retries`, to be added to a\nlibrary of reusable agent skills. The skill teaches a proven technique for\nconfiguring retry-with-backoff on HTTP clients:\n\n- exponential backoff with full jitter, base delay 200ms, doubling each attempt,\n  maximum 4 attempts total\n- retry only idempotent methods (GET, PUT, DELETE), and only on connection\n  errors, 429, or 5xx responses\n- never retry non-idempotent requests (such as payment POSTs) unless the API\n  supports idempotency keys\n\nThe skill body must include an example demonstrating the complete retry setup\nfor the scenario it teaches: a client calling a payments API to refund charge\n`ch_9f3k2` for 4200 USD."
+    },
+    "markers": {
+      "lang_fence": "^```(python|py|javascript|js|typescript|ts|tsx|go|java|ruby|rust|bash|sh|yaml|json|toml)",
+      "placeholder": "(<[-_a-zA-Z0-9 ]+>|\\bYOUR[_A-Z]|\\{\\{|\\bTODO\\b|PLACEHOLDER|\\bXXX\\b|REPLACE_ME|<insert)",
+      "multi_example_header": "(?i)(example (one|two|three|1|2|3)\\b|python (version|example|implementation)|javascript (version|example|implementation)|in python|in javascript|in go\\b)",
+      "scenario_concrete": "ch_9f3k2",
+      "amount_concrete": "4200"
+    },
+    "variants": {
+      "v1": "- Never show more than one example in a skill. Multi-language example sets and fill-in-the-blank templates are forbidden.",
+      "v2": "- Show exactly one example per skill: one scenario, one language or format, filled in end-to-end with concrete values (real names, real numbers, real strings) so it works as written.",
+      "v3": "- Show exactly one example per skill: one scenario, one language or format, filled in end-to-end with concrete values (real names, real numbers, real strings) so it works as written. Add a second language version when the skill's audience genuinely spans ecosystems."
+    }
+  }
+]
