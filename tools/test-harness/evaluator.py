@@ -1639,7 +1639,10 @@ def assemble_arm_body(body: str, entry: dict, arm: str) -> str:
     if arm == "v0":
         rest = body[end:]
         if rest.startswith("\n\n"):
-            rest = rest[1:]  # consume exactly one following blank line
+            # The span's line break plus exactly one following blank
+            # line go away with it, leaving a single blank line between
+            # the neighbours.
+            rest = rest[2:]
         return body[:idx] + rest
     return body[:idx] + entry["variants"][arm] + body[end:]
 
