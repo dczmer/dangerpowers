@@ -38,7 +38,7 @@ dangerpowers/
 ├── skills-workspace/          # per-skill test artifacts (e.g. trigger-tests/queries.json);
                                # trigger-test campaign dirs (campaign-YYYY-MM-DD[-N]/) are persistent and committed
 ├── tools/test-harness/      # shared headless eval-harness scripts for the
-│                            # trigger/retrieval testing skills (evaluator.py,
+│                            # trigger/retrieval/shape testing skills (evaluator.py,
 │                            # strategies.py, workspace-manager.sh, test_evaluator.py)
 ├── docs/                      # documentation and deep-dives (index: docs/README.md)
 ├── agents/                    # custom opencode agent definitions (*.md)
