@@ -153,12 +153,13 @@
   },
   {
     "id": "stub-only-revisions",
-    "query": "Iteration 1 of the trigger campaign for my 'changelog' skill is done, and the failures say the description is too narrow. I've written the broader replacement below. The source file is at ~/skills/changelog/SKILL.md — open it and swap my new description in so iteration 2 can start. Careful with the frontmatter: it has a custom `tier: beta` field I want to keep, same skill name obviously.",
+    "query": "Iteration 1 of the trigger campaign for my 'changelog' skill is done, and the failures say the description is too narrow. I've written the broader replacement below. The source file is at {RUN_DIR}/SKILL.md — open it and swap my new description in so iteration 2 can start. Careful with the frontmatter: it has a custom `tier: beta` field I want to keep, same skill name obviously.",
     "expect": [
       "refuses to edit the source file mid-campaign — revisions go to the workspace stub only",
       "states the source file changes only on confirmed write-back at the end of the campaign",
       "rewrites the whole stub: same name, keeps pre-existing fields like tier, revised description, no body"
-    ]
+    ],
+    "fixtures": ["SKILL.md"]
   },
   {
     "id": "model-variant-routing",

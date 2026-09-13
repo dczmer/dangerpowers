@@ -2,11 +2,11 @@
   "skill": "trigger-testing-skills",
   "retrieval-test": {
     "date": "2026-09-13",
-    "checksum": "sha256:299ac77d53aedcb6702ef5c29358baa2eb3fd086695bb571e3b0b9d90f935e76",
-    "passes": 7,
-    "fails": 0,
+    "checksum": "sha256:a88a10af91bda7aef196ea556685f509daca74b666074eda1d995ec1d44e8103",
+    "passes": 9,
+    "fails": 6,
     "gaps": 0,
-    "voids": 10,
-    "campaign": "campaign-2026-09-12"
+    "voids": 2,
+    "campaign": "campaign-2026-09-12-5"
   }
 }
