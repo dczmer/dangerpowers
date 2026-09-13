@@ -14,6 +14,11 @@ Run one retrieval-test campaign for a reference skill against a file of eval que
 
 The skill under test is force-loaded by instruction in every scenario. Retrieval testing measures the skill *body*; whether the description triggers at all is the separate trigger-testing track.
 
+Scope rules, up front:
+
+- "Does the skill trigger for query X?" is a **trigger-testing** question — wrong track, do not run retrieval scenarios for it.
+- A skill whose fact inventory is empty — the doc records no facts — needs **no** retrieval testing; stop instead of fabricating queries.
+
 Staging, capture, validation, and manifest recording live in `tools/test-harness/` (`workspace-manager.sh`, `evaluator.py`), invoked from this skill's resolved directory. Consume exit codes and JSON from those scripts only — never parse their prose stdout.
 
 ## Inputs
@@ -42,7 +47,7 @@ A fact is a body statement that changes an agent's output if unknown. Keep a sta
 - **scope** — when the technique does or doesn't apply: "don't create for one-offs"
 - **assumption-correction** — reverses a competent default: "spell out what a frontier model does implicitly"
 
-Drop rationales, restatements, illustrative examples, and transitions. Frontmatter-convention guidance is out of scope.
+Drop rationales, restatements, illustrative examples, and transitions. **Frontmatter-convention guidance is always out of scope** — never list a frontmatter rule as a testable fact.
 
 Dedupe repeated rules; mine their examples for query material. Cluster facts a single task-shaped query naturally elicits into one entry; the facets become rubric bullets. Derive each query from the failure mode — what the agent does wrong without the fact — shaped as bait (a request that asks for the violation) or review (text already committing it).
 
@@ -101,6 +106,11 @@ Each entry tests one fact cluster:
 - `expect` — objective rubric bullets. A scenario passes only if every bullet is met by the returned answer.
 - `fixtures` — optional list of fixture filenames, each existing under a `fixtures/` directory next to the queries file. Required exactly when the query contains `{RUN_DIR}`: the harness rejects a token without a fixtures entry and fixtures without a token before any spend.
 
+A leaking query hands the agent the answer; a bait query invites the violation. For a fact like "after a 429, wait the number of seconds in the Retry-After header":
+
+- leaking: "update `fetch_data` to wait the number of seconds given in the Retry-After header after 429 responses" — the expected behavior is spelled out in the prompt, so the run measures nothing
+- bait: "given `def fetch_data(url): return requests.get(url)` — add handling for 429 responses and return the complete updated function inline" — an agent that doesn't know the fact picks a fixed backoff
+
 ### Fixtures
 
 Default to inline, self-contained queries. "Rewrite the upload script" is not a test if there is no script for the agent to find — but a large file or multi-file state can be impractical to embed, and then the query references a fixture instead.
@@ -141,6 +151,8 @@ scripts the agent cannot run.
    `evaluator.py check --harness <h>`.
 2. `workspace-manager.sh init --prefix retrieval-test` → skill-ws;
    `workspace-manager.sh init --prefix retrieval-test` → control-ws.
+   Both workspaces take the `retrieval-test` prefix — never the
+   trigger-test default — and cleanup later uses the same prefix.
 3. `sync --skill <s> --source <root> --workspace <skill-ws> --full`
    (the control workspace is NEVER synced).
 4. `status --skill <s> --source <root> --workspace <skill-ws> --full`.
@@ -178,6 +190,8 @@ scripts the agent cannot run.
     never a mini-campaign): `evaluator.py record --skill <s> \
     --skill-path <skill dir> --manifest <root>/skills-workspace/<s>/manifest.json \
     --scope dir --campaign <name> --passes N --fails M --gaps G --voids V`
+    Every record call carries `--scope dir` and all four counts, matching
+    the report summary exactly.
 14. `cleanup --workspace <ws> --prefix retrieval-test` — twice.
 
 (`<retrieval-skill-dir>` = this skill's own resolved absolute path, same

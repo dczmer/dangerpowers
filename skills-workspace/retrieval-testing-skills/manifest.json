@@ -1,0 +1,12 @@
+{
+  "skill": "retrieval-testing-skills",
+  "retrieval-test": {
+    "date": "2026-09-13",
+    "checksum": "sha256:aa8cf54d4b7fa875e23e8b60a55dd516ffaa8d418df2a1a3057eaa56d89c41e9",
+    "passes": 6,
+    "fails": 6,
+    "gaps": 0,
+    "voids": 1,
+    "campaign": "campaign-2026-09-12"
+  }
+}
