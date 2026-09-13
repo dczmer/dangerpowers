@@ -1,0 +1,12 @@
+{
+  "skill": "reviewing-blog-posts",
+  "retrieval-test": {
+    "date": "2026-09-13",
+    "checksum": "sha256:dc063ccb47925d62816d6fe928ba4167b89e30a24f064a86bf1ba6932fd23ef4",
+    "passes": 5,
+    "fails": 3,
+    "gaps": 0,
+    "voids": 0,
+    "campaign": "campaign-2026-09-13"
+  }
+}

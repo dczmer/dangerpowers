@@ -1,0 +1,27 @@
+{
+  "skill": "reviewing-blog-posts",
+  "generated": "2026-09-13",
+  "facts": [
+    {"id": "F-workflow-01", "section": "Workflow", "statement": "cite a source for each important claim, listed in a \"References\" section at the bottom of the post", "entries": ["fact-check-citations"]},
+    {"id": "F-workflow-02", "section": "Workflow", "statement": "spelling and grammar are the only fixes applied directly; everything else goes in the report as proposals", "entries": ["fix-scope"]},
+    {"id": "F-workflow-03", "section": "Workflow", "statement": "flag statements with ambiguous subjects or referents", "entries": ["audit-report-format"]},
+    {"id": "F-workflow-04", "section": "Workflow", "statement": "propose illustrations and analogies to explain complex concepts", "entries": ["examples-and-illustrations"]},
+    {"id": "F-workflow-05", "section": "Workflow", "statement": "show good and bad examples side by side, each with a caption explaining why", "entries": ["examples-and-illustrations"]},
+    {"id": "F-workflow-06", "section": "Workflow", "statement": "propose a call-out quote for the start of every section", "entries": ["section-callout-quotes"]},
+    {"id": "F-workflow-07", "section": "Workflow", "statement": "a paraphrased or synthesized quote is acceptable when no single sentence covers it", "entries": ["section-callout-quotes"]},
+    {"id": "F-workflow-08", "section": "Workflow", "statement": "repetition is acceptable only when important enough to drill, relevant in each section, and worded differently each time", "entries": ["repetition-audit"]},
+    {"id": "F-workflow-09", "section": "Workflow", "statement": "`> EDITOR:` lines are direct author requests; resolve each and remove/rewrite the marker", "entries": ["editor-directives"]},
+    {"id": "F-workflow-10", "section": "Workflow", "statement": "flag any link not written as `[label](url)`", "entries": ["markdown-format-audit"]},
+    {"id": "F-workflow-11", "section": "Workflow", "statement": "flag multi-line code-block lines longer than 80 characters", "entries": ["markdown-format-audit"]},
+    {"id": "F-workflow-12", "section": "Workflow", "statement": "the 80-character limit applies to code blocks only, not blockquotes or other preformatted elements", "entries": ["markdown-format-audit"]},
+    {"id": "F-report-01", "section": "Audit report", "statement": "report uses numbered sections with lettered items (1.a, 1.b, ...)", "entries": ["audit-report-format"]},
+    {"id": "F-report-02", "section": "Audit report", "statement": "every proposed fix includes an example or concrete suggestion", "entries": ["audit-report-format"]},
+    {"id": "F-report-03", "section": "Audit report", "statement": "reference locations by description or quoted snippet, never line numbers", "entries": ["audit-report-format"]},
+    {"id": "F-gotchas-01", "section": "Gotchas", "statement": "a claim matching the repository's documents can still be wrong; check external sources for externally verifiable claims", "entries": ["fact-check-citations"]},
+    {"id": "F-gotchas-02", "section": "Gotchas", "statement": "evaluate every occurrence of a repeated concept separately; do not stop at the first", "entries": ["repetition-audit"]}
+  ],
+  "excluded": [
+    {"id": "F-frontmatter-01", "section": "frontmatter", "reason": "frontmatter-convention guidance is always out of scope"},
+    {"id": "F-overview-01", "section": "Overview / Checklist", "reason": "restatements of workflow facts already inventoried"}
+  ]
+}
