@@ -56,6 +56,10 @@ def skill_tool_event(name: str, status: str) -> dict:
     }
 
 
+def session_event(session: str, etype: str, part: dict) -> dict:
+    return {"type": etype, "sessionID": session, "part": part}
+
+
 class VerdictTests(unittest.TestCase):
     def setUp(self):
         self.strategy = strategies.OpencodeStrategy(timeout=30)
@@ -357,6 +361,27 @@ class FailuresTests(unittest.TestCase):
         self.assertIn("run 2: triggered — skill tool completed load", out)
         self.assertIn("    it looked\n    relevant", out)
 
+    def test_session_id_printed_when_present(self):
+        # New-format results (post session-tracking) name the headless
+        # session on each failure line; the old format (no key) is covered
+        # by test_extracts_failed_runs_with_reasoning.
+        failure = self._failure()
+        failure["session_id"] = "s1"
+        self._write(
+            [
+                {
+                    "query": "q1",
+                    "should_trigger": False,
+                    "failures": [failure],
+                }
+            ]
+        )
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "run 2: triggered [session s1] — skill tool completed load", out
+        )
+
     def test_query_without_failures_produces_no_block(self):
         self._write(
             [
@@ -406,6 +431,195 @@ class FailuresTests(unittest.TestCase):
         self.results.write_text(json.dumps({"totals": {}}))
         rc, _ = self._run()
         self.assertEqual(rc, 1)
+
+
+class HarnessWorkspaceMixin:
+    """Temp workspace with a synced skill stub and a valid evaluator
+    agent file, for tests that drive cmd_run/cmd_suite end to end."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.workspace = self.root / "ws"
+        stub = self.workspace / ".agents" / "skills" / SKILL / "SKILL.md"
+        stub.parent.mkdir(parents=True)
+        stub.write_text(f"---\nname: {SKILL}\n---\n")
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "trigger-evaluator.opencode.md").write_text(
+            "---\nname: trigger-evaluator\n---\n# Agent\n"
+        )
+
+    def tearDown(self):
+        if evaluator._Log.file is not None:
+            evaluator._Log.file.close()
+            evaluator._Log.file = None
+        self.tmp.cleanup()
+
+    def _proc(self, stdout: str) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=stdout, stderr=""
+        )
+
+    def _triggered(self, session: str) -> str:
+        return ndjson(
+            session_event(
+                session,
+                "tool_use",
+                {
+                    "type": "tool",
+                    "tool": "skill",
+                    "state": {
+                        "status": "completed",
+                        "input": {"name": SKILL},
+                    },
+                },
+            ),
+            session_event(
+                session,
+                "text",
+                {"type": "text", "text": f"Loaded skill: {SKILL}"},
+            ),
+        )
+
+    def _no_match(self, session: str) -> str:
+        return ndjson(
+            session_event(
+                session,
+                "text",
+                {"type": "text", "text": "No skill matched this request."},
+            )
+        )
+
+    def _void(self, session: str) -> str:
+        return ndjson(
+            session_event(
+                session,
+                "reasoning",
+                {
+                    "type": "reasoning",
+                    "text": "The user wants a poem about Paris.",
+                },
+            )
+        )
+
+
+class SuiteTests(HarnessWorkspaceMixin, unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.queries = self.root / "queries.json"
+        self.queries.write_text(
+            json.dumps([{"query": "q1", "shouldTrigger": True}])
+        )
+        self.out = self.root / "results.json"
+
+    def _run_suite(self, procs: list) -> int:
+        args = argparse.Namespace(
+            harness="opencode",
+            skill=SKILL,
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.workspace),
+            queries=str(self.queries),
+            out=str(self.out),
+            model=None,
+            variant=None,
+            reps=len(procs),
+            timeout=30,
+        )
+        with (
+            mock.patch.object(strategies.subprocess, "run", side_effect=procs),
+            mock.patch.object(
+                strategies.shutil, "which", return_value="/usr/bin/opencode"
+            ),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            return evaluator.cmd_suite(args)
+
+    def test_failures_and_voids_carry_session_ids(self):
+        # rep 1 passes (smoke rep); reps 2 and 3 run concurrently and may
+        # consume the two remaining streams in either order, so the run
+        # numbers are asserted as a set.
+        procs = [
+            self._proc(self._triggered("s-pass")),
+            self._proc(self._no_match("s-fail")),
+            self._proc(self._void("s-void")),
+        ]
+        rc = self._run_suite(procs)
+        self.assertEqual(rc, 0)
+        q = json.loads(self.out.read_text())["queries"][0]
+        self.assertEqual(q["passed"], 1)
+        self.assertEqual(q["failed"], 1)
+        self.assertEqual(q["void"], 1)
+
+        self.assertEqual(len(q["failures"]), 1)
+        failure = q["failures"][0]
+        self.assertEqual(failure["outcome"], "not-triggered")
+        self.assertEqual(failure["session_id"], "s-fail")
+
+        self.assertEqual(len(q["voids"]), 1)
+        void = q["voids"][0]
+        self.assertEqual(void["session_id"], "s-void")
+        self.assertTrue(void["timeout"])
+        self.assertIn("final report missing", void["detail"])
+
+        self.assertEqual({failure["run"], void["run"]}, {2, 3})
+
+    def test_passing_runs_leave_failures_and_voids_empty(self):
+        rc = self._run_suite([self._proc(self._triggered("s1"))])
+        self.assertEqual(rc, 0)
+        q = json.loads(self.out.read_text())["queries"][0]
+        self.assertEqual(q["failures"], [])
+        self.assertEqual(q["voids"], [])
+
+
+class AbortSessionTests(HarnessWorkspaceMixin, unittest.TestCase):
+    def _run_args(self, reps: int) -> argparse.Namespace:
+        return argparse.Namespace(
+            harness="opencode",
+            skill=SKILL,
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.workspace),
+            query="q",
+            expect="trigger",
+            model=None,
+            variant=None,
+            reps=reps,
+            timeout=30,
+        )
+
+    def _error_proc(self, session: str) -> subprocess.CompletedProcess:
+        err_event = {
+            "type": "error",
+            "sessionID": session,
+            "error": {"data": {"message": "provider 429"}},
+        }
+        return self._proc(ndjson(err_event))
+
+    def _run_expecting_abort(self, procs, reps: int) -> str:
+        buf = io.StringIO()
+        with (
+            mock.patch.object(strategies.subprocess, "run", **procs),
+            contextlib.redirect_stderr(buf),
+            contextlib.redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            evaluator.cmd_run(self._run_args(reps))
+        return buf.getvalue()
+
+    def test_smoke_abort_line_carries_session_id(self):
+        err = self._run_expecting_abort(
+            {"return_value": self._error_proc("s1")}, reps=1
+        )
+        self.assertIn("provider 429", err)
+        self.assertIn("[session s1]", err)
+
+    def test_batch_abort_line_carries_session_id(self):
+        ok = self._proc(ndjson(skill_tool_event(SKILL, "completed")))
+        err = self._run_expecting_abort(
+            {"side_effect": [ok, self._error_proc("s2")]}, reps=2
+        )
+        self.assertIn("rep 2 could not execute", err)
+        self.assertIn("[session s2]", err)
 
 
 if __name__ == "__main__":

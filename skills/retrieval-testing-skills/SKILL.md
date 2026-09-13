@@ -350,6 +350,7 @@ against the results before anything is recorded. Schema:
 - A missing skill-load signal is `void`, not `fail` — the doc was never in context.
 - A control pass is a flag, not a verdict: one clean baseline answer doesn't prove redundancy, it schedules a re-check.
 - Don't stack pressure or obstacles into retrieval queries — that's the discipline track. Plain, realistic tasks only.
+- Every run in `results.json` carries its headless `session_id` (shown by `retrieval-evidence`), and harness-abort error lines end with `[session <id>]` when the harness emitted one before failing — include it when reporting an abort so the failed session can be inspected.
 
 ## Checklist
 

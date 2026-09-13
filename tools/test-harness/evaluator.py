@@ -102,6 +102,12 @@ def emit(msg: str = "", *, err: bool = False) -> None:
             _Log.file.flush()
 
 
+def _session_suffix(e: HarnessExecutionError) -> str:
+    """` [session <id>]` for abort lines when the harness emitted a
+    session id before failing, else ""."""
+    return f" [session {e.session_id}]" if e.session_id else ""
+
+
 def log_start(n: int, tag: str | None = None) -> None:
     prefix = f"[{tag}] " if tag else ""
     emit(f"{prefix}[rep {n:>3}] started")
@@ -148,7 +154,11 @@ def eval_batch(
             strategy, skill, case, workspace, model, effort, 1
         )
     except HarnessExecutionError as e:
-        emit(f"error: harness could not execute the query: {e}", err=True)
+        emit(
+            f"error: harness could not execute the query: {e}"
+            f"{_session_suffix(e)}",
+            err=True,
+        )
         sys.exit(1)
 
     # Remaining reps in parallel batches of at most MAX_WORKERS.
@@ -163,16 +173,20 @@ def eval_batch(
                 ): n
                 for n in group
             }
-            first_error: tuple[int, str] | None = None
+            first_error: tuple[int, HarnessExecutionError] | None = None
             for fut, n in futures.items():
                 try:
                     verdicts[n] = fut.result()
                 except HarnessExecutionError as e:
                     if first_error is None:
-                        first_error = (n, str(e))
+                        first_error = (n, e)
         if first_error is not None:
-            n, detail = first_error
-            emit(f"error: rep {n} could not execute: {detail}", err=True)
+            n, e = first_error
+            emit(
+                f"error: rep {n} could not execute: {e}"
+                f"{_session_suffix(e)}",
+                err=True,
+            )
             emit("error: batch aborted", err=True)
             sys.exit(1)
 
@@ -504,10 +518,21 @@ def cmd_suite(args: argparse.Namespace) -> int:
                 "detail": v.detail,
                 "reasoning": v.reasoning,
                 "timeout": v.timeout,
+                "session_id": v.session_id,
             }
             for n, v in enumerate(result.verdicts, start=1)
             if v.outcome != "void"
             and (v.outcome == "triggered") != case.should_trigger
+        ]
+        voids = [
+            {
+                "run": n,
+                "detail": v.detail,
+                "timeout": v.timeout,
+                "session_id": v.session_id,
+            }
+            for n, v in enumerate(result.verdicts, start=1)
+            if v.outcome == "void"
         ]
         query_results.append(
             {
@@ -521,6 +546,7 @@ def cmd_suite(args: argparse.Namespace) -> int:
                 "wilson_high": result.wilson_high,
                 "score": result.score,
                 "failures": failures,
+                "voids": voids,
             }
         )
         score_s = f"{result.score:.3f}" if result.score is not None else "n/a"
@@ -746,9 +772,12 @@ def cmd_failures(args: argparse.Namespace) -> int:
         for f in failures:
             n_failures += 1
             timeout = " (timeout)" if f.get("timeout") else ""
+            session = (
+                f" [session {f['session_id']}]" if f.get("session_id") else ""
+            )
             print(
-                f"  run {f.get('run')}: {f.get('outcome')}{timeout} — "
-                f"{f.get('detail', '')}"
+                f"  run {f.get('run')}: {f.get('outcome')}{timeout}"
+                f"{session} — {f.get('detail', '')}"
             )
             reasoning = f.get("reasoning") or "(no reasoning captured)"
             for line in reasoning.splitlines():
@@ -1045,7 +1074,8 @@ def run_records_batch(
         runs[1] = run_rep(1)
     except HarnessExecutionError as e:
         emit(
-            f"error: [{tag}] harness could not execute the query: {e}",
+            f"error: [{tag}] harness could not execute the query: {e}"
+            f"{_session_suffix(e)}",
             err=True,
         )
         sys.exit(1)
@@ -1056,17 +1086,19 @@ def run_records_batch(
         group = remaining[i : i + MAX_WORKERS]
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             futures = {pool.submit(run_rep, n): n for n in group}
-            first_error: tuple[int, str] | None = None
+            first_error: tuple[int, HarnessExecutionError] | None = None
             for fut, n in futures.items():
                 try:
                     runs[n] = fut.result()
                 except HarnessExecutionError as e:
                     if first_error is None:
-                        first_error = (n, str(e))
+                        first_error = (n, e)
         if first_error is not None:
-            n, detail = first_error
+            n, e = first_error
             emit(
-                f"error: [{tag}] rep {n} could not execute: {detail}", err=True
+                f"error: [{tag}] rep {n} could not execute: {e}"
+                f"{_session_suffix(e)}",
+                err=True,
             )
             emit("error: batch aborted", err=True)
             sys.exit(1)
@@ -1174,7 +1206,8 @@ def cmd_retrieval_suite(args: argparse.Namespace) -> int:
                     return e.code if isinstance(e.code, int) else 1
                 except HarnessExecutionError as e:
                     emit(
-                        f"error: [{ARM_TAGS[arm]}] could not execute: {e}",
+                        f"error: [{ARM_TAGS[arm]}] could not execute: {e}"
+                        f"{_session_suffix(e)}",
                         err=True,
                     )
                     return 1

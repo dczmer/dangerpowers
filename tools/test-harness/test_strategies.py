@@ -256,6 +256,21 @@ class ParseStreamTests(unittest.TestCase):
 
 
 class ExecuteTests(unittest.TestCase):
+    def _execute(
+        self, proc: subprocess.CompletedProcess
+    ) -> strategies.HarnessExecutionError:
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            with self.assertRaises(strategies.HarnessExecutionError) as ctx:
+                strategies.OpencodeStrategy(timeout=5).execute(
+                    Path("/tmp/fake-workspace"),
+                    "trigger-evaluator",
+                    "q",
+                    skill=SKILL,
+                )
+            return ctx.exception
+
     def test_timeout_returns_partial_stream(self):
         partial = ndjson(text_event("partial answer"))
         err = subprocess.TimeoutExpired(
@@ -271,21 +286,39 @@ class ExecuteTests(unittest.TestCase):
         self.assertTrue(timed_out)
         self.assertEqual("".join(ev.answer_parts), "partial answer")
         self.assertGreater(ev.parseable, 0)
+        self.assertEqual(ev.session_id, "s1")
+
+    def test_error_event_raises_with_session_id(self):
+        err_event = {
+            "type": "error",
+            "sessionID": "s1",
+            "error": {"data": {"message": "provider 429"}},
+        }
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=ndjson(err_event), stderr=""
+        )
+        e = self._execute(proc)
+        self.assertIn("provider 429", str(e))
+        self.assertEqual(e.session_id, "s1")
+
+    def test_nonzero_exit_raises_with_session_id(self):
+        proc = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout=ndjson(text_event("partial answer")),
+            stderr="boom",
+        )
+        e = self._execute(proc)
+        self.assertIn("exit 1", str(e))
+        self.assertEqual(e.session_id, "s1")
 
     def test_zero_parseable_events_raises(self):
         proc = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="not json\n", stderr=""
         )
-        with mock.patch.object(
-            strategies.subprocess, "run", return_value=proc
-        ):
-            with self.assertRaises(strategies.HarnessExecutionError):
-                strategies.OpencodeStrategy(timeout=5).execute(
-                    Path("/tmp/fake-workspace"),
-                    "trigger-evaluator",
-                    "q",
-                    skill=SKILL,
-                )
+        e = self._execute(proc)
+        self.assertIn("no parseable events", str(e))
+        self.assertEqual(e.session_id, "")
 
 
 class GrammarGateTests(unittest.TestCase):

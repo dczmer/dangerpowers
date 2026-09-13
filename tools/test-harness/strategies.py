@@ -35,7 +35,15 @@ class Verdict:
 class HarnessExecutionError(Exception):
     """The harness could not execute the query (bad args, nonzero exit,
     provider error, empty event stream, agent fallback). Fatal: aborts the
-    batch, exits 1. Never a verdict."""
+    batch, exits 1. Never a verdict.
+
+    session_id carries the harness session id when the event stream was
+    parsed far enough to yield one ("" otherwise) so abort lines can name
+    the failed session for debugging."""
+
+    def __init__(self, message: str, session_id: str = ""):
+        super().__init__(message)
+        self.session_id = session_id
 
 
 # --------------------------------------------------------------------------
@@ -118,9 +126,12 @@ def classify(
         return _interrupted_verdict(ev, skill, interrupted_cause, reasoning)
 
     if ev.error_message is not None:
-        raise HarnessExecutionError(ev.error_message)
+        raise HarnessExecutionError(ev.error_message, session_id=ev.session_id)
     if returncode != 0:
-        raise HarnessExecutionError(f"exit {returncode}: {stderr[-500:]}")
+        raise HarnessExecutionError(
+            f"exit {returncode}: {stderr[-500:]}",
+            session_id=ev.session_id,
+        )
     if ev.parseable == 0:
         raise HarnessExecutionError("no parseable events (exit 0)")
 
@@ -362,10 +373,13 @@ class EvalStrategy:
         _reject_agent_fallback(proc.stderr)
         ev = self.parse_stream(proc.stdout, skill)
         if ev.error_message is not None:
-            raise HarnessExecutionError(ev.error_message)
+            raise HarnessExecutionError(
+                ev.error_message, session_id=ev.session_id
+            )
         if proc.returncode != 0:
             raise HarnessExecutionError(
-                f"exit {proc.returncode}: {proc.stderr[-500:]}"
+                f"exit {proc.returncode}: {proc.stderr[-500:]}",
+                session_id=ev.session_id,
             )
         if ev.parseable == 0:
             raise HarnessExecutionError("no parseable events (exit 0)")

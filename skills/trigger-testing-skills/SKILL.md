@@ -74,7 +74,7 @@ Vary should-trigger queries across coverage axes: phrasing formality ("write a P
 
 ### Failure analysis
 
-The evidence for every categorization is the failed runs' reasoning, extracted with `evaluator.py failures --results <suite json>` — never the bare query text or outcome counts. Cite the deciding phrase per failed run before assigning a category; a category without a citation is a guess, not an analysis.
+The evidence for every categorization is the failed runs' reasoning, extracted with `evaluator.py failures --results <suite json>` — never the bare query text or outcome counts. Cite the deciding phrase per failed run before assigning a category; a category without a citation is a guess, not an analysis. Every failed run — in the suite JSON's `failures` list and in the `failures` output — carries its headless session ID, and void runs are recorded per query in the suite JSON's `voids` list (run, detail, timeout, session ID), so any non-pass run can be traced back to its session for deeper inspection.
 
 Check the `timeouts` counts **before** analyzing failures: under the restricted evaluator agent, toil-driven timeouts are structurally impossible, so a cluster of `timeouts` (passes resting on interrupted-run intent, or voids) points at infrastructure — slow provider, step cap — not the description. Investigate conditions (or raise `--timeout`) instead of revising the description on that evidence.
 
@@ -126,7 +126,7 @@ The `suspect queries` block appears only when failure analysis flagged any. Ther
 
 ## Error handling
 
-**Abort means the same thing everywhere below:** stop immediately, apply nothing, retry nothing, keep the temp workspace, and report its path plus the campaign dir path to the user (campaign artifacts persist by design).
+**Abort means the same thing everywhere below:** stop immediately, apply nothing, retry nothing, keep the temp workspace, and report its path plus the campaign dir path to the user (campaign artifacts persist by design). Abort error lines end with `[session <id>]` when the harness emitted a session ID before failing — include it in the report so the failed session can be inspected.
 
 - `check` failure → stop in preflight, surface the exact message.
 - Evaluator agent install failure (missing source asset, workspace not writable) → the script exits 1 before any spend; surface the message and stop.
