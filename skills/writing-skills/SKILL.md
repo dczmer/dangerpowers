@@ -42,12 +42,11 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 Two required fields: `name` and `description`.
 
 - `name`: lowercase letters, numbers, hyphens only, ≤64 chars. Use a gerund or verb-first name: `writing-skills`, not `skill-writing`.
-- `description`: third person about the skill, never first or second person ("I can help you..."). Open with an imperative trigger clause ("Use when..."), then state WHAT the skill does — a few sentences to a short paragraph, ≤1024 chars.
-  - Start with "Use when..." plus concrete triggering conditions and symptoms.
-  - Weave trigger terms into prose. Never use a `Keywords:`-style label or a bare list of quoted phrases.
-  - State what the skill produces (one clause) so the agent can match user intent, not just internal mechanics.
-  - **Never summarize the workflow.** A description that summarizes the process becomes a shortcut agents follow instead of reading the skill body.
-   - Keep it concise. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
+- `description`: third person about the skill, never first or second person ("I can help you..."). Exactly two parts, in order, ≤1024 chars:
+  1. An imperative trigger clause — "Use when..." plus the concrete triggering conditions and symptoms. Weave trigger terms into prose; never a `Keywords:`-style label or a bare list of quoted phrases.
+  2. One coverage clause naming the domain or technique the skill covers.
+  No procedure steps: a sequence of things the workflow does is not a coverage clause. The body owns the HOW; the description exists only so the agent can match user intent.
+  Keep it concise. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
 
 ```yaml
 # Bad: summarizes workflow
@@ -100,8 +99,8 @@ Create a todo for each item.
 
 **Frontmatter:**
 - [ ] `name` is hyphens/lowercase, ≤64 chars, gerund or verb-first
-- [ ] `description` starts with "Use when...", third person, states WHAT + WHEN — no workflow summary
-- [ ] Trigger terms woven into prose; no `Keywords:`-style label; ≤1024 chars
+- [ ] `description` has both slots: "Use when..." trigger clause + one coverage clause; no procedure steps; third person; ≤1024 chars
+- [ ] Trigger terms woven into prose; no `Keywords:`-style label
 
 **Body:**
 - [ ] Overview states the core principle in 1-2 sentences

@@ -214,6 +214,12 @@ Match the fix to the observed failure. The form that fixes one failure type back
 
 Here is a simplified shape testing skill: [shape-testing-skills example](./examples/skills/shape-testing-skills/SKILL.md). It uses subagents to run the evals but does not do any workspace isolation - other skills and rules files can potentially contaminate results.
 
+This skill only tests a single rule (quoted from the skill file directly). For demonstration purposes, I just ask the agent to pick a rule and setup the campaign for me:
+
+> @docs/writing-skills/part-3/examples/skills/shape-testing-skills/SKILL.md i want to shape test a rule from the writing-skills skill
+
+The agent picked a rule, wrote the fixture and variants for the campaign, and started the evals.
+
 ### My Implementation
 
 ## Conclusion
