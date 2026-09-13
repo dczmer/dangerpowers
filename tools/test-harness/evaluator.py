@@ -7,9 +7,10 @@ steps capped), installed into the workspace by the harness strategy before any
 rep. Harness specifics live in the strategy registry in strategies.py; only
 opencode is implemented.
 
-Scope: the trigger inner core (eval_batch: one invocation = one query) and
-the retrieval campaign tooling (retrieval-suite, scored-check, record with
---scope frontmatter|dir).
+Scope: the trigger inner core (eval_batch: one invocation = one query), the
+retrieval campaign tooling (retrieval-suite, scored-check, record with
+--scope frontmatter|dir), and the shape campaign tooling (shape-suite,
+shape-evidence, shape-scored-check, record --track shape-test).
 """
 
 import argparse
@@ -44,6 +45,7 @@ MAX_WORKERS = 10
 TRIGGER_AGENT = "trigger-evaluator"
 RETRIEVAL_EVALUATOR_AGENT = "retrieval-evaluator"
 RETRIEVAL_CONTROL_AGENT = "retrieval-control"
+SHAPE_EVALUATOR_AGENT = "shape-evaluator"
 
 # Log label per retrieval arm, used as a [tag] prefix on every progress line
 # so interleaved arm output stays attributable when both arms run in
@@ -613,7 +615,15 @@ def _err(message: str) -> int:
 def _any_counts_given(args: argparse.Namespace) -> bool:
     return any(
         getattr(args, n, None) is not None
-        for n in ("passes", "fails", "gaps", "voids")
+        for n in (
+            "passes",
+            "fails",
+            "gaps",
+            "voids",
+            "adopted",
+            "no_failure",
+            "unresolved",
+        )
     )
 
 
@@ -651,8 +661,11 @@ def hash_skill_dir(skill_dir: Path) -> str:
 
 def cmd_record(args: argparse.Namespace) -> int:
     """Write/update one track's manifest key after a completed campaign.
-    Overwrites only the scope's key (`trigger-test` or `retrieval-test`);
-    unknown keys are preserved."""
+    Overwrites only the scope's key (`trigger-test`, `retrieval-test`, or
+    `shape-test` with --scope dir --track); unknown keys are preserved.
+    --scope dir --track selects the count vocabulary: retrieval-test uses
+    passes/fails/gaps/voids (the default, back-compatible), shape-test
+    uses adopted/no-failure/unresolved/voids."""
     skill_path = Path(args.skill_path)
     scope = getattr(args, "scope", "frontmatter")
 
@@ -680,31 +693,71 @@ def cmd_record(args: argparse.Namespace) -> int:
     else:  # dir
         if args.score is not None:
             return _err("--score is only valid with --scope frontmatter")
-        missing = [
-            n
-            for n in ("passes", "fails", "gaps", "voids")
-            if getattr(args, n, None) is None
-        ]
-        if missing:
-            return _err(
-                f"counts required with --scope dir: {', '.join(missing)}"
-            )
         if not skill_path.is_dir():
             return _err(
                 f"--scope dir expects the skill directory: {skill_path}"
             )
         checksum = hash_skill_dir(skill_path)
-        entry = {
-            "date": args.date or datetime.now(UTC).date().isoformat(),
-            "checksum": checksum,
-            "passes": args.passes,
-            "fails": args.fails,
-            "gaps": args.gaps,
-            "voids": args.voids,
-        }
-        if args.ablations is not None:
-            entry["ablations"] = args.ablations
-        key = "retrieval-test"
+        track = getattr(args, "track", "retrieval-test")
+        if track == "shape-test":
+            # voids is shared by both vocabularies; the retrieval-only
+            # counts must not appear on a shape-test record.
+            if any(
+                getattr(args, n, None) is not None
+                for n in ("passes", "fails", "gaps", "ablations")
+            ):
+                return _err(
+                    "passes/fails/gaps/ablations are only valid with "
+                    "--track retrieval-test"
+                )
+            missing = [
+                n
+                for n in ("adopted", "no_failure", "unresolved", "voids")
+                if getattr(args, n, None) is None
+            ]
+            if missing:
+                return _err(
+                    "counts required with --scope dir --track shape-test: "
+                    + ", ".join(missing)
+                )
+            entry = {
+                "date": args.date or datetime.now(UTC).date().isoformat(),
+                "checksum": checksum,
+                "adopted": args.adopted,
+                "no-failure": args.no_failure,
+                "unresolved": args.unresolved,
+                "voids": args.voids,
+            }
+            key = "shape-test"
+        else:
+            if any(
+                getattr(args, n, None) is not None
+                for n in ("adopted", "no_failure", "unresolved")
+            ):
+                return _err(
+                    "adopted/no-failure/unresolved are only valid with "
+                    "--track shape-test"
+                )
+            missing = [
+                n
+                for n in ("passes", "fails", "gaps", "voids")
+                if getattr(args, n, None) is None
+            ]
+            if missing:
+                return _err(
+                    f"counts required with --scope dir: {', '.join(missing)}"
+                )
+            entry = {
+                "date": args.date or datetime.now(UTC).date().isoformat(),
+                "checksum": checksum,
+                "passes": args.passes,
+                "fails": args.fails,
+                "gaps": args.gaps,
+                "voids": args.voids,
+            }
+            if args.ablations is not None:
+                entry["ablations"] = args.ablations
+            key = "retrieval-test"
 
     if args.campaign is not None:
         entry["campaign"] = args.campaign
@@ -730,6 +783,11 @@ def cmd_record(args: argparse.Namespace) -> int:
     manifest.write_text(json.dumps(data, indent=2) + "\n")
     if scope == "frontmatter":
         detail = f"score {args.score}"
+    elif getattr(args, "track", "retrieval-test") == "shape-test":
+        detail = (
+            f"{args.adopted} adopted / {args.no_failure} no-failure / "
+            f"{args.unresolved} unresolved / {args.voids} void"
+        )
     else:
         detail = (
             f"{args.passes} pass / {args.fails} fail / "
@@ -1411,6 +1469,798 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# Shape campaign tooling: shape-suite + shape-evidence + shape-scored-check
+
+# Vocabularies for the shape track (plan §File schemas / §Scoring artifacts).
+SHAPE_KINDS = {"shaping", "pattern"}
+SHAPE_RESULTS = {"adopted", "no-failure", "unresolved", "void"}
+SHAPE_GATES = {"pass", "fail"}
+# Fixture keys allowed on an entries file: `application` is always present;
+# `counter-example` is required exactly on pattern entries (restraint gate).
+SHAPE_FIXTURE_KEYS = ("application", "counter-example")
+# Variant arm keys allowed beyond the v0 control arm.
+SHAPE_VARIANT_KEYS = ("v1", "v2", "v3")
+
+
+def _check_marker_tokens(
+    path: Path, eid: str, name: str, markers: dict
+) -> None:
+    """Marker tokens are grep-regexes scored against answer text; a token
+    that does not compile would blow up mid-campaign, so it fails here,
+    pre-spend."""
+    for key, token in markers.items():
+        try:
+            re.compile(token)
+        except re.error as e:
+            _fail(
+                f"{path}: entry {eid!r} {name}.{key} is not a valid "
+                f"grep token: {e}"
+            )
+
+
+def load_shape_entries(path: Path) -> list[dict]:
+    """Read and strictly validate a shape entries file. Schema only: the
+    verbatim section-span assertion against the synced skill body lives in
+    cmd_shape_suite, which owns the body bytes. On any violation prints
+    `error: <exact reason>` to stderr and exits 1 (pre-spend: zero harness
+    runs happen before this returns)."""
+    if not path.exists():
+        _fail(f"entries file not found: {path}")
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        _fail(f"invalid JSON in {path}: {e}")
+    if not isinstance(data, list):
+        _fail(f"{path}: expected a JSON list of entry objects")
+    entries: list[dict] = []
+    seen: set[str] = set()
+    for i, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            _fail(f"{path}: entry {i} is not an object")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            _fail(f"{path}: entry {i} missing 'id' (non-empty string)")
+        if eid in seen:
+            _fail(f"{path}: duplicate id: {eid}")
+        seen.add(eid)
+        kind = entry.get("kind")
+        if kind not in SHAPE_KINDS:
+            _fail(
+                f"{path}: entry {i} ({eid}) kind must be one of "
+                f"{sorted(SHAPE_KINDS)}, got {kind!r}"
+            )
+        section = entry.get("section")
+        if not isinstance(section, str) or not section:
+            _fail(
+                f"{path}: entry {i} ({eid}) missing 'section' "
+                f"(non-empty string)"
+            )
+        fixtures = entry.get("fixtures")
+        if not isinstance(fixtures, dict) or not fixtures:
+            _fail(
+                f"{path}: entry {i} ({eid}) 'fixtures' must be a "
+                f"non-empty object"
+            )
+        application = fixtures.get("application")
+        if not isinstance(application, str) or not application:
+            _fail(
+                f"{path}: entry {i} ({eid}) fixtures.application must be "
+                f"a non-empty string"
+            )
+        unknown = [k for k in fixtures if k not in SHAPE_FIXTURE_KEYS]
+        if unknown:
+            _fail(
+                f"{path}: entry {i} ({eid}) has unknown fixture keys: "
+                f"{', '.join(unknown)} (allowed: "
+                f"{', '.join(SHAPE_FIXTURE_KEYS)})"
+            )
+        has_counter = isinstance(
+            fixtures.get("counter-example"), str
+        ) and bool(fixtures.get("counter-example"))
+        if kind == "pattern" and not has_counter:
+            _fail(
+                f"{path}: entry {i} ({eid}) is a pattern entry and must "
+                f"declare a 'counter-example' fixture"
+            )
+        if kind == "shaping" and "counter-example" in fixtures:
+            _fail(
+                f"{path}: entry {i} ({eid}) is a shaping entry and must "
+                f"not declare a 'counter-example' fixture"
+            )
+        markers = entry.get("markers")
+        if not isinstance(markers, dict) or not markers:
+            _fail(
+                f"{path}: entry {i} ({eid}) 'markers' must be a non-empty "
+                f"dict of grep tokens"
+            )
+        if not all(
+            isinstance(t, str) and t for t in markers.values()
+        ) or not all(isinstance(k, str) and k for k in markers):
+            _fail(
+                f"{path}: entry {i} ({eid}) 'markers' keys and tokens "
+                f"must be non-empty strings"
+            )
+        _check_marker_tokens(path, eid, "markers", markers)
+        restraint = entry.get("restraint_markers")
+        if kind == "pattern":
+            if not isinstance(restraint, dict) or not restraint:
+                _fail(
+                    f"{path}: entry {i} ({eid}) 'restraint_markers' "
+                    f"(non-empty dict of grep tokens) is required for "
+                    f"pattern entries"
+                )
+            if not all(
+                isinstance(t, str) and t for t in restraint.values()
+            ) or not all(isinstance(k, str) and k for k in restraint):
+                _fail(
+                    f"{path}: entry {i} ({eid}) 'restraint_markers' keys "
+                    f"and tokens must be non-empty strings"
+                )
+            _check_marker_tokens(path, eid, "restraint_markers", restraint)
+        elif restraint is not None:
+            _fail(
+                f"{path}: entry {i} ({eid}) 'restraint_markers' is only "
+                f"valid for pattern entries"
+            )
+        variants = entry.get("variants")
+        if not isinstance(variants, dict) or not variants:
+            _fail(
+                f"{path}: entry {i} ({eid}) 'variants' must be a "
+                f"non-empty object"
+            )
+        if len(variants) > 3 or not set(variants) <= set(SHAPE_VARIANT_KEYS):
+            _fail(
+                f"{path}: entry {i} ({eid}) 'variants' must have 1-3 "
+                f"entries keyed {', '.join(SHAPE_VARIANT_KEYS)}"
+            )
+        if not all(isinstance(v, str) and v for v in variants.values()):
+            _fail(
+                f"{path}: entry {i} ({eid}) 'variants' values must be "
+                f"non-empty strings"
+            )
+        entries.append(entry)
+    return entries
+
+
+def assemble_arm_body(body: str, entry: dict, arm: str) -> str:
+    """One arm's body bytes. v0 (control) removes the rule's section span
+    together with exactly one following blank line; vN replaces the span
+    with the variant text. The caller asserts the span occurs verbatim
+    exactly once in body before calling (pre-spend doc-drift gate), so a
+    violated invariant here is a harness bug, not doc drift."""
+    section = entry["section"]
+    idx = body.find(section)
+    end = idx + len(section)
+    if idx < 0 or body.find(section, end) >= 0:
+        raise ValueError(
+            f"section span of entry {entry['id']!r} is not unique in body"
+        )
+    if arm == "v0":
+        rest = body[end:]
+        if rest.startswith("\n\n"):
+            rest = rest[1:]  # consume exactly one following blank line
+        return body[:idx] + rest
+    return body[:idx] + entry["variants"][arm] + body[end:]
+
+
+def verify_arm_bytes(new_body: str, entry: dict, arm: str) -> None:
+    """Post-assembly sanity check, run before any dispatch: the v0 arm
+    must have lost the span, a variant arm must carry its text."""
+    if arm == "v0":
+        if entry["section"] in new_body:
+            raise ValueError(
+                f"v0 removal left the section span of entry "
+                f"{entry['id']!r} in the body"
+            )
+    elif entry["variants"][arm] not in new_body:
+        raise ValueError(
+            f"variant arm {arm!r} of entry {entry['id']!r} is missing "
+            f"from the assembled body"
+        )
+
+
+def build_shape_run_record(
+    ev,
+    query_dispatched: str,
+    timed_out: bool,
+    ws_root: Path,
+    arm: str,
+    skill: str,
+) -> dict:
+    """The shape-track run record: build_run_record adapted, not reused,
+    because that builder keys its signals on the retrieval arm names.
+    Every shape arm loads the skill, so skill-not-loaded fires for any arm
+    without a completed load; the retrieval track's control-loaded-skill
+    signal does not exist here. Adds the arm key so runs stay attributable
+    in the merged results of a phase."""
+    answer = "".join(ev.answer_parts)
+    m = SOURCES_RE.search(answer)
+    signals = []
+    if not ev.completed_load:
+        signals.append("skill-not-loaded")
+    if not answer.strip():
+        signals.append("empty-answer")
+    root = str(ws_root.resolve())
+    for call in ev.tool_calls:
+        t = call["target"]
+        if not t:
+            continue
+        p = Path(t) if Path(t).is_absolute() else ws_root / t
+        if not str(p.resolve()).startswith(root):
+            signals.append("read-outside-workspace")
+            break
+    return {
+        "arm": arm,
+        "query_dispatched": query_dispatched,
+        "answer_text": answer,
+        "sources_consulted": m.group("block").strip() if m else None,
+        "tool_calls": ev.tool_calls,
+        "skill_load_completed": ev.completed_load,
+        "other_skill_loads": [
+            s["name"] for s in ev.skill_loads if s["name"] not in (None, skill)
+        ],
+        "denied_tool_attempts": ev.denied_tool_attempts,
+        "reasoning": "".join(ev.reasoning_parts),
+        "session_id": ev.session_id,
+        "timeout": timed_out,
+        "parseable_events": ev.parseable,
+        "void_signals": signals,
+    }
+
+
+def run_shape_rep_batch(
+    strategy: EvalStrategy,
+    entry: dict,
+    arm: str,
+    ws: Path,
+    agent: str,
+    args: argparse.Namespace,
+) -> list[dict]:
+    """Reps for one (entry, arm) pair, dispatched only while the workspace
+    skill carries that arm's byte state. The per-run prompt is the bare
+    fixture text keyed by --fixture-key — never rule text, markers, or
+    expected shape. The smoke rep runs alone; remaining reps batch at most
+    MAX_WORKERS wide. Only reps within one arm batch parallelize: entries x
+    arms are strictly serialized by cmd_shape_suite (the multi-rule
+    attribution invariant)."""
+    fixture_text = entry["fixtures"][args.fixture_key]
+    tag = f" {arm} "
+    runs: dict[int, dict] = {}
+
+    def run_rep(n: int) -> dict:
+        log_start(n, tag)
+        ev, timed_out = strategy.execute(
+            ws,
+            agent,
+            fixture_text,
+            args.model,
+            args.variant,
+            skill=args.skill,
+        )
+        record = build_shape_run_record(
+            ev, fixture_text, timed_out, ws, arm, args.skill
+        )
+        line = f"[{tag}] [rep {n:>3}] completed"
+        if timed_out:
+            line += " (timeout)"
+        if record["void_signals"]:
+            line += f" signals: {', '.join(record['void_signals'])}"
+        emit(line)
+        return record
+
+    # Smoke rep runs alone; a harness failure here aborts before further
+    # spend. A timeout is a record, never an abort (retrieval policy).
+    try:
+        runs[1] = run_rep(1)
+    except HarnessExecutionError as e:
+        emit(
+            f"error: [{tag}] harness could not execute the query: {e}"
+            f"{_session_suffix(e)}",
+            err=True,
+        )
+        sys.exit(1)
+
+    remaining = list(range(2, args.reps + 1))
+    for i in range(0, len(remaining), MAX_WORKERS):
+        group = remaining[i : i + MAX_WORKERS]
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            futures = {pool.submit(run_rep, n): n for n in group}
+            first_error: tuple[int, HarnessExecutionError] | None = None
+            for fut, n in futures.items():
+                try:
+                    runs[n] = fut.result()
+                except HarnessExecutionError as e:
+                    if first_error is None:
+                        first_error = (n, e)
+        if first_error is not None:
+            n, e = first_error
+            emit(
+                f"error: [{tag}] rep {n} could not execute: {e}"
+                f"{_session_suffix(e)}",
+                err=True,
+            )
+            emit("error: batch aborted", err=True)
+            sys.exit(1)
+
+    return [runs[n] for n in range(1, args.reps + 1)]
+
+
+def cmd_shape_suite(args: argparse.Namespace) -> int:
+    """Run one shape campaign phase: entries x arms x reps headless runs,
+    STRICTLY serialized per entry x arm — never the retrieval track's
+    arm-parallel structure. At any moment the workspace skill differs
+    from the intact synced skill by exactly one rule's section (the
+    multi-rule attribution invariant); the original synced bytes are
+    restored after each arm and on abort. Pre-spend validation exits 1
+    with an exact message before any harness invocation."""
+    strategy_cls = resolve_strategy(args.harness)
+    check_harness(args.harness, strategy_cls)  # binary only
+    ws = Path(args.workspace)
+    agents_dir = Path(args.agents_dir)
+    entries_path = Path(args.entries)
+
+    # ---- pre-spend validation: any failure exits 1, exact message ----
+    probe = strategy_cls(timeout=args.timeout)
+    agent_file = probe.agent_file(agents_dir, SHAPE_EVALUATOR_AGENT)
+    if not agent_file.exists():
+        _fail(f"evaluator agent file missing: {agent_file}")
+    info = scan_agent_frontmatter(agent_file)  # exits on bad frontmatter
+    if info["name"] != SHAPE_EVALUATOR_AGENT:
+        _fail(
+            f"agent file {agent_file}: frontmatter name "
+            f"'{info['name']}' does not match expected "
+            f"'{SHAPE_EVALUATOR_AGENT}'"
+        )
+    if info["pins"]:
+        _fail(
+            f"agent file {agent_file} pins model config "
+            f"({', '.join(info['pins'])}); eval agents must not pin "
+            "model/variant/temperature/top_p — selection flows "
+            "through --model/--variant only"
+        )
+    if args.reps < 1:
+        _fail("--reps must be >= 1")
+    if args.timeout < 1:
+        _fail("--timeout must be >= 1")
+
+    skill_md = ws / ".agents" / "skills" / args.skill / "SKILL.md"
+    if not skill_md.is_file():
+        _fail(
+            f"skill workspace has no synced skill '{args.skill}': run "
+            "workspace-manager.sh sync --full and status --full first"
+        )
+
+    if args.fixture_key not in SHAPE_FIXTURE_KEYS:
+        _fail(
+            f"--fixture-key must be one of {', '.join(SHAPE_FIXTURE_KEYS)}, "
+            f"got {args.fixture_key!r}"
+        )
+    arms = [a.strip() for a in args.arms.split(",")]
+    if not arms or any(not a for a in arms):
+        _fail(
+            f"--arms must be a comma-separated list of arms "
+            f"({', '.join(SHAPE_VARIANT_KEYS)} or v0), got {args.arms!r}"
+        )
+
+    entries = load_shape_entries(entries_path)  # schema, exits 1 on violation
+    for entry in entries:
+        for arm in arms:
+            if arm != "v0" and arm not in entry["variants"]:
+                _fail(
+                    f"--arms: entry {entry['id']!r} defines no variant "
+                    f"{arm!r} (has: {', '.join(sorted(entry['variants']))})"
+                )
+        fixture = entry["fixtures"].get(args.fixture_key)
+        if not isinstance(fixture, str) or not fixture:
+            _fail(
+                f"entry {entry['id']!r} has no {args.fixture_key!r} "
+                f"fixture"
+            )
+
+    # Doc-drift gate: every section span must appear verbatim exactly once
+    # in the synced body (frontmatter stripped — spans overlapping
+    # frontmatter are never matched). Aborts before spend.
+    original_text = skill_md.read_text()
+    frontmatter = extract_frontmatter(original_text)
+    body = (
+        original_text[len(frontmatter) :]
+        if frontmatter is not None
+        else original_text
+    )
+    for entry in entries:
+        occurrences = body.count(entry["section"])
+        if occurrences != 1:
+            _fail(
+                f"doc drift: section span of entry {entry['id']!r} occurs "
+                f"{occurrences} times in the synced skill body (expected "
+                f"exactly once); fix the entry or re-sync"
+            )
+
+    out = Path(args.out)
+    if not out.parent.is_dir():
+        _fail(f"output directory does not exist: {out.parent}")
+
+    # ---- install + run ----
+    _Log.file = out.with_suffix(".log").open("w")  # mirror like suite
+    strategy = strategy_cls(timeout=args.timeout)
+    strategy.install(
+        ws,
+        agents_dir,
+        SHAPE_EVALUATOR_AGENT,
+        skill_name=args.skill,
+    )  # {{SKILL_NAME}}
+
+    emit(f"shape test suite: {args.skill} ({len(entries)} entries)")
+    emit(f"workspace: {ws}")
+    emit(
+        f"harness: {args.harness}  model: {args.model or '(default)'}  "
+        f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
+        f"timeout: {args.timeout}s"
+    )
+    emit(f"arms: {', '.join(arms)}  fixture-key: {args.fixture_key}")
+
+    results = []
+    try:
+        for i, entry in enumerate(entries, start=1):
+            record = {
+                "id": entry["id"],
+                "kind": entry["kind"],
+                "markers": entry["markers"],
+                "restraint_markers": entry.get("restraint_markers"),
+                "arms": {},
+            }
+            for arm in arms:
+                try:
+                    new_body = assemble_arm_body(body, entry, arm)
+                    verify_arm_bytes(new_body, entry, arm)
+                except ValueError as e:
+                    _fail(str(e))
+                skill_md.write_text((frontmatter or "") + new_body)
+                record["arms"][arm] = {
+                    "runs": run_shape_rep_batch(
+                        strategy, entry, arm, ws, SHAPE_EVALUATOR_AGENT, args
+                    )
+                }
+                # Restore the synced bytes before the next arm.
+                skill_md.write_text(original_text)
+            results.append(record)
+            emit(f"[{i}/{len(entries)}] {entry['id']}")
+    finally:
+        # Restore on completion AND on abort: the workspace must never be
+        # left carrying a variant byte state.
+        skill_md.write_text(original_text)
+
+    out.write_text(
+        json.dumps(
+            {
+                "config": {
+                    "skill": args.skill,
+                    "harness": args.harness,
+                    "model": args.model,
+                    "variant": args.variant,
+                    "reps": args.reps,
+                    "timeout": args.timeout,
+                    "date": datetime.now(UTC).date().isoformat(),
+                    "entries": str(entries_path),
+                    "arms": arms,
+                    "fixture_key": args.fixture_key,
+                },
+                "entries": results,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    emit(f"shape suite: {len(entries)} entries -> {out}")
+    return 0
+
+
+def marker_triage_counts(answer: str, markers: dict) -> dict:
+    """Per-marker count of answer lines matching the grep token. Triage
+    only — the driver reads every flagged sample by hand."""
+    counts = {}
+    for name, token in markers.items():
+        counts[name] = sum(
+            1 for line in answer.splitlines() if re.search(token, line)
+        )
+    return counts
+
+
+def cmd_shape_evidence(args: argparse.Namespace) -> int:
+    """Print the per-run scoring evidence from a shape-suite results JSON:
+    per entry/arm/rep the answer text, void signals, session id, and
+    marker triage counts (markers are carried in the results entries, so
+    no entries-file re-read is needed). Extraction only — the driver
+    judges convergence across the reps by hand. Exit 0 with an entry
+    count line; exit 1 only on a malformed file or unknown --entry."""
+    path = Path(args.results)
+    if not path.exists():
+        print(f"error: results file not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
+        return 1
+    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
+        print(
+            f"error: {path}: not a shape-suite results file "
+            f"(missing 'entries' list)",
+            file=sys.stderr,
+        )
+        return 1
+
+    n_printed = 0
+    for i, entry in enumerate(data["entries"]):
+        if not isinstance(entry, dict):
+            print(
+                f"error: {path}: entry {i} is not an object", file=sys.stderr
+            )
+            return 1
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            print(
+                f"error: {path}: entry {i} missing 'id' (non-empty string)",
+                file=sys.stderr,
+            )
+            return 1
+        if args.entry is not None and eid != args.entry:
+            continue
+        arms = entry.get("arms")
+        if not isinstance(arms, dict):
+            print(
+                f"error: {path}: entry {eid} is missing its 'arms' object",
+                file=sys.stderr,
+            )
+            return 1
+        markers = entry.get("markers")
+        markers = markers if isinstance(markers, dict) else {}
+        restraint = entry.get("restraint_markers")
+        restraint = restraint if isinstance(restraint, dict) else {}
+
+        print(f"## {eid} ({entry.get('kind', '?')})")
+        for arm in arms:
+            if args.arm is not None and arm != args.arm:
+                continue
+            arm_data = arms[arm]
+            if not isinstance(arm_data, dict) or not isinstance(
+                arm_data.get("runs"), list
+            ):
+                print(
+                    f"error: {path}: entry {eid} arm {arm!r} is missing "
+                    f"its run list",
+                    file=sys.stderr,
+                )
+                return 1
+            for n, run in enumerate(arm_data["runs"], start=1):
+                if not isinstance(run, dict):
+                    print(
+                        f"error: {path}: entry {eid} arm {arm!r} run {n} "
+                        f"is not an object",
+                        file=sys.stderr,
+                    )
+                    return 1
+                timeout = "timeout" if run.get("timeout") else "ok"
+                session = run.get("session_id") or "no-session"
+                print(f"[ {arm} ] rep {n:>3} ({session}, {timeout})")
+                answer = run.get("answer_text")
+                answer = answer if isinstance(answer, str) else ""
+                if answer:
+                    print("answer:")
+                    for line in answer.splitlines():
+                        print(f"  {line}")
+                else:
+                    print("answer: (empty)")
+                signals = run.get("void_signals") or []
+                joined = ", ".join(signals) if signals else "none"
+                print(f"void signals: {joined}")
+                counts = marker_triage_counts(answer, markers)
+                print(
+                    "markers: "
+                    + ", ".join(f"{k}={v}" for k, v in counts.items())
+                )
+                if restraint:
+                    rcounts = marker_triage_counts(answer, restraint)
+                    print(
+                        "restraint markers: "
+                        + ", ".join(f"{k}={v}" for k, v in rcounts.items())
+                    )
+                print()
+        n_printed += 1
+
+    if args.entry is not None and n_printed == 0:
+        print(f"error: no entry with id: {args.entry}", file=sys.stderr)
+        return 1
+    print(f"evidence: {n_printed} entries from {path}")
+    return 0
+
+
+def cmd_shape_scored_check(args: argparse.Namespace) -> int:
+    """Validate scored.json against the shape-suite result files it claims
+    to cover (repeated --results: one file for a phase-1-only campaign,
+    several for control + variants + restraint phases). Entry-id coverage
+    is union with dedupe: an id appearing in N result files is scored
+    exactly once, and every union id must be covered. Beyond the schema:
+    adopted_arm must name a non-v0 arm present in that entry's results,
+    the restraint_gate rule applies to adopted pattern entries, and the
+    record-step counts (--adopted/--no-failure/--unresolved/--voids) must
+    be given all together and match the scored sums."""
+    results_ids: list[str] = []
+    results_kinds: dict[str, str] = {}
+    results_arms: dict[str, set[str]] = {}
+    for results_str in args.results:
+        results_path = Path(results_str)
+        if not results_path.exists():
+            return _err(f"results file not found: {results_path}")
+        try:
+            data = json.loads(results_path.read_text())
+        except json.JSONDecodeError as e:
+            return _err(f"invalid JSON in {results_path}: {e}")
+        if not isinstance(data, dict) or not isinstance(
+            data.get("entries"), list
+        ):
+            return _err(
+                f"{results_path}: not a shape-suite results file "
+                f"(missing 'entries' list)"
+            )
+        for i, e in enumerate(data["entries"]):
+            eid = e.get("id") if isinstance(e, dict) else None
+            if not isinstance(eid, str) or not eid:
+                return _err(
+                    f"{results_path}: results entry {i} missing 'id' "
+                    f"(non-empty string)"
+                )
+            kind = e.get("kind")
+            arms = e.get("arms") if isinstance(e, dict) else None
+            if not isinstance(arms, dict):
+                return _err(
+                    f"{results_path}: entry {eid} is missing its 'arms' "
+                    f"object"
+                )
+            arm_keys = {a for a in arms if isinstance(a, str) and a}
+            if eid not in results_kinds:
+                if kind not in SHAPE_KINDS:
+                    return _err(
+                        f"{results_path}: entry {eid}: kind must be one "
+                        f"of {sorted(SHAPE_KINDS)}, got {kind!r}"
+                    )
+                results_ids.append(eid)
+                results_kinds[eid] = kind
+            elif kind != results_kinds[eid]:
+                return _err(
+                    f"{results_path}: entry {eid}: kind {kind!r} differs "
+                    f"from earlier results file "
+                    f"({results_kinds[eid]!r})"
+                )
+            results_arms.setdefault(eid, set()).update(arm_keys)
+
+    scored_path = Path(args.scored)
+    if not scored_path.exists():
+        return _err(f"scored file not found: {scored_path}")
+    try:
+        scored = json.loads(scored_path.read_text())
+    except json.JSONDecodeError as e:
+        return _err(f"invalid JSON in {scored_path}: {e}")
+    if not isinstance(scored, dict) or not isinstance(
+        scored.get("entries"), list
+    ):
+        return _err(
+            f"{scored_path}: expected a JSON object with an 'entries' list"
+        )
+
+    covered: set[str] = set()
+    for i, entry in enumerate(scored["entries"]):
+        if not isinstance(entry, dict):
+            return _err(f"{scored_path}: entry {i} is not an object")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            return _err(
+                f"{scored_path}: entry {i} missing 'id' (non-empty string)"
+            )
+        if eid in covered:
+            return _err(f"{scored_path}: duplicate id: {eid}")
+        if eid not in results_kinds:
+            return _err(f"{scored_path}: unknown id: {eid}")
+        covered.add(eid)
+        kind = entry.get("kind")
+        if kind != results_kinds[eid]:
+            return _err(
+                f"{scored_path}: entry {eid}: kind {kind!r} does not "
+                f"match the results kind {results_kinds[eid]!r}"
+            )
+
+        result = entry.get("result")
+        if result not in SHAPE_RESULTS:
+            return _err(
+                f"{scored_path}: entry {eid}: result must be one of "
+                f"{sorted(SHAPE_RESULTS)}, got {result!r}"
+            )
+        adopted_arm = entry.get("adopted_arm")
+        if result == "adopted":
+            if not isinstance(adopted_arm, str) or not adopted_arm:
+                return _err(
+                    f"{scored_path}: entry {eid}: adopted_arm required "
+                    f"(non-empty string) for result 'adopted'"
+                )
+            if adopted_arm == "v0":
+                return _err(
+                    f"{scored_path}: entry {eid}: adopted_arm must not "
+                    f"be the v0 control arm (a prohibition/absence arm is "
+                    f"a measurement instrument, never a candidate)"
+                )
+            if adopted_arm not in results_arms[eid]:
+                return _err(
+                    f"{scored_path}: entry {eid}: adopted_arm "
+                    f"{adopted_arm!r} is not an arm present in this "
+                    f"entry's results ({', '.join(sorted(results_arms[eid]))})"
+                )
+        elif adopted_arm is not None:
+            return _err(
+                f"{scored_path}: entry {eid}: adopted_arm is only valid "
+                f"with result 'adopted'"
+            )
+
+        gate = entry.get("restraint_gate")
+        gate_required = kind == "pattern" and result == "adopted"
+        if gate_required:
+            if gate not in SHAPE_GATES:
+                return _err(
+                    f"{scored_path}: entry {eid}: restraint_gate must be "
+                    f"one of {sorted(SHAPE_GATES)}, got {gate!r} "
+                    f"(required for adopted pattern entries)"
+                )
+        elif gate is not None:
+            return _err(
+                f"{scored_path}: entry {eid}: restraint_gate is only "
+                f"valid for adopted pattern entries"
+            )
+
+        marker_counts = entry.get("marker_counts")
+        if marker_counts is not None and not isinstance(marker_counts, dict):
+            return _err(
+                f"{scored_path}: entry {eid}: marker_counts must be an "
+                f"object keyed by arm"
+            )
+        notes = entry.get("notes")
+        if notes is not None and not isinstance(notes, str):
+            return _err(f"{scored_path}: entry {eid}: notes must be a string")
+
+    missing = [eid for eid in results_ids if eid not in covered]
+    if missing:
+        return _err(
+            f"{scored_path}: missing scored entries for results ids: "
+            f"{', '.join(missing)}"
+        )
+
+    # Optional count gate: when the record-step counts are given, they
+    # must be all four together and equal what the scored entries sum to.
+    count_names = ("adopted", "no_failure", "unresolved", "voids")
+    given = [getattr(args, n, None) for n in count_names]
+    if any(c is not None for c in given):
+        if not all(c is not None for c in given):
+            return _err(
+                "--adopted/--no-failure/--unresolved/--voids must be "
+                "given together"
+            )
+        computed = {
+            r: sum(1 for e in scored["entries"] if e.get("result") == r)
+            for r in ("adopted", "no-failure", "unresolved", "void")
+        }
+        if tuple(given) != tuple(computed[r] for r in computed):
+            return _err(
+                f"counts do not match scored results: computed "
+                f"{computed['adopted']} adopted / "
+                f"{computed['no-failure']} no-failure / "
+                f"{computed['unresolved']} unresolved / "
+                f"{computed['void']} void, got "
+                f"{given[0]} adopted / {given[1]} no-failure / "
+                f"{given[2]} unresolved / {given[3]} void"
+            )
+    print(f"ok: {scored_path} covers {len(results_ids)} entries")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="evaluator.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1457,11 +2307,21 @@ def main() -> int:
     record.add_argument(
         "--scope", required=True, choices=["frontmatter", "dir"]
     )
+    record.add_argument(
+        "--track",
+        default="retrieval-test",
+        choices=["retrieval-test", "shape-test"],
+        help="manifest key + count vocabulary for --scope dir "
+        "(default: retrieval-test)",
+    )
     record.add_argument("--score", type=float)
     record.add_argument("--passes", type=int)
     record.add_argument("--fails", type=int)
     record.add_argument("--gaps", type=int)
     record.add_argument("--voids", type=int)
+    record.add_argument("--adopted", type=int)
+    record.add_argument("--no-failure", dest="no_failure", type=int)
+    record.add_argument("--unresolved", type=int)
     record.add_argument("--ablations")
     record.add_argument("--campaign")
     record.add_argument("--date")
@@ -1494,6 +2354,36 @@ def main() -> int:
     scored.add_argument("--gaps", type=int)
     scored.add_argument("--voids", type=int)
 
+    shape = sub.add_parser("shape-suite")
+    shape.add_argument("--harness", required=True)
+    shape.add_argument("--skill", required=True)
+    shape.add_argument("--agents-dir", required=True)
+    shape.add_argument("--workspace", required=True)
+    shape.add_argument("--entries", required=True)
+    shape.add_argument("--arms", required=True)
+    shape.add_argument("--out", required=True)
+    shape.add_argument(
+        "--fixture-key",
+        default="application",
+    )
+    shape.add_argument("--model")
+    shape.add_argument("--variant")
+    shape.add_argument("--reps", type=int, default=5)
+    shape.add_argument("--timeout", type=int, default=120)
+
+    shape_evidence = sub.add_parser("shape-evidence")
+    shape_evidence.add_argument("--results", required=True)
+    shape_evidence.add_argument("--entry")
+    shape_evidence.add_argument("--arm")
+
+    shape_scored = sub.add_parser("shape-scored-check")
+    shape_scored.add_argument("--results", action="append", required=True)
+    shape_scored.add_argument("--scored", required=True)
+    shape_scored.add_argument("--adopted", type=int)
+    shape_scored.add_argument("--no-failure", dest="no_failure", type=int)
+    shape_scored.add_argument("--unresolved", type=int)
+    shape_scored.add_argument("--voids", type=int)
+
     args = parser.parse_args()
     if args.command == "check":
         return cmd_check(args)
@@ -1511,6 +2401,12 @@ def main() -> int:
         return cmd_retrieval_evidence(args)
     if args.command == "scored-check":
         return cmd_scored_check(args)
+    if args.command == "shape-suite":
+        return cmd_shape_suite(args)
+    if args.command == "shape-evidence":
+        return cmd_shape_evidence(args)
+    if args.command == "shape-scored-check":
+        return cmd_shape_scored_check(args)
     return cmd_run(args)
 
 
