@@ -2,8 +2,9 @@
 """Fixture-driven tests for the evaluator's verdict logic.
 
 subprocess.run is stubbed; no live model is involved. Covers the signal
-edge paths: interrupted runs (subprocess timeout and step-cap cutoff),
-rejected skill calls, and opencode's silent agent fallback.
+edge paths: interrupted runs (subprocess timeout and clean exits with a
+missing/unrecognized final report), rejected skill calls, and opencode's
+silent agent fallback.
 """
 
 import argparse
@@ -151,6 +152,43 @@ class VerdictTests(unittest.TestCase):
                 "question."
             )
         )
+        verdict = self._evaluate(stdout)
+        self.assertEqual(verdict.outcome, "void")
+        self.assertTrue(verdict.timeout)
+
+    def test_other_skill_completed_load_without_report_is_not_triggered(self):
+        # Clean exit, a completed load of a DIFFERENT skill, and no
+        # mandated report: positive evidence the target did not trigger,
+        # not a void (observed in campaign-2026-09-13-3).
+        stdout = ndjson(
+            skill_tool_event("customize-opencode", "completed"),
+            text_event("customize-opencode"),
+        )
+        verdict = self._evaluate(stdout)
+        self.assertEqual(verdict.outcome, "not-triggered")
+        self.assertFalse(verdict.timeout)
+        self.assertIn("customize-opencode", verdict.detail)
+
+    def test_no_match_report_present_tense_variant(self):
+        # The detector accepts paraphrased no-match reports
+        # ("No skill matches this request.") — observed voids in
+        # campaign-2026-09-13-3 rested on this phrasing.
+        stdout = ndjson(text_event("No skill matches this request."))
+        verdict = self._evaluate(stdout)
+        self.assertEqual(verdict.outcome, "not-triggered")
+        self.assertFalse(verdict.timeout)
+        self.assertIn("no skill matched", verdict.detail)
+
+    def test_no_match_report_bare_variant(self):
+        stdout = ndjson(text_event("No skill matches."))
+        verdict = self._evaluate(stdout)
+        self.assertEqual(verdict.outcome, "not-triggered")
+        self.assertFalse(verdict.timeout)
+
+    def test_empty_finish_without_load_or_report_is_void(self):
+        # Clean exit after a target-less turn with no report and no load
+        # evidence (provider returned empty content): still void.
+        stdout = ndjson(reasoning_event(""))
         verdict = self._evaluate(stdout)
         self.assertEqual(verdict.outcome, "void")
         self.assertTrue(verdict.timeout)

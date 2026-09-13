@@ -29,7 +29,7 @@ class Verdict:
         ""  # concatenated --thinking blocks; never used for scoring
     )
     timeout: bool = False  # True for interrupted runs (subprocess timeout or
-    # step-cap cutoff)
+    # clean exit with the mandated final report missing/unrecognized)
 
 
 class HarnessExecutionError(Exception):
@@ -44,7 +44,9 @@ class HarnessExecutionError(Exception):
 REPORT_LOADED_RE = re.compile(
     r"loaded skill:\s*[*_`]*([A-Za-z0-9][\w-]*)", re.IGNORECASE
 )
-REPORT_NO_MATCH_RE = re.compile(r"no skill matched", re.IGNORECASE)
+REPORT_NO_MATCH_RE = re.compile(
+    r"no skills? (?:matched|matches)\b", re.IGNORECASE
+)
 
 
 @dataclass
@@ -123,10 +125,24 @@ def classify(
         raise HarnessExecutionError("no parseable events (exit 0)")
 
     if ev.report_loaded is None and not ev.report_no_match:
-        # Rule 3b: clean, normally-exited run without the mandated final
-        # report = step-cap cutoff; the full stream is the partial stream.
+        # A completed load of a DIFFERENT skill (and no attempt on the
+        # target) is positive evidence the target did not trigger, even
+        # when the mandated report is missing or unrecognized.
+        if ev.other_skill is not None and not ev.attempted_load:
+            return Verdict(
+                "not-triggered",
+                detail=(
+                    f"other skill loaded: {ev.other_skill} "
+                    "(final report missing or unrecognized)"
+                ),
+                session_id=ev.session_id,
+                reasoning=reasoning,
+            )
+        # Rule 3b: clean, normally-exited run with no mandated report and
+        # no load evidence either way; the full stream is the partial
+        # stream.
         return _interrupted_verdict(
-            ev, skill, "step-cap cutoff (final report missing)", reasoning
+            ev, skill, "final report missing or unrecognized", reasoning
         )
 
     # Rule 2: completed run, no completed load, report present.
