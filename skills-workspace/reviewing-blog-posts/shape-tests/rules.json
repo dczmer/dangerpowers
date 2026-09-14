@@ -1,0 +1,121 @@
+{
+  "skill": "reviewing-blog-posts",
+  "generated": "2026-09-14",
+  "rules": [
+    {
+      "id": "R-audit-report-01",
+      "section": "Audit report",
+      "kind": "shaping",
+      "statement": "report uses numbered sections with lettered items (1.a, 1.b, ...) so findings can be referenced and resolved one at a time",
+      "entries": ["report-numbered-lettered-items"]
+    },
+    {
+      "id": "R-audit-report-03",
+      "section": "Audit report",
+      "kind": "shaping",
+      "statement": "locations referenced by description or quoted snippet of surrounding text, never line numbers",
+      "entries": ["locations-by-snippet-not-line-numbers"]
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "shaping",
+      "statement": "proposed examples show good and bad versions side by side, each with a caption explaining why it is good or bad",
+      "entries": ["examples-side-by-side-captioned"]
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "shaping",
+      "statement": "a call-out quote is proposed for the start of every section, distilling its most important point or central thesis",
+      "entries": ["callout-quote-per-section"]
+    },
+    {
+      "id": "R-audit-report-04",
+      "section": "Audit report",
+      "kind": "shaping",
+      "statement": "the report states how each > EDITOR: directive was resolved",
+      "entries": ["editor-directive-resolution-reported"]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "fix spelling directly, everything else reported — compliance-cost rule, pressure-testing track"
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "fact-check verification effort is compliance-cost; References-section element is downstream of web tools the read-only eval agent is denied"
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "in-place spelling/grammar editing as the only directly applied category — compliance-cost, pressure-testing track"
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "what to audit (structure/ambiguity) — no competing artifact shape"
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "propose illustrations and analogies prescribes content, not form"
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "repetition evaluation rubric; 'evaluate every occurrence' is compliance-cost, pressure-testing track"
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "how to resolve EDITOR lines; reporting of resolutions covered by R-audit-report-04 entry"
+    },
+    {
+      "id": "R-workflow-09",
+      "section": "Workflow",
+      "kind": "reference",
+      "reason": "documented facts (80-char code-line limit, [label](url) link format) — retrieval-testing track"
+    },
+    {
+      "id": "R-audit-report-02",
+      "section": "Audit report",
+      "kind": "technique",
+      "reason": "concreteness quality bar for proposals, not a competing document form"
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of R-overview-01/R-workflow-02 compliance-cost rule"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of R-workflow-01 external-source rule"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of R-workflow-07 every-occurrence rule"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "reason": "checklist restates body rules; no independent rule to violate"
+    }
+  ]
+}
