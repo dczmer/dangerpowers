@@ -88,9 +88,9 @@ Apply these categories to the reasoning captured in the suite JSON:
 
 Eval agents see frontmatter-only stubs, never the skill body, so a body/label conflict cannot explain failures under this harness.
 
-**Setup-suspect flag.** A should-not query that false-triggers across *structurally different* framings is a setup problem — wrong skill stubbed, or a contaminated workspace — not a description problem. Stop iterating: surface the setup concern to the user, and do not draft another framing.
+**Setup-suspect flag.** When a should-not query false-triggers under two or more structurally different framings, the finding IS a setup problem: stop the iteration loop, surface the setup concern (wrong stub or contaminated workspace) to the user, and draft no further framing.
 
-**Suspect-query flag.** A should-trigger query that fails under *every* candidate description across *every* iteration is probably a query-side problem — bad label, a statement that asks for nothing, or dependence on context the bare workspace lacks — not a description problem. Report it in the `suspect queries` block as one line per query — the query, its failure signature, and its per-query `timeouts` count as corroboration — and recommend the user prune or rewrite it in queries.json. Never contort the description to chase a query with this signature; never rewrite the query or fabricate workspace files for it.
+**Suspect-query flag.** If a should-trigger query failed under every candidate in every iteration, then the problem is query-side, not description-side: report it under `suspect queries:` (query + failure signature + timeouts count) and recommend the user prune or rewrite it. Only a query that passed under at least one candidate may drive another description revision.
 
 **Revision guardrails.** Fix the category, not the query; never paste failed-query keywords into the description. Imperative phrasing; user intent over implementation; err pushy; keep it concise (1024-char hard cap); never first person. When word swaps stall, change the sentence skeleton, not the adjectives.
 
