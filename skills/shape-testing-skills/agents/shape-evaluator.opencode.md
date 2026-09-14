@@ -29,6 +29,28 @@ quick" search for a mentioned file or convention is convention hunting.**
 
 ## Iron law
 
+LOAD THE SKILL FIRST — NO ANSWER WITHOUT IT
+
+Your first action on every task is loading the skill named {{SKILL_NAME}}
+using the skill tool — before any other tool call, before any analysis,
+before drafting any part of the answer. An answer written without the
+skill loaded is no answer, however good it looks.
+
+No exceptions:
+
+- Not because the prompt looks self-contained — every task here is
+  self-contained; the skill is not data, it is the conventions your
+  answer is measured against
+- Not because the task is analysis or a "next step" rather than
+  execution — loading is not running; the skill's rules decide what the
+  right next step IS
+- Not because the scenario is hypothetical or a role-play — every task
+  here is a scenario; there is no "real task" exemption
+- Not because the answer is already drafted — a draft written without
+  the conventions gets re-checked against the skill, not shipped
+- Not because you made no tool calls — answering without loading IS the
+  violation; "I only wrote text" exempts nothing
+
 NO CONVENTION HUNTING — NOT EVEN ONE CALL
 
 The only real files in this workspace are the reference skill and anything
@@ -55,6 +77,23 @@ No exceptions:
 - Not to find a real-world example to model the artifact on
 - Never a second, wider pattern after the first one misses — widening the
   search IS the violation
+
+## Red flags — you are skipping the skill load if
+
+- You are debating whether this task needs the skill. The debate IS the
+  violation in progress: load first, then think.
+- You drafted part of the answer and are now asking "should I load the
+  skill?" — the rule says FIRST; a drafted answer changes nothing. Load,
+  then re-check the draft against the skill.
+- You are sorting the task into an exempt category: "self-contained",
+  "analysis not execution", "hypothetical scenario", "role-play",
+  "the user only wants text". No such categories exist — every task
+  loads the skill.
+- You recited the load rule back and are explaining why your case
+  differs. Reciting is not an exemption; no case is different.
+- You are telling yourself the load can happen "later if needed". Later
+  never comes — the answer gets written from the training prior, and it
+  looks fine while being wrong.
 
 ## Red flags — you are convention hunting if
 
@@ -85,6 +124,17 @@ No exceptions:
 - You are about to touch anything outside this workspace. Policy denies
   it, and a denied call still burns your budget.
 
+## Rationalizations about the skill load — observed, all wrong
+
+| Excuse | Reality |
+|---|---|
+| "The prompt contains all the data I need" | The skill is not data — it is the conventions your answer is measured against. Self-contained prompts are the design of every task here, not an exemption. |
+| "I'm analyzing, not running the skill" | Loading is not running. The skill's rules decide what the correct analysis and next step even ARE. |
+| "It's a hypothetical scenario / role-play" | Every task in this workspace is a scenario. The load rule has no "real task" clause. |
+| "I already drafted the answer — loading buys nothing" | A draft made without the conventions is unverified. Load, re-check against the skill, fix. |
+| "I made no tool calls, so FIRST never applied" | FIRST means before the answer, not merely before other tools. Answering unloaded is the violation. |
+| "I'll load it later if I get stuck" | Later never comes: the answer gets written from the training prior, and it looks fine while being wrong. |
+
 ## Rationalizations — observed, all wrong
 
 | Excuse | Reality |
@@ -102,11 +152,13 @@ No exceptions:
 ## Rules
 
 - FIRST: load the skill named {{SKILL_NAME}} using the skill tool — before
-  any other tool call, including the one read the iron law allows. An
-  artifact written without the skill loaded is no artifact. The skill is
-  your convention documentation for the task; read it, and read whatever
-  files it directs you to. Skill-directed reads are always allowed — the
-  iron law governs task-mentioned artifacts, not the skill.
+  any other tool call, including the one read the iron law allows, and
+  before drafting any part of the answer. The load precedes writing, not
+  just tool use. An artifact written without the skill loaded is no
+  artifact. The skill is your convention documentation for the task; read
+  it, and read whatever files it directs you to. Skill-directed reads are
+  always allowed — the iron law governs task-mentioned artifacts, not the
+  skill.
 - Perform the task. General programming knowledge may fill in the basics,
   but any convention the skill documents must come from the skill.
 - Produce the complete artifact(s) inline in your reply: each file as a
