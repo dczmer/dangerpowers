@@ -102,14 +102,7 @@ Each entry tests one fact cluster:
 ```
 
 - `id` — stable fact identifier; never reuse ids across facts.
-- `query` — a realistic, task-shaped prompt that stands alone: embed any code or context the task refers to inline, or reference staged fixtures through the `{RUN_DIR}` token (see Fixtures). Never sends the agent hunting for an artifact that does not exist, never names the section or file holding the fact, never hints at the answer, never quotes rubric text. The stored query is canonical — reported verbatim, `{RUN_DIR}` token included, across campaigns; only the per-run dispatched copy substitutes the staged path.
-- `expect` — objective rubric bullets. A scenario passes only if every bullet is met by the returned answer.
-- `fixtures` — optional list of fixture filenames, each existing under a `fixtures/` directory next to the queries file. Required exactly when the query contains `{RUN_DIR}`: the harness rejects a token without a fixtures entry and fixtures without a token before any spend.
-
-A leaking query hands the agent the answer; a bait query invites the violation. For a fact like "after a 429, wait the number of seconds in the Retry-After header":
-
-- leaking: "update `fetch_data` to wait the number of seconds given in the Retry-After header after 429 responses" — the expected behavior is spelled out in the prompt, so the run measures nothing
-- bait: "given `def fetch_data(url): return requests.get(url)` — add handling for 429 responses and return the complete updated function inline" — an agent that doesn't know the fact picks a fixed backoff
+The query asks for the task; only the rubric names the expected behavior.
 
 ### Fixtures
 
@@ -118,6 +111,8 @@ Default to inline, self-contained queries. "Rewrite the upload script" is not a 
 Store canonical fixtures under `fixtures/` next to the queries file. Staging is scripted, not improvised: the harness gives each run its own run directory inside the eval workspace — `<workspace>/fixtures/<entry-id>/<arm>` (suffixed `-repN` when reps > 1) — copies the entry's fixture files in fresh, and substitutes that run-specific path for `{RUN_DIR}` in the dispatched query. No two runs ever share a fixture file, and no run ever writes into the repository: the eval workspaces are disposable temp directories, never the repo.
 
 Per-run path substitution is isolation mechanics, not query editing — the task text stays verbatim across campaigns.
+
+Entries declare fixtures as a `fixtures` list of filenames, each existing under a `fixtures/` directory next to the queries file — required exactly when the query contains `{RUN_DIR}`: the harness rejects a token without a fixtures entry and fixtures without a token before any spend.
 
 ## Eval agents
 
@@ -173,7 +168,9 @@ scripts the agent cannot run.
    for the control arm — so interleaved output stays attributable.
 9. `evaluator.py retrieval-evidence --results <campaign>/results.json \
    [--entry <id>]` → score from the presented evidence; never hand-roll
-   JSON walks against results.json. Bullets from `answer_text`
+   JSON walks against results.json. A scenario passes only if every
+   bullet in the entry's `expect` rubric is met by the returned answer.
+   Bullets from `answer_text`
    only; voids via `void_signals`; classifications from `tool_calls`
    with `sources_consulted` as cross-check and `reasoning` as fallback;
    control comparison → ablation flags. Reps > 1: entry result = worst
@@ -217,83 +214,16 @@ Campaign rules:
 - A scenario still failing after a doc fix gets one more doc revision. Still failing after that: surface it to the user — the fact likely needs restructuring, not rewording.
 
 ## Proposal format
-Before writing or running anything, present the inventory and planned entries as one self-contained card per entry, in this fixed layout:
 
-    retrieval test proposal: acme-api — 2026-09-11
-    source: skills/acme-api/SKILL.md (body: 210 lines)
-    queries file: skills-workspace/acme-api/retrieval-tests/queries.json (missing — generating)
-    scope: frontmatter-convention facts excluded
-
-    ## 1. retry-after-header
-    covers: F-uploads-01, F-uploads-02
-
-    facts:
-    - F-uploads-01  [Uploads]  reads Retry-After, value interpreted as seconds
-    - F-uploads-02  [Uploads]  no retries on other 4xx codes
-
-    query:
-    Given this upload function — `def upload(path, url): return requests.post(url, data=open(path, 'rb'))` — add retry handling for 429 responses and return the complete updated function inline.
-
-    expect:
-    - reads the Retry-After header rather than using a fixed backoff
-    - interprets the value as seconds
-    - does not retry on other 4xx codes
-
-    why: the bare function invites a fixed backoff; one realistic task pins all
-    three documented behaviors — the header, its unit, and the 4xx boundary.
-
-    ## 2. upload-chunk-size
-    covers: F-uploads-03 [Uploads] — upload in 4 MiB chunks
-
-    query:
-    ...
-
-    coverage: 6 facts / 5 entries / 0 excluded
-    excluded: none
-    cost: 5 entries × 2 arms = 10 runs, 120 s timeout
-    fixtures: none (all queries inline)
+Present the proposal as one card per entry, numbered in dispatch order. Each card is exactly these lines in order: `## N. <entry-id>`, `covers:` (fact ids), `facts:` (one line per fact, imperative, ≤15 words), `query:` (full verbatim query text), `expect:` (one bullet per rubric item), `why:` (one line). Close with `coverage:`, `excluded:`, `cost:` (as a formula), and `fixtures:` lines. Every fact appears in exactly one card's `covers:` or in the `excluded:` line.
 
 - Fact ids are section-anchored (`F-<section-slug>-<nn>`) so doc edits never renumber other sections; keep them stable across campaigns.
-- One card per entry, numbered in dispatch order: `covers:` names the facts tested, then the full query text, the rubric bullets, and a `why:` line explaining why this query and why these expectations.
-- Multi-fact cards list each fact on its own line — imperative restatement, ≤15 words, no rationale; single-fact cards inline the fact on the `covers:` line.
-- Show the full query text in every card — a proposal without query text is unreviewable.
-- Account for every fact exactly once — in a card's `covers:` line or an exclusion with a stated reason.
-- Cost is a formula — entries × 2 arms, gaining `× reps` when reps > 1 — and the fixtures line is always present, even when `none`. The per-campaign spend confirmation itself lives in Workflow step 7, not in this proposal.
 
 ## Report format
 
-    retrieval test: acme-api — 2026-09-11
-    queries: skills-workspace/acme-api/retrieval-tests/queries.json (6 entries)
-    artifacts: <source-root>/skills-workspace/<skill>/retrieval-tests/campaign-YYYY-MM-DD[-n]/
-    manifest: recorded (sha256:…, N pass / M fail / G gap / V void)
+Write the report in the fixed layout: `retrieval test: <skill> — <date>` header, `queries:`/`artifacts:`/`manifest:` lines, an id/result/control table with load-bearing and ablation annotations, a `summary: N pass / M fail / G gap / V void` line, then `failures:` (missed bullet, sources consulted, classification, recommended fix), `gaps:`, and `ablation flags:` sections.
 
-    id                    result   control
-    retry-after-header    pass     fail (load-bearing)
-    upload-chunk-size     fail     fail
-    oauth-refresh-flow    pass     fail (load-bearing)
-    error-code-table      pass     pass → ablation flag
-    webhook-signatures    gap      —
-    pagination-cursor     void     —
-
-    summary: 3 pass / 1 fail / 1 gap / 1 void (6 scenarios)
-
-    failures:
-    upload-chunk-size — missed bullet: "uses 4 MiB chunks". Sources consulted:
-      "Authentication", "Errors"; never opened "Uploads". classification:
-      findability. recommended fix: add an Uploads row to the quick-reference
-      table in SKILL.md.
-
-    gaps:
-    webhook-signatures — common use case absent from the doc. recommended
-      fix: add a webhook signature verification section.
-
-    ablation flags:
-    error-code-table — control answered correctly without the skill;
-      re-check next campaign, retire if the baseline keeps passing.
-
-`manifest:` reads `not recorded (aborted)` or `not recorded
-(mini-campaign)` on those paths — only a completed full campaign is
-recorded.
+`manifest:` reads `not recorded (aborted)` or `not recorded (mini-campaign)` on those paths — only a completed full campaign is recorded.
 
 ## scored-check
 
@@ -319,17 +249,7 @@ against the results before anything is recorded. Schema:
 }
 ```
 
-- `result` — one of `pass`, `fail`, `gap`, `void`.
-- `classification` — `findability` or `clarity`; required exactly when
-  `result` is `fail` (a `gap` is a result, not a classification), absent
-  or null otherwise.
-- `control` — the control-arm outcome: `pass`, `fail`, or `void`.
-- `ablation_flag` — boolean, deterministic: true exactly when `control`
-  is `pass`. A control pass schedules the redundancy re-check; the check
-  rejects any other combination.
-- `missed_bullets` — list of strings, required non-empty for `fail` and
-  `gap`; each bullet must be a verbatim string from the entry's `expect`
-  rubric — paraphrases are rejected.
+Score each entry with: result (pass/fail/gap/void); classification (findability|clarity) if and only if result is fail; the control outcome; ablation_flag = (control == pass); missed_bullets copied character-for-character from the entry's expect list — required non-empty for fail and gap, absent otherwise.
 - Optional `--passes/--fails/--gaps/--voids` (all four together) must
   equal the scored sums; pass the counts from the report summary so an
   arithmetic slip fails here, before `record`.
