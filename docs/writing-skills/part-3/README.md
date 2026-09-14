@@ -6,6 +6,8 @@ Have you ever used a skill written by someone else that just didn't work as adve
 
 In [part-2](../part-2/README.md), we used trigger tests to optimize skill descriptions, for improved accuracy when auto-invoking skills (or when we don't want the skill to fire). But, just like triggering a skill based on description, the rules in your skill body also need tuning and hardening to make them apply more consistently.
 
+But the rules and processes for testing and hardening skill bodies actually apply to ANY prompt that you would give an agent. Testing the skills really illustrates just how frequently agents avoid, rationalize, or modify the rules you make, and probably you don't even realize it. If you give a model a complex task, it more than likely is not sticking to every rule you give it. The more complicated the task or the bigger the diff, the less likely you are to notice if things are 100% compliant or not.
+
 The term "bulletproofing" is a generic phrase meaning to harden something against failure. As far as I can tell, this "bulletproofing" system for hardening skills is something coined by superpowers (and in fact is present since the very first commit on their repo).
 
 From superpowers `writing-skills` skill:
@@ -50,7 +52,7 @@ For discipline failures, we use "pressure testing" as a method for measuring and
 
 For "shaping" failures, we use micro-tests to validate variations in phrasing and how they affect the final shape of a test output. The skill was used, the discipline rules were followed, but the product violates the output criteria, so we construct small test scenarios and have the model produce a result that we can inspect for correctness. 
 
-Reference skills have no rule to violate, so there is nothing to bulletproof. Run a few simple retrieval tasks, single pass, no iteration: can the agent find and correctly apply the documented fact? Failures are fixed by editing the doc directly (gaps, unclear sections), not by adding rules.
+Reference skills have no rule to violate, so there is nothing to pressure test. Run a few simple retrieval tasks, single pass, no iteration: can the agent find and correctly apply the documented fact? Failures are fixed by editing the doc directly (gaps, unclear sections), not by adding rules.
 
 > EDITOR: diagram/image of a skill file (box containing a very simple example skill with a name, description frontmatter, and one reference, one discipline, and one shaping rule. indicate the entire document uses conventions from writing-skills with a big angle bracket "Conventions from writing-skills: {" on the left. circle the description in the document, draw a line to a box on the right with "Discipline\nTrigger Testing (queries file)". circle the reference statement and draw similar line to box with "Reference\nRetrieval Test (queries file)". circle the discipline rule and draw a similar line to "Discipline\nPressure Test (extrapolated)". circle the shaping rule and make a line to "Shaping\nMicro-Test (extrapolated).
 
@@ -260,11 +262,20 @@ The agent picked a rule, wrote the fixture and variants for the campaign, and st
 
 ### My Implementation
 
-> TODO: WIP
+Similar to trigger and retrieval testing, I adapted this skill to use the workspace manager and evaluator scripts I developed along the way.
+
+- [shape-testing-skills](../../../skills/shape-testing-skills/SKILL.md)
+- [shape-evaluator agent](../../../skills/shape-testing-skills/agents/shape-evaluator.opencode.md)
+
+> NOTE: This testing process can get token-intensive! I designed the test skills so you could drive the main session with a good, hosted model, and then delegate the actual evals to whichever model you want. I did a lot of testing with Kimi K3 (high) as the driver and a local qwen3.8 or gemma4 model to do the evals.
+
+These body testing processes are turning out to be quite complicated and require a lot from the agent executing the campaign. I'm starting to see where we might really need to develop a custom harness to make this process safer and easier to execute.
 
 ## Discipline Skills
 
 I put this section last, after the other two types of test, because you should run these tests last. Changes to wording from the previous two types of tests can have a cascading effect on discipline rules.
+
+However, I considered moving to be the first section because I actually had to apply all of this stuff to the custom agent prompts to get the previous two types of tests to work consistently. This highlights the fact that the rules for hardening a skill body apply to ANY prompt that you would give to an agent: prompts, skills, commands, custom agents, system prompts, etc.
 
 It seems like agents are susceptible to "pressure" the way humans are susceptible to social pressure. Well, not exactly - it's more like their training and the contents of the context window create loopholes and conditions that create opportunities for your agent to rationalize when you actually want it to do something unconditionally. Once these loopholes are in your context window, they stick around for the whole session and affect everything else you do.
 
@@ -451,11 +462,15 @@ like regression tests for broken behavioral rules. when you see an agent use a w
 
 > TODO
 
+## Meta-Testing
+
+> TODO
+
 ## Conclusion
 
 > YOU MUST TEST YOUR SKILLS! THEY FAIL WAY MORE OFTEN THAN I EXPECTED, EVEN WITH FRONTIER MODELS!
 
-next part-4: thoughts, suggestions, third-party eval tools, quorum
+next part-4: thoughts, suggestions, third-party eval tools, quorum, always test skills, ablation and retirement
 
 ## References
 
