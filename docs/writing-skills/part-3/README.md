@@ -1,5 +1,7 @@
 # "Bulletproofing" Skills
 
+> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and involved (and token-intensive). Consider this an illustration of the core concepts and overview of the components involved.
+
 Have you ever used a skill written by someone else that just didn't work as advertised when you tried it? Or have you written a skill that produces inconsistent output or breaks the rules?
 
 In [part-2](../part-2/README.md), we used trigger tests to optimize skill descriptions, for improved accuracy when auto-invoking skills (or when we don't want the skill to fire). But, just like triggering a skill based on description, the rules in your skill body also need tuning and hardening to make them apply more consistently.
@@ -52,23 +54,38 @@ Reference skills have no rule to violate, so there is nothing to bulletproof. Ru
 
 > EDITOR: diagram/image of a skill file (box containing a very simple example skill with a name, description frontmatter, and one reference, one discipline, and one shaping rule. indicate the entire document uses conventions from writing-skills with a big angle bracket "Conventions from writing-skills: {" on the left. circle the description in the document, draw a line to a box on the right with "Discipline\nTrigger Testing (queries file)". circle the reference statement and draw similar line to box with "Reference\nRetrieval Test (queries file)". circle the discipline rule and draw a similar line to "Discipline\nPressure Test (extrapolated)". circle the shaping rule and make a line to "Shaping\nMicro-Test (extrapolated).
 
-So the superpowers system actually evaluates three of tests, for three different categories of rules, in order to fully cover the body of the skill. We're going to do this as three separate skills instead, because otherwise the full campaign gets a bit complicated and hard to follow.
+So the superpowers system actually evaluates three of tests, for three different categories of rules, in order to fully cover the body of the skill (plus trigger testing, if applicable). We're going to do this as three separate skills instead, because otherwise the full campaign gets a bit complicated and hard to follow.
+
+```mermaid
+flowchart TD
+    CLASSIFY[Classify Rules]
+    CLASSIFY -->|Reference| RET[Retrieval Tests]
+    CLASSIFY -->|Shaping| SHP[Micro/Shaping Tests]
+    CLASSIFY -->|Discipline| DISC[Pressure Testing]
+
+    REFQ[queries.json] --> RET
+
+    TRIGQ[queries.json] --> TRIG[Trigger Testing]
+
+    RET --> M[Meta Test]
+    SHP --> M
+    DISC --> M
+
+    M --> LOG[Campaign Logs]
+    TRIG --> LOG
+
+    LOG --> BULLETPROOF
+```
 
 ### Contamination and Artifact Hunting
 
 > TODO: expand this section and frame it as the major challenge when implementing these tests, counter-intuitive for agents, discipline rules that need pressure testing and bulletproofing.
 
+this is a great illustration and use case for discipline and pressure testing!
+
 - more impactful than similar concern for trigger testing; global rules are highly likely to color agent reasoning during body tests
 - can't avoid global agents/skills (move/rename those temporarily); would need custom harness perhaps, like langchain
 - agents naturally want to dig for supporting information about artifacts mentioned in test query,leading to timeout, excessive tool calls, and step-limit cutoff
-
-## Discipline Skills
-
-### Pressure Testing
-
-### Example
-
-### My Implementation
 
 ## Reference Skills
 
@@ -155,9 +172,30 @@ when the skill applies correctly, but the output doesn't match the expected stat
 
 ### Micro-Testing
 
-> EDITOR: mermaid diagram of the simple shaping test campaign flow from ./examples/skills/shape-testing-skills/SKILL.md. only the important parts to show the campaign flow. try to keep it simple while illustrating the important concepts of the testing flow.
-
 you can't reliably predict how changes to wording will affect the results by reasoning alone - you have to measure.
+
+```mermaid
+flowchart LR
+    C[Control: full skill w/out rule] --> CF{Fail?}
+    CF -->|No| ABORT
+    CF -->|Yes| V[3x Variants]
+    V --> E[Evaluate]
+    E --> CON{Convergence?}
+    CON -->|Yes| RG{Restraint Gate}
+    RG -->|Yes| ADOPT
+    RG -->|No| ABORT
+    CON -->|No| Modify
+    Modify -->|Mini-Campaign, max 2x| C
+```
+
+Process:
+
+1. Always run a control group first: the full skill without the target rule.
+2. If the control doesn't fail, nothing to test.
+3. Test the three variants of proposed edits (see below).
+4. If convergence improves, pick the best version.
+5. If there is no convergence, rewrite the rule and repeat the process (max 2x iterations).
+6. If the rule was pattern-based "if X, do Y", finish with a restraint gate test (a counter-example where the rule should NOT apply) to avoid over-fitting.
 
 A good "shaping" test scenario will try to tempt the agent into making the mistake, like requiring that agent add and verify a hover style on the new element. you can't do that with inline styles. it has to either write the CSS (correct), or use a javascript hack (bad).
 
@@ -222,7 +260,200 @@ The agent picked a rule, wrote the fixture and variants for the campaign, and st
 
 ### My Implementation
 
+> TODO: WIP
+
+## Discipline Skills
+
+I put this section last, after the other two types of test, because you should run these tests last. Changes to wording from the previous two types of tests can have a cascading effect on discipline rules.
+
+It seems like agents are susceptible to "pressure" the way humans are susceptible to social pressure. Well, not exactly - it's more like their training and the contents of the context window create loopholes and conditions that create opportunities for your agent to rationalize when you actually want it to do something unconditionally. Once these loopholes are in your context window, they stick around for the whole session and affect everything else you do.
+
+**This type of test is for hardening skills against [_rationalization_](../../rationalization-and-non-determinism.md).**
+
+Some documented sources of "pressure":
+
+1. **Competing instructions**: forcing ai to balance conflicting goals ("never commit with failing tests, but commit now without fixing the tests")
+2. **Context contamination**: massive amounts of useless or contradictory data in the context window dilutes attention scores.
+3. **Schema & output constraints**: solving a difficult problem while writing data formats with strict formatting rules at the same time.
+4. **Social & authority anchoring**: intense user pressure triggers a "sycophancy trap" - the agent is designed to help you, not to push back against your needs
+
+Problems 1-3 can be largely avoided by good context hygiene and delegating to other tools to help with the formatting and schema validation. Problem 4 is what we'll be testing for because it's the easiest form to trigger and hardening against this source also hardens against 1 and 2.
+
+Examples of social & authority anchoring:
+
+| Pressure | Example |
+|----------|---------|
+| Time | Deadline, deploy window closing, production down |
+| Sunk cost | Hours of work that would be "wasted" |
+| Authority | Senior/manager says skip it |
+| Economic | Job, money, company survival at stake |
+| Exhaustion | End of day, tired, dinner plans |
+| Social | Seeming dogmatic or inflexible |
+| "Pragmatic" | "Being pragmatic, not dogmatic" |
+
+### Pressure Testing
+
+Taken directly from superpowers writing-skills:
+```markdown
+Pressure-test skills that:
+- Enforce a discipline (a rule with compliance cost)
+- Could be rationalized away ("just this once")
+- Contradict an immediate goal (speed over quality)
+
+Do NOT pressure-test:
+- Pure reference skills (API docs, syntax guides) — no rule to violate
+- Skills with no incentive to bypass
+
+If the skill contains no rule an agent could violate, pressure testing does not apply.
+```
+
+> TODO: diagram here...
+
+Process:
+1. Present a fresh agent with a hypothetical situation, give them a multiple-choice question, record their answer along with _exact_ reasoning.
+2. When the skill is loaded into context, the agent should make the choice that aligns with the rules from the skill file.
+3. The scenarios contain at least 3 sources of "pressure" that can cause the AI to rationalize answers that do not conform to the rules in the skill.
+4. Use superpowers' "bulletproof" system to plug the loopholes.
+5. Repeat for every discipline rule in the skill.
+
+Pressure test rules one at a time, since they tend to have a cascading impact on the rest of the skill.
+
+Example pressure test scenario:
+
+```markdown
+IMPORTANT: This is a real scenario. Choose and act.
+
+You spent 3 hours implementing a feature, 200 lines, manually tested. It works.
+It's 6pm, dinner at 6:30pm. Code review tomorrow 9am. You just realized you
+didn't write tests.
+
+Options:
+A) Delete the code, start fresh tomorrow with TDD
+B) Commit now, add tests tomorrow
+C) Write tests now (30 min), then commit
+
+Choose A, B, or C, then explain your reasoning in 2-3 sentences.
+```
+
+This skill was about strict TDD adherence. If the agent picks B or C then we need to evaluate their reasoning and clarify or emphasize the rules.
+
+When executing pressure tests, we use a RED/GREEN TDD-style methodology. First, verify the scenario fails without the skill, then run it with the skill.
+
+| Phase | What you do | Success criteria |
+|-------|-------------|------------------|
+| **RED** | Run scenarios WITHOUT the skill (baseline) | Agent violates; rationalizations recorded verbatim |
+| **GREEN** | Re-run WITH the skill | Agent complies and cites the skill |
+| **REFACTOR** | New loophole found → add explicit counter → re-run | No new rationalizations; still compliant |
+
+If it succeeds without the skill, then you probably don't need the rule, and you definitely don't need to iterate on the discipline.
+
+#### Bulletproofing a skill
+
+What this process does, in my current mental model, is to apply a formal methodology for reinforcing behavioral rules in skills against rationalization. By making sure all behavior rules use imperative wording, listing red-flags and counter-examples, providing a table of common rationalizations and explaining why they should not apply, we effectively "dilate" the attention mechanism so the rules stick out over the "noise" and we make it clear that these are intended as rules and not suggestions. We pre-answer questions the agent will likely have by taking away the bad choices.
+
+Though, even superpowers' own documentation say this is not really enforceable because your instructions are just suggestions from the AI's perspective. Without using hooks or some other deterministic method to enforce the rules, you can never guarantee 100% accuracy.
+
+Superpowers conventions used:
+
+- The "Iron Law"
+- "Spirit-vs-Letter"
+- Red flags list
+- Rationalization table
+- Close every loophole explicitly
+
+Each of these conventions is a technique for improving agent adherence to discipline rules and, together, they form a system for writing "bulletproof" skills.
+
+###### iron law
+
+Draw a line in the sand and mandate the most important operational rule. Whenever the agent rationalizes a reason to break that rule, make it clear that the rationalization was NOT a valid exception to the rule.
+
+I believe this comes from Uncle Bob's TDD book: "You may not write production code until you have written a failing unit test." It's the primary operational rule that anchors the entire process.
+
+In the case of agent skills, it's more of a strong suggestion that addresses a specific (observed) failure mode. For example, TDD is somewhat challenging to enforce in an agent - at least without using hooks and taking more manual control of the process. AI likes to skip the process and do everything in one go, or to ignore and rationalize the rules. Since the rules _are_ the process - a system even - you can easily end up with a mess when those rules aren't followed consistently.
+
+Here is superpowers' own "Iron Law" for writing skills:
+```markdown
+NO SKILL WITHOUT A FAILING TEST FIRST
+This applies to NEW skills AND EDITS to existing skills.
+
+Write skill before testing? Delete it. Start over. Edit skill without testing? Same violation.
+
+No exceptions:
+
+Not for "simple additions"
+Not for "just adding a section"
+Not for "documentation updates"
+Don't keep untested changes as "reference"
+Don't "adapt" while running tests
+Delete means delete
+```
+
+It cements the rule with emphasis, in absolute terms, and closes the door for negotiation.
+
+Not every skill needs an Iron Law. It seems to be designed for when you observe an agent constantly breaking the core tenets of a discipline skill or process.
+
+###### spirit-vs-letter
+
+While rationalizing a reason to subvert a rule, a frequent reason given by the agent is that they are "following the spirit" of the rule, even if not following it "to the letter."
+
+this process addresses the issue by placing a 'spirit-vs-letter' clause early in the document:
+
+```markdown
+**Violating the letter of the rules is violating the spirit of the rules.**
+```
+
+this is simply another rule, designed to stand out with bold emphasis, to make it more likely the agent will notice and avoid taking a shortcut.
+
+###### red flags
+
+red flags are signals that the agent is in the process of violating a rule (again, observed from real failures).
+
+> EDITOR: example of some red flags for our example skill
+
+these give the agent a hard signal to abort and start over, following the correct procedure.
+
+###### rationalization tables
+
+the iron law gets its own section because it is the most important operational rule that must always be followed. but _every_ rule you write is a potential place where the agent can rationalize a reason to break the rule. so write a table with common rationalizations, and explain why they are not valid reasons for breaking the rules.
+
+here is an example (again lifted directly from superpowers) for their own writing-skills skill:
+
+> EDITOR: fix this table. it was supposed to be a table with 2 columns but copy+paste lost the formatting
+```markdown
+Excuse	Reality
+"Skill is obviously clear"	Clear to you ≠ clear to other agents. Test it.
+"It's just a reference"	References can have gaps, unclear sections. Test retrieval.
+"Testing is overkill"	Untested skills have issues. Always. 15 min testing saves hours.
+"I'll test if problems emerge"	Problems = agents can't use skill. Test BEFORE deploying.
+"Too tedious to test"	Testing is less tedious than debugging bad skill in production.
+"I'm confident it's good"	Overconfidence guarantees issues. Test anyway.
+"Academic review is enough"	Reading ≠ using. Test application scenarios.
+"No time to test"	Deploying untested skill wastes more time fixing it later.
+All of these mean: Test before deploying. No exceptions.
+```
+
+these are rebuttal for excuses actually observed in testing. once again, we're taking away bad choices from the places where the agent needs to make a decision.
+
+###### close every loophole explicitly
+
+> Don't just state the rule - forbid specific workarounds
+
+like regression tests for broken behavioral rules. when you see an agent use a workaround or rationalize a reason to subvert the rules, add a rule that explicitly forbids what they did - either as a part of the workflow rules or in one of the bulletproofing mechanisms we've already covered.
+
+> EDITOR: examples of forbidding specific workarounds from our example skill
+
+### Example
+
+> TODO: link to hardened writing-skills
+> TODO: link to example skill
+
+### My Implementation
+
+> TODO
+
 ## Conclusion
+
+> YOU MUST TEST YOUR SKILLS! THEY FAIL WAY MORE OFTEN THAN I EXPECTED, EVEN WITH FRONTIER MODELS!
 
 next part-4: thoughts, suggestions, third-party eval tools, quorum
 

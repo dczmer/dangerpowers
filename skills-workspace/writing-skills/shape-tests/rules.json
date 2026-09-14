@@ -1,0 +1,218 @@
+{
+  "skill": "writing-skills",
+  "generated": "2026-09-14",
+  "rules": [
+    {
+      "id": "R-content-01",
+      "section": "Content",
+      "kind": "shaping",
+      "statement": "Written as directives, not essays.",
+      "entries": [
+        "directives-not-essays"
+      ]
+    },
+    {
+      "id": "R-content-05",
+      "section": "Content",
+      "kind": "shaping",
+      "statement": "Use explicit instructions (\"Always use X\"), never passive phrasing (\"X is recommended\").",
+      "entries": [
+        "explicit-not-passive"
+      ]
+    },
+    {
+      "id": "R-content-06",
+      "section": "Content",
+      "kind": "shaping",
+      "statement": "State constraints directly. No nuance or exemption clauses that scope a directive (\"unless X\", \"except when Y\") \u2014 fold the condition into the directive or leave it out.",
+      "entries": [
+        "no-nuance-clauses"
+      ]
+    },
+    {
+      "id": "R-content-07",
+      "section": "Content",
+      "kind": "shaping",
+      "statement": "Provide defaults, not menus. Name the one approach unconditionally. Give alternatives only as condition-scoped switches \u2014 each gated on the concrete condition that disqualifies the default (\"use setuptools when the build compiles C extensions\"). Never frame the choice as open: no neutral comparisons, no \"pick whichever fits.\"",
+      "entries": [
+        "defaults-not-menus"
+      ]
+    },
+    {
+      "id": "R-content-09",
+      "section": "Content",
+      "kind": "shaping",
+      "statement": "No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.",
+      "entries": [
+        "no-time-sensitive"
+      ]
+    },
+    {
+      "id": "R-content-10",
+      "section": "Content",
+      "kind": "shaping",
+      "statement": "Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps.",
+      "entries": [
+        "gotchas-section"
+      ]
+    },
+    {
+      "id": "R-content-11",
+      "section": "Content",
+      "kind": "shaping",
+      "statement": "Ends with a checklist or verification procedure so the agent can verify its work.",
+      "entries": [
+        "ends-with-checklist"
+      ]
+    },
+    {
+      "id": "R-content-12",
+      "section": "Content",
+      "kind": "pattern",
+      "statement": "When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
+      "entries": [
+        "decline-forbidden-explicitly"
+      ]
+    },
+    {
+      "id": "R-frontmatter-01",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "statement": "Open every SKILL.md with a YAML frontmatter block delimited by `---`, carrying the two required fields `name` and `description`, before any body content.",
+      "entries": [
+        "frontmatter-two-fields"
+      ]
+    },
+    {
+      "id": "R-frontmatter-02",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "statement": "Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`.",
+      "entries": [
+        "name-format"
+      ]
+    },
+    {
+      "id": "R-frontmatter-03",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "statement": "`description`: third person about the skill, never first or second person. Exactly two parts, in order, \u22641024 chars: imperative trigger clause with woven trigger terms, then one coverage clause. No procedure steps. Keep it concise.",
+      "entries": [
+        "description-format"
+      ]
+    },
+    {
+      "id": "R-structure-01",
+      "section": "Structure",
+      "kind": "shaping",
+      "statement": "SKILL.md carries the workflow and one short illustrative snippet. Bulk reference data (matrices, catalogs, long lists) lives in `references/<topic>.md`, linked once from SKILL.md. Small tables may stay inline.",
+      "entries": [
+        "references-one-level-deep"
+      ]
+    },
+    {
+      "id": "R-structure-04",
+      "section": "Structure",
+      "kind": "shaping",
+      "statement": "Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.",
+      "entries": [
+        "one-complete-example"
+      ]
+    },
+    {
+      "id": "R-structure-05",
+      "section": "Structure",
+      "kind": "shaping",
+      "statement": "A procedure with branches or early exits MUST be a ```mermaid flowchart TD block: one node per step, one diamond per branch, one terminal node per early exit. Reference data MUST be a markdown table. Numbered lists are only for strictly linear steps.",
+      "entries": [
+        "flowchart-table-list-selection"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "core principle statement (reference guide, not narrative) \u2014 documented principle, no rule to violate; retrieval track"
+    },
+    {
+      "id": "R-when-to-create-a-skill-01",
+      "section": "When to Create a Skill",
+      "kind": "technique",
+      "reason": "create-when criteria are authoring judgment; no competing artifact shape"
+    },
+    {
+      "id": "R-when-to-create-a-skill-02",
+      "section": "When to Create a Skill",
+      "kind": "technique",
+      "reason": "don't-create criteria are authoring judgment; no competing artifact shape"
+    },
+    {
+      "id": "R-content-02",
+      "section": "Content",
+      "kind": "discipline",
+      "reason": "<500 lines is a compliance-cost constraint the agent rationalizes away under pressure \u2014 pressure-testing track, not shaping"
+    },
+    {
+      "id": "R-content-03",
+      "section": "Content",
+      "kind": "technique",
+      "reason": "specificity-matches-fragility is calibration judgment; no competing shape"
+    },
+    {
+      "id": "R-content-04",
+      "section": "Content",
+      "kind": "technique",
+      "reason": "no no-op statements is pruning judgment; no competing shape"
+    },
+    {
+      "id": "R-content-08",
+      "section": "Content",
+      "kind": "technique",
+      "reason": "one term per concept is consistency judgment; not grep-scorable, no single competing shape"
+    },
+    {
+      "id": "R-structure-02",
+      "section": "Structure",
+      "kind": "technique",
+      "reason": "scripts for deterministic processes is how-to guidance the agent applies or not; no competing shape"
+    },
+    {
+      "id": "R-structure-03",
+      "section": "Structure",
+      "kind": "technique",
+      "reason": "concise / --help / cross-reference economy guidance is mixed judgment; no single competing shape"
+    },
+    {
+      "id": "R-structure-06",
+      "section": "Structure",
+      "kind": "discipline",
+      "reason": "read fully before editing is a compliance rule skipped under pressure \u2014 pressure-testing track"
+    },
+    {
+      "id": "R-structure-07",
+      "section": "Structure",
+      "kind": "technique",
+      "reason": "spell out instructions for small models is calibration guidance; no competing shape"
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "documented fact about description-as-workflow-summary load failure \u2014 retrieval track"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "documented fact about always-loaded references \u2014 retrieval track"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "technique",
+      "reason": "verification artifact restating the rules inventoried above; no new rule"
+    }
+  ]
+}

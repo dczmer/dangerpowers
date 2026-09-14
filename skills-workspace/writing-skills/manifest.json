@@ -14,5 +14,14 @@
     "gaps": 0,
     "voids": 0,
     "campaign": "campaign-2026-09-12-2"
+  },
+  "shape-test": {
+    "date": "2026-09-14",
+    "checksum": "sha256:2b6164b6f132e08cf0f08f542939fec6448a41578b7f1090255e983750660cbd",
+    "adopted": 6,
+    "no-failure": 8,
+    "unresolved": 0,
+    "voids": 0,
+    "campaign": "campaign-2026-09-14"
   }
 }

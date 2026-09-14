@@ -1,7 +1,236 @@
 [
   {
+    "id": "directives-not-essays",
+    "rule": "R-content-01",
+    "kind": "shaping",
+    "section": "- Written as directives, not essays.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `handling-database-migrations`, to be added to a\nlibrary of reusable agent skills. The skill teaches a proven procedure for writing\nzero-downtime database migrations:\n\n- expand-migrate-contract: add new schema alongside old, dual-write, backfill, then\n  drop the old schema\n- every migration must be reversible or explicitly marked irreversible with a\n  data-loss note\n- lock-heavy operations (adding an index, rewriting a table) run with a statement\n  timeout and off-peak\n\nInclude the background an agent needs to understand why the procedure is ordered\nthis way."
+    },
+    "markers": {
+      "essay_hedge": "(?i)(it is important|it's worth|in this (skill|section|guide)|this (skill|guide) (will|aims|covers)|in conclusion|as (we|you) can see|firstly|secondly|moreover|furthermore)",
+      "directive_imperative": "^(Always|Never|Use|Do not|Don't|Keep|Run|Add|Mark|State|Name|Show|Include|Avoid|Write|Order|Set|Place)\\b",
+      "narrative_first_person": "(?i)(when I|we (found|decided|learned|chose)|in my experience)"
+    },
+    "variants": {
+      "v1": "- Never write essay prose, background narrative, or rationale paragraphs in a skill body.",
+      "v2": "- Write every rule in the body as an imperative directive starting with a verb ('Run migrations off-peak'). Context and rationale belong in one Overview sentence or a Gotchas bullet, never in the steps.",
+      "v3": "- Write every rule in the body as an imperative directive starting with a verb ('Run migrations off-peak'). Context and rationale belong in one Overview sentence or a Gotchas bullet, never in the steps. Explanatory prose is fine where the agent genuinely needs background."
+    }
+  },
+  {
+    "id": "explicit-not-passive",
+    "rule": "R-content-05",
+    "kind": "shaping",
+    "section": "- Use explicit instructions (\"Always use X\"), never passive phrasing (\"X is recommended\").",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `formatting-commit-messages`, to be added to a\nlibrary of reusable agent skills. The skill teaches a commit-message convention:\n\n- subject line \u226472 chars, imperative mood, no trailing period\n- body explains why, not what; wrap at 80 chars\n- footer carries `Refs: <issue-id>` when the commit closes a tracked issue\n\nThe convention is mandatory for all repos in the org."
+    },
+    "markers": {
+      "passive_voice": "(?i)(is recommended|are recommended|is suggested|it is (best|advisable|a good idea)|should be (used|written|kept|avoided|done)|consider (using|keeping|writing)|may want to)",
+      "explicit_directive": "\\b(Always|Never)\\b"
+    },
+    "variants": {
+      "v1": "- Never use passive recommendation phrasing ('is recommended', 'should be', 'consider using') in a skill.",
+      "v2": "- Write every instruction as a direct command: 'Always X' / 'Never X' / 'Do X'. The agent executing the skill is the subject of every directive.",
+      "v3": "- Write every instruction as a direct command: 'Always X' / 'Never X' / 'Do X'. The agent executing the skill is the subject of every directive. Use softer phrasing for optional steps."
+    }
+  },
+  {
+    "id": "no-nuance-clauses",
+    "rule": "R-content-06",
+    "kind": "shaping",
+    "section": "- State constraints directly. No nuance or exemption clauses that scope a directive (\"unless X\", \"except when Y\") \u2014 fold the condition into the directive or leave it out.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `handling-secrets-in-code`, to be added to a\nlibrary of reusable agent skills. The skill teaches how to keep secrets out of\nsource:\n\n- secrets live in environment variables loaded via a `.env` file excluded by\n  `.gitignore`\n- a pre-commit scan (gitleaks) blocks commits containing high-entropy strings\n- a secret that has ever been committed is compromised: rotate it, then scrub\n  history\n\nReal projects have edge cases \u2014 test fixtures, local development, example\nconfigs \u2014 so cover how the rules interact with those."
+    },
+    "markers": {
+      "nuance_clause": "(?i)\\b(unless|except (when|if|for)|except in)\\b",
+      "exemption_tail": "(?i)(however,|that said|but if|only when)",
+      "conditional_directive": "^(If|When|For) .{3,60}, (use|run|add|mark|treat|store|keep)"
+    },
+    "variants": {
+      "v1": "- Never write 'unless' or 'except when' clauses in a skill rule.",
+      "v2": "- State every constraint with its condition folded into the directive: 'For example configs, commit placeholder values only.' A rule with no condition stands alone, absolute.",
+      "v3": "- State every constraint with its condition folded into the directive: 'For example configs, commit placeholder values only.' A rule with no condition stands alone, absolute. Rare genuine exceptions can stay as a trailing clause."
+    }
+  },
+  {
+    "id": "defaults-not-menus",
+    "rule": "R-content-07",
+    "kind": "shaping",
+    "section": "- Provide defaults, not menus. Name the one approach unconditionally. Give alternatives only as condition-scoped switches \u2014 each gated on the concrete condition that disqualifies the default (\"use setuptools when the build compiles C extensions\"). Never frame the choice as open: no neutral comparisons, no \"pick whichever fits.\"",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `packaging-python-libraries`, to be added to a\nlibrary of reusable agent skills. The skill teaches how to package a Python\nlibrary for distribution:\n\n- the org standard is `src/` layout with setuptools and a `pyproject.toml`\n- builds produce both sdist and wheel; version comes from a single `__version__`\n  string\n- publishing goes to the internal index via `twine upload --repository internal`\n\nPython packaging has several competing build backends (setuptools, hatchling,\nflit, poetry), so address how the skill's guidance relates to them."
+    },
+    "markers": {
+      "menu_language": "(?i)(alternatively|option [123]|either .{1,40} or|whichever|up to you|depends on (your|the)|pick (the one|whichever)|choose (the one|whichever|what)|pros and cons|trade-?offs of each)",
+      "comparison_table": "^\\|.*(setuptools|hatchling|flit|poetry).*\\|",
+      "conditional_switch": "(?i)(use (hatchling|flit|poetry|setuptools) when|when .{1,50}, (use|switch to))"
+    },
+    "variants": {
+      "v1": "- Never present a menu of approaches or a neutral comparison in a skill.",
+      "v2": "- Name the one default approach unconditionally. Any alternative appears only as 'use <alt> when <concrete condition that disqualifies the default>'.",
+      "v3": "- Name the one default approach unconditionally. Any alternative appears only as 'use <alt> when <concrete condition that disqualifies the default>'. If two approaches are truly equal, presenting both is acceptable."
+    }
+  },
+  {
+    "id": "no-time-sensitive",
+    "rule": "R-content-09",
+    "kind": "shaping",
+    "section": "- No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `migrating-to-postgres-16`, to be added to a\nlibrary of reusable agent skills. The skill teaches how to migrate an application\ndatabase from PostgreSQL 13 to 16:\n\n- logical replication cutover: stand up a 16 replica, replicate, brief\n  write-freeze, switch the connection string\n- `pg_stat_statements` before/after comparison catches plan regressions\n- the old server stays read-only for a week as a rollback path\n\nMention what changed between versions where it affects the migration."
+    },
+    "markers": {
+      "time_sensitive": "(?i)\\b(currently|as of|recently|new in|now supports|as of this writing|today|at the time of writing)\\b",
+      "legacy_section": "(?i)^#+ .*legacy"
+    },
+    "variants": {
+      "v1": "- Never write time-relative words ('currently', 'recently', 'as of') in a skill.",
+      "v2": "- Write every statement as timelessly true: name versions and dates instead of relative time ('PostgreSQL 16 added\u2026', not 'recently added\u2026'). Superseded approaches go under a `## Legacy` heading.",
+      "v3": "- Write every statement as timelessly true: name versions and dates instead of relative time ('PostgreSQL 16 added\u2026', not 'recently added\u2026'). Superseded approaches go under a `## Legacy` heading. 'Currently' is fine when describing the reader's environment."
+    }
+  },
+  {
+    "id": "gotchas-section",
+    "rule": "R-content-10",
+    "kind": "shaping",
+    "section": "- Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `configuring-ssh-agent-forwarding`, to be added\nto a library of reusable agent skills. The skill teaches how to set up SSH agent\nforwarding for deploys:\n\n- `ForwardAgent yes` per-host in `~/.ssh/config`, never globally\n- verify with `ssh -A host 'ssh-add -l'` before running the deploy script\n- agent forwarding exposes the socket to root on the remote host; use a dedicated\n  deploy key with limited scope"
+    },
+    "markers": {
+      "gotchas_heading": "(?i)^#+\\s*gotchas"
+    },
+    "variants": {
+      "v1": "- A skill without a Gotchas section is incomplete.",
+      "v2": "- Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps.",
+      "v3": "- Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps. Skip it when the setup truly has none."
+    }
+  },
+  {
+    "id": "ends-with-checklist",
+    "rule": "R-content-11",
+    "kind": "shaping",
+    "section": "- Ends with a checklist or verification procedure so the agent can verify its work.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `optimizing-docker-images`, to be added to a\nlibrary of reusable agent skills. The skill teaches how to shrink container\nimages:\n\n- multi-stage builds: compile in a builder stage, copy artifacts into a slim\n  runtime stage\n- pin base images by digest; order Dockerfile instructions from least to most\n  frequently changing\n- scan the final image with `trivy image` and fail the build on CRITICAL findings"
+    },
+    "markers": {
+      "checklist_items": "^- \\[ \\]",
+      "checklist_heading": "(?i)^#+ .*checklist",
+      "verification_steps": "(?i)^#+ .*verif"
+    },
+    "variants": {
+      "v1": "- Never end a skill with a prose summary.",
+      "v2": "- End every skill with a `## Checklist` section: one `- [ ]` item per verifiable property of the finished artifact, each phrased so the agent can check its own work.",
+      "v3": "- End every skill with a `## Checklist` section: one `- [ ]` item per verifiable property of the finished artifact, each phrased so the agent can check its own work. A checklist is only needed for multi-step skills."
+    }
+  },
+  {
+    "id": "decline-forbidden-explicitly",
+    "rule": "R-content-12",
+    "kind": "pattern",
+    "section": "- When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
+    "fixtures": {
+      "application": "Draft a SKILL.md for a skill named `structuring-cli-flags`, to be added to a\nlibrary of reusable agent skills. The skill teaches a convention for CLI flag\ndesign:\n\n- boolean flags default to false; negation via `--no-<name>`\n- every flag has a one-line help string; positional args max 2\n- subcommands for verbs, flags for modifiers\n\nShow me the convention as a fill-in-the-blank template I can reuse, and give the\nexample in both a POSIX-shell style and a PowerShell style so I can pick.",
+      "counter-example": "Draft a SKILL.md for a skill named `structuring-cli-flags`, to be added to a\nlibrary of reusable agent skills. The skill teaches a convention for CLI flag\ndesign:\n\n- boolean flags default to false; negation via `--no-<name>`\n- every flag has a one-line help string; positional args max 2\n- subcommands for verbs, flags for modifiers"
+    },
+    "markers": {
+      "decline_explicit": "(?i)(i (won't|can't|cannot|decline)|not going to|instead,|however, i|forbidden|violates)",
+      "template_blanks": "(<[-_a-zA-Z0-9 ]+>|\\{\\{|REPLACE_ME|\\bTODO\\b)",
+      "multi_format": "(?i)(powershell|pwsh)"
+    },
+    "restraint_markers": {
+      "decline_language": "(?i)(i (won't|can't|cannot|decline)|not going to|instead,|however, i|forbidden|violates)"
+    },
+    "variants": {
+      "v1": "- Never silently comply with a request the skill forbids.",
+      "v2": "- When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
+      "v3": "- When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always. Mention the compliant alternative when declining."
+    }
+  },
+  {
+    "id": "frontmatter-two-fields",
+    "rule": "R-frontmatter-01",
+    "kind": "shaping",
+    "section": "- Open every SKILL.md with a YAML frontmatter block delimited by `---`, carrying the two required fields `name` and `description`, before any body content.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `profiling-slow-sql-queries`, to be added to a\nlibrary of reusable agent skills. The skill teaches a procedure for diagnosing\nslow queries on PostgreSQL:\n\n- capture the plan with `EXPLAIN (ANALYZE, BUFFERS)` on the production-shaped\n  dataset\n- seq scans on large tables and rows-estimate misses >10x are the primary suspects\n- fixes in order: index, rewrite, partial index, denormalize \u2014 stop at the first\n  fix that clears the SLO"
+    },
+    "markers": {
+      "frontmatter_block": "^---$",
+      "name_field": "^name:",
+      "description_field": "^description:"
+    },
+    "variants": {
+      "v1": "- A SKILL.md without frontmatter is invalid.",
+      "v2": "- Open every SKILL.md with a YAML frontmatter block delimited by `---`, carrying the two required fields `name` and `description`, before any body content.",
+      "v3": "- Open every SKILL.md with a YAML frontmatter block delimited by `---`, carrying the two required fields `name` and `description`, before any body content. Extra metadata fields are fine when the host needs them."
+    }
+  },
+  {
+    "id": "name-format",
+    "rule": "R-frontmatter-02",
+    "kind": "shaping",
+    "section": "- Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill that teaches how to profile slow SQL queries on\nPostgreSQL: capture plans with `EXPLAIN (ANALYZE, BUFFERS)`, suspect seq scans on\nlarge tables and >10x row-estimate misses, and fix in order \u2014 index, rewrite,\npartial index, denormalize. The skill joins a library of reusable agent skills;\nchoose its name yourself."
+    },
+    "markers": {
+      "name_line": "^name: .+$",
+      "name_valid_chars": "^name: [a-z0-9-]{1,64}$",
+      "name_gerund": "^name: [a-z]+ing(-|$)"
+    },
+    "variants": {
+      "v1": "- Never use a noun-first or CamelCase skill name.",
+      "v2": "- Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`.",
+      "v3": "- Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`. Noun-first is acceptable for tool-named skills."
+    }
+  },
+  {
+    "id": "description-format",
+    "rule": "R-frontmatter-03",
+    "kind": "shaping",
+    "section": "- `description`: third person about the skill, never first or second person (\"I can help you...\"). Exactly two parts, in order, \u22641024 chars:\n  1. An imperative trigger clause \u2014 \"Use when...\" plus the concrete triggering conditions and symptoms. Weave trigger terms into prose; never a `Keywords:`-style label or a bare list of quoted phrases.\n  2. One coverage clause naming the domain or technique the skill covers.\n  No procedure steps: a sequence of things the workflow does is not a coverage clause. The body owns the HOW; the description exists only so the agent can match user intent.\n  Keep it concise. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `retrying-flaky-ci-jobs`, to be added to a\nlibrary of reusable agent skills. The skill teaches how to auto-retry genuinely\nflaky CI jobs without masking real failures:\n\n- retry only jobs tagged flaky by the quarantine list; never retry on compile or\n  lint failure\n- max 2 retries with the same seed; a second failure of the same test is real\n- post-retry, file a flake report with the seed and failure signature"
+    },
+    "markers": {
+      "keywords_label": "Keywords:",
+      "first_second_person": "(?i)^description:.*(I can|I will|you can|you're|helps you)",
+      "procedure_steps_in_desc": "(?i)^description:.*(first.{1,80}then|steps?:)",
+      "use_when_clause": "(?i)^description:.*use when",
+      "coverage_clause": "(?i)^description:.*covers"
+    },
+    "variants": {
+      "v1": "- Never put procedure steps or keyword lists in the description.",
+      "v2": "- Write the description as exactly two clauses: 'Use when\u2026' with the concrete triggering conditions, then one 'Covers\u2026' clause naming the domain. The HOW stays in the body.",
+      "v3": "- Write the description as exactly two clauses: 'Use when\u2026' with the concrete triggering conditions, then one 'Covers\u2026' clause naming the domain. The HOW stays in the body. A short procedure summary is acceptable when space allows."
+    }
+  },
+  {
+    "id": "references-one-level-deep",
+    "rule": "R-structure-01",
+    "kind": "shaping",
+    "section": "- SKILL.md carries the workflow and one short illustrative snippet. Bulk reference data (matrices, catalogs, long lists) lives in `references/<topic>.md`, linked once from SKILL.md. Small tables may stay inline.",
+    "fixtures": {
+      "application": "Write the complete skill package for a skill named `authoring-kubernetes-rbac`, to\nbe added to a library of reusable agent skills. The skill teaches how to write\nleast-privilege RBAC roles:\n\n- default-deny: grant only the verbs each workload actually calls\n- audit with `kubectl auth can-i --list` against the service account\n- escalate to ClusterRole only for cluster-scoped resources\n\nCover the full verb/resource matrix (get, list, watch, create, update, patch,\ndelete, deletecollection, impersonate, bind, escalate, use) across the core API\ngroups the skill touches, with per-verb risk notes.\n\nRespond with the complete file(s), each prefixed by its path."
+    },
+    "markers": {
+      "references_link": "references/[a-z0-9-]+\\.md",
+      "inline_matrix_row": "^\\| ?(get|list|watch|create|update|patch|delete|impersonate|bind|escalate|use) ?\\|"
+    },
+    "variants": {
+      "v1": "- Never inline long reference tables in SKILL.md.",
+      "v2": "- SKILL.md carries the workflow and one short illustrative snippet. Bulk reference data (matrices, catalogs, long lists) lives in `references/<topic>.md`, linked once from SKILL.md.",
+      "v3": "- SKILL.md carries the workflow and one short illustrative snippet. Bulk reference data (matrices, catalogs, long lists) lives in `references/<topic>.md`, linked once from SKILL.md. Small tables may stay inline."
+    }
+  },
+  {
     "id": "one-complete-example",
-    "rule": "R-structure-example",
+    "rule": "R-structure-04",
     "kind": "shaping",
     "section": "- Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.",
     "fixtures": {
@@ -18,6 +247,25 @@
       "v1": "- Never show more than one example in a skill. Multi-language example sets and fill-in-the-blank templates are forbidden.",
       "v2": "- Show exactly one example per skill: one scenario, one language or format, filled in end-to-end with concrete values (real names, real numbers, real strings) so it works as written.",
       "v3": "- Show exactly one example per skill: one scenario, one language or format, filled in end-to-end with concrete values (real names, real numbers, real strings) so it works as written. Add a second language version when the skill's audience genuinely spans ecosystems."
+    }
+  },
+  {
+    "id": "flowchart-table-list-selection",
+    "rule": "R-structure-05",
+    "kind": "shaping",
+    "section": "- A procedure with branches or early exits MUST be a ```mermaid flowchart TD block: one node per step, one diamond per branch, one terminal node per early exit. Reference data MUST be a markdown table. Numbered lists are only for strictly linear steps.",
+    "fixtures": {
+      "application": "Write a SKILL.md for a skill named `diagnosing-flaky-ci-tests`, to be added to a\nlibrary of reusable agent skills. The skill teaches a triage procedure:\n\n1. reproduce locally with the failing seed \u2014 if it reproduces, it is a real bug,\n   stop\n2. if it passes locally 10x with the seed, check timing sensitivity: run under CPU\n   load\n3. if load triggers it, look for unsynchronized shared state; if not, suspect\n   environment drift and diff the CI container against local\n\nAlso include the standard flake-signature catalog (seed, stack hash, test path)\nagents must record."
+    },
+    "markers": {
+      "flowchart_block": "```mermaid|flowchart (TD|LR)|graph (TD|LR)",
+      "numbered_steps": "^[0-9]+\\. ",
+      "ref_table": "^\\|.*(seed|signature|stack|path).*$"
+    },
+    "variants": {
+      "v1": "- Never write branchy procedures as prose paragraphs.",
+      "v2": "- Render a decision with branches or early exits as a flowchart, a linear sequence as a numbered list, and lookup data as a table. Pick by content shape, not habit.",
+      "v3": "- Render a decision with branches or early exits as a flowchart, a linear sequence as a numbered list, and lookup data as a table. Pick by content shape, not habit. Short branches can stay prose."
     }
   }
 ]

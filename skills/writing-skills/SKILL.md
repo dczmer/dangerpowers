@@ -33,15 +33,15 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 - Provide defaults, not menus. Name the one approach unconditionally. Give alternatives only as condition-scoped switches — each gated on the concrete condition that disqualifies the default ("use setuptools when the build compiles C extensions"). Never frame the choice as open: no neutral comparisons, no "pick whichever fits."
 - Pick one term per concept and use it everywhere.
 - No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.
-- Include a "Gotchas" section: the things about the setup that a sensible guess gets wrong.
+- Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps.
 - Ends with a checklist or verification procedure so the agent can verify its work.
-- When a request asks for something this skill forbids — a menu of options, a multi-format example, a fill-in-the-blank template — decline the forbidden part explicitly, then produce the compliant artifact.
+- When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.
 
 ## Frontmatter
 
-Two required fields: `name` and `description`.
+- Open every SKILL.md with a YAML frontmatter block delimited by `---`, carrying the two required fields `name` and `description`, before any body content.
 
-- `name`: lowercase letters, numbers, hyphens only, ≤64 chars. Use a gerund or verb-first name: `writing-skills`, not `skill-writing`.
+- Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`.
 - `description`: third person about the skill, never first or second person ("I can help you..."). Exactly two parts, in order, ≤1024 chars:
   1. An imperative trigger clause — "Use when..." plus the concrete triggering conditions and symptoms. Weave trigger terms into prose; never a `Keywords:`-style label or a bare list of quoted phrases.
   2. One coverage clause naming the domain or technique the skill covers.
@@ -67,11 +67,11 @@ skills/
     scripts/              # Reusable tools
 ```
 
-- Keep principles, patterns, and short code inline. Move heavy reference to `references/` and reusable tools to `scripts/`, referenced one level deep from SKILL.md.
+- SKILL.md carries the workflow and one short illustrative snippet. Bulk reference data (matrices, catalogs, long lists) lives in `references/<topic>.md`, linked once from SKILL.md. Small tables may stay inline.
 - Use scripts for fully deterministic processes. Scripts handle their own error cases instead of failing back to the agent. No magic constants — justify every number in the script.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
 - Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.
-- Use flowcharts for non-obvious decisions or loops with early exits, tables for reference data, numbered lists for linear steps.
+- A procedure with branches or early exits MUST be a ```mermaid flowchart TD block: one node per step, one diamond per branch, one terminal node per early exit. Reference data MUST be a markdown table. Numbered lists are only for strictly linear steps.
 - When editing an existing skill, read it fully first.
 - Don't assume a skill that works on a large model works on a small one; spell out instructions a frontier model could follow implicitly.
 
