@@ -97,8 +97,6 @@ Inference is the process of running the trained model's execution phase against 
 * **Transformer layers:** the vectors pass through dozens of stacked layers, each one containing attention and feed-forward computations, that progressively refine the representation of every token based on every other token.
 * **Sampling:** the final layer produces a probability distribution over every token in the vocabulary, and the next token is sampled from it. That token gets appended to the input and the whole process repeats, one token at a time.
 
-> TODO: we need visualizations here to help explain the big picture, highlight that it's matching tokens and not "thinking"
-
 A mechanism called "attention" is the secret sauce that makes modern LLMs magic. Attention lets each token weigh how much every other token matters to it, so the AI can detect dependencies in far-flung areas of a large input. That's how it tells the "bat" in "Swing the bat!" from the one in "The bat flew at night." Attention was introduced in 2014 as an improvement to earlier sequence models. The transformer architecture ([Attention Is All You Need](#ref-h), 2017) took the leap of relying on attention _alone_ and dropped recurrence entirely, and that's what made massively parallel training possible.
 
 The important note here is that all of this runs on billions of floating-point operations that are every one of them susceptible to minuscule rounding errors. Those errors add up and compound and slightly alter the calculation of the next token in a response, which then affects the calculation of the token after that, and so on.
