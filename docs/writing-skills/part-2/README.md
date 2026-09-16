@@ -452,6 +452,10 @@ Here is more detail on the journey to solve those issues to create my own trigge
 
 [Developing a Better Test Harness](./developing-a-better-harness.md).
 
+## Next
+
+See how to test and improve how well agents follow the rules in your skill definition, using "bulletproofing", in [Writing Sills Deep Dive - Part 3: Bulletproofing Skills](../part-3/README.md).
+
 ## References
 
 - <a id="ref-a"></a>**[A]** [Agent Skills - Optimizing skill descriptions](https://agentskills.io/skill-creation/optimizing-descriptions)

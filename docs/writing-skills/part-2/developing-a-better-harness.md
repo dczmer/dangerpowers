@@ -484,6 +484,10 @@ We didn't write a custom harness with langchain or anything, but I think this st
 
 In the next post, on pressure testing skills, we'll face a similar problem: context leaks in and influences the agent's decision making. In this case it's much worse though, because you are testing how likely the agent is to stick to the rules in your skill. Conflicting instructions from context leaks will give the AI more room to rationalize and discard your discipline rules. Context leaks from your global AGENTS.md/CLAUDE.md are a challenge because it's hard to exclude those while still using the actual client, where you could avoid that with langchain but then you don't have the right system prompt (and it's important here).
 
+## Next
+
+See how to test and improve how well agents follow the rules in your skill definition, using "bulletproofing", in [Writing Sills Deep Dive - Part 3: Bulletproofing Skills](../part-3/README.md).
+
 ## References
 
 1. [opencode CLI documentation](https://opencode.ai/docs/cli/) — `run` command flags (`--dir`, `--model`, `--variant`, `--format`, `--auto`) and global flags (`--pure`, `--print-logs`, `--log-level`)
