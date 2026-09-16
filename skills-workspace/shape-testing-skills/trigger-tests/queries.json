@@ -1,0 +1,74 @@
+[
+    {
+        "query": "Run a shape-testing campaign against my code-review skill — I want to know if its output-formatting rules actually hold when an agent uses it.",
+        "shouldTrigger": true
+    },
+    {
+        "query": "i wrote this rule in my skill that says 'always put the migration plan in a table before the SQL' but when I actually use it the model just dumps SQL with a prose intro half the time. is there a way to test whether the wording is doing anything",
+        "shouldTrigger": true
+    },
+    {
+        "query": "Our pdf-export skill has a bunch of structure guidance — section order, required appendix, no inline styles — and I'm not convinced it's followed in the generated reports. Can you verify the guidance actually holds in the artifacts?",
+        "shouldTrigger": true
+    },
+    {
+        "query": "help me tune the phrasing of the 'keep the summary under 5 bullets' rule in my meeting-notes skill — outputs are inconsistent across runs and I want wording that converges",
+        "shouldTrigger": true
+    },
+    {
+        "query": "Context: I maintain internal skills for our support team. One of them, skills/ticket-triage/SKILL.md, has a pattern rule 'when the customer mentions billing, reframe as an account issue' plus shaping rules about output format (triage table first, then escalation block). I keep seeing agents skip the reframe and produce freeform paragraphs instead. I want to systematically test each rule with different wordings before rewriting the whole thing. What's the right way to do that?",
+        "shouldTrigger": true
+    },
+    {
+        "query": "draft the full shape test for my changelog skill: inventory its formatting rules and test them across wording variants with a no-guidance control",
+        "shouldTrigger": true
+    },
+    {
+        "query": "does my 'always separate concerns' instruction in the api-client skill actually bind, or does the model fall back to one big file? run whatever test measures that",
+        "shouldTrigger": true
+    },
+    {
+        "query": "I suspect the 'never use inline styles' rule in my ui-components skill just makes the model reach for worse hacks. Want to compare a few phrasings of that rule and see which converges on the right shape.",
+        "shouldTrigger": true
+    },
+    {
+        "query": "before I commit this rewrite of my resume skill's template section, check that its structure guidance holds in generated output",
+        "shouldTrigger": true
+    },
+    {
+        "query": "what phrasing of my 'emit YAML frontmatter only, no code fences' rule actually sticks? test a couple variants",
+        "shouldTrigger": true
+    },
+    {
+        "query": "Run a campaign that inventories every shaping rule in skills/email-digest/SKILL.md and reports which phrasings converge",
+        "shouldTrigger": true
+    },
+    {
+        "query": "check whether my gitflow skill triggers when someone asks to 'release version 1.4' — it fired twice yesterday when it shouldn't have",
+        "shouldTrigger": false
+    },
+    {
+        "query": "can an agent using my runbook skill find the postgres failover steps? test that the documented facts are retrievable",
+        "shouldTrigger": false
+    },
+    {
+        "query": "format this meeting transcript into a clean summary with action items",
+        "shouldTrigger": false
+    },
+    {
+        "query": "my skill's description fires too often on trivial questions — help me tune it so it only triggers for real requests",
+        "shouldTrigger": false
+    },
+    {
+        "query": "write a new skill that generates release notes from merged PRs",
+        "shouldTrigger": false
+    },
+    {
+        "query": "lint all the SKILL.md files under ./skills for frontmatter errors like missing name fields",
+        "shouldTrigger": false
+    },
+    {
+        "query": "run the test suite in tools/test-harness and tell me what's failing",
+        "shouldTrigger": false
+    }
+]

@@ -1,6 +1,6 @@
 # "Bulletproofing" Skills
 
-> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and involved (and token-intensive). Consider this an illustration of the core concepts and overview of the components involved.
+> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and involved - and token-intensive. No, really, I burned my entire week's quota of tokens in a day of testing.
 
 Have you ever used a skill written by someone else that just didn't work as advertised when you tried it? Or have you written a skill that produces inconsistent output or breaks the rules?
 
@@ -54,9 +54,9 @@ For "shaping" failures, we use micro-tests to validate variations in phrasing an
 
 Reference skills have no rule to violate, so there is nothing to pressure test. Run a few simple retrieval tasks, single pass, no iteration: can the agent find and correctly apply the documented fact? Failures are fixed by editing the doc directly (gaps, unclear sections), not by adding rules.
 
-> EDITOR: diagram/image of a skill file (box containing a very simple example skill with a name, description frontmatter, and one reference, one discipline, and one shaping rule. indicate the entire document uses conventions from writing-skills with a big angle bracket "Conventions from writing-skills: {" on the left. circle the description in the document, draw a line to a box on the right with "Discipline\nTrigger Testing (queries file)". circle the reference statement and draw similar line to box with "Reference\nRetrieval Test (queries file)". circle the discipline rule and draw a similar line to "Discipline\nPressure Test (extrapolated)". circle the shaping rule and make a line to "Shaping\nMicro-Test (extrapolated).
+![bulletproofing](./images/bulletproof.png)
 
-So the superpowers system actually evaluates three of tests, for three different categories of rules, in order to fully cover the body of the skill (plus trigger testing, if applicable). We're going to do this as three separate skills instead, because otherwise the full campaign gets a bit complicated and hard to follow.
+So the superpowers system actually evaluates three sets of tests, for three different categories of rules, in order to fully cover the body of the skill (plus trigger testing, if applicable). We're going to do this as three separate skills instead (we've already done [trigger testing](../part-2/README.md)), because otherwise the full campaign gets a bit complicated and hard to follow.
 
 ```mermaid
 flowchart TD
@@ -79,16 +79,6 @@ flowchart TD
     LOG --> BULLETPROOF
 ```
 
-### Contamination and Artifact Hunting
-
-> TODO: expand this section and frame it as the major challenge when implementing these tests, counter-intuitive for agents, discipline rules that need pressure testing and bulletproofing.
-
-this is a great illustration and use case for discipline and pressure testing!
-
-- more impactful than similar concern for trigger testing; global rules are highly likely to color agent reasoning during body tests
-- can't avoid global agents/skills (move/rename those temporarily); would need custom harness perhaps, like langchain
-- agents naturally want to dig for supporting information about artifacts mentioned in test query,leading to timeout, excessive tool calls, and step-limit cutoff
-
 ## Reference Skills
 
 Since these are purely contextual facts, there are no rules or behavior to harden. Instead, we want to test that the agent can retrieve and apply that context consistently and accurately. Resolving failures involves editing the skill document. Typical issues in this category include filling gaps in the contextual details, clarifying sections or phrases, and adjusting the way information is organized.
@@ -99,7 +89,19 @@ The agent has correctly loaded the skill, it wants to comply, there is no incent
 
 ### Retrieval Testing
 
-> EDITOR: mermaid diagram of the simple retrieval test campaign flow from ./examples/skills/retrieval-testing-skills/SKILL.md. only the important parts to show the campaign flow. omit the query detection and authoring, the facts.json file. try to keep it simple while illustrating the important concepts of the testing flow.
+```mermaid
+flowchart LR
+    Q[Query/Fixture] --> C[Control]
+    Q --> SKILL[With Skill]
+    C --> CF{Control Fails?}
+    CF -->|No| ABLATION[Mark for ablation]
+    CF -->|Yes| FAIL{Skill Fail?}
+    SKILL --> FAIL
+    FAIL -->|No| ABORT[Abort/Adopt]
+    FAIL -->|Yes| EVAL[Evaluate]
+    EVAL --> EDIT[Rewrite/Add Info]
+    EDIT --> Q
+```
 
 To construct a retrieval test, record a file of test queries, very much like we did with trigger testing, and map that query to three expected post-conditions:
 
@@ -131,7 +133,7 @@ Each entry tests one documented fact:
 - `query` — a realistic, task-shaped prompt that stands alone: never names the section or file holding the fact, never hints at the answer, never quotes rubric text.
 - `expect` — objective rubric bullets. A scenario passes only if every bullet is met by the returned answer.
 
-Run the evals, along with a no-skill control group. Instruct the agent to list the "sources" that were consulted while processing the request. Identify failure categories according to the following table:
+Run the evals, along with a no-skill control group, all at 5x reps per arm in a fresh subagent for each test. Instruct the agent to list the "sources" that were consulted while processing the request. Identify failure categories according to the following table:
 
 | Observed failure	| Diagnosis	| Fix |
 |-|-|-
@@ -252,7 +254,9 @@ Match the fix to the observed failure. The form that fixes one failure type back
 
 ### Example
 
-Here is a simplified shape testing skill: [shape-testing-skills example](./examples/skills/shape-testing-skills/SKILL.md). It uses subagents to run the evals but does not do any workspace isolation - other skills and rules files can potentially contaminate results.
+> WARNING: Despite the word "micro" in the name, this is the most expensive test I have run yet. Even though we focus only on a single rule at a time, we need complex test scenarios and we need to run several reps against multiple variants on each iteration.
+
+Here is a simplified shape testing skill: [shape-testing-skills example](./examples/skills/shape-testing-skills/SKILL.md). It uses subagents to run the evals but does not do any workspace isolation - other skills and rules files can potentially contaminate agent reasoning and affect the results.
 
 This skill only tests a single rule (quoted from the skill file directly). For demonstration purposes, I just ask the agent to pick a rule and setup the campaign for me:
 
@@ -267,19 +271,19 @@ Similar to trigger and retrieval testing, I adapted this skill to use the worksp
 - [shape-testing-skills](../../../skills/shape-testing-skills/SKILL.md)
 - [shape-evaluator agent](../../../skills/shape-testing-skills/agents/shape-evaluator.opencode.md)
 
-> NOTE: This testing process can get token-intensive! I designed the test skills so you could drive the main session with a good, hosted model, and then delegate the actual evals to whichever model you want. I did a lot of testing with Kimi K3 (high) as the driver and a local qwen3.8 or gemma4 model to do the evals.
+Since this testing process can get token-intensive, I designed the test skills so you could drive the main session with a good, hosted model, and then delegate the actual evals to whichever model you want. I did a lot of testing with Kimi K3 (high) as the driver and a local qwen3.8 or gemma4 model to do the evals.
 
 These body testing processes are turning out to be quite complicated and require a lot from the agent executing the campaign. I'm starting to see where we might really need to develop a custom harness to make this process safer and easier to execute.
 
 ## Discipline Skills
+
+**This type of test is for hardening skills against [_rationalization_](../../rationalization-and-non-determinism.md).**
 
 I put this section last, after the other two types of test, because you should run these tests last. Changes to wording from the previous two types of tests can have a cascading effect on discipline rules.
 
 However, I considered moving to be the first section because I actually had to apply all of this stuff to the custom agent prompts to get the previous two types of tests to work consistently. This highlights the fact that the rules for hardening a skill body apply to ANY prompt that you would give to an agent: prompts, skills, commands, custom agents, system prompts, etc.
 
 It seems like agents are susceptible to "pressure" the way humans are susceptible to social pressure. Well, not exactly - it's more like their training and the contents of the context window create loopholes and conditions that create opportunities for your agent to rationalize when you actually want it to do something unconditionally. Once these loopholes are in your context window, they stick around for the whole session and affect everything else you do.
-
-**This type of test is for hardening skills against [_rationalization_](../../rationalization-and-non-determinism.md).**
 
 Some documented sources of "pressure":
 
@@ -318,7 +322,17 @@ Do NOT pressure-test:
 If the skill contains no rule an agent could violate, pressure testing does not apply.
 ```
 
-> TODO: diagram here...
+```mermaid
+flowchart LR
+    CONTROL[Control] --> CF{Control Fails?}
+    CF -->|No| ABLATION[Abort/Ablation]
+    CF -->|Yes| SKILL[With Skill]
+    SKILL --> SP{Skill Passes?}
+    SP -->|Yes| ADOPT[Adopt/Abort]
+    SP -->|No| CAT[Categorize Failures]
+    CAT --> RW[Rewrite Rules]
+    RW -->|Max 3x| SKILL
+```
 
 Process:
 1. Present a fresh agent with a hypothetical situation, give them a multiple-choice question, record their answer along with _exact_ reasoning.
@@ -327,7 +341,7 @@ Process:
 4. Use superpowers' "bulletproof" system to plug the loopholes.
 5. Repeat for every discipline rule in the skill.
 
-Pressure test rules one at a time, since they tend to have a cascading impact on the rest of the skill.
+Pressure test rules one at a time, since they tend to have a cascading impact on the rest of the skill. Use 3-5 reps per eval and score results.
 
 Example pressure test scenario:
 
@@ -419,7 +433,17 @@ this is simply another rule, designed to stand out with bold emphasis, to make i
 
 red flags are signals that the agent is in the process of violating a rule (again, observed from real failures).
 
-> EDITOR: example of some red flags for our example skill
+```markdown
+## Red Flags - STOP and Start Over
+
+- Code before test
+- "I already manually tested it"
+- "Tests after achieve the same purpose"
+- "It's about spirit not ritual"
+- "This is different because..."
+
+**All of these mean: Delete code. Start over with TDD.**
+```
 
 these give the agent a hard signal to abort and start over, following the correct procedure.
 
@@ -451,7 +475,10 @@ these are rebuttal for excuses actually observed in testing. once again, we're t
 
 like regression tests for broken behavioral rules. when you see an agent use a workaround or rationalize a reason to subvert the rules, add a rule that explicitly forbids what they did - either as a part of the workflow rules or in one of the bulletproofing mechanisms we've already covered.
 
-> EDITOR: examples of forbidding specific workarounds from our example skill
+```Markdown
+Always load the full SKILL.md file into context before answering.
+**DO NOT** use `head`, `grep`, or targeted reads to avoid loading the entire file.
+```
 
 ### Example
 

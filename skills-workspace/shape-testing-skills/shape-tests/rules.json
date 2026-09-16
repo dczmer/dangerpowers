@@ -1,0 +1,368 @@
+{
+  "skill": "shape-testing-skills",
+  "generated": "2026-09-14",
+  "rules": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "pattern",
+      "statement": "trigger/retrieval questions are wrong tracks \u2014 route them to their own tracks, do not run shape scenarios for them",
+      "entries": [
+        "trigger-retrieval-routing"
+      ]
+    },
+    {
+      "id": "R-rule-inventory-01",
+      "section": "Rule inventory",
+      "kind": "shaping",
+      "statement": "inventory persisted as rules.json in the fixed schema with section-anchored R-<slug>-<nn> ids and excluded rules carrying routing reasons",
+      "entries": [
+        "rules-manifest-schema"
+      ]
+    },
+    {
+      "id": "R-entries-file-format-01",
+      "section": "Entries file format",
+      "kind": "shaping",
+      "statement": "entries-file field schema: exact key set, counter-example fixture and restraint_markers exactly on pattern entries, variants v1\u2013v3 with implicit v0",
+      "entries": [
+        "entries-file-schema"
+      ]
+    },
+    {
+      "id": "R-scored-check-01",
+      "section": "shape-scored-check",
+      "kind": "shaping",
+      "statement": "scored.json schema with conditional fields (adopted_arm exactly when adopted; restraint_gate exactly when pattern+adopted)",
+      "entries": [
+        "scored-schema"
+      ]
+    },
+    {
+      "id": "R-campaign-layout-01",
+      "section": "Campaign layout",
+      "kind": "shaping",
+      "statement": "campaign artifacts live under skills-workspace/<skill>/shape-tests/campaign-*/, never inside the temp eval workspace",
+      "entries": [
+        "artifacts-not-in-temp-workspace"
+      ]
+    },
+    {
+      "id": "R-proposal-format-01",
+      "section": "Proposal format",
+      "kind": "shaping",
+      "statement": "pre-campaign plan presented as one self-contained fixed-layout card per entry with full fixture/variant texts and the cost formula",
+      "entries": [
+        "proposal-cards-fixed-layout"
+      ]
+    },
+    {
+      "id": "R-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "statement": "campaign report in the fixed multi-rule format: header lines, per-rule per-arm tables, gate lines, no-failure/unresolved sections, summary counts",
+      "entries": [
+        "report-fixed-format"
+      ]
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "pattern",
+      "statement": "a missing skill-load signal is void, not no-failure \u2014 re-run the arm before scoring it",
+      "entries": [
+        "void-not-no-failure"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "consume exit codes and JSON only, never parse prose stdout \u2014 compliance-cost rule, pressure-testing track"
+    },
+    {
+      "id": "R-overview-03",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "frontmatter-convention guidance is out of scope \u2014 harness matches body-only spans, no anchor to swap"
+    },
+    {
+      "id": "R-overview-04",
+      "section": "Overview",
+      "kind": "technique",
+      "reason": "discipline/reference routing lens for inventory classification \u2014 how-to, no competing artifact shape"
+    },
+    {
+      "id": "R-overview-05",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "one-rule-at-a-time invariant and serialization consequence \u2014 describes harness execution model"
+    },
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "collect all inputs before starting, prompt for missing \u2014 procedure"
+    },
+    {
+      "id": "R-inputs-02",
+      "section": "Inputs",
+      "kind": "reference",
+      "reason": "model/variant passthrough is the only model-selection path \u2014 installer asserts pre-spend"
+    },
+    {
+      "id": "R-inputs-03",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "run with the production model at default temperature; ablation re-check on upgrades \u2014 how-to"
+    },
+    {
+      "id": "R-rule-inventory-02",
+      "section": "Rule inventory",
+      "kind": "discipline",
+      "reason": "build the inventory fresh, manifest is a diff baseline never a cache \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-rule-inventory-03",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "reason": "five-kind classification vocabulary \u2014 how-to"
+    },
+    {
+      "id": "R-rule-inventory-04",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "reason": "stop when no shaping/pattern rules exist \u2014 procedure (regeneration and diff-driving sentences ride inside R-rule-inventory-01's span)"
+    },
+    {
+      "id": "R-entries-file-format-02",
+      "section": "Entries file format",
+      "kind": "reference",
+      "reason": "section span verbatim and exactly-once \u2014 mechanically enforced by the pre-spend doc-drift gate"
+    },
+    {
+      "id": "R-fixture-design-01",
+      "section": "Fixture design",
+      "kind": "technique",
+      "reason": "fixtures self-contained, never quoting rule text/markers/expected shape \u2014 how-to"
+    },
+    {
+      "id": "R-fixture-design-02",
+      "section": "Fixture design",
+      "kind": "technique",
+      "reason": "include a requirement the tempting wrong shape cannot satisfy \u2014 how-to"
+    },
+    {
+      "id": "R-fixture-design-03",
+      "section": "Fixture design",
+      "kind": "technique",
+      "reason": "no pressure stacking in fixtures \u2014 how-to"
+    },
+    {
+      "id": "R-eval-agent-01",
+      "section": "Eval agent",
+      "kind": "reference",
+      "reason": "agent permissions, no-pin assertion, {{SKILL_NAME}} substitution \u2014 harness facts"
+    },
+    {
+      "id": "R-eval-agent-02",
+      "section": "Eval agent",
+      "kind": "discipline",
+      "reason": "per-run prompt is the bare fixture text \u2014 compliance-cost rule, pressure-testing track"
+    },
+    {
+      "id": "R-campaign-flow-01",
+      "section": "Campaign flow",
+      "kind": "reference",
+      "reason": "phase structure recap \u2014 not a rule"
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "19-step numbered procedure"
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "spend confirmations before each phase \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "snapshot with exact cp commands recorded \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "write-backs only on explicit user confirmation \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "cleanup workspace after campaign \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-shape-suite-01",
+      "section": "shape-suite mechanics",
+      "kind": "reference",
+      "reason": "pre-spend gate list \u2014 tool behavior"
+    },
+    {
+      "id": "R-shape-suite-02",
+      "section": "shape-suite mechanics",
+      "kind": "reference",
+      "reason": "strictly serial entries x arms \u2014 harness-enforced execution model"
+    },
+    {
+      "id": "R-shape-suite-03",
+      "section": "shape-suite mechanics",
+      "kind": "reference",
+      "reason": "arm assembly, verification, restore mechanics \u2014 harness behavior"
+    },
+    {
+      "id": "R-shape-suite-04",
+      "section": "shape-suite mechanics",
+      "kind": "reference",
+      "reason": "results JSON/config block \u2014 harness-emitted artifact"
+    },
+    {
+      "id": "R-shape-suite-05",
+      "section": "shape-suite mechanics",
+      "kind": "reference",
+      "reason": "void-signal definitions; timeout is a separate boolean \u2014 tool semantics"
+    },
+    {
+      "id": "R-scoring-01",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "hand-read every flagged sample; judge convergence across reps \u2014 judgment how-to"
+    },
+    {
+      "id": "R-scoring-02",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "prohibition arm is a measurement instrument, never a candidate \u2014 adoption judgment"
+    },
+    {
+      "id": "R-scoring-03",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "ties go to the shorter phrasing \u2014 adoption judgment"
+    },
+    {
+      "id": "R-scoring-04",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "adopt the variant that converges on the right shape and beats the control \u2014 adoption judgment"
+    },
+    {
+      "id": "R-scoring-05",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "pattern failure detectors (silent non-application, over-application) \u2014 judgment how-to"
+    },
+    {
+      "id": "R-scoring-06",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "restraint-gate procedure for pattern winners \u2014 procedure"
+    },
+    {
+      "id": "R-improving-01",
+      "section": "Improving the skill definition",
+      "kind": "technique",
+      "reason": "match the fix form to the observed failure \u2014 how-to table"
+    },
+    {
+      "id": "R-improving-02",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "fix between campaigns, never mid-campaign \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-improving-03",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "present edits, apply only after confirmation \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-improving-04",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "keep fixtures, variants, and spans verbatim across campaigns \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-improving-05",
+      "section": "Improving the skill definition",
+      "kind": "technique",
+      "reason": "nuance-clause and exemption-clause guidance \u2014 how-to"
+    },
+    {
+      "id": "R-campaign-layout-02",
+      "section": "Campaign layout",
+      "kind": "discipline",
+      "reason": "snapshot the verified synced skill dir at setup before arm rewriting \u2014 rides inside R-campaign-layout-01's span"
+    },
+    {
+      "id": "R-scored-check-02",
+      "section": "shape-scored-check",
+      "kind": "reference",
+      "reason": "union-with-dedupe coverage and count matching \u2014 mechanically enforced by the checker"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "a fixture with no temptation proves nothing \u2014 diagnostic how-to"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never put rule text, markers, or expected shape in the run prompt \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never let the eval agent know this is a test \u2014 compliance-cost rule"
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "grep is triage, not verdict \u2014 judgment how-to"
+    },
+    {
+      "id": "R-gotchas-06",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "multi-file artifacts need all expected files \u2014 scoring judgment"
+    },
+    {
+      "id": "R-gotchas-07",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "raise --timeout before pressure-testing the agent body \u2014 operational how-to"
+    },
+    {
+      "id": "R-gotchas-08",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "report session ids on aborts \u2014 reporting fact"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "reason": "recap of the workflow, not rules"
+    }
+  ]
+}

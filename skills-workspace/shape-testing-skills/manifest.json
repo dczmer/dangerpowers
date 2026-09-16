@@ -1,0 +1,27 @@
+{
+  "skill": "shape-testing-skills",
+  "shape-test": {
+    "date": "2026-09-15",
+    "checksum": "sha256:8571fee3e4078144b51ed4f88ee4bbd62c56331a5bcd8106bcbe7396193a23a8",
+    "adopted": 7,
+    "no-failure": 1,
+    "unresolved": 0,
+    "voids": 0,
+    "campaign": "campaign-2026-09-14"
+  },
+  "trigger-test": {
+    "date": "2026-09-15",
+    "checksum": "sha256:035b6ab76d43cc4fd9bfb887b06f9b4734fc8ec78168de7ada8aae7dd4cbafde",
+    "score": 0.654,
+    "campaign": "campaign-2026-09-15"
+  },
+  "retrieval-test": {
+    "date": "2026-09-15",
+    "checksum": "sha256:c2b6f873f3e78590f56bf49f6c40383b806ba05853eeaafdd298ed3ecc3ad732",
+    "passes": 5,
+    "fails": 9,
+    "gaps": 0,
+    "voids": 3,
+    "campaign": "campaign-2026-09-15"
+  }
+}
