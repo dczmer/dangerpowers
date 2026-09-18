@@ -1,14 +1,18 @@
+> TODO: try to edit this down as much as possible...
+
 # "Bulletproofing" Skills
 
-> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and involved - and token-intensive. No, really, I burned my entire week's quota of tokens in a day of testing.
+> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and involved - and token-intensive.
+>
+> You would maybe want to use a third-party eval framework and not build it yourself, but I think it's important to know about why and how these failures happen.
 
 Have you ever used a skill written by someone else that just didn't work as advertised when you tried it? Or have you written a skill that produces inconsistent output or breaks the rules?
 
 In [part-2](../part-2/README.md), we used trigger tests to optimize skill descriptions, for improved accuracy when auto-invoking skills (or when we don't want the skill to fire). But, just like triggering a skill based on description, the rules in your skill body also need tuning and hardening to make them apply more consistently.
 
-But the rules and processes for testing and hardening skill bodies actually apply to ANY prompt that you would give an agent. Testing the skills really illustrates just how frequently agents avoid, rationalize, or modify the rules you make, and probably you don't even realize it. If you give a model a complex task, it more than likely is not sticking to every rule you give it. The more complicated the task or the bigger the diff, the less likely you are to notice if things are 100% compliant or not.
+But the rules and processes for testing and hardening skill bodies actually apply to ANY prompt that you would give an agent. Testing the skills really illustrates just how frequently agents avoid, rationalize, or modify the rules you make, and probably you don't even realize it. If you give a model a complex task, it very likely is not sticking to every rule you give it. The more complicated the task or the bigger the diff, the less likely you are to notice if things are 100% compliant or not.
 
-The term "bulletproofing" is a generic phrase meaning to harden something against failure. As far as I can tell, this "bulletproofing" system for hardening skills is something coined by superpowers (and in fact is present since the very first commit on their repo).
+The term "bulletproofing" is a generic phrase meaning to harden something against failure. As far as I can tell, this "bulletproofing" system for hardening skills is something coined by superpowers.
 
 From superpowers `writing-skills` skill:
 ```markdown
@@ -89,6 +93,43 @@ The agent has correctly loaded the skill, it wants to comply, there is no incent
 
 ### Retrieval Testing
 
+To construct a retrieval test, record a file of test queries, very much like we did with trigger testing, and map that query to three expected post-conditions:
+
+> EDITOR: reword the bullet list below to make them easier for a human to read. describe what the expected post-condition is.
+
+1. Retrieval — the fact exists; the answer requires that exact fact.
+2. Application — multi-step; the agent must combine the retrieved fact with the task (this catches "found it, used it wrong").
+3. Gap probes — take the top-N real use cases for the reference and task them. If the doc doesn't cover one, that's a doc gap finding, not an agent failure — log it as content to add.
+
+Given a fact like:
+
+> In case of a 429 response code, the Retry-After response header contains the amount of time you should wait before retrying the request.
+
+Each entry tests one documented fact:
+
+```json
+[
+  {
+    "id": "retry-after-header",
+    "query": "Given this upload function — `def upload(path, url): return requests.post(url, data=open(path, 'rb'))` — add retry handling for 429 responses and return the complete updated function inline.",
+    "expect": [
+      // retrieval: find and use the fact when it applies
+      "reads the Retry-After header rather than using a fixed backoff",
+      // application: use the value correctly
+      "interprets the value as seconds",
+      // gap: doesn't cover other 4xx codes
+      "does not retry on other 4xx codes"
+    ]
+  }
+]
+```
+
+- `id` — unique id for each rule
+- `query` — a realistic task for the agent to complete
+- `expect` — a scenario passes only if every expectation in the list is met by the returned answer.
+
+Run the evals, along with a no-skill control group, all at 5x reps per arm in a fresh subagent for each test. Instruct the agent to list the "sources" that were consulted while processing the request. Identify failure categories according to the following table:
+
 ```mermaid
 flowchart LR
     Q[Query/Fixture] --> C[Control]
@@ -103,37 +144,7 @@ flowchart LR
     EDIT --> Q
 ```
 
-To construct a retrieval test, record a file of test queries, very much like we did with trigger testing, and map that query to three expected post-conditions:
-
-1. Retrieval — the fact exists; the answer requires that exact fact.
-2. Application — multi-step; the agent must combine the retrieved fact with the task (this catches "found it, used it wrong").
-3. Gap probes — take the top-N real use cases for the reference and task them. If the doc doesn't cover one, that's a doc gap finding, not an agent failure — log it as content to add.
-
-Given a statement of contextual information like:
-
-> In case of a 429 response code, the Retry-After response header contains the amount of time you should wait before retrying the request.
-
-Each entry tests one documented fact:
-
-```json
-[
-  {
-    "id": "retry-after-header",
-    "query": "Given this upload function — `def upload(path, url): return requests.post(url, data=open(path, 'rb'))` — add retry handling for 429 responses and return the complete updated function inline.",
-    "expect": [
-      "reads the Retry-After header rather than using a fixed backoff",
-      "interprets the value as seconds",
-      "does not retry on other 4xx codes"
-    ]
-  }
-]
-```
-
-- `id` — stable fact identifier; never reuse ids across facts.
-- `query` — a realistic, task-shaped prompt that stands alone: never names the section or file holding the fact, never hints at the answer, never quotes rubric text.
-- `expect` — objective rubric bullets. A scenario passes only if every bullet is met by the returned answer.
-
-Run the evals, along with a no-skill control group, all at 5x reps per arm in a fresh subagent for each test. Instruct the agent to list the "sources" that were consulted while processing the request. Identify failure categories according to the following table:
+<br />
 
 | Observed failure	| Diagnosis	| Fix |
 |-|-|-
@@ -142,7 +153,7 @@ Run the evals, along with a no-skill control group, all at 5x reps per arm in a 
 | Agent read the right section, applied it wrong	| Clarity	| Rewrite that section; disambiguate look-alike facts; consistent terminology |
 | Agent answered correctly without the skill	| Redundancy	| Flag for ablation/retirement review |
 
-That last row is important. If the shaping failure doesn't manifest when the test is run without the skill, consider reviewing that rule for removal.
+That last row is important. If the shaping failure doesn't manifest when the test is run without the skill, consider reviewing that rule for removal. If it never seems to fail, remove it entirely.
 
 ### Example
 
@@ -152,11 +163,11 @@ Here is a simplified retrieval testing skill: [retrieval-testing-skills example]
 
 ### My Implementation
 
-The concept seems relatively simple, but this got complicated fast. This is very similar to the story for trigger-testing in part 2.5, and the remaining micro and pressure test sections will have largely the same issues.
+The concept seems relatively simple, but this got complicated fast. This is very similar to [the story for trigger-testing in part 2.5](../part-2/developing-a-better-harness.md), and the remaining micro and pressure test sections will have largely the same issues.
 
-You give the agent a hypothetical question, and prompt very carefully: "don't actually do anything, just give me your answer and reasoning." but the agent is compelled to dig for context and hunt for artifacts referenced in the query. this leads to 'void' runs that timeout, or reach the step-count limit, before producing a final answer or a signal that we can observe.
+Suppose you give the agent a hypothetical question, and prompt very carefully: "don't actually do anything, just give me your answer and reasoning." but the agent is compelled to dig for context and hunt for artifacts referenced in the query. this leads to 'void' runs that timeout, or reach the step-count limit, before producing a final answer or a signal that we can observe.
 
-First, I re-used the trigger-testing scripts for managing a temporary eval workspace, and for abstracting harness-specific CLI campaigns. Then, I replaced the hard-coded prompt we give to the subagent for a custom agent definition. The subagent prompt said tools were restricted, but the agent file actually restricts them.
+To stop all of the context mining, I replaced the hard-coded prompt we give to the subagent for a custom agent definition. The subagent prompt said tools were restricted, but the agent file actually restricts them.
 
 But the issue of void runs was prevalent on every test campaign I ran. The rules in the prompt/agent body were being subverted - the agent was still hunting for artifacts. The rules intended to prevent this behavior are contrary to how the AI is designed to operate - these are `DISCIPLINE` rules.
 
@@ -168,7 +179,7 @@ Note that the custom agent file started out as a copy+paste of the subagent prom
 
 ## Shaping Skills
 
-When AI produces artifacts, like html pages, react components, bash scripts, they tend to lean towards some specific shaping behavior like preferring self-contained, single-file solutions - html with inline styles, etc. The model's training data pulls it towards the most common shapes for the solution.
+When AI produces artifacts, like html pages, react components, bash scripts, they tend to lean towards some specific shaping behavior like preferring self-contained, single-file solutions - html with inline styles, for example. The model's training data pulls it towards the most common shapes for the solution.
 
 Other examples of shaping concerns include things like: file layout, section ordering, required elements, citation formatting, etc.
 
@@ -178,34 +189,11 @@ when the skill applies correctly, but the output doesn't match the expected stat
 
 you can't reliably predict how changes to wording will affect the results by reasoning alone - you have to measure.
 
-```mermaid
-flowchart LR
-    C[Control: full skill w/out rule] --> CF{Fail?}
-    CF -->|No| ABORT
-    CF -->|Yes| V[3x Variants]
-    V --> E[Evaluate]
-    E --> CON{Convergence?}
-    CON -->|Yes| RG{Restraint Gate}
-    RG -->|Yes| ADOPT
-    RG -->|No| ABORT
-    CON -->|No| Modify
-    Modify -->|Mini-Campaign, max 2x| C
-```
-
-Process:
-
-1. Always run a control group first: the full skill without the target rule.
-2. If the control doesn't fail, nothing to test.
-3. Test the three variants of proposed edits (see below).
-4. If convergence improves, pick the best version.
-5. If there is no convergence, rewrite the rule and repeat the process (max 2x iterations).
-6. If the rule was pattern-based "if X, do Y", finish with a restraint gate test (a counter-example where the rule should NOT apply) to avoid over-fitting.
-
-A good "shaping" test scenario will try to tempt the agent into making the mistake, like requiring that agent add and verify a hover style on the new element. you can't do that with inline styles. it has to either write the CSS (correct), or use a javascript hack (bad).
-
-Expectation:
+Example expectation:
 
 > Components use css modules, never use inline styles
+
+A good "shaping" test scenario will try to tempt the agent into making the mistake, like requiring that agent add and verify a hover style on the new element. you can't do that with inline styles. it has to either write the CSS (correct), or use a javascript hack (bad).
 
 Test query:
 
@@ -225,6 +213,29 @@ Temptation:
 > Adding a hover style not possible with inline styles, temptation to add inline javascript hack.
 
 Give this to a fresh agent, instructing it to return the completed code in a message and not to dig for context, and evaluate the output to see if it used CSS modules or javascript hacks.
+
+```mermaid
+flowchart LR
+    C[Control: full skill w/out rule] --> CF{Fail?}
+    CF -->|No| ABORT
+    CF -->|Yes| V[3x Variants]
+    V --> E[Evaluate]
+    E --> CON{Convergence?}
+    CON -->|Yes| RG{Restraint Gate}
+    RG -->|Yes| ADOPT
+    RG -->|No| ABORT
+    CON -->|No| Modify
+    Modify -->|Mini-Campaign, max 2x| V
+```
+
+Process:
+
+1. Always run a control group first: the full skill without the target rule.
+2. If the control doesn't fail, nothing to test.
+3. Test the three variants of proposed edits (see below).
+4. If convergence improves, pick the best version.
+5. If there is no convergence, rewrite the rule and repeat the process (max 2x iterations).
+6. If the rule was pattern-based "if X, do Y", finish with a restraint gate test (a counter-example where the rule should NOT apply) to avoid over-fitting.
 
 We address pressure failures by applying prohibitions - discipline rules to prevent the failure from happening again. But prohibitions backfire for shaping issues because telling the agent explicitly not to do something puts the idea in the context, where the ai can then rationalize using it as a solution. instead, we try variations on rule phrasing and provide positive examples of the target shape, or descriptions of the required form.
 
@@ -271,7 +282,7 @@ Similar to trigger and retrieval testing, I adapted this skill to use the worksp
 - [shape-testing-skills](../../../skills/shape-testing-skills/SKILL.md)
 - [shape-evaluator agent](../../../skills/shape-testing-skills/agents/shape-evaluator.opencode.md)
 
-Since this testing process can get token-intensive, I designed the test skills so you could drive the main session with a good, hosted model, and then delegate the actual evals to whichever model you want. I did a lot of testing with Kimi K3 (high) as the driver and a local qwen3.8 or gemma4 model to do the evals.
+Since this testing process can get token-intensive, I designed the test skills so you could drive the main session with a good, hosted model, and then delegate the actual evals to whichever model you want. I did a lot of testing with Kimi or Opus as the driver and a small local model (qwen/gemma4) to do the evals.
 
 These body testing processes are turning out to be quite complicated and require a lot from the agent executing the campaign. I'm starting to see where we might really need to develop a custom harness to make this process safer and easier to execute.
 
@@ -322,28 +333,7 @@ Do NOT pressure-test:
 If the skill contains no rule an agent could violate, pressure testing does not apply.
 ```
 
-```mermaid
-flowchart LR
-    CONTROL[Control] --> CF{Control Fails?}
-    CF -->|No| ABLATION[Abort/Ablation]
-    CF -->|Yes| SKILL[With Skill]
-    SKILL --> SP{Skill Passes?}
-    SP -->|Yes| ADOPT[Adopt/Abort]
-    SP -->|No| CAT[Categorize Failures]
-    CAT --> RW[Rewrite Rules]
-    RW -->|Max 3x| SKILL
-```
-
-Process:
-1. Present a fresh agent with a hypothetical situation, give them a multiple-choice question, record their answer along with _exact_ reasoning.
-2. When the skill is loaded into context, the agent should make the choice that aligns with the rules from the skill file.
-3. The scenarios contain at least 3 sources of "pressure" that can cause the AI to rationalize answers that do not conform to the rules in the skill.
-4. Use superpowers' "bulletproof" system to plug the loopholes.
-5. Repeat for every discipline rule in the skill.
-
-Pressure test rules one at a time, since they tend to have a cascading impact on the rest of the skill. Use 3-5 reps per eval and score results.
-
-Example pressure test scenario:
+Example pressure test scenario for a strict TDD skill:
 
 ```markdown
 IMPORTANT: This is a real scenario. Choose and act.
@@ -371,6 +361,25 @@ When executing pressure tests, we use a RED/GREEN TDD-style methodology. First, 
 | **REFACTOR** | New loophole found → add explicit counter → re-run | No new rationalizations; still compliant |
 
 If it succeeds without the skill, then you probably don't need the rule, and you definitely don't need to iterate on the discipline.
+
+```mermaid
+flowchart LR
+    CONTROL[Control] --> CF{Control Fails?}
+    CF -->|No| ABLATION[Abort/Ablation]
+    CF -->|Yes| SKILL[With Skill]
+    SKILL --> SP{Skill Passes?}
+    SP -->|Yes| ADOPT[Adopt/Abort]
+    SP -->|No| CAT[Categorize Failures]
+    CAT --> RW[Rewrite Rules]
+    RW -->|Max 3x| SKILL
+```
+
+Process:
+1. Present a fresh agent with a hypothetical situation, give them a multiple-choice question, record their answer along with _exact_ reasoning.
+2. When the skill is loaded into context, the agent should make the choice that aligns with the rules from the skill file.
+3. The scenarios contain at least 3 sources of "pressure" that can cause the AI to rationalize answers that do not conform to the rules in the skill.
+4. Use superpowers' "bulletproof" system to plug the loopholes.
+5. Repeat for every discipline rule in the skill.
 
 #### Bulletproofing a skill
 
@@ -480,24 +489,57 @@ Always load the full SKILL.md file into context before answering.
 **DO NOT** use `head`, `grep`, or targeted reads to avoid loading the entire file.
 ```
 
+#### Meta-Testing
+
+> TODO: When GREEN isn't working:
+
+> After agent chooses wrong option, ask:
+> 
+> your human partner: You read the skill and chose Option C anyway.
+> 
+> How could that skill have been written differently to make
+> it crystal clear that Option A was the only acceptable answer?
+> Three possible responses:
+> 
+> "The skill WAS clear, I chose to ignore it"
+> 
+> Not documentation problem
+> Need stronger foundational principle
+> Add "Violating letter is violating spirit"
+> "The skill should have said X"
+> 
+> Documentation problem
+> Add their suggestion verbatim
+> "I didn't see section Y"
+> 
+> Organization problem
+> Make key points more prominent
+> Add foundational principle early
+
 ### Example
 
 > TODO: link to hardened writing-skills
+>
 > TODO: link to example skill
 
 ### My Implementation
 
 > TODO
 
-## Meta-Testing
-
-> TODO
-
 ## Conclusion
+
+> TODO:
 
 > YOU MUST TEST YOUR SKILLS! THEY FAIL WAY MORE OFTEN THAN I EXPECTED, EVEN WITH FRONTIER MODELS!
 
-next part-4: thoughts, suggestions, third-party eval tools, quorum, always test skills, ablation and retirement
+- you must test skills; untested skills are unreliable; if you don't care about every rule in the skill, they shouldn't be there in the first place
+- time/token intensive
+- nice to have a useful local model for the actual evals
+- may want to look at higher-quality third-party implementations, this was an exercise in understanding the processes and rules, why they are needed
+
+## Next
+
+> TODO: next part-4: thoughts, suggestions, third-party eval tools, quorum, always test skills, ablation and retirement
 
 ## References
 
@@ -508,3 +550,4 @@ https://www.agensi.io/skills/prompt-stress-test-find-where-it-breaks
 https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md
 https://github.com/obra/superpowers/blob/main/skills/writing-skills/testing-skills-with-subagents.md
 https://research.trychroma.com/context-rot
+https://agentskills.io/skill-creation/evaluating-skills
