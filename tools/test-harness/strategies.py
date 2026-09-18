@@ -335,10 +335,12 @@ class EvalStrategy:
         model: str | None = None,
         effort: str | None = None,
         skill: str | None = None,
+        session: str | None = None,
     ) -> tuple[EventStream, bool]:
         """One headless eval run. Returns (parsed stream, timed_out).
         Timeout yields a partial stream, never an exception.
-        HarnessExecutionError = operational failure, never a verdict."""
+        HarnessExecutionError = operational failure, never a verdict.
+        session resumes an existing harness session (pressure-meta)."""
         cmd = [
             self.binary,
             "run",
@@ -351,6 +353,8 @@ class EvalStrategy:
             "--agent",
             agent,
         ]
+        if session is not None:
+            cmd += ["--session", session]
         if model is not None:
             cmd += ["--model", model]
         if effort is not None:
@@ -456,7 +460,7 @@ class OpencodeStrategy(EvalStrategy):
                             ev.attempted_load = True
                     elif name is not None and ev.other_skill is None:
                         ev.other_skill = name
-                elif tool in ("read", "grep", "glob"):
+                elif tool in ("read", "grep", "glob", "list"):
                     ev.tool_calls.append(
                         {
                             "tool": tool,

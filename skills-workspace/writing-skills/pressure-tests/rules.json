@@ -1,0 +1,183 @@
+{
+  "skill": "writing-skills",
+  "generated": "2026-09-18",
+  "rules": [
+    {
+      "id": "R-content-15",
+      "section": "Content",
+      "kind": "discipline",
+      "statement": "When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
+      "entries": ["forbidden-request-two-part"]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-content-01",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (directives-not-essays); wrong-shaped output is the shape-testing track"
+    },
+    {
+      "id": "R-content-02",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (length limit)"
+    },
+    {
+      "id": "R-content-03",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (instruction specificity is about output shape)"
+    },
+    {
+      "id": "R-content-04",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (no no-op statements)"
+    },
+    {
+      "id": "R-content-05",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: wording rule (explicit instructions, no passive phrasing) — output-shape guidance"
+    },
+    {
+      "id": "R-content-06",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: wording rule (no nuance/exemption clauses) — output-shape guidance"
+    },
+    {
+      "id": "R-content-07",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (defaults not menus)"
+    },
+    {
+      "id": "R-content-08",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: wording rule (one term per concept)"
+    },
+    {
+      "id": "R-content-09",
+      "section": "Content",
+      "kind": "reference",
+      "reason": "out of scope: documented fact (no time-sensitive information), no rule to violate"
+    },
+    {
+      "id": "R-content-10",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (must include a Gotchas section)"
+    },
+    {
+      "id": "R-content-11",
+      "section": "Content",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (must end with a checklist)"
+    },
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "out of scope: definitional statement (what a skill is), no compliance cost to rationalize"
+    },
+    {
+      "id": "R-when-to-create-01",
+      "section": "When to Create a Skill",
+      "kind": "technique",
+      "reason": "out of scope: how-to decision guidance; no competing incentive to violate it"
+    },
+    {
+      "id": "R-when-to-create-02",
+      "section": "When to Create a Skill",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (don't create for one-offs etc.)"
+    },
+    {
+      "id": "R-frontmatter-01",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "reason": "frontmatter-convention rule — never proposed as a pressure entry (no body anchor after frontmatter stripping)"
+    },
+    {
+      "id": "R-frontmatter-02",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "reason": "frontmatter-convention rule — never proposed as a pressure entry"
+    },
+    {
+      "id": "R-frontmatter-03",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "reason": "frontmatter-convention rule (description shape) — never proposed as a pressure entry"
+    },
+    {
+      "id": "R-structure-01",
+      "section": "Structure",
+      "kind": "shaping",
+      "reason": "out of scope: directory-structure rule (artifact form)"
+    },
+    {
+      "id": "R-structure-02",
+      "section": "Structure",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (references for bulk data)"
+    },
+    {
+      "id": "R-structure-03",
+      "section": "Structure",
+      "kind": "technique",
+      "reason": "out of scope: how-to guidance (scripts for deterministic processes); no competing incentive"
+    },
+    {
+      "id": "R-structure-04",
+      "section": "Structure",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (concise SKILL.md)"
+    },
+    {
+      "id": "R-structure-05",
+      "section": "Structure",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (one complete example)"
+    },
+    {
+      "id": "R-structure-06",
+      "section": "Structure",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form rule (mermaid for branching procedures, tables for reference data)"
+    },
+    {
+      "id": "R-structure-07",
+      "section": "Structure",
+      "kind": "technique",
+      "reason": "out of scope: how-to guidance (read fully before editing); no competing incentive"
+    },
+    {
+      "id": "R-structure-08",
+      "section": "Structure",
+      "kind": "technique",
+      "reason": "out of scope: how-to guidance (spell out implicit instructions for small models); no competing incentive"
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "out of scope: documented fact (description anti-pattern consequence), no rule to violate"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "out of scope: documented fact (references load-on-demand pitfall), no rule to violate"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "out of scope: artifact-form verification checklist"
+    }
+  ]
+}

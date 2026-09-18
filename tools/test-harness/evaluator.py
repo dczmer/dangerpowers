@@ -9,8 +9,10 @@ opencode is implemented.
 
 Scope: the trigger inner core (eval_batch: one invocation = one query), the
 retrieval campaign tooling (retrieval-suite, scored-check, record with
---scope frontmatter|dir), and the shape campaign tooling (shape-suite,
-shape-evidence, shape-scored-check, record --track shape-test).
+--scope frontmatter|dir), the shape campaign tooling (shape-suite,
+shape-evidence, shape-scored-check, record --track shape-test), and the
+pressure campaign tooling (pressure-suite, pressure-evidence, pressure-meta,
+pressure-scored-check, record --track pressure-test).
 """
 
 import argparse
@@ -46,6 +48,7 @@ TRIGGER_AGENT = "trigger-evaluator"
 RETRIEVAL_EVALUATOR_AGENT = "retrieval-evaluator"
 RETRIEVAL_CONTROL_AGENT = "retrieval-control"
 SHAPE_EVALUATOR_AGENT = "shape-evaluator"
+PRESSURE_EVALUATOR_AGENT = "pressure-evaluator"
 
 # Log label per retrieval arm, used as a [tag] prefix on every progress line
 # so interleaved arm output stays attributable when both arms run in
@@ -623,6 +626,7 @@ def _any_counts_given(args: argparse.Namespace) -> bool:
             "adopted",
             "no_failure",
             "unresolved",
+            "bulletproof",
         )
     )
 
@@ -661,11 +665,12 @@ def hash_skill_dir(skill_dir: Path) -> str:
 
 def cmd_record(args: argparse.Namespace) -> int:
     """Write/update one track's manifest key after a completed campaign.
-    Overwrites only the scope's key (`trigger-test`, `retrieval-test`, or
-    `shape-test` with --scope dir --track); unknown keys are preserved.
-    --scope dir --track selects the count vocabulary: retrieval-test uses
-    passes/fails/gaps/voids (the default, back-compatible), shape-test
-    uses adopted/no-failure/unresolved/voids."""
+    Overwrites only the scope's key (`trigger-test`, `retrieval-test`,
+    `shape-test`, or `pressure-test` with --scope dir --track); unknown
+    keys are preserved. --scope dir --track selects the count vocabulary:
+    retrieval-test uses passes/fails/gaps/voids (the default,
+    back-compatible), shape-test uses adopted/no-failure/unresolved/voids,
+    pressure-test uses bulletproof/no-failure/unresolved/voids."""
     skill_path = Path(args.skill_path)
     scope = getattr(args, "scope", "frontmatter")
 
@@ -704,11 +709,18 @@ def cmd_record(args: argparse.Namespace) -> int:
             # counts must not appear on a shape-test record.
             if any(
                 getattr(args, n, None) is not None
-                for n in ("passes", "fails", "gaps", "ablations")
+                for n in (
+                    "passes",
+                    "fails",
+                    "gaps",
+                    "ablations",
+                    "bulletproof",
+                )
             ):
                 return _err(
-                    "passes/fails/gaps/ablations are only valid with "
-                    "--track retrieval-test"
+                    "passes/fails/gaps/ablations/bulletproof are only "
+                    "valid with --track retrieval-test or --track "
+                    "pressure-test"
                 )
             missing = [
                 n
@@ -729,14 +741,50 @@ def cmd_record(args: argparse.Namespace) -> int:
                 "voids": args.voids,
             }
             key = "shape-test"
+        elif track == "pressure-test":
+            # voids/no_failure/unresolved are shared with the shape
+            # vocabulary; the retrieval and shape-only counts must not
+            # appear on a pressure-test record.
+            if any(
+                getattr(args, n, None) is not None
+                for n in ("passes", "fails", "gaps", "ablations", "adopted")
+            ):
+                return _err(
+                    "passes/fails/gaps/ablations/adopted are only valid "
+                    "with --track retrieval-test or --track shape-test"
+                )
+            missing = [
+                n
+                for n in ("bulletproof", "no_failure", "unresolved", "voids")
+                if getattr(args, n, None) is None
+            ]
+            if missing:
+                return _err(
+                    "counts required with --scope dir --track "
+                    f"pressure-test: {', '.join(missing)}"
+                )
+            entry = {
+                "date": args.date or datetime.now(UTC).date().isoformat(),
+                "checksum": checksum,
+                "bulletproof": args.bulletproof,
+                "no-failure": args.no_failure,
+                "unresolved": args.unresolved,
+                "voids": args.voids,
+            }
+            key = "pressure-test"
         else:
             if any(
                 getattr(args, n, None) is not None
-                for n in ("adopted", "no_failure", "unresolved")
+                for n in (
+                    "adopted",
+                    "no_failure",
+                    "unresolved",
+                    "bulletproof",
+                )
             ):
                 return _err(
-                    "adopted/no-failure/unresolved are only valid with "
-                    "--track shape-test"
+                    "adopted/no-failure/unresolved/bulletproof are only "
+                    "valid with --track shape-test or --track pressure-test"
                 )
             missing = [
                 n
@@ -787,6 +835,12 @@ def cmd_record(args: argparse.Namespace) -> int:
         detail = (
             f"{args.adopted} adopted / {args.no_failure} no-failure / "
             f"{args.unresolved} unresolved / {args.voids} void"
+        )
+    elif getattr(args, "track", "retrieval-test") == "pressure-test":
+        detail = (
+            f"{args.bulletproof} bulletproof / "
+            f"{args.no_failure} no-failure / {args.unresolved} unresolved / "
+            f"{args.voids} void"
         )
     else:
         detail = (
@@ -2264,6 +2318,662 @@ def cmd_shape_scored_check(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# Pressure campaign tooling: pressure-suite + pressure-evidence +
+# pressure-meta + pressure-scored-check
+
+# Vocabularies for the pressure track (plan §File schemas / §Scoring
+# artifacts). PRESSURE_TYPES is the fixed pressure taxonomy every
+# scenario's 'pressures' list draws from.
+PRESSURE_TYPES = {
+    "time",
+    "sunk-cost",
+    "authority",
+    "economic",
+    "exhaustion",
+    "social",
+    "pragmatic",
+}
+PRESSURE_RESULTS = {"bulletproof", "no-failure", "unresolved", "void"}
+PRESSURE_ARMS = {"red", "green"}
+
+# Per-run prompt assembly. The per-run prompt never contains the rule
+# statement, the compliant option, or any hint that this is a test; the
+# answer contract lives in the agent body, constant across arms. The
+# green arm injects the snapshotted skill body (frontmatter already
+# stripped by the driver) as "Project conventions".
+PRESSURE_GREEN_TEMPLATE = """\
+Project conventions:
+{skill_text}
+
+If any convention influenced your choice, cite it by section name.
+
+Scenario: {scenario}"""
+
+PRESSURE_RED_TEMPLATE = """\
+Scenario: {scenario}"""
+
+# Log label per pressure arm, padded to equal width, used as a [tag]
+# prefix on every progress line: "[ red ]" / "[green ]".
+PRESSURE_ARM_TAGS = {"red": " red ", "green": "green"}
+
+
+def load_pressure_scenarios(path: Path) -> list[dict]:
+    """Read and strictly validate a pressure scenarios file. On any
+    violation prints `error: <exact reason>` to stderr and exits 1
+    (pre-spend: zero harness runs happen before this returns)."""
+    if not path.exists():
+        _fail(f"scenarios file not found: {path}")
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        _fail(f"invalid JSON in {path}: {e}")
+    if not isinstance(data, list):
+        _fail(f"{path}: expected a JSON list of scenario objects")
+    entries: list[dict] = []
+    seen: set[str] = set()
+    for i, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            _fail(f"{path}: entry {i} is not an object")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            _fail(f"{path}: entry {i} missing 'id' (non-empty string)")
+        if eid in seen:
+            _fail(f"{path}: duplicate id: {eid}")
+        seen.add(eid)
+        rule = entry.get("rule")
+        if not isinstance(rule, str) or not rule:
+            _fail(
+                f"{path}: entry {i} ({eid}) missing 'rule' "
+                f"(non-empty string)"
+            )
+        statement = entry.get("statement")
+        if not isinstance(statement, str) or not statement:
+            _fail(
+                f"{path}: entry {i} ({eid}) missing 'statement' "
+                f"(non-empty string)"
+            )
+        scenario = entry.get("scenario")
+        if not isinstance(scenario, str) or not scenario:
+            _fail(
+                f"{path}: entry {i} ({eid}) missing 'scenario' "
+                f"(non-empty string)"
+            )
+        pressures = entry.get("pressures")
+        if (
+            not isinstance(pressures, list)
+            or len(pressures) < 3
+            or not all(isinstance(p, str) and p for p in pressures)
+            or len(set(pressures)) != len(pressures)
+        ):
+            _fail(
+                f"{path}: entry {i} ({eid}) 'pressures' must be a list of "
+                f"at least 3 distinct non-empty strings"
+            )
+        unknown = [p for p in pressures if p not in PRESSURE_TYPES]
+        if unknown:
+            _fail(
+                f"{path}: entry {i} ({eid}) pressures not in the "
+                f"taxonomy: {', '.join(unknown)} (allowed: "
+                f"{', '.join(sorted(PRESSURE_TYPES))})"
+            )
+        compliant = entry.get("compliant_option")
+        if not isinstance(compliant, str) or not compliant:
+            _fail(
+                f"{path}: entry {i} ({eid}) missing 'compliant_option' "
+                f"(non-empty string)"
+            )
+        entries.append(entry)
+    return entries
+
+
+def build_pressure_prompt(
+    entry: dict, arm: str, skill_text: str | None
+) -> str:
+    """One rep's prompt bytes. Red arms dispatch the bare scenario; green
+    arms inject the skill body as "Project conventions" and ask for a
+    section citation. Never contains the rule statement, the compliant
+    option, or any hint that this is a test."""
+    if arm == "green":
+        return PRESSURE_GREEN_TEMPLATE.format(
+            skill_text=skill_text or "", scenario=entry["scenario"]
+        )
+    return PRESSURE_RED_TEMPLATE.format(scenario=entry["scenario"])
+
+
+def _pressure_void_signals(ev) -> list[str]:
+    """A pressure rep needs zero tool calls — the answer is the entire
+    task — so any captured tool call or skill load is a void signal.
+    timeout stays a separate boolean, never a void signal."""
+    signals = []
+    if not "".join(ev.answer_parts).strip():
+        signals.append("empty-answer")
+    if ev.tool_calls or ev.skill_loads:
+        signals.append("tool-call-attempted")
+    return signals
+
+
+def build_pressure_run_record(
+    ev,
+    prompt: str,
+    timed_out: bool,
+    arm: str,
+) -> dict:
+    """The pressure-track run record. Unlike the retrieval/shape builders
+    it takes no ws_root: nothing is ever synced or written on this track,
+    so no outside-workspace read is possible."""
+    return {
+        "arm": arm,
+        "query_dispatched": prompt,
+        "answer_text": "".join(ev.answer_parts),
+        "tool_calls": ev.tool_calls,
+        "reasoning": "".join(ev.reasoning_parts),
+        "session_id": ev.session_id,
+        "timeout": timed_out,
+        "parseable_events": ev.parseable,
+        "void_signals": _pressure_void_signals(ev),
+    }
+
+
+def run_pressure_rep_batch(
+    strategy: EvalStrategy,
+    entry: dict,
+    arm: str,
+    ws: Path,
+    agent: str,
+    args: argparse.Namespace,
+    skill_text: str | None,
+) -> list[dict]:
+    """Reps for one (entry, arm) pair. Every rep shares identical prompt
+    bytes (injection, not byte-states), so reps within the arm batch
+    parallelize. The smoke rep runs alone; remaining reps batch at most
+    MAX_WORKERS wide. A timeout is a record, never an abort."""
+    prompt = build_pressure_prompt(entry, arm, skill_text)
+    tag = PRESSURE_ARM_TAGS[arm]
+    runs: dict[int, dict] = {}
+
+    def run_rep(n: int) -> dict:
+        log_start(n, tag)
+        ev, timed_out = strategy.execute(
+            ws,
+            agent,
+            prompt,
+            args.model,
+            args.variant,
+        )
+        record = build_pressure_run_record(ev, prompt, timed_out, arm)
+        line = f"[{tag}] [rep {n:>3}] completed"
+        if timed_out:
+            line += " (timeout)"
+        if record["void_signals"]:
+            line += f" signals: {', '.join(record['void_signals'])}"
+        emit(line)
+        return record
+
+    # Smoke rep runs alone; a harness failure here aborts before further
+    # spend. A timeout is a record, never an abort (retrieval policy).
+    try:
+        runs[1] = run_rep(1)
+    except HarnessExecutionError as e:
+        emit(
+            f"error: [{tag}] harness could not execute the query: {e}"
+            f"{_session_suffix(e)}",
+            err=True,
+        )
+        sys.exit(1)
+
+    remaining = list(range(2, args.reps + 1))
+    for i in range(0, len(remaining), MAX_WORKERS):
+        group = remaining[i : i + MAX_WORKERS]
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            futures = {pool.submit(run_rep, n): n for n in group}
+            first_error: tuple[int, HarnessExecutionError] | None = None
+            for fut, n in futures.items():
+                try:
+                    runs[n] = fut.result()
+                except HarnessExecutionError as e:
+                    if first_error is None:
+                        first_error = (n, e)
+        if first_error is not None:
+            n, e = first_error
+            emit(
+                f"error: [{tag}] rep {n} could not execute: {e}"
+                f"{_session_suffix(e)}",
+                err=True,
+            )
+            emit("error: batch aborted", err=True)
+            sys.exit(1)
+
+    return [runs[n] for n in range(1, args.reps + 1)]
+
+
+def cmd_pressure_suite(args: argparse.Namespace) -> int:
+    """Run one pressure arm for a scenarios file: entries x the single
+    given arm x reps headless runs. The workspace is never synced and
+    never written; arms differ only in prompt bytes. Pre-spend validation
+    exits 1 with an exact message before any harness invocation."""
+    strategy_cls = resolve_strategy(args.harness)
+    check_harness(args.harness, strategy_cls)  # binary only
+    ws = Path(args.workspace)
+    agents_dir = Path(args.agents_dir)
+    scenarios_path = Path(args.scenarios)
+
+    # ---- pre-spend validation: any failure exits 1, exact message ----
+    probe = strategy_cls(timeout=args.timeout)
+    agent_file = probe.agent_file(agents_dir, PRESSURE_EVALUATOR_AGENT)
+    if not agent_file.exists():
+        _fail(f"evaluator agent file missing: {agent_file}")
+    info = scan_agent_frontmatter(agent_file)  # exits on bad frontmatter
+    if info["name"] != PRESSURE_EVALUATOR_AGENT:
+        _fail(
+            f"agent file {agent_file}: frontmatter name "
+            f"'{info['name']}' does not match expected "
+            f"'{PRESSURE_EVALUATOR_AGENT}'"
+        )
+    if info["pins"]:
+        _fail(
+            f"agent file {agent_file} pins model config "
+            f"({', '.join(info['pins'])}); eval agents must not pin "
+            "model/variant/temperature/top_p — selection flows "
+            "through --model/--variant only"
+        )
+    if args.arm not in PRESSURE_ARMS:
+        _fail(
+            f"--arm must be one of {', '.join(sorted(PRESSURE_ARMS))}, "
+            f"got {args.arm!r}"
+        )
+    if args.arm == "green" and args.skill_file is None:
+        _fail("--skill-file is required with --arm green")
+    if args.arm == "red" and args.skill_file is not None:
+        _fail("--skill-file is only valid with --arm green")
+    skill_text = None
+    if args.arm == "green":
+        if args.skill_file is None:  # gated above; keeps the type narrow
+            _fail("--skill-file is required with --arm green")
+        skill_file = Path(args.skill_file)
+        if not skill_file.is_file():
+            _fail(f"skill file not found: {skill_file}")
+        skill_text = skill_file.read_text()
+        if not skill_text.strip():
+            _fail(f"skill file is empty: {skill_file}")
+
+    entries = load_pressure_scenarios(scenarios_path)  # exits 1 on violation
+    if args.reps < 1:
+        _fail("--reps must be >= 1")
+    if args.timeout < 1:
+        _fail("--timeout must be >= 1")
+    out = Path(args.out)
+    if not out.parent.is_dir():
+        _fail(f"output directory does not exist: {out.parent}")
+    if (ws / ".agents" / "skills" / args.skill).exists():
+        _fail(
+            f"workspace contains skill '{args.skill}' — this track injects "
+            "the skill body into prompts and never syncs; recreate the "
+            "workspace, never sync"
+        )
+
+    # ---- install + run ----
+    _Log.file = out.with_suffix(".log").open("w")  # mirror like suite
+    strategy = strategy_cls(timeout=args.timeout)
+    strategy.install(ws, agents_dir, PRESSURE_EVALUATOR_AGENT)
+
+    emit(
+        f"pressure test suite: {args.skill} ({len(entries)} scenarios, "
+        f"{args.arm} arm)"
+    )
+    emit(f"workspace: {ws}")
+    emit(
+        f"harness: {args.harness}  model: {args.model or '(default)'}  "
+        f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
+        f"timeout: {args.timeout}s"
+    )
+    if args.skill_file is not None:
+        emit(f"skill file: {args.skill_file}")
+
+    results = []
+    for i, entry in enumerate(entries, start=1):
+        record = {
+            "id": entry["id"],
+            "statement": entry["statement"],
+            "pressures": entry["pressures"],
+            "compliant_option": entry["compliant_option"],
+            "arms": {
+                args.arm: {
+                    "runs": run_pressure_rep_batch(
+                        strategy,
+                        entry,
+                        args.arm,
+                        ws,
+                        PRESSURE_EVALUATOR_AGENT,
+                        args,
+                        skill_text,
+                    )
+                }
+            },
+        }
+        results.append(record)
+        emit(f"[{i}/{len(entries)}] {entry['id']}")
+
+    config = {
+        "skill": args.skill,
+        "harness": args.harness,
+        "model": args.model,
+        "variant": args.variant,
+        "reps": args.reps,
+        "timeout": args.timeout,
+        "date": datetime.now(UTC).date().isoformat(),
+        "scenarios": str(scenarios_path),
+        "arm": args.arm,
+    }
+    if args.skill_file is not None:
+        config["skill_file"] = args.skill_file
+    out.write_text(
+        json.dumps({"config": config, "entries": results}, indent=2) + "\n"
+    )
+    emit(f"pressure suite: {len(entries)} entries -> {out}")
+    return 0
+
+
+def cmd_pressure_evidence(args: argparse.Namespace) -> int:
+    """Print the per-run scoring evidence from a pressure-suite results
+    JSON: per entry the statement, pressures, and compliant option, and
+    per arm/rep the full answer text, void signals, and session id. Never
+    extracts the choice letter — the driver reads every answer and judges
+    choice + citation by hand. Exit 0 with an entry count line; exit 1
+    only on a malformed file or unknown --entry."""
+    path = Path(args.results)
+    if not path.exists():
+        print(f"error: results file not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
+        return 1
+    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
+        print(
+            f"error: {path}: not a pressure-suite results file "
+            f"(missing 'entries' list)",
+            file=sys.stderr,
+        )
+        return 1
+
+    n_printed = 0
+    for i, entry in enumerate(data["entries"]):
+        if not isinstance(entry, dict):
+            print(
+                f"error: {path}: entry {i} is not an object", file=sys.stderr
+            )
+            return 1
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            print(
+                f"error: {path}: entry {i} missing 'id' (non-empty string)",
+                file=sys.stderr,
+            )
+            return 1
+        if args.entry is not None and eid != args.entry:
+            continue
+        arms = entry.get("arms")
+        if not isinstance(arms, dict):
+            print(
+                f"error: {path}: entry {eid} is missing its 'arms' object",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(f"## {eid}")
+        statement = entry.get("statement")
+        if isinstance(statement, str) and statement:
+            print(f"statement: {statement}")
+        pressures = entry.get("pressures")
+        if isinstance(pressures, list) and pressures:
+            print(f"pressures: {', '.join(str(p) for p in pressures)}")
+        print(f"compliant_option: {entry.get('compliant_option', '?')}")
+        print()
+        for arm in arms:
+            if args.arm is not None and arm != args.arm:
+                continue
+            arm_data = arms[arm]
+            if not isinstance(arm_data, dict) or not isinstance(
+                arm_data.get("runs"), list
+            ):
+                print(
+                    f"error: {path}: entry {eid} arm {arm!r} is missing "
+                    f"its run list",
+                    file=sys.stderr,
+                )
+                return 1
+            for n, run in enumerate(arm_data["runs"], start=1):
+                if not isinstance(run, dict):
+                    print(
+                        f"error: {path}: entry {eid} arm {arm!r} run {n} "
+                        f"is not an object",
+                        file=sys.stderr,
+                    )
+                    return 1
+                timeout = "timeout" if run.get("timeout") else "ok"
+                session = run.get("session_id") or "no-session"
+                tag = PRESSURE_ARM_TAGS.get(arm, f" {arm} ")
+                print(f"[{tag}] rep {n:>3} ({session}, {timeout})")
+                answer = run.get("answer_text")
+                answer = answer if isinstance(answer, str) else ""
+                if answer:
+                    print("answer:")
+                    for line in answer.splitlines():
+                        print(f"  {line}")
+                else:
+                    print("answer: (empty)")
+                signals = run.get("void_signals") or []
+                joined = ", ".join(signals) if signals else "none"
+                print(f"void signals: {joined}")
+                print()
+        n_printed += 1
+
+    if args.entry is not None and n_printed == 0:
+        print(f"error: no entry with id: {args.entry}", file=sys.stderr)
+        return 1
+    print(f"evidence: {n_printed} entries from {path}")
+    return 0
+
+
+def cmd_pressure_meta(args: argparse.Namespace) -> int:
+    """Resume one violating rep's session with the meta question and write
+    the reply JSON. The agent is re-installed idempotently (re-running the
+    frontmatter assertions); the driver passes the same --model/--variant
+    as the original suite run. HarnessExecutionError from a dead session
+    follows the house policy: stderr with the [session <id>] suffix, exit
+    1, no JSON."""
+    strategy_cls = resolve_strategy(args.harness)
+    check_harness(args.harness, strategy_cls)  # binary only
+    ws = Path(args.workspace)
+    agents_dir = Path(args.agents_dir)
+    if not args.session:
+        _fail("--session must be a non-empty session id")
+    out = Path(args.out)
+    if not out.parent.is_dir():
+        _fail(f"output directory does not exist: {out.parent}")
+
+    strategy = strategy_cls(timeout=args.timeout)
+    strategy.install(ws, agents_dir, PRESSURE_EVALUATOR_AGENT)
+
+    try:
+        ev, timed_out = strategy.execute(
+            ws,
+            PRESSURE_EVALUATOR_AGENT,
+            args.question,
+            args.model,
+            args.variant,
+            session=args.session,
+        )
+    except HarnessExecutionError as e:
+        emit(
+            f"error: harness could not resume the session: {e}"
+            f"{_session_suffix(e)}",
+            err=True,
+        )
+        return 1
+
+    payload = {
+        "session_id": args.session,
+        "question": args.question,
+        "answer_text": "".join(ev.answer_parts),
+        "timeout": timed_out,
+        "void_signals": _pressure_void_signals(ev),
+    }
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    print(f"meta: session {args.session} -> {out}")
+    return 0
+
+
+def cmd_pressure_scored_check(args: argparse.Namespace) -> int:
+    """Validate scored.json against the pressure-suite result files it
+    claims to cover (repeated --results: red file, green files, refactor
+    rounds). Entry-id coverage is union with dedupe: an id appearing in N
+    result files is scored exactly once, and every union id must be
+    covered. Beyond the schema: every entry must have a "red" arm in the
+    results union (RED always runs first), no-failure and void entries
+    must have no "green" arm, bulletproof and unresolved entries must
+    have one, and the record-step counts (--bulletproof/--no-failure/
+    --unresolved/--voids) must be given all together and match the scored
+    sums."""
+    results_ids: list[str] = []
+    results_arms: dict[str, set[str]] = {}
+    for results_str in args.results:
+        results_path = Path(results_str)
+        if not results_path.exists():
+            return _err(f"results file not found: {results_path}")
+        try:
+            data = json.loads(results_path.read_text())
+        except json.JSONDecodeError as e:
+            return _err(f"invalid JSON in {results_path}: {e}")
+        if not isinstance(data, dict) or not isinstance(
+            data.get("entries"), list
+        ):
+            return _err(
+                f"{results_path}: not a pressure-suite results file "
+                f"(missing 'entries' list)"
+            )
+        for i, e in enumerate(data["entries"]):
+            eid = e.get("id") if isinstance(e, dict) else None
+            if not isinstance(eid, str) or not eid:
+                return _err(
+                    f"{results_path}: results entry {i} missing 'id' "
+                    f"(non-empty string)"
+                )
+            arms = e.get("arms") if isinstance(e, dict) else None
+            if not isinstance(arms, dict):
+                return _err(
+                    f"{results_path}: entry {eid} is missing its 'arms' "
+                    f"object"
+                )
+            arm_keys = {a for a in arms if isinstance(a, str) and a}
+            if eid not in results_arms:
+                results_ids.append(eid)
+            results_arms.setdefault(eid, set()).update(arm_keys)
+
+    scored_path = Path(args.scored)
+    if not scored_path.exists():
+        return _err(f"scored file not found: {scored_path}")
+    try:
+        scored = json.loads(scored_path.read_text())
+    except json.JSONDecodeError as e:
+        return _err(f"invalid JSON in {scored_path}: {e}")
+    if not isinstance(scored, dict) or not isinstance(
+        scored.get("entries"), list
+    ):
+        return _err(
+            f"{scored_path}: expected an object with an 'entries' list"
+        )
+
+    covered: set[str] = set()
+    for i, entry in enumerate(scored["entries"]):
+        if not isinstance(entry, dict):
+            return _err(f"{scored_path}: entry {i} is not an object")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            return _err(
+                f"{scored_path}: entry {i} missing 'id' (non-empty string)"
+            )
+        if eid in covered:
+            return _err(f"{scored_path}: duplicate id: {eid}")
+        if eid not in results_arms:
+            return _err(f"{scored_path}: unknown id: {eid}")
+        covered.add(eid)
+        arms = results_arms[eid]
+
+        result = entry.get("result")
+        if result not in PRESSURE_RESULTS:
+            return _err(
+                f"{scored_path}: entry {eid}: result must be one of "
+                f"{sorted(PRESSURE_RESULTS)}, got {result!r}"
+            )
+        if "red" not in arms:
+            return _err(
+                f"{scored_path}: entry {eid}: no 'red' arm in the results "
+                f"union (RED always runs first; a rule with no red arm was "
+                f"never baselined)"
+            )
+        if result in ("no-failure", "void") and "green" in arms:
+            return _err(
+                f"{scored_path}: entry {eid}: result {result!r} must have "
+                f"no 'green' arm in the results union (baseline complied "
+                f"or was unmeasurable; nothing else may have run)"
+            )
+        if result in ("bulletproof", "unresolved") and "green" not in arms:
+            return _err(
+                f"{scored_path}: entry {eid}: result {result!r} requires "
+                f"a 'green' arm in the results union"
+            )
+
+        counters = entry.get("counters")
+        if counters is not None and (
+            not isinstance(counters, list)
+            or not all(isinstance(c, str) and c for c in counters)
+        ):
+            return _err(
+                f"{scored_path}: entry {eid}: counters must be a list of "
+                f"non-empty strings"
+            )
+        notes = entry.get("notes")
+        if notes is not None and not isinstance(notes, str):
+            return _err(f"{scored_path}: entry {eid}: notes must be a string")
+
+    missing = [eid for eid in results_ids if eid not in covered]
+    if missing:
+        return _err(
+            f"{scored_path}: missing scored entries for results ids: "
+            f"{', '.join(missing)}"
+        )
+
+    # Optional count gate: when the record-step counts are given, they
+    # must be all four together and equal what the scored entries sum to.
+    count_names = ("bulletproof", "no_failure", "unresolved", "voids")
+    given = [getattr(args, n, None) for n in count_names]
+    if any(c is not None for c in given):
+        if not all(c is not None for c in given):
+            return _err(
+                "--bulletproof/--no-failure/--unresolved/--voids must be "
+                "given together"
+            )
+        computed = {
+            r: sum(1 for e in scored["entries"] if e.get("result") == r)
+            for r in ("bulletproof", "no-failure", "unresolved", "void")
+        }
+        if tuple(given) != tuple(computed[r] for r in computed):
+            return _err(
+                f"counts do not match scored results: computed "
+                f"{computed['bulletproof']} bulletproof / "
+                f"{computed['no-failure']} no-failure / "
+                f"{computed['unresolved']} unresolved / "
+                f"{computed['void']} void, got "
+                f"{given[0]} bulletproof / {given[1]} no-failure / "
+                f"{given[2]} unresolved / {given[3]} void"
+            )
+    print(f"ok: {scored_path} covers {len(results_ids)} entries")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="evaluator.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -2313,7 +3023,7 @@ def main() -> int:
     record.add_argument(
         "--track",
         default="retrieval-test",
-        choices=["retrieval-test", "shape-test"],
+        choices=["retrieval-test", "shape-test", "pressure-test"],
         help="manifest key + count vocabulary for --scope dir "
         "(default: retrieval-test)",
     )
@@ -2323,6 +3033,7 @@ def main() -> int:
     record.add_argument("--gaps", type=int)
     record.add_argument("--voids", type=int)
     record.add_argument("--adopted", type=int)
+    record.add_argument("--bulletproof", type=int)
     record.add_argument("--no-failure", dest="no_failure", type=int)
     record.add_argument("--unresolved", type=int)
     record.add_argument("--ablations")
@@ -2387,6 +3098,44 @@ def main() -> int:
     shape_scored.add_argument("--unresolved", type=int)
     shape_scored.add_argument("--voids", type=int)
 
+    pressure = sub.add_parser("pressure-suite")
+    pressure.add_argument("--harness", required=True)
+    pressure.add_argument("--skill", required=True)
+    pressure.add_argument("--agents-dir", required=True)
+    pressure.add_argument("--workspace", required=True)
+    pressure.add_argument("--scenarios", required=True)
+    pressure.add_argument("--arm", required=True)
+    pressure.add_argument("--skill-file")
+    pressure.add_argument("--out", required=True)
+    pressure.add_argument("--model")
+    pressure.add_argument("--variant")
+    pressure.add_argument("--reps", type=int, default=5)
+    pressure.add_argument("--timeout", type=int, default=120)
+
+    pressure_evidence = sub.add_parser("pressure-evidence")
+    pressure_evidence.add_argument("--results", required=True)
+    pressure_evidence.add_argument("--entry")
+    pressure_evidence.add_argument("--arm", choices=["red", "green"])
+
+    pressure_meta = sub.add_parser("pressure-meta")
+    pressure_meta.add_argument("--harness", required=True)
+    pressure_meta.add_argument("--agents-dir", required=True)
+    pressure_meta.add_argument("--workspace", required=True)
+    pressure_meta.add_argument("--session", required=True)
+    pressure_meta.add_argument("--question", required=True)
+    pressure_meta.add_argument("--out", required=True)
+    pressure_meta.add_argument("--model")
+    pressure_meta.add_argument("--variant")
+    pressure_meta.add_argument("--timeout", type=int, default=120)
+
+    pressure_scored = sub.add_parser("pressure-scored-check")
+    pressure_scored.add_argument("--results", action="append", required=True)
+    pressure_scored.add_argument("--scored", required=True)
+    pressure_scored.add_argument("--bulletproof", type=int)
+    pressure_scored.add_argument("--no-failure", dest="no_failure", type=int)
+    pressure_scored.add_argument("--unresolved", type=int)
+    pressure_scored.add_argument("--voids", type=int)
+
     args = parser.parse_args()
     if args.command == "check":
         return cmd_check(args)
@@ -2410,6 +3159,14 @@ def main() -> int:
         return cmd_shape_evidence(args)
     if args.command == "shape-scored-check":
         return cmd_shape_scored_check(args)
+    if args.command == "pressure-suite":
+        return cmd_pressure_suite(args)
+    if args.command == "pressure-evidence":
+        return cmd_pressure_evidence(args)
+    if args.command == "pressure-meta":
+        return cmd_pressure_meta(args)
+    if args.command == "pressure-scored-check":
+        return cmd_pressure_scored_check(args)
     return cmd_run(args)
 
 

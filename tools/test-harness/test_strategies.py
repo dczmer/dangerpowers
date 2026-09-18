@@ -245,6 +245,16 @@ class ParseStreamTests(unittest.TestCase):
         self.assertEqual(ev.report_loaded, SKILL)
         self.assertTrue(ev.report_no_match)
 
+    def test_list_tool_call_captured(self):
+        # The read-quartet allow-list must be fully observable: a "list"
+        # tool_use event lands in ev.tool_calls like read/grep/glob.
+        ev = self._parse(
+            tool_event(
+                "list", {"status": "completed", "input": {"path": "/ws"}}
+            ),
+        )
+        self.assertEqual(ev.tool_calls, [{"tool": "list", "target": "/ws"}])
+
     def test_denied_hook_removed_field_stays_empty(self):
         # opencode never emits denied-attempt events (dead code pruned in
         # Phase 11); the parse branch is gone, so even a hypothetical
@@ -319,6 +329,40 @@ class ExecuteTests(unittest.TestCase):
         e = self._execute(proc)
         self.assertIn("no parseable events", str(e))
         self.assertEqual(e.session_id, "")
+
+    def test_session_builds_resume_flag(self):
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=ndjson(text_event("a")), stderr=""
+        )
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ) as run_mock:
+            strategies.OpencodeStrategy(timeout=5).execute(
+                Path("/tmp/fake-workspace"),
+                "pressure-evaluator",
+                "why did you choose B?",
+                session="sess-42",
+            )
+        cmd = run_mock.call_args.args[0]
+        idx = cmd.index("--session")
+        self.assertEqual(cmd[idx + 1], "sess-42")
+        # The query stays the final positional argument.
+        self.assertEqual(cmd[-1], "why did you choose B?")
+
+    def test_no_session_omits_resume_flag(self):
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=ndjson(text_event("a")), stderr=""
+        )
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ) as run_mock:
+            strategies.OpencodeStrategy(timeout=5).execute(
+                Path("/tmp/fake-workspace"),
+                "trigger-evaluator",
+                "q",
+                skill=SKILL,
+            )
+        self.assertNotIn("--session", run_mock.call_args.args[0])
 
 
 class GrammarGateTests(unittest.TestCase):
