@@ -1,5 +1,3 @@
-> TODO: explain how technique and pattern rules map to shaping
-
 # "Bulletproofing" Skills
 
 > WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and token-intensive. Consider this an illustration and explanation of the process and not a tutorial.
