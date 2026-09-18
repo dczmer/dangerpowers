@@ -1,5 +1,26 @@
 # Docs Index
 
+> TODO: tldr; ai-native development is a new discipline, need to learn the fundamentals. what are the fundamentals?
+
+AI-native development is here. And it's so easy because it's "intelligent." You can just tell it to do something and it does it perfectly, every time, no mistakes. Unless you read the code carefully, or double check it's math, or pay attention to application design and architecture, or care about maintaining a program over time.
+
+I'm being a bit facetious, but AI has some pretty serious limitations, if you care about details. Some observations I've made, that seem to hold true across every model I've tested:
+
+- Bad at type-level programming
+- Bad at designing and using good data structures
+- Gradually duplicating and re-inventing things
+- Doesn't know when/where to put seams in your design
+- Prefers to add more code vs fixing or refactoring existing code
+- Writes extremely brittle tests and tightly coupled components
+- Over-comments code with superfluous details that make no sense outside of the current session
+- Silently rationalizes reasons to subvert the rules and processes you give to it
+
+That last one is pretty important. Not only are LLMs non-deterministic by nature, they also consider your rules and instructions as part of the message - the AI gets to interpret what they mean. Your rules are just suggestions.
+
+AI-native development introduces more problems than people seem to realize. Mistakes and bad design spiral out of control at a staggering pace and the only one who can fix it is the AI. But the bigger and more complicated your project gets, the more duplication and cruft that accrue over time. This leads to every subsequent task or refactoring to take exponentially longer and more expensive, as it needs to do more and more work to try to keep things consistent at the surface level.
+
+This tells me that AI is not ready to replace engineers (despite what Anthropic says). Instead, it means we need to learn an entirely new discipline - in addition to everything you already needed to learn to be an engineer. In other words, you need to earn an entirely new CS degree, and that starts by learning the fundamentals.
+
 ## Writing Skills Deep Dive
 
 Skills are the primary mechanism for extending a model's capabilities. But agents frequently break the rules - try running some evals, you might be surprised how unreliable it can be. This is especially important if you intend to deploy agents to production systems, it is critical that they work as consistently as possible. 

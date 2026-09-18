@@ -1,10 +1,10 @@
-> TODO: try to edit this down as much as possible...
+> TODO: explain how technique and pattern rules map to shaping
 
 # "Bulletproofing" Skills
 
-> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and involved - and token-intensive.
+> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and token-intensive. Consider this an illustration and explanation of the process and not a tutorial.
 >
-> You would maybe want to use a third-party eval framework and not build it yourself, but I think it's important to know about why and how these failures happen.
+> There is a lot of content in this document, but the most important part is to understand the concepts, even if you don't care to get into the details of the testing strategies or creating your own harness.
 
 Have you ever used a skill written by someone else that just didn't work as advertised when you tried it? Or have you written a skill that produces inconsistent output or breaks the rules?
 
@@ -49,14 +49,11 @@ Superpowers defines four types of skills/rules, and each type needs specific for
   * can they find the right info?
   * can they use what they found correctly?
   * are common use cases covered?
-
-For discipline failures, we use "pressure testing" as a method for measuring and improving the agent's adherence to the rules. With trigger-testing, we methodically adjust the wording of the description. With pressure testing, we modify the _body_ to emphasize the rules that we want to stand-out.
       
-"Technique" and "Pattern" dictate how the final product should be "shaped": React components use CSS modules, bash scripts should start with '/usr/bin/env' shebang, comments should be short and concise, etc. Things that you want to be invariant in the output, but are not guaranteed if you just leave it up to the AI.
-
-For "shaping" failures, we use micro-tests to validate variations in phrasing and how they affect the final shape of a test output. The skill was used, the discipline rules were followed, but the product violates the output criteria, so we construct small test scenarios and have the model produce a result that we can inspect for correctness. 
-
-Reference skills have no rule to violate, so there is nothing to pressure test. Run a few simple retrieval tasks, single pass, no iteration: can the agent find and correctly apply the documented fact? Failures are fixed by editing the doc directly (gaps, unclear sections), not by adding rules.
+We use 3 different types of test campaigns:
+1. **Pressure Test** discipline rules
+2. **Micro Test** shaping rules (I'm lumping parts of "Technique" and "Pattern" together)
+3. **Retrieval Test** reference facts
 
 ![bulletproofing](./images/bulletproof.png)
 
@@ -87,9 +84,9 @@ flowchart TD
 
 Since these are purely contextual facts, there are no rules or behavior to harden. Instead, we want to test that the agent can retrieve and apply that context consistently and accurately. Resolving failures involves editing the skill document. Typical issues in this category include filling gaps in the contextual details, clarifying sections or phrases, and adjusting the way information is organized.
 
-When there are gaps in the information, the agent will hallucinate an answer to fill in that gap. When sections are unclear - ambiguous semantics, look-alike flags, conflicting information or examples side-by-side - the agent retrieves the right section but applies it incorrectly. When information exists, but the agent can't find it, that implies an organization problem. Anthropic's best practices guide documents how this can happen: agents partially read deeply-nested files (`head -100` previews) and never see poorly signaled sections of information.
+When there are gaps in the information, the agent will hallucinate an answer to fill in that gap. When sections are unclear - ambiguous semantics, look-alike flags, conflicting information or examples side-by-side - the agent retrieves the right section but applies it incorrectly. When information exists, but the agent can't find it, that implies an organization problem. Anthropic's best practices guide documents one specific way this can happen: agents partially read deeply-nested files (`head -100` previews) and never see poorly signaled sections of information.
 
-The agent has correctly loaded the skill, it wants to comply, there is no incentive to bypass a fact. So we don't need pressure, we need to verify the information architecture so it actually delivers that information to the agent. I think of this like a microcosm of a problem I observe frequently while working on large, complex codebases: even though modern AI is really good at finding the context it needs, it can't always find ALL relevant information on its own. This leads to gradual duplication, inconsistency, and bifurcation of important architectural constructs.
+The agent has correctly loaded the skill, it wants to comply, there is no incentive to bypass a fact. So we don't need pressure, we need to verify the information architecture so it actually delivers that information to the agent. I think of this like a microcosm of a problem I observe frequently while working on a large, complex codebase: even though modern AI is really good at finding the context it needs, it can't always find ALL relevant information on its own. This leads to gradual duplication, inconsistency, and bifurcation of important architectural constructs.
 
 ### Retrieval Testing
 
@@ -178,6 +175,8 @@ Here is the [finished skill file](../../../skills/retrieval-testing-skills/SKILL
 Note that the custom agent file started out as a copy+paste of the subagent prompt in [the simplified skill implementation](./examples/skills/retrieval-testing-skills/SKILL.md) and the process of "pressure testing" transformed it into what you see in the final version. Pressure testing is more important than i realized.
 
 ## Shaping Skills
+      
+Shaping rules dictate how the final product should be "shaped": React components use CSS modules, bash scripts should start with '/usr/bin/env' shebang, comments should be short and concise, etc. Things that you want to be invariant in the output, but are not guaranteed if you just leave it up to the AI.
 
 When AI produces artifacts, like html pages, react components, bash scripts, they tend to lean towards some specific shaping behavior like preferring self-contained, single-file solutions - html with inline styles, for example. The model's training data pulls it towards the most common shapes for the solution.
 
@@ -193,8 +192,6 @@ Example expectation:
 
 > Components use css modules, never use inline styles
 
-A good "shaping" test scenario will try to tempt the agent into making the mistake, like requiring that agent add and verify a hover style on the new element. you can't do that with inline styles. it has to either write the CSS (correct), or use a javascript hack (bad).
-
 Test query:
 
 ```
@@ -208,10 +205,6 @@ Write a React component called `PriceTag` for our store UI.
 Respond with the complete file(s), each prefixed by its path.
 ```
 
-Temptation:
-
-> Adding a hover style not possible with inline styles, temptation to add inline javascript hack.
-
 Give this to a fresh agent, instructing it to return the completed code in a message and not to dig for context, and evaluate the output to see if it used CSS modules or javascript hacks.
 
 ```mermaid
@@ -221,9 +214,7 @@ flowchart LR
     CF -->|Yes| V[3x Variants]
     V --> E[Evaluate]
     E --> CON{Convergence?}
-    CON -->|Yes| RG{Restraint Gate}
-    RG -->|Yes| ADOPT
-    RG -->|No| ABORT
+    CON -->|Yes| ADOPT
     CON -->|No| Modify
     Modify -->|Mini-Campaign, max 2x| V
 ```
@@ -235,7 +226,6 @@ Process:
 3. Test the three variants of proposed edits (see below).
 4. If convergence improves, pick the best version.
 5. If there is no convergence, rewrite the rule and repeat the process (max 2x iterations).
-6. If the rule was pattern-based "if X, do Y", finish with a restraint gate test (a counter-example where the rule should NOT apply) to avoid over-fitting.
 
 We address pressure failures by applying prohibitions - discipline rules to prevent the failure from happening again. But prohibitions backfire for shaping issues because telling the agent explicitly not to do something puts the idea in the context, where the ai can then rationalize using it as a solution. instead, we try variations on rule phrasing and provide positive examples of the target shape, or descriptions of the required form.
 
@@ -247,10 +237,6 @@ Instead of just one variation plus a control group, we run three variations (plu
 | V1 prohibition | "Never use inline styles or `style` props." | Expected to backfire or displace the failure; included to demonstrate the effect. |
 | V2 recipe | "Every component ships as two files: `Name.tsx` and `Name.module.css`. All class names come from `import styles from './Name.module.css'`. Interactive states (hover, focus, active) are CSS pseudo-classes." | Positive contract: what the output IS, parts in order. |
 | V3 recipe + nuance | V2 + "…unless a style is truly one-off." | Expected to degrade V2 to noisy; demonstrates the nuance-clause effect. |
-
-> you can't negotiate away an incentive, only give it a sanctioned outlet
-
-V2 _should_ be the best fit, and the others should prove a few things about the test (discipline backfires, nuance leads to rationalization, control fails). Providing a "positive contract" - example or description of the correct shape - is the prescribed method for addressing shaping errors.
 
 Match the fix to the observed failure. The form that fixes one failure type backfires on another.
 
@@ -320,6 +306,7 @@ Examples of social & authority anchoring:
 ### Pressure Testing
 
 Taken directly from superpowers writing-skills:
+
 ```markdown
 Pressure-test skills that:
 - Enforce a discipline (a rule with compliance cost)
@@ -368,7 +355,7 @@ flowchart LR
     CF -->|No| ABLATION[Abort/Ablation]
     CF -->|Yes| SKILL[With Skill]
     SKILL --> SP{Skill Passes?}
-    SP -->|Yes| ADOPT[Adopt/Abort]
+    SP -->|Yes| ADOPT[Adopt]
     SP -->|No| CAT[Categorize Failures]
     CAT --> RW[Rewrite Rules]
     RW -->|Max 3x| SKILL
@@ -406,6 +393,7 @@ I believe this comes from Uncle Bob's TDD book: "You may not write production co
 In the case of agent skills, it's more of a strong suggestion that addresses a specific (observed) failure mode. For example, TDD is somewhat challenging to enforce in an agent - at least without using hooks and taking more manual control of the process. AI likes to skip the process and do everything in one go, or to ignore and rationalize the rules. Since the rules _are_ the process - a system even - you can easily end up with a mess when those rules aren't followed consistently.
 
 Here is superpowers' own "Iron Law" for writing skills:
+
 ```markdown
 NO SKILL WITHOUT A FAILING TEST FIRST
 This applies to NEW skills AND EDITS to existing skills.
@@ -423,8 +411,6 @@ Delete means delete
 ```
 
 It cements the rule with emphasis, in absolute terms, and closes the door for negotiation.
-
-Not every skill needs an Iron Law. It seems to be designed for when you observe an agent constantly breaking the core tenets of a discipline skill or process.
 
 ###### spirit-vs-letter
 
@@ -458,7 +444,7 @@ these give the agent a hard signal to abort and start over, following the correc
 
 ###### rationalization tables
 
-the iron law gets its own section because it is the most important operational rule that must always be followed. but _every_ rule you write is a potential place where the agent can rationalize a reason to break the rule. so write a table with common rationalizations, and explain why they are not valid reasons for breaking the rules.
+the iron law gets its own section because it is the most important operational rule that must always be followed. but _every_ rule you write is a potential place where the agent can rationalize a reason to break the rule. so write a table with common rationalizations you have observed, and explain why they are not valid reasons for breaking the rules.
 
 here is an example (again lifted directly from superpowers) for their own writing-skills skill:
 
@@ -489,37 +475,18 @@ Always load the full SKILL.md file into context before answering.
 **DO NOT** use `head`, `grep`, or targeted reads to avoid loading the entire file.
 ```
 
-#### Meta-Testing
-
-> TODO: When GREEN isn't working:
-
-> After agent chooses wrong option, ask:
-> 
-> your human partner: You read the skill and chose Option C anyway.
-> 
-> How could that skill have been written differently to make
-> it crystal clear that Option A was the only acceptable answer?
-> Three possible responses:
-> 
-> "The skill WAS clear, I chose to ignore it"
-> 
-> Not documentation problem
-> Need stronger foundational principle
-> Add "Violating letter is violating spirit"
-> "The skill should have said X"
-> 
-> Documentation problem
-> Add their suggestion verbatim
-> "I didn't see section Y"
-> 
-> Organization problem
-> Make key points more prominent
-> Add foundational principle early
-
 ### Example
 
-> TODO: link to hardened writing-skills
->
+Following the precedent of the previous test types, here is a simplified, illustrative skill that runs a pressure test against a single rule for a target skill:
+
+[pressure-testing-skills](./examples/skills/pressure-testing-skills/SKILL.md)
+
+It requires a verbatim rule to test from the skill file. I tested it like so:
+
+```
+@docs/writing-skills/part-3/examples/skills/pressure-testing-skills/SKILL.md run a pressure test against a rule from the writing-skills skill
+```
+
 > TODO: link to example skill
 
 ### My Implementation
