@@ -12,7 +12,7 @@ I've also been writing about the concepts I've learned and applied along the way
 
 When I first installed [superpowers](https://github.com/obra/superpowers), I was amazed by how consistently the skills fired, and how well they enforced the operational constraints without the AI rationalizing or working around the rules.
 
-(Read about "rationalization" and why agents break your rules [here](./docs/rationalization-and-non-determinism.md)).
+(Read about "rationalization" and why agents break your rules [here](./docs/writing-skills/part-1/rationalization-and-non-determinism.md)).
 
 Then I watched a presentation from `humanlayer`: [Advanced Context Engineering for Coding Agents](https://www.humanlayer.dev/blog/advanced-context-engineering). They describe a system that is designed specifically for large and complex codebases, which is where I've been having the most trouble producing results that are actually satisfying. This process involves researching and scouting the codebase and building a detailed spec, which takes out decision making at implementation time, that a human must review and approve. They champion the concepts of "human in the loop" and "don't outsource your thinking."
 

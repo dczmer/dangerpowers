@@ -11,7 +11,7 @@ How do you write an effective skill? How do you harden skills so the agents don'
 [part-1/README.md](./writing-skills/part-1/README.md) — **Writing Skills Deep Dive, Part 1**. Covers the basics of how skills work, crafting descriptions and triggers, keeping content concise, progressive disclosure via reference files, calibrating instruction specificity to task fragility, when to use scripts vs. goals vs. explicit steps, common issues (context bloat, hijacking, prompt injection), and established conventions.
 
 Supplementary:
-* [rationalization-and-non-determinism.md](./rationalization-and-non-determinism.md) — Notes on how LLMs and agentic coding assistants actually work: why inference is non-deterministic (sampling, floating-point math, batch-invariance), why large/conflicting context degrades performance and enables rationalization, how pressure causes agents to bypass rules, and ELI5 explanations of inference, harnesses, and agents.
+* [rationalization-and-non-determinism.md](./writing-skills/part-1/rationalization-and-non-determinism.md) — Notes on how LLMs and agentic coding assistants actually work: why inference is non-deterministic (sampling, floating-point math, batch-invariance), why large/conflicting context degrades performance and enables rationalization, how pressure causes agents to bypass rules, and ELI5 explanations of inference, harnesses, and agents.
 * [part-1/writing-skills.md](./writing-skills/part-1/writing-skills.md) — The simplified example `writing-skills` skill from Part 1.
 
 ### Part 2: Trigger Testing
