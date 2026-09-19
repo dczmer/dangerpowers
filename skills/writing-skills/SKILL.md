@@ -25,7 +25,8 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 ## Content
 
 - Written as directives, not essays.
-- Lean and short (`SKILL.md` should be <500 lines).
+- Lean and short: the whole skill — `SKILL.md` plus every file the body loads — must stay under 500 lines total. This is a hard limit, not a guideline.
+- Moving content into `references/` (or any companion file) to get under the limit is a violation, not a way to comply: any content a reader must open to use the skill counts toward the limit. No exceptions — a reviewer calling the file "dense, not bloated" does not raise the limit, and a release deadline does not suspend it.
 - Instruction specificity matches task fragility. Prescribe exact steps where the operation is irreversible, order-dependent, or has one correct form. State goals, constraints and end conditions everywhere else.
 - Does not contain no-op statements or commentary that is not relevant to the goals, constraints, or end conditions.
 - Use explicit instructions ("Always use X"), never passive phrasing ("X is recommended").
