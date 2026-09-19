@@ -19,7 +19,11 @@ A skill is a collection of facts, requirements, and operation rules for the agen
 
 The rest of this document is a deep-dive into how to test and improve skills by addressing each of these different types of rules with their own test campaigns, and a little commentary about building my own implementation.
 
+> **A note on cost:** every test campaign below is token-intensive, and each one warns about its specific cost profile where it appears. Also, campaigns can run off digging for context or making random changes — run on a clean git branch so you can reset if needed.
+
 ## Testing Skills and Rules Types
+
+> Every rule in a skill is a promise the agent hasn't agreed to keep; each kind of promise needs its own kind of test.
 
 Have you ever used a skill written by someone else that just didn't work as advertised? Or have you written a skill that produces inconsistent output or breaks the rules?
 
@@ -83,9 +87,11 @@ flowchart TD
 
 ## Reference Skills
 
+> When a fact exists but the agent can't find it or applies it wrong, that's an information-architecture bug, not a disobedience problem.
+
 Since these are purely contextual facts, there are no rules or behavior to harden. Instead, we want to test that the agent can retrieve and apply that context consistently and accurately. Resolving failures involves editing the skill document. Typical issues in this category include filling gaps in the contextual details, clarifying sections or phrases, and adjusting the way information is organized.
 
-When there are gaps in the information, the agent will hallucinate an answer to fill in that gap. When sections are unclear - ambiguous semantics, look-alike flags, conflicting information or examples side-by-side - the agent retrieves the right section but applies it incorrectly. When information exists, but the agent can't find it, that implies an organization problem. Anthropic's best practices guide documents one specific way this can happen: agents partially read deeply-nested files (`head -100` previews) and never see poorly signaled sections of information.
+When there are gaps in the information, the agent will hallucinate an answer to fill in that gap. When sections are unclear - ambiguous semantics, look-alike flags, conflicting information or examples side-by-side - the agent retrieves the right section but applies it incorrectly. When information exists, but the agent can't find it, that implies an organization problem.
 
 The agent has correctly loaded the skill, it wants to comply, there is no incentive to bypass a fact. So we don't need pressure, we need to verify the information architecture so it actually delivers that information to the agent. I think of this like a microcosm of a problem I observe frequently while working on a large, complex codebase: even though modern AI is really good at finding the context it needs, it can't always find ALL relevant information on its own. This leads to gradual duplication, inconsistency, and bifurcation of important architectural constructs.
 
@@ -96,6 +102,15 @@ To construct a retrieval test, record a file of test queries, very much like we 
 1. **Retrieval** — the agent must find the documented fact. The correct answer requires that exact fact, so a pass proves the fact was actually retrieved.
 2. **Application** — the agent must combine the retrieved fact with the task (multi-step). This catches "found it, used it wrong."
 3. **Gap probe** — the query exercises one of the top-N real use cases for the reference. If the doc doesn't cover it, that's a doc gap finding, not an agent failure — log it as content to add.
+
+Choosing a good gap probe takes some care:
+
+| | |
+|---|---|
+| **Bad** | "What HTTP status codes should trigger a retry?" |
+| **Good** | "Add retry handling for 429 responses to this upload function." |
+
+*Bad fails because it probes a gap the doc never claimed to fill — an unactionable noise finding. Good works because 429 retry handling is a top-N real use case for a Retry-After reference, so a miss is a genuine doc gap.*
 
 Given a fact like:
 
@@ -132,7 +147,7 @@ flowchart LR
     CF -->|No| ABLATION[Mark for ablation]
     CF -->|Yes| FAIL{Skill Fail?}
     SKILL --> FAIL
-    FAIL -->|No| ABORT[Abort/Adopt]
+    FAIL -->|No| ADOPT[Adopt]
     FAIL -->|Yes| EVAL[Evaluate]
     EVAL --> EDIT[Rewrite/Add Info]
     EDIT --> Q
@@ -149,13 +164,13 @@ Run the evals, along with a no-skill control group, all at 5x reps per arm in a 
 | Agent read the right section, applied it wrong	| Clarity	| Rewrite that section; disambiguate look-alike facts; consistent terminology |
 | Agent answered correctly without the skill	| Redundancy	| Flag for ablation/retirement review |
 
-That last row is important. If the shaping failure doesn't manifest when the test is run without the skill, consider reviewing that rule for removal. If it never seems to fail, remove it entirely.
+That last row is important. If the failure doesn't manifest when the test is run without the skill, consider reviewing that fact for removal. If it never seems to fail, remove it entirely.
 
 ### Example
 
 Here is a simplified retrieval testing skill: [retrieval-testing-skills example](./examples/skills/retrieval-testing-skills/SKILL.md). It uses subagents to run the evals but does not do any workspace isolation - other skills and rules files can potentially contaminate results.
 
-> WARNING: Running a test campaign can be token-intensive in the first phase, where it has to identify and classify all of the reference facts. It is also not unlikely to run off digging for context or making random changes - run on a clean git branch so you can reset if needed.
+> WARNING: Retrieval campaigns are heaviest in the first phase, where the skill has to identify and classify all of the reference facts.
 
 ### My Implementation
 
@@ -165,7 +180,7 @@ Suppose you give the agent a hypothetical question, and prompt very carefully: "
 
 To stop all of the context mining, I replaced the hard-coded prompt we give to the subagent for a custom agent definition. The subagent prompt said tools were restricted, but the agent file actually restricts them.
 
-But the issue of void runs was prevalent on every test campaign I ran. The rules in the prompt/agent body were being subverted - the agent was still hunting for artifacts. The rules intended to prevent this behavior are contrary to how the AI is designed to operate - these are `DISCIPLINE` rules.
+But the issue of void runs was prevalent on every test campaign I ran. The rules in the prompt/agent body were being subverted - the agent was still hunting for artifacts. Rules that forbid context-hunting fight the agent's default behavior, which makes them `DISCIPLINE` rules.
 
 I haven't covered pressure testing yet (see below) but I was able to apply the bulletproofing technique to the agent body prompt, adding things like "Iron Law", "Red Flags", and "Rationalization Tables", as well as emphasizing specific rules or phrases. After the first edits, my void rate went down from 10/17 to 3/17 on my test scenario. After a second round: 0/17 and I haven't seen a timeout since then.
 
@@ -174,7 +189,9 @@ Here is the [finished skill file](../../../skills/retrieval-testing-skills/SKILL
 Note that the custom agent file started out as a copy+paste of the subagent prompt in [the simplified skill implementation](./examples/skills/retrieval-testing-skills/SKILL.md) and the process of "pressure testing" transformed it into what you see in the final version. Pressure testing is more important than I realized.
 
 ## Shaping Skills
-      
+
+> You can't reason your way to the right phrasing — you measure it, with a control group first.
+
 Shaping rules dictate how the final product should be "shaped": React components use CSS modules, bash scripts should start with '/usr/bin/env' shebang, comments should be short and concise, etc. Things that you want to be invariant in the output, but are not guaranteed if you just leave it up to the AI.
 
 When AI produces artifacts, like html pages, react components, bash scripts, they tend to lean towards some specific shaping behavior like preferring self-contained, single-file solutions - html with inline styles, for example. The model's training data pulls it towards the most common shapes for the solution.
@@ -248,11 +265,24 @@ Match the fix to the observed failure. The form that fixes one failure type back
 | Reps disagree on the shape (noisy) | Change the form, not more words | Appending nuance clauses ("…unless it matters") |
 | Two variants tie on every metric | Adopt the shorter phrasing — skills reload constantly, prose length is a real cost | Merging the two |
 
+Failure migration is whack-a-mole: ban the token and the same instinct pops up somewhere else. From an actual V1 (prohibition) arm run — inline styles banned, so the agent invented this instead:
+
+```tsx
+const [hover, setHover] = useState(false);
+<span
+  onMouseEnter={() => setHover(true)}
+  onMouseLeave={() => setHover(false)}
+  className={hover ? "badge badge-dark" : "badge"}
+>
+```
+
+The prohibition suppressed the `style` prop, not the behavior. The V2 recipe arm closed the hole by stating what the output IS: interactive states are CSS pseudo-classes, full stop.
+
 ### Example
 
-> WARNING: Despite the word "micro" in the name, this is the most expensive test I have run yet. Even though we focus only on a single rule at a time, we need complex test scenarios and we need to run several reps against multiple variants on each iteration.
+> WARNING: Shape campaigns are the most expensive of the three — each iteration runs several reps against multiple variants, even though only one rule is tested at a time.
 
-Here is a simplified shape testing skill: [shape-testing-skills example](./examples/skills/shape-testing-skills/SKILL.md). It uses subagents to run the evals but does not do any workspace isolation - other skills and rules files can potentially contaminate agent reasoning and affect the results.
+Here is a simplified shape testing skill: [shape-testing-skills example](./examples/skills/shape-testing-skills/SKILL.md). It uses subagents to run the evals, with the same no-workspace-isolation caveat as the retrieval example above.
 
 This skill only tests a single rule (quoted from the skill file directly). For demonstration purposes, I just ask the agent to pick a rule and setup the campaign for me:
 
@@ -272,6 +302,8 @@ Since this testing process can get token-intensive, I designed the test skills s
 These body testing processes are turning out to be quite complicated and require a lot from the agent executing the campaign. I'm starting to see where we might really need to develop a custom harness to make this process safer and easier to execute.
 
 ## Discipline Skills
+
+> Agents cave to pressure the way people do; bulletproofing is pre-answering every excuse before it's invented.
 
 **This type of test is for hardening skills against [_rationalization_](../part-1/rationalization-and-non-determinism.md).**
 
@@ -351,7 +383,7 @@ If it succeeds without the skill, then you probably don't need the rule, and you
 ```mermaid
 flowchart LR
     CONTROL[Control] --> CF{Control Fails?}
-    CF -->|No| ABLATION[Abort/Ablation]
+    CF -->|No| ABORT[Abort/Ablation]
     CF -->|Yes| SKILL[With Skill]
     SKILL --> SP{Skill Passes?}
     SP -->|Yes| ADOPT[Adopt]
@@ -367,7 +399,7 @@ Process:
 4. Use superpowers' "bulletproof" system to plug the loopholes.
 5. Repeat for every discipline rule in the skill.
 
-#### Bulletproofing
+### Bulletproofing
 
 > We effectively "dilate" the attention mechanism so the rules stick out over the "noise" and we pre-answer questions the agent will likely have by taking away the bad choices.
 
@@ -385,7 +417,7 @@ Superpowers conventions used:
 
 Each of these conventions is a technique for improving agent adherence to discipline rules and, together, they form a system for writing "bulletproof" skills.
 
-###### iron law
+#### iron law
 
 Draw a line in the sand and mandate the most important operational rule. Whenever the agent rationalizes a reason to break that rule, make it clear that the rationalization was NOT a valid exception to the rule.
 
@@ -413,7 +445,7 @@ Delete means delete
 
 It cements the rule with emphasis, in absolute terms, and closes the door for negotiation.
 
-###### spirit-vs-letter
+#### spirit-vs-letter
 
 While rationalizing a reason to subvert a rule, a frequent reason given by the agent is that they are "following the spirit" of the rule, even if not following it "to the letter."
 
@@ -425,7 +457,7 @@ This process addresses the issue by placing a 'spirit-vs-letter' clause early in
 
 This is simply another rule, designed to stand out with bold emphasis, to make it more likely the agent will notice and avoid taking a shortcut.
 
-###### red flags
+#### red flags
 
 Red flags are signals that the agent is in the process of violating a rule (again, observed from real failures).
 
@@ -441,9 +473,16 @@ Red flags are signals that the agent is in the process of violating a rule (agai
 **All of these mean: Delete code. Start over with TDD.**
 ```
 
-These give the agent a hard signal to abort and start over, following the correct procedure.
+These give the agent a hard signal to abort and start over, following the correct procedure. The key moment is the pattern-match itself:
 
-###### rationalization tables
+| | |
+|---|---|
+| **Bad** | Agent thinks "I already manually tested it" — and keeps going. |
+| **Good** | Agent thinks "I already manually tested it," recognizes it verbatim from the Red Flags list, and stops: "That's a red flag — delete the code, start over with TDD." |
+
+*Bad fails because no self-check fires and the rationalization passes unnoticed. Good works because the verbatim match turns an abstract rule into a hard interrupt.*
+
+#### rationalization tables
 
 The iron law gets its own section because it is the most important operational rule that must always be followed. But _every_ rule you write is a potential place where the agent can rationalize a reason to break the rule. So write a table with common rationalizations you have observed, and explain why they are not valid reasons for breaking the rules.
 
@@ -466,7 +505,7 @@ All of these mean: Test before deploying. No exceptions.
 
 These are rebuttals for excuses actually observed in testing. Once again, we're taking away bad choices from the places where the agent needs to make a decision.
 
-###### close every loophole explicitly
+#### close every loophole explicitly
 
 > Don't just state the rule - forbid specific workarounds
 
@@ -477,7 +516,7 @@ Always load the full SKILL.md file into context before answering.
 **DO NOT** use `head`, `grep`, or targeted reads to avoid loading the entire file.
 ```
 
-###### a caveat from agentskills.io
+#### a caveat from agentskills.io
 
 One counterpoint worth noting: the [agentskills.io skill-evaluation guide](https://agentskills.io/skill-creation/evaluating-skills) suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
 
@@ -485,7 +524,7 @@ I don't buy the conflict. The "why" is already in there — it lives in the rati
 
 ### Example
 
-> Obligatory warning again: this can get expensive.
+> WARNING: Pressure campaigns are the cheapest of the three, but still multiply fast — one scenario per discipline rule, across both arms.
 
 Following the precedent of the previous test types, here is a simplified, illustrative skill that runs a pressure test against a single rule for a target skill:
 
@@ -506,6 +545,8 @@ I used the same workspace isolation techniques from the other test types, once a
 - [custom agent definition](../../../skills/pressure-testing-skills/agents/pressure-evaluator.opencode.md)
 
 ## Known Weaknesses and Omissions
+
+> A pass rate is only meaningful if the test suite itself is clean.
 
 While writing this document, I compared my version of the process against the [agentskills.io guide on evaluating skill output quality](https://agentskills.io/skill-creation/evaluating-skills), and it surfaced a list of things their guide does that mine doesn't. I'm recording them here partly as an honest accounting, and partly as a to-do list for the next iteration.
 
