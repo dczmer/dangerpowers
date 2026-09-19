@@ -1,0 +1,104 @@
+{
+  "skill": "reviewing-blog-posts",
+  "generated": "2026-09-19",
+  "rules": [
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Verify every claim using web search and other documents in the repository; a claim that matches the repository's documents can still be wrong — externally verifiable claims also need an external source; cite a source for each important claim and list every source in a References section",
+      "entries": ["external-check-required"]
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Only spelling and grammar fixes are applied without asking; this is the only audit category applied directly, everything else goes in the report",
+      "entries": ["report-dont-apply"]
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Repetition is acceptable only when the concept is important enough, relevant in each section, and worded differently enough; evaluate every occurrence of a repeated concept against all three criteria separately and flag any repetition failing one",
+      "entries": ["repetition-every-occurrence"]
+    },
+    {
+      "id": "R-workflow-09",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Flag any link not written as [label](url) — malformed link markup renders as raw text or a dead element in HTML",
+      "entries": ["malformed-links-flagged"]
+    },
+    {
+      "id": "R-workflow-10",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Flag any multi-line code block with lines longer than 80 characters; the 80-character limit applies to code blocks only, not to blockquotes or other preformatted elements",
+      "entries": ["codeblock-80-flagged"]
+    },
+    {
+      "id": "R-audit-report-04",
+      "section": "Audit report",
+      "kind": "discipline",
+      "statement": "Report how each > EDITOR: directive was resolved — a resolution the author can't see is indistinguishable from one that never happened",
+      "entries": ["editor-resolutions-reported"]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "pattern",
+      "reason": "Guiding principle (improve engagement without diluting technical content) with no discrete compliance anchor; shaping intent — shape-testing track"
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "How-to audit guidance (structure and ambiguity); no competing incentive"
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "How-to guidance (propose illustrations and analogies); no competing incentive"
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "Output form (Bad/Good/Why example blocks) — shape-testing track"
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "Output form (call-out quote per section) — shape-testing track"
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "Task duty (resolve > EDITOR: lines); the reporting duty is covered by R-audit-report-04"
+    },
+    {
+      "id": "R-audit-report-01",
+      "section": "Audit report",
+      "kind": "shaping",
+      "reason": "Output form (numbered sections with lettered items) — shape-testing track"
+    },
+    {
+      "id": "R-audit-report-02",
+      "section": "Audit report",
+      "kind": "shaping",
+      "reason": "Output form (example or concrete suggestion per proposed fix) — shape-testing track"
+    },
+    {
+      "id": "R-audit-report-03",
+      "section": "Audit report",
+      "kind": "shaping",
+      "reason": "Output form (reference locations by snippet, never line numbers) — shape-testing track"
+    }
+  ]
+}
