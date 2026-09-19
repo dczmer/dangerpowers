@@ -490,6 +490,16 @@ Always load the full SKILL.md file into context before answering.
 **DO NOT** use `head`, `grep`, or targeted reads to avoid loading the entire file.
 ```
 
+###### a caveat from agentskills.io
+
+> EDITOR: (Source: https://agentskills.io/skill-creation/evaluating-skills)
+
+One counterpoint worth noting: the agentskills.io skill-evaluation guide suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
+
+> EDITOR: this paragraph reads too much like ai
+
+I don't think these are actually in conflict. The rationale tables are where the "why" lives — each rationalization rebuttal is a reasoning-based instruction bolted onto a rigid rule. But it's a fair reminder that an Iron Law with no stated reason is just a brittle directive: if you can't articulate why the rule exists, an agent under pressure will happily invent a reason it doesn't apply.
+
 ### Example
 
 > Obligatory warning again: this can get expensive.
@@ -511,6 +521,24 @@ I used the same workspace isolation techinques from the other test types, once a
 
 - [pressure-testing-skills skill](../../../skills/pressure-testing-skills/SKILL.md)
 - [custom agent definition](../../../skills/pressure-testing-skills/agents/pressure-evaluator.opencode.md)
+
+## Known Weaknesses and Omissions
+
+While writing this document, I compared my version of the process against the [agentskills.io guide on evaluating skill output quality](https://agentskills.io/skill-creation/evaluating-skills), and it surfaced a list of things their guide does that mine doesn't. I'm recording them here partly as an honest accounting, and partly as a to-do list for the next iteration.
+
+**Cost/benefit quantification.** I warned that campaigns are token-intensive, but never measure what the testing buys. The guide records tokens and duration per run and does an explicit delta analysis — "a skill that triples token usage for a 2-point improvement might not be worth it."
+
+**Assertions as a first-class artifact.** The guide separates human-readable `expected_output` from machine-checkable `assertions` — which you often can't write until *after* the first run, since you don't know what "good" looks like until the skill has run. It also grades harder than I do: assertions can be too brittle or too vague, and a PASS requires quoted evidence, no benefit of the doubt.
+
+**Variance as a diagnostic signal.** High variance across runs means a flaky eval or ambiguous skill instructions — and the fix for the latter is examples and specificity, not more words. Noise is a signal about the skill, not just the test.
+
+**Pattern analysis of the test suite itself.** The guide applies ablation logic to the assertions as well as the rules. Have assertions that always pass in both arms? Remove them — they inflate the pass rate. Always fail in both arms? That's a broken test, not a broken skill. A pass rate is only meaningful if the suite itself is clean.
+
+**Blind comparison instead of the length heuristic.** When two variants tie, my rule is "adopt the shorter phrasing" — a proxy, not a measurement. The guide's answer is a blind LLM-judge comparison: show both outputs to a judge without revealing which version produced which.
+
+**A human review loop.** My campaigns are fully automated end to end. The guide keeps a `feedback.json` next to the evals — empty feedback means the eval passed. Automated grading catches the failures you anticipated; a human catches the ones you didn't.
+
+**Concrete eval workspace conventions.** The guide is more operational about where things live: an `evals/evals.json` schema, `iteration-N/` directories so you can diff campaigns, and a rule to read the full transcript of any eval that runs 3x slower than the others. Mine leave traces all over the workspace. I'm sloppy.
 
 ## Conclusion
 
