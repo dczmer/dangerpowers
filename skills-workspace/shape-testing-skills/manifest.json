@@ -9,12 +9,6 @@
     "voids": 0,
     "campaign": "campaign-2026-09-14"
   },
-  "trigger-test": {
-    "date": "2026-09-15",
-    "checksum": "sha256:035b6ab76d43cc4fd9bfb887b06f9b4734fc8ec78168de7ada8aae7dd4cbafde",
-    "score": 0.654,
-    "campaign": "campaign-2026-09-15"
-  },
   "retrieval-test": {
     "date": "2026-09-15",
     "checksum": "sha256:c2b6f873f3e78590f56bf49f6c40383b806ba05853eeaafdd298ed3ecc3ad732",
