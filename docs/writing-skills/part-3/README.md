@@ -6,11 +6,11 @@ Dissecting superpowers' "bulletproof" system to see how it works, and creating a
 
 > You need to test your skills! If you are doing long-horizon tasks or deploying agents to production systems, then you _really_ need to test your skills, and test them often.
 
-This document ended up being a bit longer than expected, but I think the concepts are very important. Not everyone cares about how to design the different test campaigns or developing their own test harness, but you should try to understand the different ways that skills fail, and how to address those failure modes. This helps with every prompt or message you write, not just authoring skills.
+This document ended up being a bit longer than expected, but I think the concepts are very important. Not everyone cares about how to design the different test campaigns or develop their own test harness, but you should try to understand the different ways that skills fail, and how to address those failure modes. This helps with every prompt or message you write, not just authoring skills.
 
-Testing skills is far more important that I would have guessed. LLMs are more prone to ignoring or modifying your instructions than I expected. If the rules and instructions you write in your skills are important, you need to test them. You don't have to use my testing system (it's kind of jank, honestly), but think of testing skills like unit testing production code.
+Testing skills is far more important than I would have guessed. LLMs are more prone to ignoring or modifying your instructions than I expected. If the rules and instructions you write in your skills are important, you need to test them. You don't have to use my testing system (it's kind of jank, honestly), but think of testing skills like unit testing production code.
 
-The odds that an agent will ignore any given rule increases along with the size and content of the context window. Long-horizon tasks and production agents are particularly risky, since breaking any given rule can have compounding effects on the direction of the agent over it's lifetime - like a rocket who's trajectory was slightly off at launch time.
+The odds that an agent will ignore any given rule increase along with the size and content of the context window. Long-horizon tasks and production agents are particularly risky, since breaking any given rule can have compounding effects on the direction of the agent over its lifetime - like a rocket whose trajectory was slightly off at launch time.
 
 A skill is a collection of facts, requirements, and operation rules for the agent to follow. Each one of those types of rules need their own testing process:
 - **Discipline**: Rules that tell the agent what it's allowed to do or not to do. These need apply even when the agent tries to rationalize reasons to subvert them.
@@ -43,26 +43,14 @@ Not bulletproof if the agent:
 - Asks permission while arguing strongly for the violation
 ```
 
-Superpowers defines four types of skills/rules, and each type needs specific forms of testing: 
+Superpowers defines four types of skills/rules, and each type needs specific forms of testing:
 
-> EDITOR: make the nested list below into a table `| type | description | tests |`
-
-- **Discipline** - rules with a "compliance" cost. if the agent rationalizes away these rules, bad things happen:
-  * do they understand the rules?
-  * do they comply under stress/pressure?
-- **Technique** - Instructions on how to accomplish a task or work with a resource:
-  * can they apply the technique correctly?
-  * do they handle edge cases?
-  * do instructions have gaps?
-- **Pattern** - rules about when a "pattern" should be applied:
-  * do they recognize when a pattern applies?
-  * can they use the right mental model to apply the pattern?
-  * do they know when NOT to apply the pattern?
-- **Reference** - pure contextual information, no rules to break:
-  * can they find the right info?
-  * can they use what they found correctly?
-  * are common use cases covered?
-      
+| Type | Description | Tests |
+|------|-------------|-------|
+| **Discipline** | Rules with a "compliance" cost. If the agent rationalizes away these rules, bad things happen. | Do they understand the rules? Do they comply under stress/pressure? |
+| **Technique** | Instructions on how to accomplish a task or work with a resource. | Can they apply the technique correctly? Do they handle edge cases? Do instructions have gaps? |
+| **Pattern** | Rules about when a "pattern" should be applied. | Do they recognize when a pattern applies? Can they use the right mental model to apply the pattern? Do they know when NOT to apply the pattern? |
+| **Reference** | Pure contextual information, no rules to break. | Can they find the right info? Can they use what they found correctly? Are common use cases covered? |
 We use 3 different types of test campaigns:
 1. **Pressure Test** discipline rules
 2. **Micro Test** shaping rules (I'm lumping parts of "Technique" and "Pattern" together)
@@ -105,11 +93,9 @@ The agent has correctly loaded the skill, it wants to comply, there is no incent
 
 To construct a retrieval test, record a file of test queries, very much like we did with trigger testing, and map each query to three expected post-conditions:
 
-> EDITOR: reword the bullet list below to make them easier for a human to read. describe what the expected post-condition is.
-
-1. Retrieval — the fact exists; the answer requires that exact fact.
-2. Application — multi-step; the agent must combine the retrieved fact with the task (this catches "found it, used it wrong").
-3. Gap probes — take the top-N real use cases for the reference and task them. If the doc doesn't cover one, that's a doc gap finding, not an agent failure — log it as content to add.
+1. **Retrieval** — the agent must find the documented fact. The correct answer requires that exact fact, so a pass proves the fact was actually retrieved.
+2. **Application** — the agent must combine the retrieved fact with the task (multi-step). This catches "found it, used it wrong."
+3. **Gap probe** — the query exercises one of the top-N real use cases for the reference. If the doc doesn't cover it, that's a doc gap finding, not an agent failure — log it as content to add.
 
 Given a fact like:
 
@@ -175,7 +161,7 @@ Here is a simplified retrieval testing skill: [retrieval-testing-skills example]
 
 The concept seems relatively simple, but this got complicated fast. This is very similar to [the story for trigger-testing in part 2.5](../part-2/developing-a-better-harness.md), and the remaining micro and pressure test sections will have largely the same issues.
 
-Suppose you give the agent a hypothetical question, and prompt very carefully: "don't actually do anything, just give me your answer and reasoning." but the agent is compelled to dig for context and hunt for artifacts referenced in the query. this leads to 'void' runs that timeout, or reach the step-count limit, before producing a final answer or a signal that we can observe.
+Suppose you give the agent a hypothetical question, and prompt very carefully: "don't actually do anything, just give me your answer and reasoning." But the agent is compelled to dig for context and hunt for artifacts referenced in the query. This leads to 'void' runs that timeout, or reach the step-count limit, before producing a final answer or a signal that we can observe.
 
 To stop all of the context mining, I replaced the hard-coded prompt we give to the subagent for a custom agent definition. The subagent prompt said tools were restricted, but the agent file actually restricts them.
 
@@ -185,7 +171,7 @@ I haven't covered pressure testing yet (see below) but I was able to apply the b
 
 Here is the [finished skill file](../../../skills/retrieval-testing-skills/SKILL.md), and the [custom agent file](../../../skills/retrieval-testing-skills/agents/retrieval-evaluator.opencode.md).
 
-Note that the custom agent file started out as a copy+paste of the subagent prompt in [the simplified skill implementation](./examples/skills/retrieval-testing-skills/SKILL.md) and the process of "pressure testing" transformed it into what you see in the final version. Pressure testing is more important than i realized.
+Note that the custom agent file started out as a copy+paste of the subagent prompt in [the simplified skill implementation](./examples/skills/retrieval-testing-skills/SKILL.md) and the process of "pressure testing" transformed it into what you see in the final version. Pressure testing is more important than I realized.
 
 ## Shaping Skills
       
@@ -195,11 +181,11 @@ When AI produces artifacts, like html pages, react components, bash scripts, the
 
 Other examples of shaping concerns include things like: file layout, section ordering, required elements, citation formatting, etc.
 
-when the skill applies correctly, but the output doesn't match the expected state, use micro tests to validate different variations of phrasing and their impact on the final product.
+When the skill applies correctly, but the output doesn't match the expected state, use micro tests to validate different variations of phrasing and their impact on the final product.
 
 ### Micro-Testing (Shape Testing)
 
-you can't reliably predict how changes to wording will affect the results by reasoning alone - you have to measure.
+You can't reliably predict how changes to wording will affect the results by reasoning alone - you have to measure.
 
 Example expectation:
 
@@ -240,7 +226,7 @@ Process:
 4. If convergence improves, pick the best version.
 5. If there is no convergence, rewrite the rule and repeat the process (max 2x iterations).
 
-We address pressure failures by applying prohibitions - discipline rules to prevent the failure from happening again. But prohibitions backfire for shaping issues because telling the agent explicitly not to do something puts the idea in the context, where the ai can then rationalize using it as a solution. instead, we try variations on rule phrasing and provide positive examples of the target shape, or descriptions of the required form.
+We address pressure failures by applying prohibitions - discipline rules to prevent the failure from happening again. But prohibitions backfire for shaping issues because telling the agent explicitly not to do something puts the idea in the context, where the AI can then rationalize using it as a solution. Instead, we try variations on rule phrasing and provide positive examples of the target shape, or descriptions of the required form.
 
 Instead of just one variation plus a control group, we run three variations (plus control group). Each eval gives the subagent the _full_ skill definition, with the targeted rule swapped or omitted.
 
@@ -298,7 +284,7 @@ It seems like agents are susceptible to "pressure" the way humans are susceptibl
 Some documented sources of "pressure":
 
 1. **Competing instructions**: forcing ai to balance conflicting goals ("never commit with failing tests, but commit now without fixing the tests")
-2. **Context contamination**: massive amounts of useless or contradictory data in the context window dilutes attention scores.
+2. **Context contamination**: massive amounts of useless or contradictory data in the context window dilute attention scores.
 3. **Schema & output constraints**: solving a difficult problem while writing data formats with strict formatting rules at the same time.
 4. **Social & authority anchoring**: intense user pressure triggers a "sycophancy trap" - the agent is designed to help you, not to push back against your needs
 
@@ -431,17 +417,17 @@ It cements the rule with emphasis, in absolute terms, and closes the door for ne
 
 While rationalizing a reason to subvert a rule, a frequent reason given by the agent is that they are "following the spirit" of the rule, even if not following it "to the letter."
 
-this process addresses the issue by placing a 'spirit-vs-letter' clause early in the document:
+This process addresses the issue by placing a 'spirit-vs-letter' clause early in the document:
 
 ```markdown
 **Violating the letter of the rules is violating the spirit of the rules.**
 ```
 
-this is simply another rule, designed to stand out with bold emphasis, to make it more likely the agent will notice and avoid taking a shortcut.
+This is simply another rule, designed to stand out with bold emphasis, to make it more likely the agent will notice and avoid taking a shortcut.
 
 ###### red flags
 
-red flags are signals that the agent is in the process of violating a rule (again, observed from real failures).
+Red flags are signals that the agent is in the process of violating a rule (again, observed from real failures).
 
 ```markdown
 ## Red Flags - STOP and Start Over
@@ -455,35 +441,36 @@ red flags are signals that the agent is in the process of violating a rule (agai
 **All of these mean: Delete code. Start over with TDD.**
 ```
 
-these give the agent a hard signal to abort and start over, following the correct procedure.
+These give the agent a hard signal to abort and start over, following the correct procedure.
 
 ###### rationalization tables
 
-the iron law gets its own section because it is the most important operational rule that must always be followed. but _every_ rule you write is a potential place where the agent can rationalize a reason to break the rule. so write a table with common rationalizations you have observed, and explain why they are not valid reasons for breaking the rules.
+The iron law gets its own section because it is the most important operational rule that must always be followed. But _every_ rule you write is a potential place where the agent can rationalize a reason to break the rule. So write a table with common rationalizations you have observed, and explain why they are not valid reasons for breaking the rules.
 
-here is an example (again lifted directly from superpowers) for their own writing-skills skill:
+Here is an example (again lifted directly from superpowers) for their own writing-skills skill:
 
-> EDITOR: fix this table. it was supposed to be a table with 2 columns but copy+paste lost the formatting
 ```markdown
-Excuse	Reality
-"Skill is obviously clear"	Clear to you ≠ clear to other agents. Test it.
-"It's just a reference"	References can have gaps, unclear sections. Test retrieval.
-"Testing is overkill"	Untested skills have issues. Always. 15 min testing saves hours.
-"I'll test if problems emerge"	Problems = agents can't use skill. Test BEFORE deploying.
-"Too tedious to test"	Testing is less tedious than debugging bad skill in production.
-"I'm confident it's good"	Overconfidence guarantees issues. Test anyway.
-"Academic review is enough"	Reading ≠ using. Test application scenarios.
-"No time to test"	Deploying untested skill wastes more time fixing it later.
+| Excuse | Reality |
+|--------|---------|
+| "Skill is obviously clear" | Clear to you ≠ clear to other agents. Test it. |
+| "It's just a reference" | References can have gaps, unclear sections. Test retrieval. |
+| "Testing is overkill" | Untested skills have issues. Always. 15 min testing saves hours. |
+| "I'll test if problems emerge" | Problems = agents can't use skill. Test BEFORE deploying. |
+| "Too tedious to test" | Testing is less tedious than debugging bad skill in production. |
+| "I'm confident it's good" | Overconfidence guarantees issues. Test anyway. |
+| "Academic review is enough" | Reading ≠ using. Test application scenarios. |
+| "No time to test" | Deploying untested skill wastes more time fixing it later. |
+
 All of these mean: Test before deploying. No exceptions.
 ```
 
-these are rebuttal for excuses actually observed in testing. once again, we're taking away bad choices from the places where the agent needs to make a decision.
+These are rebuttals for excuses actually observed in testing. Once again, we're taking away bad choices from the places where the agent needs to make a decision.
 
 ###### close every loophole explicitly
 
 > Don't just state the rule - forbid specific workarounds
 
-like regression tests for broken behavioral rules. when you see an agent use a workaround or rationalize a reason to subvert the rules, add a rule that explicitly forbids what they did - either as a part of the workflow rules or in one of the bulletproofing mechanisms we've already covered.
+Like regression tests for broken behavioral rules. When you see an agent use a workaround or rationalize a reason to subvert the rules, add a rule that explicitly forbids what they did - either as a part of the workflow rules or in one of the bulletproofing mechanisms we've already covered.
 
 ```Markdown
 Always load the full SKILL.md file into context before answering.
@@ -492,13 +479,9 @@ Always load the full SKILL.md file into context before answering.
 
 ###### a caveat from agentskills.io
 
-> EDITOR: (Source: https://agentskills.io/skill-creation/evaluating-skills)
+One counterpoint worth noting: the [agentskills.io skill-evaluation guide](https://agentskills.io/skill-creation/evaluating-skills) suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
 
-One counterpoint worth noting: the agentskills.io skill-evaluation guide suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
-
-> EDITOR: this paragraph reads too much like ai
-
-I don't think these are actually in conflict. The rationale tables are where the "why" lives — each rationalization rebuttal is a reasoning-based instruction bolted onto a rigid rule. But it's a fair reminder that an Iron Law with no stated reason is just a brittle directive: if you can't articulate why the rule exists, an agent under pressure will happily invent a reason it doesn't apply.
+I don't buy the conflict. The "why" is already in there — it lives in the rationalization tables, where every rebuttal is a reason stapled to a hard rule. Still, the point lands: an Iron Law with no stated reason is just a brittle directive. If you can't explain why a rule exists, an agent under pressure will invent a reason it doesn't apply.
 
 ### Example
 
@@ -517,7 +500,7 @@ run a pressure test against a rule from the writing-skills skill
 
 ### My Implementation
 
-I used the same workspace isolation techinques from the other test types, once again.
+I used the same workspace isolation techniques from the other test types, once again.
 
 - [pressure-testing-skills skill](../../../skills/pressure-testing-skills/SKILL.md)
 - [custom agent definition](../../../skills/pressure-testing-skills/agents/pressure-evaluator.opencode.md)
