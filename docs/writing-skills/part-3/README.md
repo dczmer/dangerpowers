@@ -1,14 +1,31 @@
 # "Bulletproofing" Skills
 
-> WARNING: Experimenting with these test processes has convinced me that testing skills is CRITICAL. But the process for testing the 'body' rules gets quite complicated and token-intensive. Consider this an illustration and explanation of the process and not a tutorial.
->
-> There is a lot of content in this document, but the most important part is to understand the concepts, even if you don't care to get into the details of the testing strategies or creating your own harness.
+Dissecting superpowers' "bulletproof" system to see how it works, and creating an objectively worse implementation of my own.
 
-Have you ever used a skill written by someone else that just didn't work as advertised when you tried it? Or have you written a skill that produces inconsistent output or breaks the rules?
+## TLDR: Read this Part, if Nothing Else!
+
+> You need to test your skills! If you are doing long-horizon tasks or deploying agents to production systems, then you _really_ need to test your skills, and test them often.
+
+This document ended up being a bit longer than expected, but I think the concepts are very important. Not everyone cares about how to design the different test campaigns or developing their own test harness, but you should try to understand the different ways that skills fail, and how to address those failure modes. This helps with every prompt or message you write, not just authoring skills.
+
+Testing skills is far more important that I would have guessed. LLMs are more prone to ignoring or modifying your instructions than I expected. If the rules and instructions you write in your skills are important, you need to test them. You don't have to use my testing system (it's kind of jank, honestly), but think of testing skills like unit testing production code.
+
+The odds that an agent will ignore any given rule increases along with the size and content of the context window. Long-horizon tasks and production agents are particularly risky, since breaking any given rule can have compounding effects on the direction of the agent over it's lifetime - like a rocket who's trajectory was slightly off at launch time.
+
+A skill is a collection of facts, requirements, and operation rules for the agent to follow. Each one of those types of rules need their own testing process:
+- **Discipline**: Rules that tell the agent what it's allowed to do or not to do. These need apply even when the agent tries to rationalize reasons to subvert them.
+- **Shaping**: Rules about how the product or artifacts produced by the skill should be formed. Test that the AI interprets your instructions and applies them correctly.
+- **Reference**: Facts about the skill domain. Test that the agent knows when to use these facts, that it interprets the facts correctly, and knows how to apply them.
+
+The rest of this document is a deep-dive into how to test and improve skills by addressing each of these different types of rules with their own test campaigns, and a little commentary about building my own implementation.
+
+## Testing Skills and Rules Types
+
+Have you ever used a skill written by someone else that just didn't work as advertised? Or have you written a skill that produces inconsistent output or breaks the rules?
 
 In [part-2](../part-2/README.md), we used trigger tests to optimize skill descriptions, for improved accuracy when auto-invoking skills (or when we don't want the skill to fire). But, just like triggering a skill based on description, the rules in your skill body also need tuning and hardening to make them apply more consistently.
 
-But the rules and processes for testing and hardening skill bodies actually apply to ANY prompt that you would give an agent. Testing the skills really illustrates just how frequently agents avoid, rationalize, or modify the rules you make, and probably you don't even realize it. If you give a model a complex task, it very likely is not sticking to every rule you give it. The more complicated the task or the bigger the diff, the less likely you are to notice if things are 100% compliant or not.
+But the rules and processes for testing and hardening skill bodies actually apply to ANY prompt that you would give an agent. Testing the skills really illustrates just how frequently agents avoid, rationalize, or modify the rules you make, and you likely won't even realize it. If you give a model a complex task, it very likely is not sticking to every rule you give it. The more complicated the task or the bigger the diff, the less likely you are to notice if things are 100% compliant or not.
 
 The term "bulletproofing" is a generic phrase meaning to harden something against failure. As far as I can tell, this "bulletproofing" system for hardening skills is something coined by superpowers.
 
@@ -25,8 +42,6 @@ Not bulletproof if the agent:
 - Argues the skill is wrong
 - Asks permission while arguing strongly for the violation
 ```
-
-## Testing Skills and Rules Types
 
 Superpowers defines four types of skills/rules, and each type needs specific forms of testing: 
 
@@ -88,7 +103,7 @@ The agent has correctly loaded the skill, it wants to comply, there is no incent
 
 ### Retrieval Testing
 
-To construct a retrieval test, record a file of test queries, very much like we did with trigger testing, and map that query to three expected post-conditions:
+To construct a retrieval test, record a file of test queries, very much like we did with trigger testing, and map each query to three expected post-conditions:
 
 > EDITOR: reword the bullet list below to make them easier for a human to read. describe what the expected post-condition is.
 
@@ -123,8 +138,6 @@ Each entry tests one documented fact:
 - `query` — a realistic task for the agent to complete
 - `expect` — a scenario passes only if every expectation in the list is met by the returned answer.
 
-Run the evals, along with a no-skill control group, all at 5x reps per arm in a fresh subagent for each test. Instruct the agent to list the "sources" that were consulted while processing the request. Identify failure categories according to the following table:
-
 ```mermaid
 flowchart LR
     Q[Query/Fixture] --> C[Control]
@@ -140,6 +153,8 @@ flowchart LR
 ```
 
 <br />
+
+Run the evals, along with a no-skill control group, all at 5x reps per arm in a fresh subagent for each test. Instruct the agent to list the "sources" that were consulted while processing the request. Identify failure categories according to the following table:
 
 | Observed failure	| Diagnosis	| Fix |
 |-|-|-
@@ -182,7 +197,7 @@ Other examples of shaping concerns include things like: file layout, section ord
 
 when the skill applies correctly, but the output doesn't match the expected state, use micro tests to validate different variations of phrasing and their impact on the final product.
 
-### Micro-Testing
+### Micro-Testing (Shape Testing)
 
 you can't reliably predict how changes to wording will affect the results by reasoning alone - you have to measure.
 
@@ -366,7 +381,9 @@ Process:
 4. Use superpowers' "bulletproof" system to plug the loopholes.
 5. Repeat for every discipline rule in the skill.
 
-#### Bulletproofing a skill
+#### Bulletproofing
+
+> We effectively "dilate" the attention mechanism so the rules stick out over the "noise" and we pre-answer questions the agent will likely have by taking away the bad choices.
 
 What this process does, in my current mental model, is to apply a formal methodology for reinforcing behavioral rules in skills against rationalization. By making sure all behavior rules use imperative wording, listing red-flags and counter-examples, providing a table of common rationalizations and explaining why they should not apply, we effectively "dilate" the attention mechanism so the rules stick out over the "noise" and we make it clear that these are intended as rules and not suggestions. We pre-answer questions the agent will likely have by taking away the bad choices.
 
@@ -475,6 +492,8 @@ Always load the full SKILL.md file into context before answering.
 
 ### Example
 
+> Obligatory warning again: this can get expensive.
+
 Following the precedent of the previous test types, here is a simplified, illustrative skill that runs a pressure test against a single rule for a target skill:
 
 [pressure-testing-skills](./examples/skills/pressure-testing-skills/SKILL.md)
@@ -482,29 +501,33 @@ Following the precedent of the previous test types, here is a simplified, illust
 It requires a verbatim rule to test from the skill file. I tested it like so:
 
 ```
-@docs/writing-skills/part-3/examples/skills/pressure-testing-skills/SKILL.md run a pressure test against a rule from the writing-skills skill
+@docs/writing-skills/part-3/examples/skills/pressure-testing-skills/SKILL.md
+run a pressure test against a rule from the writing-skills skill
 ```
-
-> TODO: link to example skill
 
 ### My Implementation
 
-> TODO
+I used the same workspace isolation techinques from the other test types, once again.
+
+- [pressure-testing-skills skill](../../../skills/pressure-testing-skills/SKILL.md)
+- [custom agent definition](../../../skills/pressure-testing-skills/agents/pressure-evaluator.opencode.md)
 
 ## Conclusion
 
-> TODO:
+> YOU MUST TEST YOUR SKILLS! THEY FAIL WAY MORE OFTEN THAN YOU MIGHT REALIZE!
 
-> YOU MUST TEST YOUR SKILLS! THEY FAIL WAY MORE OFTEN THAN I EXPECTED, EVEN WITH FRONTIER MODELS!
+I wrote the "conclusion" remarks in the TLDR section, at the top, because I was sure nobody would make it this far.
+
+TLBIRIA (Too Long, But I Read It All):
 
 - you must test skills; untested skills are unreliable; if you don't care about every rule in the skill, they shouldn't be there in the first place
-- time/token intensive
-- nice to have a useful local model for the actual evals
+- testing is time/token intensive
+- it's very nice to have a useful local model for the actual evals
 - may want to look at higher-quality third-party implementations, this was an exercise in understanding the processes and rules, why they are needed
 
 ## Next
 
-> TODO: next part-4: thoughts, suggestions, third-party eval tools, quorum, always test skills, ablation and retirement
+I think I need to make a part 4 to talk about third-party solutions and services, how I plan to unify and rebuild these test harnesses (again), discuss ablation and retirement, and my case against auto-invoking skills.
 
 ## References
 
