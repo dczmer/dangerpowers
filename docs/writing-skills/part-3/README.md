@@ -29,11 +29,11 @@ Have you ever used a skill written by someone else that just didn't work as adve
 
 In [part-2](../part-2/README.md), we used trigger tests to optimize skill descriptions, for improved accuracy when auto-invoking skills (or when we don't want the skill to fire). But, just like triggering a skill based on description, the rules in your skill body also need tuning and hardening to make them apply more consistently.
 
-But the rules and processes for testing and hardening skill bodies actually apply to ANY prompt that you would give an agent. Testing the skills really illustrates just how frequently agents avoid, rationalize, or modify the rules you make, and you likely won't even realize it. If you give a model a complex task, it very likely is not sticking to every rule you give it. The more complicated the task or the bigger the diff, the less likely you are to notice if things are 100% compliant or not.
+But the rules and processes for testing and hardening skill bodies actually apply to ANY prompt that you would give an agent. Testing the skills really illustrates just how frequently agents avoid, rationalize, or modify the rules you make, and you likely won't even realize it. If you give a model a complex task, it very likely is not sticking to every rule you give it ([G](#ref-g)). The more complicated the task or the bigger the diff, the less likely you are to notice if things are 100% compliant or not.
 
-The term "bulletproofing" is a generic phrase meaning to harden something against failure. As far as I can tell, this "bulletproofing" system for hardening skills is something coined by superpowers.
+The term "bulletproofing" is a generic phrase meaning to harden something against failure. As far as I can tell, this "bulletproofing" system for hardening skills is something coined by superpowers ([A](#ref-a), [B](#ref-b)).
 
-From superpowers `writing-skills` skill:
+From superpowers' testing guide ([B](#ref-b)):
 ```markdown
 A skill is bulletproof when, under maximum pressure:
 1. The agent chooses the correct option, AND
@@ -47,7 +47,7 @@ Not bulletproof if the agent:
 - Asks permission while arguing strongly for the violation
 ```
 
-Superpowers defines four types of skills/rules, and each type needs specific forms of testing:
+Superpowers defines four types of skills/rules, and each type needs specific forms of testing ([A](#ref-a)):
 
 | Type | Description | Tests |
 |------|-------------|-------|
@@ -316,13 +316,13 @@ It seems like agents are susceptible to "pressure" the way humans are susceptibl
 Some documented sources of "pressure":
 
 1. **Competing instructions**: forcing ai to balance conflicting goals ("never commit with failing tests, but commit now without fixing the tests")
-2. **Context contamination**: massive amounts of useless or contradictory data in the context window dilute attention scores.
+2. **Context contamination**: massive amounts of useless or contradictory data in the context window dilute attention scores ([E](#ref-e)).
 3. **Schema & output constraints**: solving a difficult problem while writing data formats with strict formatting rules at the same time.
-4. **Social & authority anchoring**: intense user pressure triggers a "sycophancy trap" - the agent is designed to help you, not to push back against your needs
+4. **Social & authority anchoring**: intense user pressure triggers a "sycophancy trap" - the agent is designed to help you, not to push back against your needs ([H](#ref-h))
 
 Problems 1-3 can be largely avoided by good context hygiene and delegating to other tools to help with the formatting and schema validation. Problem 4 is what we'll be testing for because it's the easiest form to trigger and hardening against this source also hardens against 1 and 2.
 
-Examples of social & authority anchoring:
+Examples of social & authority anchoring ([B](#ref-b), [F](#ref-f)):
 
 | Pressure | Example |
 |----------|---------|
@@ -336,7 +336,7 @@ Examples of social & authority anchoring:
 
 ### Pressure Testing
 
-Taken directly from superpowers writing-skills:
+Taken directly from superpowers' testing guide ([B](#ref-b)):
 
 ```markdown
 Pressure-test skills that:
@@ -351,7 +351,7 @@ Do NOT pressure-test:
 If the skill contains no rule an agent could violate, pressure testing does not apply.
 ```
 
-Example pressure test scenario for a strict TDD skill:
+Example pressure test scenario for a strict TDD skill ([B](#ref-b)):
 
 ```markdown
 IMPORTANT: This is a real scenario. Choose and act.
@@ -421,11 +421,11 @@ Each of these conventions is a technique for improving agent adherence to discip
 
 Draw a line in the sand and mandate the most important operational rule. Whenever the agent rationalizes a reason to break that rule, make it clear that the rationalization was NOT a valid exception to the rule.
 
-I believe this comes from Uncle Bob's TDD book: "You may not write production code until you have written a failing unit test." It's the primary operational rule that anchors the entire process.
+I believe this comes from Uncle Bob's Three Rules of TDD ([D](#ref-d)): "You may not write production code until you have written a failing unit test." It's the primary operational rule that anchors the entire process.
 
 In the case of agent skills, it's more of a strong suggestion that addresses a specific (observed) failure mode. For example, TDD is somewhat challenging to enforce in an agent - at least without using hooks and taking more manual control of the process. AI likes to skip the process and do everything in one go, or to ignore and rationalize the rules. Since the rules _are_ the process - a system even - you can easily end up with a mess when those rules aren't followed consistently.
 
-Here is superpowers' own "Iron Law" for writing skills:
+Here is superpowers' own "Iron Law" for writing skills ([A](#ref-a)):
 
 ```markdown
 NO SKILL WITHOUT A FAILING TEST FIRST
@@ -449,7 +449,7 @@ It cements the rule with emphasis, in absolute terms, and closes the door for ne
 
 While rationalizing a reason to subvert a rule, a frequent reason given by the agent is that they are "following the spirit" of the rule, even if not following it "to the letter."
 
-This process addresses the issue by placing a 'spirit-vs-letter' clause early in the document:
+This process addresses the issue by placing a 'spirit-vs-letter' clause early in the document ([A](#ref-a)):
 
 ```markdown
 **Violating the letter of the rules is violating the spirit of the rules.**
@@ -459,7 +459,7 @@ This is simply another rule, designed to stand out with bold emphasis, to make i
 
 #### red flags
 
-Red flags are signals that the agent is in the process of violating a rule (again, observed from real failures).
+Red flags are signals that the agent is in the process of violating a rule (again, observed from real failures). Example from superpowers ([A](#ref-a)):
 
 ```markdown
 ## Red Flags - STOP and Start Over
@@ -486,7 +486,7 @@ These give the agent a hard signal to abort and start over, following the correc
 
 The iron law gets its own section because it is the most important operational rule that must always be followed. But _every_ rule you write is a potential place where the agent can rationalize a reason to break the rule. So write a table with common rationalizations you have observed, and explain why they are not valid reasons for breaking the rules.
 
-Here is an example (again lifted directly from superpowers) for their own writing-skills skill:
+Here is an example, again lifted directly from superpowers ([A](#ref-a)), for their own writing-skills skill:
 
 ```markdown
 | Excuse | Reality |
@@ -507,7 +507,7 @@ These are rebuttals for excuses actually observed in testing. Once again, we're 
 
 #### close every loophole explicitly
 
-> Don't just state the rule - forbid specific workarounds
+> Don't just state the rule - forbid specific workarounds ([A](#ref-a))
 
 Like regression tests for broken behavioral rules. When you see an agent use a workaround or rationalize a reason to subvert the rules, add a rule that explicitly forbids what they did - either as a part of the workflow rules or in one of the bulletproofing mechanisms we've already covered.
 
@@ -518,7 +518,7 @@ Always load the full SKILL.md file into context before answering.
 
 #### a caveat from agentskills.io
 
-One counterpoint worth noting: the [agentskills.io skill-evaluation guide](https://agentskills.io/skill-creation/evaluating-skills) suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
+One counterpoint worth noting: the [agentskills.io skill-evaluation guide](#ref-c) suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
 
 I don't buy the conflict. The "why" is already in there — it lives in the rationalization tables, where every rebuttal is a reason stapled to a hard rule. Still, the point lands: an Iron Law with no stated reason is just a brittle directive. If you can't explain why a rule exists, an agent under pressure will invent a reason it doesn't apply.
 
@@ -548,7 +548,7 @@ I used the same workspace isolation techniques from the other test types, once a
 
 > A pass rate is only meaningful if the test suite itself is clean.
 
-While writing this document, I compared my version of the process against the [agentskills.io guide on evaluating skill output quality](https://agentskills.io/skill-creation/evaluating-skills), and it surfaced a list of things their guide does that mine doesn't. I'm recording them here partly as an honest accounting, and partly as a to-do list for the next iteration.
+While writing this document, I compared my version of the process against the agentskills.io guide on evaluating skill output quality ([C](#ref-c)), and it surfaced a list of things their guide does that mine doesn't. I'm recording them here partly as an honest accounting, and partly as a to-do list for the next iteration.
 
 **Cost/benefit quantification.** I warned that campaigns are token-intensive, but never measure what the testing buys. The guide records tokens and duration per run and does an explicit delta analysis — "a skill that triples token usage for a 2-point improvement might not be worth it."
 
@@ -583,11 +583,11 @@ I think I need to make a part 4 to talk about third-party solutions and services
 
 ## References
 
-https://www.agensi.io/skills/prompt-stress-test-find-where-it-breaks
-https://www.mindstudio.ai/blog/ai-agent-failure-modes-reasoning-action-disconnect
-https://arxiv.org/html/2311.08596v2
-https://www.agensi.io/skills/prompt-stress-test-find-where-it-breaks
-https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md
-https://github.com/obra/superpowers/blob/main/skills/writing-skills/testing-skills-with-subagents.md
-https://research.trychroma.com/context-rot
-https://agentskills.io/skill-creation/evaluating-skills
+- <a id="ref-a"></a>**[A]** [Superpowers - "writing-skills" skill](https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md)
+- <a id="ref-b"></a>**[B]** [Superpowers - Testing skills with subagents](https://github.com/obra/superpowers/blob/main/skills/writing-skills/testing-skills-with-subagents.md)
+- <a id="ref-c"></a>**[C]** [Agent Skills - Evaluating skill output quality](https://agentskills.io/skill-creation/evaluating-skills)
+- <a id="ref-d"></a>**[D]** [Uncle Bob - The Three Rules of TDD](http://butunclebob.com/ArticleS.UncleBob.TheThreeRulesOfTdd)
+- <a id="ref-e"></a>**[E]** [Chroma Research - Context Rot: How Increasing Input Tokens Impacts LLM Performance](https://research.trychroma.com/context-rot)
+- <a id="ref-f"></a>**[F]** [Agensi - Prompt stress test: find where it breaks](https://www.agensi.io/skills/prompt-stress-test-find-where-it-breaks)
+- <a id="ref-g"></a>**[G]** [MindStudio - AI agent failure modes: the reasoning-action disconnect](https://www.mindstudio.ai/blog/ai-agent-failure-modes-reasoning-action-disconnect)
+- <a id="ref-h"></a>**[H]** [Laban et al. - Are You Sure? Challenging LLMs Leads to Performance Drops in The FlipFlop Experiment](https://arxiv.org/html/2311.08596v2)
