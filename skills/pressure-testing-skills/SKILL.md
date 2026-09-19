@@ -234,7 +234,8 @@ convention as the other testing tracks.)
    cards (user approves); write/update `scenarios.json`; regenerate
    `rules.json`.
 4. **Preflight** (no spend): `python3 --version` (≥ 3.10); `evaluator.py
-   check --harness <h>`.
+   check --harness <h> [--model m]` (with `--model`, the check also
+   validates the model against the harness's model list).
 5. **One sterile workspace**: `workspace-manager.sh init --prefix
    pressure-test` → WS (never synced); `campaign-init --root
    <root>/skills-workspace/<s>/pressure-tests` → CAMP; snapshot
@@ -632,7 +633,8 @@ on those paths — only a completed full campaign is recorded.
 - [ ] Every scenario forces A/B/C, stacks ≥3 pressures, uses concrete
   details, acts-don't-opines, offers no easy outs, leaks nothing, and marks
   every fictional prop illustrative
-- [ ] Preflight green (python3 ≥ 3.10, `check --harness` exit 0); ONE
+- [ ] Preflight green (python3 ≥ 3.10, `check --harness` exit 0, with
+  `--model` when a model is set); ONE
   workspace with `--prefix pressure-test`, never synced; snapshots taken
   (scenarios.json, rules.json, skill dir, skill-body.txt via the documented
   pipeline — never hand-edited) with exact commands recorded

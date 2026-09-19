@@ -143,7 +143,8 @@ scripts the agent cannot run.
 ## Workflow
 
 1. Preflight (no spend): resolve python3 (>= 3.10);
-   `evaluator.py check --harness <h>`.
+   `evaluator.py check --harness <h> [--model m]` (with `--model`, the
+   check also validates the model against the harness's model list).
 2. `workspace-manager.sh init --prefix retrieval-test` → skill-ws;
    `workspace-manager.sh init --prefix retrieval-test` → control-ws.
    Both workspaces take the `retrieval-test` prefix — never the
@@ -276,7 +277,7 @@ Score each entry with: result (pass/fail/gap/void); classification (findability|
 
 - [ ] Inputs collected: skill resolved name-or-path, source root derived, harness user-specified, model/variant/reps/timeout settled; fact inventory built fresh from the current doc; proposal presented in the fixed format and approved; queries file exists, is non-empty, and covers the inventory; facts manifest regenerated to match
 - [ ] Every query is task-shaped, self-contained or backed by a matching `fixtures` entry and `{RUN_DIR}` token, and free of section hints and rubric text
-- [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` exit 0; two workspaces initialized with `--prefix retrieval-test`
+- [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` (with `--model` when a model is set) exit 0; two workspaces initialized with `--prefix retrieval-test`
 - [ ] Skill synced `--full` into the skill workspace and verified with `status --full`; control workspace contains no skill bytes
 - [ ] Campaign dir created under the retrieval-tests root; queries.json, facts.json, and the verified synced skill dir snapshotted into it with the exact commands recorded
 - [ ] Planned spend (entries × 2 arms × reps) confirmed by the user before the first eval run

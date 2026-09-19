@@ -327,6 +327,14 @@ class EvalStrategy:
     def parse_stream(stdout: str, skill: str | None) -> EventStream:
         raise NotImplementedError
 
+    @classmethod
+    def check_model(cls, model: str) -> str | None:
+        """Harness-specific model validation: return None when the model
+        is resolvable by this harness, else an error message. Default is
+        a no-op for strategies with no model enumeration; overrides use
+        the harness CLI (see OpencodeStrategy)."""
+        return None
+
     def execute(
         self,
         workspace: Path,
@@ -498,6 +506,39 @@ class OpencodeStrategy(EvalStrategy):
             )
         return classify(ev, skill)
 
+    @classmethod
+    def check_model(cls, model: str) -> str | None:
+        """Exact-line match of the --model value against `opencode
+        models`, which prints one provider/model id per line — the same
+        id namespace `opencode run --model` accepts. Distinguishes "the
+        enumeration failed" (provider config broken) from "model not in
+        the list" (typo); availability/auth is the smoke rep's job."""
+        try:
+            proc = subprocess.run(
+                [cls.binary, "models"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            return f"harness CLI '{cls.binary}' not found on PATH"
+        if proc.returncode != 0:
+            return (
+                f"'{cls.binary} models' exited {proc.returncode}: "
+                f"{proc.stderr.strip()[:300]}"
+            )
+        ids = {
+            line.strip() for line in proc.stdout.splitlines() if line.strip()
+        }
+        if not ids:
+            return f"'{cls.binary} models' printed no models"
+        if model not in ids:
+            return (
+                f"model '{model}' not found via '{cls.binary} models' "
+                f"({len(ids)} available)"
+            )
+        return None
+
 
 STRATEGIES: dict[str, type[EvalStrategy]] = {"opencode": OpencodeStrategy}
 
@@ -514,8 +555,12 @@ def resolve_strategy(name: str) -> type[EvalStrategy]:
     return cls
 
 
-def check_harness(name: str, strategy_cls: type[EvalStrategy]) -> None:
-    """Preflight: CLI on PATH. Verifies the binary exists, not that it is
+def check_harness(
+    name: str, strategy_cls: type[EvalStrategy], model: str | None = None
+) -> None:
+    """Preflight: CLI on PATH; with a model, the strategy validates it
+    (for opencode: exact match against `opencode models`). Verifies the
+    binary and the model selection exist, not that the provider is
     configured — the smoke rep covers configuration."""
     resolved = shutil.which(strategy_cls.binary)
     if resolved is None:
@@ -529,3 +574,13 @@ def check_harness(name: str, strategy_cls: type[EvalStrategy]) -> None:
         f"ok: harness '{name}' available "
         f"({strategy_cls.binary}: {resolved})"
     )
+    if model is None:
+        return
+    problem = strategy_cls.check_model(model)
+    if problem is not None:
+        print(
+            f"error: harness '{name}': {problem}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(f"ok: model '{model}' available on harness '{name}'")

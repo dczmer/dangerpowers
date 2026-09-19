@@ -365,6 +365,119 @@ class ExecuteTests(unittest.TestCase):
         self.assertNotIn("--session", run_mock.call_args.args[0])
 
 
+class CheckModelTests(unittest.TestCase):
+    def _models_proc(
+        self, returncode: int = 0, stdout: str = "", stderr: str = ""
+    ) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout=stdout, stderr=stderr
+        )
+
+    def _check(self, model: str, proc: subprocess.CompletedProcess):
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ) as run_mock:
+            result = strategies.OpencodeStrategy.check_model(model)
+        return result, run_mock
+
+    def test_model_found(self):
+        proc = self._models_proc(
+            stdout="opencode/gpt-5\nopencode/kimi-k2.6\n\n"
+        )
+        result, run_mock = self._check("opencode/kimi-k2.6", proc)
+        self.assertIsNone(result)
+        self.assertEqual(run_mock.call_args.args[0], ["opencode", "models"])
+
+    def test_model_not_found(self):
+        proc = self._models_proc(stdout="opencode/gpt-5\n")
+        result, _ = self._check("opencode/nope", proc)
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("model 'opencode/nope' not found", result)
+        self.assertIn("1 available", result)
+
+    def test_substring_model_does_not_match(self):
+        # Exact-line match only: 'kimi-k2.6' must not satisfy a lookup of
+        # the different id 'kimi-k2'.
+        proc = self._models_proc(stdout="opencode/kimi-k2.6\n")
+        result, _ = self._check("opencode/kimi-k2", proc)
+        self.assertIsNotNone(result)
+
+    def test_models_nonzero_exit(self):
+        proc = self._models_proc(returncode=1, stderr="auth expired")
+        result, _ = self._check("opencode/gpt-5", proc)
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("exited 1", result)
+        self.assertIn("auth expired", result)
+
+    def test_models_empty_output(self):
+        result, _ = self._check("opencode/gpt-5", self._models_proc())
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("printed no models", result)
+
+    def test_base_class_is_noop(self):
+        self.assertIsNone(strategies.EvalStrategy.check_model("anything"))
+
+
+class CheckHarnessTests(unittest.TestCase):
+    def _run(self, binary: str | None, model: str | None):
+        buf = io.StringIO()
+        with (
+            mock.patch.object(strategies.shutil, "which", return_value=binary),
+            contextlib.redirect_stdout(buf),
+            contextlib.redirect_stderr(buf),
+        ):
+            try:
+                strategies.check_harness(
+                    "opencode", strategies.OpencodeStrategy, model
+                )
+            except SystemExit as e:
+                return e, buf.getvalue()
+        return None, buf.getvalue()
+
+    def test_binary_missing_exits(self):
+        e, out = self._run(None, None)
+        self.assertIsNotNone(e)
+        assert e is not None
+        self.assertEqual(e.code, 1)
+        self.assertIn("CLI not found on PATH", out)
+
+    def test_model_given_and_valid(self):
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="opencode/gpt-5\n", stderr=""
+        )
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            e, out = self._run("/usr/bin/opencode", "opencode/gpt-5")
+        self.assertIsNone(e)
+        self.assertIn("ok: harness 'opencode' available", out)
+        self.assertIn("ok: model 'opencode/gpt-5' available", out)
+
+    def test_model_given_and_invalid_exits(self):
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="opencode/gpt-5\n", stderr=""
+        )
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            e, out = self._run("/usr/bin/opencode", "opencode/nope")
+        self.assertIsNotNone(e)
+        assert e is not None
+        self.assertEqual(e.code, 1)
+        self.assertIn("model 'opencode/nope' not found", out)
+
+    def test_model_none_skips_model_check(self):
+        with mock.patch.object(strategies.subprocess, "run") as run_mock:
+            e, out = self._run("/usr/bin/opencode", None)
+        self.assertIsNone(e)
+        run_mock.assert_not_called()
+        self.assertIn("ok: harness 'opencode' available", out)
+        self.assertNotIn("ok: model", out)
+
+
 class GrammarGateTests(unittest.TestCase):
     def test_strategies_py_parses_with_py310_grammar(self):
         src = Path(strategies.__file__).read_text()

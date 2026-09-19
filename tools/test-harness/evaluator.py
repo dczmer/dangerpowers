@@ -306,7 +306,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     strategy_cls = resolve_strategy(args.harness)
-    check_harness(args.harness, strategy_cls)
+    check_harness(args.harness, strategy_cls, args.model)
     return 0
 
 
@@ -453,7 +453,7 @@ def cmd_suite(args: argparse.Namespace) -> int:
     if args.timeout < 1:
         print("error: --timeout must be >= 1", file=sys.stderr)
         return 1
-    check_harness(args.harness, strategy_cls)
+    check_harness(args.harness, strategy_cls, args.model)
     cases = load_queries(args.queries)
     if cases is None:
         return 1
@@ -1224,7 +1224,7 @@ def cmd_retrieval_suite(args: argparse.Namespace) -> int:
     invocation. HarnessExecutionError anywhere -> stderr, exit 1, no JSON,
     workspaces kept (trigger policy, unchanged)."""
     strategy_cls = resolve_strategy(args.harness)
-    check_harness(args.harness, strategy_cls)  # binary only
+    check_harness(args.harness, strategy_cls, args.model)  # binary + model
     skill_ws = Path(args.skill_workspace)
     control_ws = Path(args.control_workspace)
     agents_dir = Path(args.agents_dir)
@@ -1866,7 +1866,7 @@ def cmd_shape_suite(args: argparse.Namespace) -> int:
     so there is no byte-state to restore. Pre-spend validation exits 1
     with an exact message before any harness invocation."""
     strategy_cls = resolve_strategy(args.harness)
-    check_harness(args.harness, strategy_cls)  # binary only
+    check_harness(args.harness, strategy_cls, args.model)  # binary + model
     ws = Path(args.workspace)
     agents_dir = Path(args.agents_dir)
     entries_path = Path(args.entries)
@@ -2559,7 +2559,7 @@ def cmd_pressure_suite(args: argparse.Namespace) -> int:
     never written; arms differ only in prompt bytes. Pre-spend validation
     exits 1 with an exact message before any harness invocation."""
     strategy_cls = resolve_strategy(args.harness)
-    check_harness(args.harness, strategy_cls)  # binary only
+    check_harness(args.harness, strategy_cls, args.model)  # binary + model
     ws = Path(args.workspace)
     agents_dir = Path(args.agents_dir)
     scenarios_path = Path(args.scenarios)
@@ -2986,6 +2986,10 @@ def main() -> int:
 
     check = sub.add_parser("check")
     check.add_argument("--harness", required=True)
+    check.add_argument(
+        "--model",
+        help="also validate the model against the harness's model list",
+    )
 
     run = sub.add_parser("run")
     run.add_argument("--harness", required=True)

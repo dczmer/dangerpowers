@@ -193,7 +193,8 @@ retrieval track.)
    5×variants per failing rule`; pattern `+5 per gated variant, cap +10`; per-rule cap
    30, pattern 40). User approves the proposal.
 4. Preflight (no spend): `python3 --version` (>= 3.10); `evaluator.py check
-   --harness <h>`.
+   --harness <h> [--model m]` (with `--model`, the check also validates the
+   model against the harness's model list).
 5. One sterile workspace: `workspace-manager.sh init --prefix shape-test` → WS
    (never synced; `sync`/`status` are not part of this track at all).
 6. `campaign-init --root <root>/skills-workspace/<s>/shape-tests` → CAMP.
@@ -438,7 +439,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Every excluded rule recorded with a routing reason; frontmatter-convention rules never proposed as entries
 - [ ] Proposal cards in the fixed format, one per entry, with full fixture/variant texts and the cost formula; user approved
 - [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped); `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
-- [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` exit 0; ONE workspace initialized with `--prefix shape-test`
+- [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` (with `--model` when a model is set) exit 0; ONE workspace initialized with `--prefix shape-test`
 - [ ] Workspace never synced (contamination gate clean); campaign dir created; entries.json, rules.json, the source skill dir, and skill-body.txt (via the documented pipeline — never hand-edited) snapshotted with the exact commands recorded
 - [ ] Spend confirmation #1 (rules × 5 control reps) before phase 1; `shape-suite --arms v0` wrote results-control.json; only exit codes and JSON consumed
 - [ ] Controls scored via `shape-evidence`; no-failure rules stopped with nothing authored and flagged for ablation review

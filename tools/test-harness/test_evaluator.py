@@ -433,6 +433,33 @@ class FailuresTests(unittest.TestCase):
         self.assertEqual(rc, 1)
 
 
+class CheckCommandTests(unittest.TestCase):
+    def _cmd_check(self, model: str | None):
+        ns = argparse.Namespace(harness="opencode", model=model)
+        buf = io.StringIO()
+        with mock.patch.object(evaluator, "check_harness") as check_mock:
+            with (
+                contextlib.redirect_stdout(buf),
+                contextlib.redirect_stderr(buf),
+            ):
+                rc = evaluator.cmd_check(ns)
+        return rc, check_mock, buf.getvalue()
+
+    def test_model_forwarded_to_check_harness(self):
+        rc, check_mock, out = self._cmd_check("opencode/gpt-5")
+        self.assertEqual(rc, 0)
+        check_mock.assert_called_once_with(
+            "opencode", strategies.OpencodeStrategy, "opencode/gpt-5"
+        )
+
+    def test_model_omitted_defaults_to_none(self):
+        rc, check_mock, _ = self._cmd_check(None)
+        self.assertEqual(rc, 0)
+        check_mock.assert_called_once_with(
+            "opencode", strategies.OpencodeStrategy, None
+        )
+
+
 class HarnessWorkspaceMixin:
     """Temp workspace with a synced skill stub and a valid evaluator
     agent file, for tests that drive cmd_run/cmd_suite end to end."""
