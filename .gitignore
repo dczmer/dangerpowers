@@ -7,3 +7,4 @@ __pycache__
 
 # choosing to gitignore the per-campaign artifacts and only keep the manifest
 skills-workspace/**/campaign-*/*
+.agent/skills-workspace/**/campaign-*/*
