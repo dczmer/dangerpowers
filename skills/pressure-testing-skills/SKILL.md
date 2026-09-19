@@ -23,13 +23,15 @@ nothing injected) and `green` (the full skill body injected as "Project
 conventions") — plus meta-testing of violating reps and up to 3 REFACTOR
 rounds on driver-written counter bodies. Rules run **strictly serially**:
 one rule's complete RED → GREEN → meta → REFACTOR cycle finishes and is
-scored before the next rule's spend is confirmed. Deliberate deviations from
-the shape track: **injection, not byte-states** (each rep's prompt is
-assembled fresh from the original snapshotted bytes, so counters drafted for
-rule A cannot leak into rule B's prompts mid-campaign; write-backs batch at
-campaign end); **one sterile workspace**, never synced, guarded by a harness
-contamination gate; **no delegation** — non-discipline rules are recorded as
-`excluded` with a routing reason, never routed to other tracks.
+scored before the next rule's spend is confirmed. Mechanics shared with the
+shape track: **injection, not byte-states** (each rep's prompt is assembled
+fresh from the original snapshotted bytes, so counters drafted for rule A
+cannot leak into rule B's prompts mid-campaign; write-backs batch at campaign
+end) and **one sterile workspace**, never synced, guarded by a harness
+contamination gate. Distinct from the shape track: a spend confirmation gates
+each arm and each refactor round, meta-testing resumes violating reps
+in-session, and there is **no delegation** — non-discipline rules are recorded
+as `excluded` with a routing reason, never routed to other tracks.
 
 Scope rules, up front:
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Tests for the shape-track additions to evaluator.py: entries-file
 validation, arm byte-assembly exactness (v0 span removal, vN replacement),
-strict entry x arm serialization in cmd_shape_suite with workspace-byte
-restoration, shape-scored-check (multi-results union, adoption and gate
-rules, count gate), record --track shape-test, and shape-evidence marker
-triage. Stdlib only; no harness commands are ever invoked (zero model
-spend).
+strict entry x arm serialization in cmd_shape_suite with per-arm prompt
+injection (never workspace byte-states), shape-scored-check (multi-results
+union, adoption and gate rules, count gate), record --track shape-test,
+and shape-evidence marker triage. Stdlib only; no harness commands are
+ever invoked (zero model spend).
 """
 
 import argparse
@@ -294,9 +294,9 @@ class ArmAssemblyTests(unittest.TestCase):
 
 class ShapeRunRecordTests(unittest.TestCase):
     """build_shape_run_record: the retrieval builder adapted — the arm
-    key is recorded, skill-not-loaded fires for EVERY arm without a
-    completed load (v0 included), and control-loaded-skill does not exist
-    on this track."""
+    key is recorded, any skill-load attempt is a void signal (the
+    conventions are injected; there is no load signal on this track),
+    and control-loaded-skill does not exist here."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -308,16 +308,21 @@ class ShapeRunRecordTests(unittest.TestCase):
 
     def _record(self, ev, arm="v0"):
         return evaluator.build_shape_run_record(
-            ev, "the fixture", False, self.ws, arm, "demo-skill"
+            ev, "the prompt", False, self.ws, arm
         )
 
     def test_arm_key_recorded(self):
         rec = self._record(EventStream(answer_parts=["a"]), arm="v2")
         self.assertEqual(rec["arm"], "v2")
 
-    def test_v0_without_completed_load_signals(self):
-        rec = self._record(EventStream(answer_parts=["a"]), arm="v0")
-        self.assertIn("skill-not-loaded", rec["void_signals"])
+    def test_skill_load_attempt_signals_on_every_arm(self):
+        ev = EventStream(
+            answer_parts=["a"],
+            skill_loads=[{"name": "demo-skill", "status": "completed"}],
+        )
+        for arm in ("v0", "v1", "v3"):
+            rec = self._record(ev, arm=arm)
+            self.assertIn("skill-load-attempted", rec["void_signals"])
 
     def test_no_control_loaded_skill_signal_on_any_arm(self):
         ev = EventStream(
@@ -328,15 +333,19 @@ class ShapeRunRecordTests(unittest.TestCase):
             rec = self._record(ev, arm=arm)
             self.assertNotIn("control-loaded-skill", rec["void_signals"])
 
-    def test_completed_load_no_signal(self):
-        ev = EventStream(answer_parts=["a"], completed_load=True)
-        rec = self._record(ev, arm="v1")
-        self.assertNotIn("skill-not-loaded", rec["void_signals"])
+    def test_no_load_no_signal(self):
+        # The conventions are injected: a run with no load attempt at all
+        # carries no void signal (contrast: the old skill-not-loaded).
+        rec = self._record(EventStream(answer_parts=["a"]), arm="v1")
+        self.assertEqual(rec["void_signals"], [])
 
     def test_timeout_is_a_field_not_a_void_signal(self):
-        ev = EventStream(answer_parts=["complete answer"], completed_load=True)
+        ev = EventStream(answer_parts=["complete answer"])
+        rec = self._record(ev)
+        self.assertTrue(rec["timeout"] is False)
+        ev_timeout = EventStream(answer_parts=["complete answer"])
         rec = evaluator.build_shape_run_record(
-            ev, "the fixture", True, self.ws, "v0", "demo-skill"
+            ev_timeout, "the prompt", True, self.ws, "v0"
         )
         self.assertTrue(rec["timeout"])
         self.assertEqual(rec["void_signals"], [])
@@ -344,11 +353,11 @@ class ShapeRunRecordTests(unittest.TestCase):
 
 class ShapeSuiteTests(unittest.TestCase):
     """cmd_shape_suite end-to-end with a fake strategy: entries x arms run
-    strictly serialized (the multi-rule attribution invariant — never the
-    retrieval track's arm-parallel structure), the workspace skill carries
-    exactly one arm's byte state at a time and is restored afterwards, the
-    per-run prompt is the bare fixture text, and skill= is passed on every
-    arm. The results config records model/variant for attribution."""
+    strictly serialized (spend discipline — never the retrieval track's
+    arm-parallel structure), every rep's prompt carries that arm's
+    injected body assembled fresh from the snapshotted skill file, no
+    skill= is passed, and the workspace is never written. The results
+    config records model/variant for attribution."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -356,16 +365,13 @@ class ShapeSuiteTests(unittest.TestCase):
         self.agents_dir = self.root / "agents"
         self.agents_dir.mkdir()
         (self.agents_dir / "shape-evaluator.opencode.md").write_text(
-            "---\nname: shape-evaluator\nmode: primary\n---\n"
-            "load {{SKILL_NAME}}\n"
+            "---\nname: shape-evaluator\nmode: primary\n---\nbody\n"
         )
         self.ws = self.root / "ws"
-        skill_dir = self.ws / ".agents" / "skills" / "demo-skill"
-        skill_dir.mkdir(parents=True)
-        self.original = (
-            FRONTMATTER + "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_B + "\n"
-        )
-        (skill_dir / "SKILL.md").write_text(self.original)
+        self.ws.mkdir()
+        self.body = "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_B + "\n"
+        self.skill_body = self.root / "skill-body.txt"
+        self.skill_body.write_text(self.body)
         self.entries_path = self.root / "entries.json"
         self.out = self.root / "results.json"
 
@@ -377,17 +383,14 @@ class ShapeSuiteTests(unittest.TestCase):
         self.tmp.cleanup()
 
     class _FakeStrategy:
-        """Records the workspace skill bytes at dispatch time so the test
-        can assert the byte-state sequence; brief sleep lets rep batches
+        """Records each dispatch's prompt so the test can assert the
+        arm sequence and injected bytes; brief sleep lets rep batches
         overlap within an arm without ever overlapping across arms."""
 
-        def __init__(self, skill_md: Path, original: str):
-            self.skill_md = skill_md
-            self.original = original
+        def __init__(self):
             self.lock = threading.Lock()
-            self.states: list[str] = []
             self.queries: list[str] = []
-            self.skills: list[str] = []
+            self.skills: list[str | None] = []
             self.active = 0
             self.max_active = 0
 
@@ -402,19 +405,11 @@ class ShapeSuiteTests(unittest.TestCase):
                 self.active += 1
                 self.max_active = max(self.max_active, self.active)
             try:
-                snapshot = self.skill_md.read_text()
                 with self.lock:
-                    self.states.append(snapshot)
                     self.queries.append(query)
-                    self.skills.append(skill if skill is not None else "")
+                    self.skills.append(skill)
                 time.sleep(0.02)
-                return (
-                    EventStream(
-                        answer_parts=["answer"],
-                        completed_load=skill is not None,
-                    ),
-                    False,
-                )
+                return (EventStream(answer_parts=["answer"]), False)
             finally:
                 with self.lock:
                     self.active -= 1
@@ -429,6 +424,7 @@ class ShapeSuiteTests(unittest.TestCase):
             agents_dir=str(self.agents_dir),
             workspace=str(self.ws),
             entries=str(self.entries_path),
+            skill_file=str(self.skill_body),
             arms="v0,v1",
             out=str(self.out),
             fixture_key="application",
@@ -442,10 +438,7 @@ class ShapeSuiteTests(unittest.TestCase):
         return args
 
     def _run(self, **overrides):
-        fake = self._FakeStrategy(
-            self.ws / ".agents" / "skills" / "demo-skill" / "SKILL.md",
-            self.original,
-        )
+        fake = self._FakeStrategy()
         args = self._args(**overrides)
         buf = io.StringIO()
         with mock_check_and_resolve(fake):
@@ -453,7 +446,7 @@ class ShapeSuiteTests(unittest.TestCase):
                 rc = evaluator.cmd_shape_suite(args)
         return rc, buf.getvalue(), fake
 
-    def test_entries_x_arms_serialized_and_bytes_restored(self):
+    def test_entries_x_arms_serialized_and_prompts_carry_arm_bodies(self):
         self._write_entries(
             [
                 shaping_entry(eid="a", section=SECTION_A),
@@ -465,20 +458,20 @@ class ShapeSuiteTests(unittest.TestCase):
         rc, _, fake = self._run()
         self.assertEqual(rc, 0)
 
-        def label(snapshot):
-            if "B variant" in snapshot:
+        def label(query):
+            if "B variant" in query:
                 return ("b", "v1")
-            if VARIANT_A1 in snapshot:
+            if VARIANT_A1 in query:
                 return ("a", "v1")
-            if SECTION_A not in snapshot:
+            if SECTION_A not in query:
                 return ("a", "v0")
-            if SECTION_B not in snapshot:
+            if SECTION_B not in query:
                 return ("b", "v0")
-            raise AssertionError("snapshot carries no arm byte state")
+            raise AssertionError("prompt carries no arm body")
 
-        labels = [label(s) for s in fake.states]
+        labels = [label(q) for q in fake.queries]
         # Entries x arms run strictly serialized: each (entry, arm) batch
-        # is contiguous, and the workspace is restored between arms.
+        # is contiguous.
         self.assertEqual(
             labels,
             [
@@ -492,23 +485,24 @@ class ShapeSuiteTests(unittest.TestCase):
                 ("b", "v1"),
             ],
         )
-        # Every dispatch runs against an arm byte state: frontmatter
-        # preserved byte-for-byte, body differing from the synced original.
-        for snapshot in fake.states:
-            self.assertTrue(snapshot.startswith(FRONTMATTER))
-            self.assertNotEqual(snapshot, self.original)
+        # Every dispatch injects an arm body: conventions header, the
+        # snapshot-derived body differing per arm, then the bare fixture.
+        for query, (eid, _arm) in zip(fake.queries, labels):
+            self.assertTrue(query.startswith("Project conventions:\n"))
+            self.assertTrue(
+                query.endswith(f"Task:\nwrite a component for {eid}")
+            )
         # v0 arms have their entry's section removed; v1 arms carry the
         # variant text in its place.
-        for snapshot, (eid, arm) in zip(fake.states, labels):
+        for query, (eid, arm) in zip(fake.queries, labels):
             if arm == "v0":
                 section = SECTION_A if eid == "a" else SECTION_B
-                self.assertNotIn(section, snapshot)
+                self.assertNotIn(section, query)
             else:
                 variant = VARIANT_A1 if eid == "a" else "B variant"
-                self.assertIn(variant, snapshot)
-        # Workspace restored to the original synced bytes after the suite.
-        skill_md = self.ws / ".agents" / "skills" / "demo-skill" / "SKILL.md"
-        self.assertEqual(skill_md.read_text(), self.original)
+                self.assertIn(variant, query)
+        # The workspace is never written: no synced skill, no byte state.
+        self.assertFalse((self.ws / ".agents").exists())
 
     def test_reps_within_one_arm_batch_parallelize(self):
         self._write_entries([shaping_entry(eid="a", section=SECTION_A)])
@@ -516,14 +510,14 @@ class ShapeSuiteTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertGreaterEqual(fake.max_active, 2)
 
-    def test_prompt_is_bare_fixture_text_and_skill_passed(self):
+    def test_prompt_is_injected_conventions_and_no_skill_passed(self):
         self._write_entries([shaping_entry(eid="a", section=SECTION_A)])
         rc, _, fake = self._run()
         self.assertEqual(rc, 0)
         for query in fake.queries:
-            self.assertEqual(query, "write a component for a")
+            self.assertIn("\n\nTask:\nwrite a component for a", query)
         for skill in fake.skills:
-            self.assertEqual(skill, "demo-skill")
+            self.assertIsNone(skill)
 
     def test_results_keyed_by_arm_with_config(self):
         self._write_entries([shaping_entry(eid="a", section=SECTION_A)])
@@ -539,6 +533,7 @@ class ShapeSuiteTests(unittest.TestCase):
         self.assertEqual(config["arms"], ["v0", "v1"])
         self.assertEqual(config["fixture_key"], "application")
         self.assertEqual(config["entries"], str(self.entries_path))
+        self.assertEqual(config["skill_file"], str(self.skill_body))
         self.assertIn("date", config)
         (entry,) = data["entries"]
         self.assertEqual(entry["id"], "a")
@@ -561,27 +556,24 @@ class ShapeSuiteTests(unittest.TestCase):
         self.assertIn("[ v1 ] [rep   1] started", out)
         self.assertIn("[ v0 ] [rep   1] completed", out)
 
-    def test_workspace_restored_on_abort(self):
+    def test_abort_leaves_no_workspace_byte_state(self):
         self._write_entries([shaping_entry(eid="a", section=SECTION_A)])
         args = self._args()
 
         class _Aborting(self._FakeStrategy):
             def execute(self, ws, agent, query, model, variant, skill=None):
-                if len(self.states) == 1:
+                if len(self.queries) == 1:
                     raise RuntimeError("boom")
                 return super().execute(ws, agent, query, model, variant, skill)
 
-        fake = _Aborting(
-            self.ws / ".agents" / "skills" / "demo-skill" / "SKILL.md",
-            self.original,
-        )
+        fake = _Aborting()
         with mock_check_and_resolve(fake):
             with redirect_stdout(io.StringIO()):
                 with redirect_stderr(io.StringIO()):
                     with self.assertRaises(RuntimeError):
                         evaluator.cmd_shape_suite(args)
-        skill_md = self.ws / ".agents" / "skills" / "demo-skill" / "SKILL.md"
-        self.assertEqual(skill_md.read_text(), self.original)
+        # Nothing to restore: the workspace never carries a byte state.
+        self.assertFalse((self.ws / ".agents").exists())
 
 
 class _BlockingStrategy:
@@ -642,10 +634,11 @@ class ShapePreSpendGateTests(unittest.TestCase):
             "---\nname: shape-evaluator\nmode: primary\n---\nbody\n"
         )
         self.ws = self.root / "ws"
-        skill_dir = self.ws / ".agents" / "skills" / "demo-skill"
-        skill_dir.mkdir(parents=True)
-        self.skill_md = skill_dir / "SKILL.md"
-        self.skill_md.write_text(FRONTMATTER + "# Demo\n\n" + SECTION_A + "\n")
+        self.ws.mkdir()
+        # The driver-produced snapshot: body bytes, frontmatter already
+        # stripped (the drift gate matches spans against these bytes).
+        self.skill_body = self.root / "skill-body.txt"
+        self.skill_body.write_text("# Demo\n\n" + SECTION_A + "\n")
         self.entries_path = self.root / "entries.json"
         self.entries_path.write_text(
             json.dumps([shaping_entry(eid="a", section=SECTION_A)])
@@ -663,6 +656,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
             agents_dir=str(self.agents_dir),
             workspace=str(self.ws),
             entries=str(self.entries_path),
+            skill_file=str(self.skill_body),
             arms="v0",
             out=str(self.out),
             fixture_key="application",
@@ -677,27 +671,28 @@ class ShapePreSpendGateTests(unittest.TestCase):
                     return evaluator.cmd_shape_suite(args)
 
     def test_span_absent_from_body_exits_1(self):
-        self.skill_md.write_text(FRONTMATTER + "# Demo\n\nother text\n")
+        self.skill_body.write_text("# Demo\n\nother text\n")
         with self.assertRaises(SystemExit) as cm:
             self._run()
         self.assertEqual(cm.exception.code, 1)
         self.assertFalse(self.out.exists())
 
     def test_span_occurring_twice_exits_1(self):
-        self.skill_md.write_text(
-            FRONTMATTER + "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_A + "\n"
+        self.skill_body.write_text(
+            "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_A + "\n"
         )
         with self.assertRaises(SystemExit) as cm:
             self._run()
         self.assertEqual(cm.exception.code, 1)
         self.assertFalse(self.out.exists())
 
-    def test_span_overlapping_frontmatter_never_matched(self):
-        # The section text exists ONLY inside the frontmatter block; the
-        # drift gate strips frontmatter first, so occurrences in the body
-        # are 0 and the campaign aborts pre-spend.
-        self.skill_md.write_text(
-            f"---\nname: demo-skill\ndescription: {SECTION_A}\n---\n# Demo\n"
+    def test_synced_skill_in_workspace_exits_1(self):
+        # Contamination gate: the workspace must stay sterile — this
+        # track injects the body and never syncs.
+        skill_dir = self.ws / ".agents" / "skills" / "demo-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            FRONTMATTER + "# Demo\n\n" + SECTION_A + "\n"
         )
         with self.assertRaises(SystemExit) as cm:
             self._run()
@@ -712,6 +707,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
                 agents_dir=str(self.agents_dir),
                 workspace=str(self.ws),
                 entries=str(self.entries_path),
+                skill_file=str(self.skill_body),
                 arms="v0",
                 out=str(self.out),
                 fixture_key="counter-example",
@@ -752,6 +748,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
                 agents_dir=str(self.agents_dir),
                 workspace=str(self.ws),
                 entries=str(self.entries_path),
+                skill_file=str(self.skill_body),
                 arms="v3",
                 out=str(self.out),
                 fixture_key="application",
@@ -774,6 +771,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
                 agents_dir=str(self.agents_dir),
                 workspace=str(self.ws),
                 entries=str(self.entries_path),
+                skill_file=str(self.skill_body),
                 arms="v0",
                 out=str(self.out),
                 fixture_key="gap",
@@ -796,6 +794,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
                 agents_dir=str(self.agents_dir),
                 workspace=str(self.ws),
                 entries=str(self.entries_path),
+                skill_file=str(self.skill_body),
                 arms="v0",
                 out=str(self.out),
                 fixture_key="application",

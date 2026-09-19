@@ -20,15 +20,15 @@ cheap, fresh-context samples that measure a phrasing before you commit to it.
 The campaign inventories **every** shaping and pattern rule in the skill body, then
 tests each with the same instrument as the single-rule micro-test: a temptation fixture
 run through a restricted headless agent across wording variants, with a no-guidance
-control as the stopping signal. Many rules per campaign are licensed by one mechanizable
-invariant:
-
-> At any moment, the workspace skill differs from the intact skill by exactly **one**
-> rule's section.
-
-Consequence: the harness serializes entries × arms strictly — one entry, one arm, one
-byte-state at a time; only the reps *within* one arm batch parallelize (they share
-identical bytes, read-only).
+control as the stopping signal. Like the pressure track, this track uses **injection,
+not byte-states**: each arm's body (v0: the rule's section span removed; vN: the span
+replaced by the variant text) is assembled fresh from the snapshotted skill body and
+injected into every rep's prompt as "Project conventions". The skill is never synced
+and the workspace is never written, so a variant can never leak into another arm's
+run and there is no skill-load step that can fail — the conventions are always in
+context. The harness still serializes entries × arms — one entry, one arm at a time;
+only the reps *within* one arm batch parallelize (identical prompt bytes, read-only);
+the serial order is spend discipline, not an optimization target.
 
 Scope rules, up front:
 
@@ -63,8 +63,9 @@ Consume exit codes and JSON from those scripts only — never parse their prose 
 - Cost: `5 + 5×variants` per failing rule; pattern `+5` per gated variant, cap `+10`;
   per-rule cap 30 (pattern 40). Example: 3 failing shaping rules + 1 failing pattern
   rule, 3 variants each, all gated → `3×(5+15) + (5+15+10) = 90`.
-- Serialization: one entry, one arm, one byte-state at a time — never parallelize
-  arms; only reps within one arm batch parallelize.
+- Serialization: one entry, one arm at a time — never parallelize arms; only reps
+  within one arm batch parallelize. Arms differ only in prompt bytes (injection, not
+  byte-states); the serial order is spend discipline.
 - Fix between campaigns, never mid-campaign; fixtures, variant texts, and section
   spans stay verbatim across campaigns.
 - Record only after a completed FULL campaign (`--scope dir --track shape-test`,
@@ -147,20 +148,25 @@ scores clean and you have learned nothing.
 ## Eval agent
 
 All arms run under one restricted agent, `agents/shape-evaluator.opencode.md`,
-installed into the eval workspace by the harness before the first run: `skill: allow`;
-read/grep/glob/list allowed; edit, bash, task, todowrite, webfetch, websearch, question,
-external_directory denied. Only **one** workspace and one agent are needed, because the
-v0 control (rule's section omitted) is still the skill being loaded — just with
-different bytes.
+installed into the eval workspace by the harness before the first run: the read quartet
+(`read`/`grep`/`glob`/`list`) allowed; everything else (`skill`, `edit`, `bash`,
+`task`, `todowrite`, `webfetch`, `websearch`, `question`, `external_directory`)
+denied. The conventions are injected into the prompt, so **any skill-load attempt is a
+void signal** (`skill-load-attempted`) — the load cannot be required, only violated.
+Only **one** workspace and one agent are needed, because arms differ only in prompt
+bytes: the v0 control (rule's section omitted) is still the full conventions being
+injected — just with different bytes.
 
-The single eval workspace is initialized with `--prefix shape-test`.
+The single eval workspace is initialized with `--prefix shape-test` and is **never
+synced**; a synced skill in it trips the contamination gate (recreate the workspace,
+never copy the skill in to "fix" it).
 
 The agent pins no `model`/`variant`/`temperature`/`top_p` — the installer asserts this
 and aborts before any spend, so campaign `--model`/`--variant` flags are the only
-model-selection path. The install step substitutes `{{SKILL_NAME}}` with the skill under
-test; the per-run prompt is the bare fixture text — never rule text, markers, or
-expected shape. Read-only is enforced by the harness permission layer, not claimed in a
-prompt.
+model-selection path. There is no `{{SKILL_NAME}}` substitution (the agent loads
+nothing); the per-run prompt is the injected conventions plus the bare fixture text —
+never rule text, markers, or expected shape. Read-only is enforced by the harness
+permission layer, not claimed in a prompt.
 
 ## Campaign flow
 
@@ -188,16 +194,25 @@ retrieval track.)
    30, pattern 40). User approves the proposal.
 4. Preflight (no spend): `python3 --version` (>= 3.10); `evaluator.py check
    --harness <h>`.
-5. One sterile workspace: `workspace-manager.sh init --prefix shape-test` → WS;
-   `sync --skill <s> --source <root> --workspace $WS --full`; `status --skill <s>
-   --source <root> --workspace $WS --full`.
+5. One sterile workspace: `workspace-manager.sh init --prefix shape-test` → WS
+   (never synced; `sync`/`status` are not part of this track at all).
 6. `campaign-init --root <root>/skills-workspace/<s>/shape-tests` → CAMP.
 7. Snapshot into the campaign dir (plain cp, record the exact commands):
-   `entries.json`, `rules.json`, and the verified synced skill dir — the exact bytes
-   being measured, before any arm rewriting.
+   `entries.json`, `rules.json`, and the source skill dir — plus `skill-body.txt`,
+   the snapshotted `SKILL.md` with its frontmatter block stripped (the exact
+   injected bytes), produced with a documented pipeline, never by hand-editing;
+   one form, run from the repo root against the campaign dir's skill snapshot:
+
+   ```bash
+   uv run python -c "import pathlib, sys; sys.path.insert(0, 'tools/test-harness'); \
+   from evaluator import extract_frontmatter; \
+   src = pathlib.Path('$CAMP/<skill>/SKILL.md').read_text(); \
+   fm = extract_frontmatter(src) or sys.exit('no frontmatter block'); \
+   pathlib.Path('$CAMP/skill-body.txt').write_text(src[len(fm):])"
+   ```
 8. **Spend confirmation #1**: rules × 5 control reps — phase 1 covers ALL rules
    and is never skipped.
-9. `evaluator.py shape-suite --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 120]`
+9. `evaluator.py shape-suite --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 120]`
 10. Score controls via `shape-evidence`. Rules whose control never exhibits the failure
     → `no-failure` + ablation flag; **stop those rules, author nothing**.
 11. **Spend confirmation #2**: failing rules × variants × 5 reps — only rules
@@ -233,41 +248,47 @@ retrieval track.)
 
 Pre-spend gates (all exit 1 with an exact message before any harness invocation):
 harness CLI on PATH; agent file exists, frontmatter `name:` matches `shape-evaluator`,
-no `model`/`variant`/`temperature`/`top_p` pins; the skill is synced in the workspace
-(`$WS/.agents/skills/<s>/` present); entries-file schema validation; `--fixture-key`
-is `application` or `counter-example` and the keyed fixture exists on every selected
-entry; `--arms` parses to a subset of `{v0} ∪ variants` present on each entry;
-`--reps`/`--timeout` >= 1; out directory exists; every section span occurs verbatim
-exactly once in the synced body (frontmatter stripped — doc drift aborts before
-spend).
+no `model`/`variant`/`temperature`/`top_p` pins; `--skill-file` exists and is non-empty
+(the snapshotted body, frontmatter already stripped by the driver); entries-file schema
+validation; `--fixture-key` is `application` or `counter-example` and the keyed fixture
+exists on every selected entry; `--arms` parses to a subset of `{v0} ∪ variants`
+present on each entry; `--reps`/`--timeout` >= 1; out directory exists; every section
+span occurs verbatim exactly once in the snapshotted body (doc drift aborts before
+spend); and the **contamination gate** (a synced skill in the workspace fails with
+"recreate the workspace, never sync").
 
-Then, **strictly serially** per entry, per arm — never parallelize arms to save
-wall-clock, two variant byte-states at once makes attribution impossible:
+Then, **strictly serially** per entry, per arm — never parallelize arms; the serial
+order is spend discipline, not an optimization target (arms differ only in prompt
+bytes, so nothing mechanical prevents parallel arms — one entry, one arm at a time
+keeps attribution and spend clean):
 
-1. Split the synced `SKILL.md` into frontmatter block + body.
-2. Assemble the arm bytes: v0 = span removed together with exactly one following blank
-   line; vN = span replaced by the variant text. Frontmatter is preserved
-   byte-for-byte. The rewrite is verified before dispatch.
+1. Assemble the arm body from the snapshot: v0 = the rule's section span removed
+   together with exactly one following blank line; vN = the span replaced by the
+   variant text. The assembly is verified before dispatch (`verify_arm_bytes`).
+2. Inject: the per-run prompt is `Project conventions:` + the assembled arm body +
+   `Task:` + the bare fixture text — never rule text, markers, or expected shape.
+   Injection, not byte-states: each rep's prompt is assembled fresh from the
+   snapshotted bytes, so a variant can never leak into another arm's run, and there
+   is no skill-load step that can fail — the conventions are always in context.
 3. Run the reps — a smoke rep first (a harness failure here aborts before further
-   spend), then parallel batches of at most 10 workers — with arm-tagged progress lines
-   (`[ v0 ]`…`[ v3 ]`). The per-run prompt is the bare fixture text; `skill=` is passed
-   for **every** arm so load-signal detection works on all arms.
-4. Restore the original synced bytes before the next arm, and on abort — the workspace
-   must never be left carrying a variant byte state.
+   spend), then parallel batches of at most 10 workers — with arm-tagged progress
+   lines (`[ v0 ]`…`[ v3 ]`). The workspace is never written; there is no byte
+   state to restore, on completion or abort.
 
 Results JSON: entries keyed by arm (`entry.arms = {"v0": {"runs": [...]}, …}`), each run
 carrying `arm`, `answer_text`, `tool_calls`, `void_signals`, `timeout`, `session_id`,
 and the full run record, plus a `config` block (`skill`, `harness`, `model`, `variant`,
-`reps`, `timeout`, `date`, entries-file path, `arms`, `fixture_key`) so every run is
-attributable to the exact model selection that produced it. The entry's
+`reps`, `timeout`, `date`, entries-file path, `skill_file`, `arms`, `fixture_key`) so
+every run is attributable to the exact model selection that produced it. The entry's
 `markers`/`restraint_markers` are carried into the results so `shape-evidence` triages
 without re-reading the entries file.
 
-Void signals: `skill-not-loaded` (fires for any arm without a completed load — every
-arm loads the skill), `empty-answer`, `read-outside-workspace`. `timeout` stays a
-separate boolean field — it is NOT a void signal: an abort after a complete inline
-answer still scores; abort with partial/empty output is caught by `empty-answer` plus
-driver judgment.
+Void signals: `skill-load-attempted` (any captured skill tool call — the conventions
+are injected and the skill tool is denied, so there is no load signal on this track;
+an attempt is a violation, not a requirement), `empty-answer`,
+`read-outside-workspace`. `timeout` stays a separate boolean field — it is NOT a void
+signal: an abort after a complete inline answer still scores; abort with
+partial/empty output is caught by `empty-answer` plus driver judgment.
 
 ## Scoring
 
@@ -353,7 +374,8 @@ Campaign rules:
 ├── entries.json                   # canonical entries
 ├── campaign-YYYY-MM-DD[-n]/
 │   ├── entries.json  rules.json   # snapshots (plain cp, commands recorded)
-│   ├── <skill>/                   # snapshot of verified synced skill dir
+│   ├── <skill>/                   # snapshot of the source skill dir
+│   ├── skill-body.txt             # the exact injected bytes (frontmatter stripped)
 │   ├── results-control.json/.log  # phase 1
 │   ├── entries-failing.json       # filtered entries driving phase 2
 │   ├── results-variants.json/.log # phase 2
@@ -366,10 +388,10 @@ Campaign rules:
 ```
 
 Campaign artifacts live in the persistent campaign dir under `skills-workspace/` —
-never inside the temp eval workspace. The campaign snapshot of the *verified* synced
-skill dir is taken at setup, before any arm rewriting — the recorded checksum reflects
-the unmodified source, with per-arm variant text pinned by the snapshotted
-`entries.json`.
+never inside the temp eval workspace. The campaign snapshot of the source skill dir
+and of `skill-body.txt` (the exact injected bytes) is taken at setup — the recorded
+checksum reflects the unmodified source, with per-arm variant text pinned by the
+snapshotted `entries.json`.
 
 Every pre-campaign plan is one self-contained card per planned entry, in this order: a heading line `## N. <entry-id> (<kind>)`; a `covers:` line naming the manifest rule id; a `fixture:` section with the full fixture text; a `markers:` list; a `variants:` list naming each arm and its full text; a `why:` line. After the cards, three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the cards.
 
@@ -397,7 +419,10 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - Multi-file artifacts need all expected files: a recipe demanding `Name.tsx` +
   `Name.module.css` fails a rep that returns only one block, even if the returned block
   looks right.
-- Before scoring any run, check its skill-load signal: no completed load means the run is `void` — the doc was never in context — so set it aside and re-run that arm before scoring it.
+- Before scoring any run, check its void signals: `skill-load-attempted` means the rep
+  tried to load a skill instead of using the injected conventions — set it aside and
+  re-run that arm before scoring it. There is no "not loaded" void: the conventions
+  are in the prompt by construction, so a run can never fail for load reasons.
 - Timeout voids are not always agent defects: concurrent reps share one endpoint, so
   per-rep latency rises with parallelism — on a slow local server the default 120 s can
   abort clean runs mid-answer (observed in calibration: 2 empty-answer voids at 120 s,
@@ -414,7 +439,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Proposal cards in the fixed format, one per entry, with full fixture/variant texts and the cost formula; user approved
 - [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped); `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
 - [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` exit 0; ONE workspace initialized with `--prefix shape-test`
-- [ ] Skill synced `--full` and verified with `status --full`; campaign dir created; entries.json, rules.json, and the verified synced skill dir snapshotted with the exact cp commands recorded
+- [ ] Workspace never synced (contamination gate clean); campaign dir created; entries.json, rules.json, the source skill dir, and skill-body.txt (via the documented pipeline — never hand-edited) snapshotted with the exact commands recorded
 - [ ] Spend confirmation #1 (rules × 5 control reps) before phase 1; `shape-suite --arms v0` wrote results-control.json; only exit codes and JSON consumed
 - [ ] Controls scored via `shape-evidence`; no-failure rules stopped with nothing authored and flagged for ablation review
 - [ ] Spend confirmation #2 (failing rules × variants × 5 reps) before phase 2; `shape-suite --arms v1,v2,v3 --entries $CAMP/entries-failing.json` wrote results-variants.json

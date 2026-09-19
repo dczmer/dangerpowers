@@ -1555,10 +1555,10 @@ def _check_marker_tokens(
 
 def load_shape_entries(path: Path) -> list[dict]:
     """Read and strictly validate a shape entries file. Schema only: the
-    verbatim section-span assertion against the synced skill body lives in
-    cmd_shape_suite, which owns the body bytes. On any violation prints
-    `error: <exact reason>` to stderr and exits 1 (pre-spend: zero harness
-    runs happen before this returns)."""
+    verbatim section-span assertion against the snapshotted skill body
+    lives in cmd_shape_suite, which owns the body bytes. On any violation
+    prints `error: <exact reason>` to stderr and exits 1 (pre-spend: zero
+    harness runs happen before this returns)."""
     if not path.exists():
         _fail(f"entries file not found: {path}")
     try:
@@ -1677,6 +1677,28 @@ def load_shape_entries(path: Path) -> list[dict]:
     return entries
 
 
+# Per-run prompt assembly. The per-run prompt never contains the rule
+# statement, the markers, or the expected shape; the answer contract
+# lives in the agent body, constant across arms. Every arm injects the
+# assembled body (v0: the rule's section span removed; vN: the span
+# replaced by the variant text) as "Project conventions" — injection,
+# not byte-states: the workspace is never written, so arms differ only
+# in prompt bytes and a variant can never leak into another arm's run.
+SHAPE_PROMPT_TEMPLATE = """\
+Project conventions:
+{body}
+
+Task:
+{fixture}"""
+
+
+def build_shape_prompt(body: str, fixture: str) -> str:
+    """One rep's prompt bytes: the assembled arm body injected as
+    "Project conventions", then the bare fixture text. Never contains
+    the rule statement, the markers, or the expected shape."""
+    return SHAPE_PROMPT_TEMPLATE.format(body=body, fixture=fixture)
+
+
 def assemble_arm_body(body: str, entry: dict, arm: str) -> str:
     """One arm's body bytes. v0 (control) removes the rule's section span
     together with exactly one following blank line; vN replaces the span
@@ -1723,19 +1745,19 @@ def build_shape_run_record(
     timed_out: bool,
     ws_root: Path,
     arm: str,
-    skill: str,
 ) -> dict:
     """The shape-track run record: build_run_record adapted, not reused,
     because that builder keys its signals on the retrieval arm names.
-    Every shape arm loads the skill, so skill-not-loaded fires for any arm
-    without a completed load; the retrieval track's control-loaded-skill
-    signal does not exist here. Adds the arm key so runs stay attributable
+    The skill body is injected into the prompt, so there is no load
+    signal: any skill load attempt is a void signal instead (a shape rep
+    needs zero — the conventions are already in context and the skill
+    tool is denied by policy). Adds the arm key so runs stay attributable
     in the merged results of a phase."""
     answer = "".join(ev.answer_parts)
     m = SOURCES_RE.search(answer)
     signals = []
-    if not ev.completed_load:
-        signals.append("skill-not-loaded")
+    if ev.skill_loads:
+        signals.append("skill-load-attempted")
     if not answer.strip():
         signals.append("empty-answer")
     root = str(ws_root.resolve())
@@ -1753,10 +1775,6 @@ def build_shape_run_record(
         "answer_text": answer,
         "sources_consulted": m.group("block").strip() if m else None,
         "tool_calls": ev.tool_calls,
-        "skill_load_completed": ev.completed_load,
-        "other_skill_loads": [
-            s["name"] for s in ev.skill_loads if s["name"] not in (None, skill)
-        ],
         "denied_tool_attempts": ev.denied_tool_attempts,
         "reasoning": "".join(ev.reasoning_parts),
         "session_id": ev.session_id,
@@ -1768,20 +1786,18 @@ def build_shape_run_record(
 
 def run_shape_rep_batch(
     strategy: EvalStrategy,
-    entry: dict,
+    prompt: str,
     arm: str,
     ws: Path,
     agent: str,
     args: argparse.Namespace,
 ) -> list[dict]:
-    """Reps for one (entry, arm) pair, dispatched only while the workspace
-    skill carries that arm's byte state. The per-run prompt is the bare
-    fixture text keyed by --fixture-key — never rule text, markers, or
-    expected shape. The smoke rep runs alone; remaining reps batch at most
-    MAX_WORKERS wide. Only reps within one arm batch parallelize: entries x
-    arms are strictly serialized by cmd_shape_suite (the multi-rule
-    attribution invariant)."""
-    fixture_text = entry["fixtures"][args.fixture_key]
+    """Reps for one (entry, arm) pair. Every rep shares identical prompt
+    bytes (injection, not byte-states), so reps within the arm batch
+    parallelize; entries x arms stay strictly serialized by
+    cmd_shape_suite — spend discipline, not an optimization target. The
+    smoke rep runs alone; remaining reps batch at most MAX_WORKERS
+    wide."""
     tag = f" {arm} "
     runs: dict[int, dict] = {}
 
@@ -1790,14 +1806,11 @@ def run_shape_rep_batch(
         ev, timed_out = strategy.execute(
             ws,
             agent,
-            fixture_text,
+            prompt,
             args.model,
             args.variant,
-            skill=args.skill,
         )
-        record = build_shape_run_record(
-            ev, fixture_text, timed_out, ws, arm, args.skill
-        )
+        record = build_shape_run_record(ev, prompt, timed_out, ws, arm)
         line = f"[{tag}] [rep {n:>3}] completed"
         if timed_out:
             line += " (timeout)"
@@ -1846,10 +1859,11 @@ def run_shape_rep_batch(
 def cmd_shape_suite(args: argparse.Namespace) -> int:
     """Run one shape campaign phase: entries x arms x reps headless runs,
     STRICTLY serialized per entry x arm — never the retrieval track's
-    arm-parallel structure. At any moment the workspace skill differs
-    from the intact synced skill by exactly one rule's section (the
-    multi-rule attribution invariant); the original synced bytes are
-    restored after each arm and on abort. Pre-spend validation exits 1
+    arm-parallel structure. Arms differ only in prompt bytes: each arm's
+    body (v0: section span removed; vN: span replaced by the variant) is
+    assembled fresh from the snapshotted skill file and injected into
+    every rep's prompt; the workspace is never synced and never written,
+    so there is no byte-state to restore. Pre-spend validation exits 1
     with an exact message before any harness invocation."""
     strategy_cls = resolve_strategy(args.harness)
     check_harness(args.harness, strategy_cls)  # binary only
@@ -1881,12 +1895,12 @@ def cmd_shape_suite(args: argparse.Namespace) -> int:
     if args.timeout < 1:
         _fail("--timeout must be >= 1")
 
-    skill_md = ws / ".agents" / "skills" / args.skill / "SKILL.md"
-    if not skill_md.is_file():
-        _fail(
-            f"skill workspace has no synced skill '{args.skill}': run "
-            "workspace-manager.sh sync --full and status --full first"
-        )
+    skill_file = Path(args.skill_file)
+    if not skill_file.is_file():
+        _fail(f"skill file not found: {skill_file}")
+    body = skill_file.read_text()
+    if not body.strip():
+        _fail(f"skill file is empty: {skill_file}")
 
     if args.fixture_key not in SHAPE_FIXTURE_KEYS:
         _fail(
@@ -1916,37 +1930,32 @@ def cmd_shape_suite(args: argparse.Namespace) -> int:
             )
 
     # Doc-drift gate: every section span must appear verbatim exactly once
-    # in the synced body (frontmatter stripped — spans overlapping
-    # frontmatter are never matched). Aborts before spend.
-    original_text = skill_md.read_text()
-    frontmatter = extract_frontmatter(original_text)
-    body = (
-        original_text[len(frontmatter) :]
-        if frontmatter is not None
-        else original_text
-    )
+    # in the snapshotted body (frontmatter already stripped by the driver
+    # — spans overlapping frontmatter are never matched). Aborts before
+    # spend.
     for entry in entries:
         occurrences = body.count(entry["section"])
         if occurrences != 1:
             _fail(
                 f"doc drift: section span of entry {entry['id']!r} occurs "
-                f"{occurrences} times in the synced skill body (expected "
-                f"exactly once); fix the entry or re-sync"
+                f"{occurrences} times in the skill body (expected exactly "
+                f"once); fix the entry or the snapshot"
             )
 
     out = Path(args.out)
     if not out.parent.is_dir():
         _fail(f"output directory does not exist: {out.parent}")
+    if (ws / ".agents" / "skills" / args.skill).exists():
+        _fail(
+            f"workspace contains skill '{args.skill}' — this track injects "
+            "the skill body into prompts and never syncs; recreate the "
+            "workspace, never sync"
+        )
 
     # ---- install + run ----
     _Log.file = out.with_suffix(".log").open("w")  # mirror like suite
     strategy = strategy_cls(timeout=args.timeout)
-    strategy.install(
-        ws,
-        agents_dir,
-        SHAPE_EVALUATOR_AGENT,
-        skill_name=args.skill,
-    )  # {{SKILL_NAME}}
+    strategy.install(ws, agents_dir, SHAPE_EVALUATOR_AGENT)
 
     emit(f"shape test suite: {args.skill} ({len(entries)} entries)")
     emit(f"workspace: {ws}")
@@ -1955,38 +1964,34 @@ def cmd_shape_suite(args: argparse.Namespace) -> int:
         f"variant: {args.variant or '(none)'}  reps: {args.reps}  "
         f"timeout: {args.timeout}s"
     )
+    emit(f"skill file: {skill_file}")
     emit(f"arms: {', '.join(arms)}  fixture-key: {args.fixture_key}")
 
     results = []
-    try:
-        for i, entry in enumerate(entries, start=1):
-            record = {
-                "id": entry["id"],
-                "kind": entry["kind"],
-                "markers": entry["markers"],
-                "restraint_markers": entry.get("restraint_markers"),
-                "arms": {},
+    for i, entry in enumerate(entries, start=1):
+        record = {
+            "id": entry["id"],
+            "kind": entry["kind"],
+            "markers": entry["markers"],
+            "restraint_markers": entry.get("restraint_markers"),
+            "arms": {},
+        }
+        for arm in arms:
+            try:
+                arm_body = assemble_arm_body(body, entry, arm)
+                verify_arm_bytes(arm_body, entry, arm)
+            except ValueError as e:
+                _fail(str(e))
+            prompt = build_shape_prompt(
+                arm_body, entry["fixtures"][args.fixture_key]
+            )
+            record["arms"][arm] = {
+                "runs": run_shape_rep_batch(
+                    strategy, prompt, arm, ws, SHAPE_EVALUATOR_AGENT, args
+                )
             }
-            for arm in arms:
-                try:
-                    new_body = assemble_arm_body(body, entry, arm)
-                    verify_arm_bytes(new_body, entry, arm)
-                except ValueError as e:
-                    _fail(str(e))
-                skill_md.write_text((frontmatter or "") + new_body)
-                record["arms"][arm] = {
-                    "runs": run_shape_rep_batch(
-                        strategy, entry, arm, ws, SHAPE_EVALUATOR_AGENT, args
-                    )
-                }
-                # Restore the synced bytes before the next arm.
-                skill_md.write_text(original_text)
-            results.append(record)
-            emit(f"[{i}/{len(entries)}] {entry['id']}")
-    finally:
-        # Restore on completion AND on abort: the workspace must never be
-        # left carrying a variant byte state.
-        skill_md.write_text(original_text)
+        results.append(record)
+        emit(f"[{i}/{len(entries)}] {entry['id']}")
 
     out.write_text(
         json.dumps(
@@ -2000,6 +2005,7 @@ def cmd_shape_suite(args: argparse.Namespace) -> int:
                     "timeout": args.timeout,
                     "date": datetime.now(UTC).date().isoformat(),
                     "entries": str(entries_path),
+                    "skill_file": str(skill_file),
                     "arms": arms,
                     "fixture_key": args.fixture_key,
                 },
@@ -3074,6 +3080,7 @@ def main() -> int:
     shape.add_argument("--agents-dir", required=True)
     shape.add_argument("--workspace", required=True)
     shape.add_argument("--entries", required=True)
+    shape.add_argument("--skill-file", required=True)
     shape.add_argument("--arms", required=True)
     shape.add_argument("--out", required=True)
     shape.add_argument(
