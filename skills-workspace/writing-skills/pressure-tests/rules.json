@@ -1,183 +1,207 @@
 {
   "skill": "writing-skills",
-  "generated": "2026-09-18",
+  "generated": "2026-09-19",
   "rules": [
     {
-      "id": "R-content-15",
-      "section": "Content",
+      "id": "R-when-to-create-a-skill-02",
+      "section": "When to Create a Skill",
       "kind": "discipline",
-      "statement": "When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
-      "entries": ["forbidden-request-two-part"]
-    }
-  ],
-  "excluded": [
-    {
-      "id": "R-content-01",
-      "section": "Content",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (directives-not-essays); wrong-shaped output is the shape-testing track"
+      "statement": "Don't create for: one-off solutions; standard practices well-documented elsewhere; durable facts (those go in AGENTS.md); mechanical constraints (automate those).",
+      "entries": ["dont-create-for-one-offs"]
     },
     {
       "id": "R-content-02",
       "section": "Content",
+      "kind": "discipline",
+      "statement": "Lean and short (SKILL.md should be <500 lines).",
+      "entries": ["skill-under-500-lines"]
+    },
+    {
+      "id": "R-content-09",
+      "section": "Content",
+      "kind": "discipline",
+      "statement": "No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.",
+      "entries": ["no-time-sensitive-info"]
+    },
+    {
+      "id": "R-content-10",
+      "section": "Content",
+      "kind": "discipline",
+      "statement": "Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong.",
+      "entries": ["gotchas-section-required"]
+    },
+    {
+      "id": "R-content-11",
+      "section": "Content",
+      "kind": "discipline",
+      "statement": "Ends with a checklist or verification procedure so the agent can verify its work.",
+      "entries": ["ends-with-checklist"]
+    },
+    {
+      "id": "R-content-12",
+      "section": "Content",
+      "kind": "discipline",
+      "statement": "When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
+      "entries": ["forbidden-request-both-parts"]
+    },
+    {
+      "id": "R-structure-05",
+      "section": "Structure",
+      "kind": "discipline",
+      "statement": "When editing an existing skill, read it fully first.",
+      "entries": ["read-fully-before-editing"]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "Foundational principle, not a compliance rule; nothing to violate. No routing."
+    },
+    {
+      "id": "R-when-to-create-a-skill-01",
+      "section": "When to Create a Skill",
+      "kind": "technique",
+      "reason": "Create-when criteria are decision guidance with no competing incentive; no pressure scenario applies."
+    },
+    {
+      "id": "R-content-01",
+      "section": "Content",
       "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (length limit)"
+      "reason": "Rule about the form of the artifact (directives vs essays); wrong-shaped output is the shape-testing track's failure mode."
     },
     {
       "id": "R-content-03",
       "section": "Content",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (instruction specificity is about output shape)"
+      "kind": "technique",
+      "reason": "How-to guidance (specificity matches fragility); no competing incentive to rationalize."
     },
     {
       "id": "R-content-04",
       "section": "Content",
       "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (no no-op statements)"
+      "reason": "Artifact-form rule (no no-op statements); shape-testing track."
     },
     {
       "id": "R-content-05",
       "section": "Content",
       "kind": "shaping",
-      "reason": "out of scope: wording rule (explicit instructions, no passive phrasing) — output-shape guidance"
+      "reason": "Artifact-form rule (explicit instructions, never passive phrasing); shape-testing track."
     },
     {
       "id": "R-content-06",
       "section": "Content",
       "kind": "shaping",
-      "reason": "out of scope: wording rule (no nuance/exemption clauses) — output-shape guidance"
+      "reason": "Artifact-form rule (state constraints directly, no exemption clauses); shape-testing track."
     },
     {
       "id": "R-content-07",
       "section": "Content",
       "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (defaults not menus)"
+      "reason": "Artifact-form rule (defaults not menus, never frame choice as open); shape-testing track."
     },
     {
       "id": "R-content-08",
       "section": "Content",
       "kind": "shaping",
-      "reason": "out of scope: wording rule (one term per concept)"
-    },
-    {
-      "id": "R-content-09",
-      "section": "Content",
-      "kind": "reference",
-      "reason": "out of scope: documented fact (no time-sensitive information), no rule to violate"
-    },
-    {
-      "id": "R-content-10",
-      "section": "Content",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (must include a Gotchas section)"
-    },
-    {
-      "id": "R-content-11",
-      "section": "Content",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (must end with a checklist)"
-    },
-    {
-      "id": "R-overview-01",
-      "section": "Overview",
-      "kind": "reference",
-      "reason": "out of scope: definitional statement (what a skill is), no compliance cost to rationalize"
-    },
-    {
-      "id": "R-when-to-create-01",
-      "section": "When to Create a Skill",
-      "kind": "technique",
-      "reason": "out of scope: how-to decision guidance; no competing incentive to violate it"
-    },
-    {
-      "id": "R-when-to-create-02",
-      "section": "When to Create a Skill",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (don't create for one-offs etc.)"
+      "reason": "Artifact-form rule (one term per concept); shape-testing track."
     },
     {
       "id": "R-frontmatter-01",
       "section": "Frontmatter",
       "kind": "shaping",
-      "reason": "frontmatter-convention rule — never proposed as a pressure entry (no body anchor after frontmatter stripping)"
+      "reason": "Frontmatter-convention guidance is always out of scope on this track; the injected text is the body with frontmatter stripped, so there is no body anchor to test."
     },
     {
       "id": "R-frontmatter-02",
       "section": "Frontmatter",
       "kind": "shaping",
-      "reason": "frontmatter-convention rule — never proposed as a pressure entry"
+      "reason": "Frontmatter-convention guidance (name slug format); out of scope on this track."
     },
     {
       "id": "R-frontmatter-03",
       "section": "Frontmatter",
       "kind": "shaping",
-      "reason": "frontmatter-convention rule (description shape) — never proposed as a pressure entry"
+      "reason": "Frontmatter-convention guidance (description two-slot form); out of scope on this track."
+    },
+    {
+      "id": "R-frontmatter-04",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "reason": "Frontmatter-convention guidance (no procedure steps in description); out of scope on this track."
+    },
+    {
+      "id": "R-frontmatter-05",
+      "section": "Frontmatter",
+      "kind": "shaping",
+      "reason": "Frontmatter-convention guidance (concise description, anti-patterns to body); out of scope on this track."
     },
     {
       "id": "R-structure-01",
       "section": "Structure",
-      "kind": "shaping",
-      "reason": "out of scope: directory-structure rule (artifact form)"
+      "kind": "technique",
+      "reason": "How-to guidance (bulk reference data lives in references/, loaded on demand); no competing incentive."
     },
     {
       "id": "R-structure-02",
       "section": "Structure",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (references for bulk data)"
+      "kind": "technique",
+      "reason": "How-to guidance (scripts for deterministic processes); no competing incentive."
     },
     {
       "id": "R-structure-03",
       "section": "Structure",
-      "kind": "technique",
-      "reason": "out of scope: how-to guidance (scripts for deterministic processes); no competing incentive"
+      "kind": "shaping",
+      "reason": "Artifact-form rule (one complete example, no multi-language dilution); shape-testing track."
     },
     {
       "id": "R-structure-04",
       "section": "Structure",
       "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (concise SKILL.md)"
-    },
-    {
-      "id": "R-structure-05",
-      "section": "Structure",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (one complete example)"
+      "reason": "Artifact-form rule (branched procedures MUST be mermaid flowcharts, reference data MUST be tables); shape-testing track."
     },
     {
       "id": "R-structure-06",
       "section": "Structure",
-      "kind": "shaping",
-      "reason": "out of scope: artifact-form rule (mermaid for branching procedures, tables for reference data)"
-    },
-    {
-      "id": "R-structure-07",
-      "section": "Structure",
       "kind": "technique",
-      "reason": "out of scope: how-to guidance (read fully before editing); no competing incentive"
-    },
-    {
-      "id": "R-structure-08",
-      "section": "Structure",
-      "kind": "technique",
-      "reason": "out of scope: how-to guidance (spell out implicit instructions for small models); no competing incentive"
+      "reason": "How-to guidance (spell out instructions a small model can't follow implicitly); no competing incentive."
     },
     {
       "id": "R-gotchas-01",
       "section": "Gotchas",
       "kind": "reference",
-      "reason": "out of scope: documented fact (description anti-pattern consequence), no rule to violate"
+      "reason": "Documented failure-mode fact (description summarizing workflow stops skill loading); no rule to violate. Retrieval-testing territory if needed."
     },
     {
       "id": "R-gotchas-02",
       "section": "Gotchas",
       "kind": "reference",
-      "reason": "out of scope: documented fact (references load-on-demand pitfall), no rule to violate"
+      "reason": "Documented failure-mode fact (always-loaded reference saves nothing); no rule to violate."
     },
     {
       "id": "R-checklist-01",
       "section": "Checklist",
+      "kind": "discipline",
+      "reason": "Excluded as untestable on this track: 'Create a todo for each item' is only observable via todowrite tool calls, and any tool call voids a pressure rep. Would need a tool-allowing variant of the eval agent."
+    },
+    {
+      "id": "R-checklist-02",
+      "section": "Checklist",
       "kind": "shaping",
-      "reason": "out of scope: artifact-form verification checklist"
+      "reason": "Checklist restatement of shaping rules (no nuance clauses, gotchas section, defaults not menus, directives, <500 lines); shape-testing track."
+    },
+    {
+      "id": "R-checklist-03",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "Checklist restatement of shaping rules (fragility-justified steps, no no-ops, no passive wording, no always-loaded references); shape-testing track."
+    },
+    {
+      "id": "R-checklist-04",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "Checklist restatement of frontmatter and body shaping rules (name slug, description slots, trigger terms woven, overview, one example, flowchart only when non-obvious, supporting files one level deep, concise); shape-testing track."
     }
   ]
 }

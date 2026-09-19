@@ -23,5 +23,14 @@
     "unresolved": 0,
     "voids": 0,
     "campaign": "campaign-2026-09-14"
+  },
+  "pressure-test": {
+    "date": "2026-09-19",
+    "checksum": "sha256:18424fc88f39d8a8ce1e0a3ea59f872c87c6b51c7dcc41d3d9eaadb8869b9dd3",
+    "bulletproof": 6,
+    "no-failure": 1,
+    "unresolved": 0,
+    "voids": 0,
+    "campaign": "campaign-2026-09-19"
   }
 }
