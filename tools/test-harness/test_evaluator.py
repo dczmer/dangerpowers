@@ -318,6 +318,336 @@ class RecordTests(unittest.TestCase):
         self.assertFalse(self.manifest.exists())
 
 
+class RecordScoredTests(unittest.TestCase):
+    """record --scope dir --scored: the manifest counts come from the
+    scored.json result sums (one source of truth), the track is detected
+    from discriminating signals and never guessed, an explicit --track is
+    checked against the detection, --ablations passes through verbatim,
+    and the legacy counts-flag path keeps working with a stderr
+    deprecation note."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.skill_dir = self.root / "skill"
+        self.skill_dir.mkdir()
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: test-skill\n---\nbody\n"
+        )
+        self.manifest = self.root / "manifest.json"
+        self.scored = self.root / "scored.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_scored(self, entries):
+        self.scored.write_text(json.dumps({"entries": entries}))
+
+    def _record(self, **overrides) -> tuple[int, str, str]:
+        args = argparse.Namespace(
+            skill="test-skill",
+            skill_path=str(self.skill_dir),
+            manifest=str(self.manifest),
+            scope="dir",
+            track=None,
+            score=None,
+            scored=str(self.scored),
+            passes=None,
+            fails=None,
+            gaps=None,
+            voids=None,
+            adopted=None,
+            bulletproof=None,
+            no_failure=None,
+            unresolved=None,
+            ablations=None,
+            campaign="campaign-2026-09-14",
+            date="2026-09-14",
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_record(args)
+        return rc, out.getvalue(), err.getvalue()
+
+    @staticmethod
+    def _retrieval_entry(eid, result):
+        return {
+            "id": eid,
+            "result": result,
+            "classification": "findability" if result == "fail" else None,
+            "control": "pass",
+            "ablation_flag": True,
+            "missed_bullets": ["b"] if result in ("fail", "gap") else None,
+            "notes": None,
+        }
+
+    def test_scored_retrieval_sums_and_key(self):
+        self._write_scored(
+            [
+                self._retrieval_entry("a", "pass"),
+                self._retrieval_entry("b", "pass"),
+                self._retrieval_entry("c", "fail"),
+                self._retrieval_entry("d", "gap"),
+                self._retrieval_entry("e", "void"),
+            ]
+        )
+        rc, _out, err = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["passes"], 2)
+        self.assertEqual(entry["fails"], 1)
+        self.assertEqual(entry["gaps"], 1)
+        self.assertEqual(entry["voids"], 1)
+        self.assertEqual(
+            entry["checksum"], evaluator.hash_skill_dir(self.skill_dir)
+        )
+        self.assertNotIn("deprecated", err)
+
+    def test_scored_shape_sums_and_key(self):
+        self._write_scored(
+            [
+                {
+                    "id": "a",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "v1",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                },
+                {"id": "b", "kind": "pattern", "result": "no-failure"},
+            ]
+        )
+        rc, _out, _err = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["shape-test"]
+        self.assertEqual(entry["adopted"], 1)
+        self.assertEqual(entry["no-failure"], 1)
+        self.assertEqual(entry["unresolved"], 0)
+        self.assertEqual(entry["voids"], 0)
+
+    def test_scored_pressure_sums_and_key(self):
+        self._write_scored(
+            [
+                {"id": "a", "result": "bulletproof"},
+                {"id": "b", "result": "no-failure"},
+                {"id": "c", "result": "void"},
+            ]
+        )
+        rc, _out, _err = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["pressure-test"]
+        self.assertEqual(entry["bulletproof"], 1)
+        self.assertEqual(entry["no-failure"], 1)
+        self.assertEqual(entry["unresolved"], 0)
+        self.assertEqual(entry["voids"], 1)
+
+    def test_scored_with_counts_flags_rejected(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, err = self._record(passes=1)
+        self.assertEqual(rc, 1)
+        self.assertIn("counts flags are replaced by --scored", err)
+        self.assertFalse(self.manifest.exists())
+
+    def test_scored_all_void_ambiguous_asks_for_track(self):
+        # void + notes alone discriminate nothing: shape and pressure
+        # share the whole vocabulary, retrieval cannot be proven either.
+        self._write_scored(
+            [{"id": "a", "result": "void"}, {"id": "b", "result": "void"}]
+        )
+        rc, _out, err = self._record()
+        self.assertEqual(rc, 1)
+        self.assertIn("--track", err)
+        self.assertFalse(self.manifest.exists())
+
+    def test_scored_all_void_with_explicit_track_passes(self):
+        self._write_scored([{"id": "a", "result": "void"}])
+        rc, _out, _err = self._record(track="pressure-test")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["pressure-test"]
+        self.assertEqual(entry["voids"], 1)
+
+    def test_scored_explicit_track_mismatch_rejected(self):
+        self._write_scored([{"id": "a", "result": "adopted"}])
+        rc, _out, err = self._record(track="pressure-test")
+        self.assertEqual(rc, 1)
+        self.assertIn("does not match the scored results", err)
+        self.assertFalse(self.manifest.exists())
+
+    def test_scored_explicit_track_consistent_passes(self):
+        self._write_scored([{"id": "a", "result": "adopted"}])
+        rc, _out, _err = self._record(track="shape-test")
+        self.assertEqual(rc, 0)
+        self.assertIn("shape-test", json.loads(self.manifest.read_text()))
+
+    def test_scored_mixed_vocabularies_rejected(self):
+        self._write_scored(
+            [
+                {"id": "a", "result": "bulletproof"},
+                {"id": "b", "result": "adopted"},
+            ]
+        )
+        rc, _out, err = self._record()
+        self.assertEqual(rc, 1)
+        self.assertIn("refusing to guess", err)
+        self.assertFalse(self.manifest.exists())
+
+    def test_scored_result_outside_vocabulary_rejected(self):
+        entries = [self._retrieval_entry("a", "pass")]
+        entries[0]["result"] = "weird"
+        self._write_scored(entries)
+        rc, _out, err = self._record()
+        self.assertEqual(rc, 1)
+        self.assertIn("not in the retrieval-test vocabulary", err)
+
+    def test_ablations_passthrough_on_scored_path(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record(ablations="arm-rerun-of-v2")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["ablations"], "arm-rerun-of-v2")
+        self.assertEqual(entry["passes"], 1)
+
+    def test_legacy_counts_path_emits_deprecation_note(self):
+        rc, _out, err = self._record(
+            scored=None, passes=1, fails=0, gaps=0, voids=0
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("note: counts flags are deprecated; use --scored", err)
+        self.assertIn("retrieval-test", json.loads(self.manifest.read_text()))
+
+    def test_legacy_shape_path_still_rejects_ablations(self):
+        # --ablations stays a retrieval-only field on the legacy path.
+        rc, _out, err = self._record(
+            scored=None,
+            track="shape-test",
+            adopted=1,
+            no_failure=0,
+            unresolved=0,
+            voids=0,
+            ablations="x",
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("ablations", err)
+
+
+class RecordScoreFromTests(unittest.TestCase):
+    """record --score-from: the trigger score is computed once, in the
+    script (Wilson bound over the results file's recorded outcomes), and
+    flows into the --scope frontmatter record; the driver only chooses
+    which results file to pass (validate results when a validate split
+    ran, else the winner iteration's train results)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.skill_md = self.root / "SKILL.md"
+        self.skill_md.write_text("---\nname: test-skill\n---\nbody\n")
+        self.manifest = self.root / "manifest.json"
+        self.results = self.root / "iter-2-train.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_results(self, queries):
+        self.results.write_text(json.dumps({"queries": queries}))
+
+    @staticmethod
+    def _query(passed, failed, void=0):
+        return {"passed": passed, "failed": failed, "void": void}
+
+    def _record(self, **overrides) -> tuple[int, str]:
+        args = argparse.Namespace(
+            skill="test-skill",
+            skill_path=str(self.skill_md),
+            manifest=str(self.manifest),
+            scope="frontmatter",
+            track=None,
+            score=None,
+            scored=None,
+            score_from=str(self.results),
+            passes=None,
+            fails=None,
+            gaps=None,
+            voids=None,
+            adopted=None,
+            bulletproof=None,
+            no_failure=None,
+            unresolved=None,
+            ablations=None,
+            campaign="campaign-2026-09-02",
+            date=None,
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = evaluator.cmd_record(args)
+        return rc, out.getvalue()
+
+    def test_score_from_computed_into_frontmatter_record(self):
+        self._write_results(
+            [
+                self._query(2, 0),
+                self._query(1, 1),
+                self._query(0, 2, void=3),
+            ]
+        )
+        rc, _out = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        _low, _high, expected = evaluator._score_counts(3, 3)
+        self.assertIsNotNone(expected)
+        assert expected is not None  # narrowing for the type checker
+        self.assertEqual(entry["score"], expected)
+        self.assertEqual(entry["campaign"], "campaign-2026-09-02")
+
+    def test_score_from_works_on_validate_less_file(self):
+        # The documented fallback: no validate split, so the driver
+        # passes the winner iteration's train file — same computation.
+        self._write_results([self._query(4, 1)])
+        rc, _out = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        _low, _high, expected = evaluator._score_counts(4, 1)
+        self.assertIsNotNone(expected)
+        assert expected is not None
+        self.assertEqual(entry["score"], expected)
+
+    def test_score_and_score_from_conflict(self):
+        self._write_results([self._query(1, 0)])
+        rc, _out = self._record(score=0.9)
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
+
+    def test_score_from_with_scope_dir_rejected(self):
+        self._write_results([self._query(1, 0)])
+        skill_dir = self.root / "skill-dir"
+        skill_dir.mkdir()
+        rc, _out = self._record(scope="dir", skill_path=str(skill_dir))
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
+
+    def test_score_from_missing_file(self):
+        rc, _out = self._record(score_from=str(self.root / "no.json"))
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
+
+    def test_score_from_not_a_results_file(self):
+        self.results.write_text(json.dumps({"entries": []}))
+        rc, _out = self._record()
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
+
+    def test_score_from_all_void_outcomes(self):
+        self._write_results([self._query(0, 0, void=3)])
+        rc, _out = self._record()
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
+
+
 class FailuresTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

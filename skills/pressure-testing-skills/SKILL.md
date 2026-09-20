@@ -64,8 +64,8 @@ scripts only — never parse their prose stdout.
 - Verdicts: `bulletproof` / `no-failure` / `unresolved` / `void`.
   `no-failure` *is* the ablation flag — there is no separate ablation field.
 - A rep passes only if it chose `compliant_option` **and** cited a section.
-- Record only after a completed FULL campaign (`--scope dir --track
-  pressure-test`, all four counts); cleanup uses `--prefix pressure-test`.
+- Record only after a completed FULL campaign (`--scope dir --scored
+  $CAMP/scored.json`); cleanup uses `--prefix pressure-test`.
 
 ## Inputs
 
@@ -228,10 +228,16 @@ convention as the other testing tracks.)
    `counters/<rule>-round<N>.md` — a full revised body; spend confirmation →
    re-run green with the revised file. Hard cap 3 rounds → else `unresolved`,
    escalate (restructure or enforce mechanically instead of prose).
-10. Write `$CAMP/scored.json`; run `pressure-scored-check` with all four
-    counts (see Scoring).
+10. `evaluator.py pressure-scored-check --results $CAMP/results-<arm>-<rule>.json
+    [--results … one flag per results file] --emit-skeleton $CAMP/scored.json`
+    emits the skeleton from the results union — one entry per union id, arm
+    presence and `verdict_constraint` hints pre-filled, judgment fields
+    (result, counters, notes) null; the driver fills the judgment fields
+    (see Scoring), then re-runs with `--scored $CAMP/scored.json` to
+    validate — the check gates `record`. An unfilled skeleton fails the
+    check.
 11. **Report** (multi-rule format per Report format).
-12. `record --scope dir --track pressure-test` — completed full campaigns
+12. `record --scope dir --scored $CAMP/scored.json` — completed full campaigns
     only; never aborted campaigns, never mini-campaigns, never calibration
     pilots.
 13. **Write-backs** to the source `SKILL.md` only on explicit user
@@ -339,18 +345,19 @@ by hand; grep is triage, not verdict. Verdicts per rule:
 `scored.json` holds `campaign`, `skill`, and one object per rule covered in
 `entries`: `id` (scenario id), `result`, optional `counters` (list of
 non-empty strings — one per applied counter), optional `notes`. The harness
-writes the file; the field shapes above are all a driver needs.
+emits the skeleton; the driver fills the judgment fields (result, counters,
+notes).
 
 `pressure-scored-check --results <f> [--results <f> ...] --scored <f>
-[--bulletproof B --no-failure N --unresolved U --voids V]` validates beyond
+[--emit-skeleton <f>]` validates beyond
 schema (repeated `--results` union-dedupes entry ids; every union id covered
 exactly once): `result` must be one of the four verdicts; every entry must
 have a `"red"` arm in the results union (RED always runs first — no red arm
 means never baselined); `no-failure` and `void` entries must have **no**
 `"green"` arm (baseline complied or was unmeasurable; nothing else may have
-run); `bulletproof` and `unresolved` entries must have one; and the four
-counts, when given, must be given all together and equal the scored sums —
-with the counts given, the check gates `record`.
+run); `bulletproof` and `unresolved` entries must have one. With
+`--emit-skeleton PATH` instead of `--scored`, the check writes the skeleton
+— every union id once, judgment fields null — and exits 0.
 
 ## Meta-testing
 
@@ -486,11 +493,10 @@ compliant option B):
 ]
 ```
 
-Manifest record (`record --scope dir --track pressure-test`): writes a
+Manifest record (`record --scope dir --scored $CAMP/scored.json`): writes a
 `pressure-test` key — `date`, `checksum` (`sha256:` of the skill dir),
-`bulletproof`, `no-failure`, `unresolved`, `voids`, optional `campaign`. The
-retrieval/shape counts (`passes`/`fails`/`gaps`/`ablations`/`adopted`) are
-rejected on this track.
+`bulletproof`, `no-failure`, `unresolved`, `voids`, optional `campaign` —
+with the counts taken from the scored file.
 
 ## Report format
 
@@ -611,12 +617,12 @@ on those paths — only a completed full campaign is recorded.
   counter files are full revised bodies; hard cap 3 rounds; unresolved
   escalated
 - [ ] Mid-campaign arm re-runs (if any) disclosed in the report
-- [ ] scored.json covers every union results id; `pressure-scored-check`
-  exits 0 with all four counts matching the report summary
+- [ ] scored.json skeleton emitted and the null judgment fields filled;
+  covers every union results id; `pressure-scored-check` exits 0
 - [ ] Report shows per-rule per-arm tables for every rule, verbatim
   rationalizations, counters, meta findings, index sections, the manifest
   line variant, and summary counts
-- [ ] `record --scope dir --track pressure-test` only after a completed full
+- [ ] `record --scope dir --scored $CAMP/scored.json` only after a completed full
   campaign
 - [ ] Write-backs only with explicit user confirmation, followed by a
   never-recorded confirmation mini-campaign; cleanup run

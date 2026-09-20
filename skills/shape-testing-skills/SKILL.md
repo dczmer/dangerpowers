@@ -68,8 +68,8 @@ Consume exit codes and JSON from those scripts only — never parse their prose 
   byte-states); the serial order is spend discipline.
 - Fix between campaigns, never mid-campaign; fixtures, variant texts, and section
   spans stay verbatim across campaigns.
-- Record only after a completed FULL campaign (`--scope dir --track shape-test`,
-  all four counts); cleanup uses `--prefix shape-test`.
+- Record only after a completed FULL campaign (`--scope dir --scored
+  $CAMP/scored.json`); cleanup uses `--prefix shape-test`.
 
 ## Inputs
 
@@ -238,16 +238,20 @@ retrieval track.)
 14. Non-converging rules → round-2 mini-campaign (changed FORM, new filtered entries
     file, second campaign dir, **never recorded**), cap 2 rounds → else `unresolved`,
     escalate to the user.
-15. Write `$CAMP/scored.json` (schema per shape-scored-check); run `evaluator.py
-    shape-scored-check --results $CAMP/results-control.json --results
-    $CAMP/results-variants.json [--results $CAMP/results-restraint.json] --scored
-    $CAMP/scored.json [--adopted A --no-failure N --unresolved U --voids V]` — with
-    the counts given (all four, matching the report summary), the check gates `record`.
+15. `evaluator.py shape-scored-check --results $CAMP/results-control.json
+    --results $CAMP/results-variants.json [--results $CAMP/results-restraint.json]
+    --emit-skeleton $CAMP/scored.json` emits the skeleton from the results union —
+    one entry per union id, `kind` and per-arm `marker_counts` pre-filled from
+    the results, judgment fields null; the driver narrows `marker_counts` by
+    hand and fills the judgment fields, then re-runs with `--scored
+    $CAMP/scored.json` to validate — the check gates `record`. An unfilled
+    skeleton fails the check.
 16. Report (multi-rule format per Report format).
 17. After every completed FULL campaign (never aborted, never a mini-campaign):
     `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
-    <root>/skills-workspace/<s>/manifest.json --scope dir --track shape-test
-    --campaign <name> --adopted A --no-failure N --unresolved U --voids V`.
+    <root>/skills-workspace/<s>/manifest.json --scope dir --scored
+    $CAMP/scored.json --campaign <name>` — the track counts come from the
+    scored file; `--track` is optional (auto-detected).
 18. Write-backs to the source `SKILL.md` only on explicit user confirmation; afterwards
     re-run the adopted rule's entry as a confirmation mini-campaign (second campaign
     dir, never recorded).
@@ -409,10 +413,12 @@ Every campaign report opens with four lines — `shape test: <skill> — <date>`
 scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern`, matching the results), `result` (one of `adopted`, `no-failure`, `unresolved`, `void`), `adopted_arm` (exactly when result is adopted; a non-v0 arm present in that entry's results), `restraint_gate` (`pass`/`fail`, exactly when kind is pattern and result is adopted; `null` otherwise), optional `marker_counts` and `notes`. Every entry id in the results is covered exactly once — a missing, duplicate, or unknown id fails `shape-scored-check`. Example:
 
 ```json
-[
-  {"id": "R-styling-01", "kind": "shaping", "result": "adopted", "adopted_arm": "v2", "restraint_gate": null},
-  {"id": "R-review-02", "kind": "pattern", "result": "adopted", "adopted_arm": "v3", "restraint_gate": "pass"}
-]
+{
+  "entries": [
+    {"id": "no-inline-styles", "kind": "shaping", "result": "adopted", "adopted_arm": "v2", "restraint_gate": null},
+    {"id": "reframe-as-handoff", "kind": "pattern", "result": "adopted", "adopted_arm": "v3", "restraint_gate": "pass"}
+  ]
+}
 ```
 
 ## Gotchas
@@ -455,7 +461,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Every flagged marker sample hand-read; convergence judged across the 5 reps, not by marker averages; prohibition arms never adopted; ties to the shorter phrasing
 - [ ] Pattern-rule winners gated: 5 reps on `counter-example` with `--fixture-key counter-example`, scored against `restraint_markers`; over-applying variants disqualified and the next-best gated
 - [ ] Round 2 (if any) changed the FORM in a never-recorded mini-campaign; hard cap 2 rounds respected
-- [ ] scored.json written for every union results id; `shape-scored-check` exits 0 — including the report-summary counts when passed
+- [ ] scored.json skeleton emitted and the null judgment fields filled for every union results id; `shape-scored-check` exits 0
 - [ ] Report shows per-rule per-arm tables, gate lines for pattern rules, no-failure/unresolved sections, summary counts, and the `artifacts:`/`manifest:` lines
-- [ ] `record --scope dir --track shape-test` run only after a completed full campaign — never aborted, never a mini-campaign, never a calibration pilot
+- [ ] `record --scope dir --scored $CAMP/scored.json` run only after a completed full campaign — never aborted, never a mini-campaign, never a calibration pilot
 - [ ] Write-backs applied only with user confirmation, followed by a never-recorded confirmation mini-campaign; `cleanup --workspace $WS --prefix shape-test` run

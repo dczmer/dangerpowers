@@ -436,6 +436,35 @@ def _score_counts(
     return low, high, low
 
 
+def score_from_results(results_path: Path) -> float | str:
+    """Trigger score (Wilson lower bound) over a suite results file's
+    recorded outcomes, reusing _score_counts. Which file to pass is the
+    driver's documented decision: the validate pass's results when a
+    validate split ran, else the winner iteration's train results.
+    Returns the exact error message on any violation."""
+    if not results_path.exists():
+        return f"results file not found: {results_path}"
+    try:
+        data = json.loads(results_path.read_text())
+    except json.JSONDecodeError as e:
+        return f"invalid JSON in {results_path}: {e}"
+    if not isinstance(data, dict) or not isinstance(data.get("queries"), list):
+        return (
+            f"{results_path}: not a suite result file (missing 'queries' "
+            f"list)"
+        )
+    passed = failed = 0
+    for i, q in enumerate(data["queries"]):
+        if not isinstance(q, dict):
+            return f"{results_path}: query {i} is not an object"
+        passed += q.get("passed") or 0
+        failed += q.get("failed") or 0
+    _low, _high, score = _score_counts(passed, failed)
+    if score is None:
+        return f"{results_path}: no non-void outcomes to score"
+    return score
+
+
 def cmd_suite(args: argparse.Namespace) -> int:
     strategy_cls = resolve_strategy(args.harness)
     workspace = Path(args.workspace)
@@ -764,7 +793,11 @@ def _retrieval_union_hook(path: Path, e: dict, extras: dict) -> str | None:
 
 def _shape_union_hook(path: Path, e: dict, extras: dict) -> str | None:
     """Validate the arms object and kind consistency across shape
-    results files; records id -> kind in extras['kinds']."""
+    results files; records id -> kind in extras['kinds'] and per-arm
+    marker triage totals in extras['marker_counts']. Occurrences of the
+    same arm name across files (e.g. a restraint rerun of v2) are
+    summed, so the totals are independent of --results order; the
+    driver narrows them by hand when filling the skeleton."""
     eid = e["id"]
     arms = e.get("arms")
     if not isinstance(arms, dict):
@@ -783,6 +816,24 @@ def _shape_union_hook(path: Path, e: dict, extras: dict) -> str | None:
             f"{path}: entry {eid}: kind {kind!r} differs from earlier "
             f"results file ({kinds[eid]!r})"
         )
+    raw_markers = e.get("markers")
+    markers = raw_markers if isinstance(raw_markers, dict) else {}
+    entry_counts = extras.setdefault("marker_counts", {}).setdefault(eid, {})
+    for arm, arm_data in arms.items():
+        if not isinstance(arm, str) or not arm:
+            continue
+        if not isinstance(arm_data, dict) or not isinstance(
+            arm_data.get("runs"), list
+        ):
+            continue
+        arm_counts = entry_counts.setdefault(arm, {})
+        for run in arm_data["runs"]:
+            if not isinstance(run, dict):
+                continue
+            answer = run.get("answer_text")
+            answer = answer if isinstance(answer, str) else ""
+            for name, n in marker_triage_counts(answer, markers).items():
+                arm_counts[name] = arm_counts.get(name, 0) + n
     return None
 
 
@@ -894,6 +945,222 @@ def check_coverage(
             f"{', '.join(missing)}"
         )
     return scored_entries
+
+
+# Scored result value -> manifest count key, per track. Shape and
+# pressure share no-failure/unresolved/void, so the shared values alone
+# can never identify a track; detection needs a discriminating signal
+# (bulletproof/arm reference for pressure, adopted/adopted_arm/
+# restraint_gate for shape, classification/control/ablation_flag or a
+# pass/fail/gap result for retrieval).
+_TRACK_SUM_KEYS = {
+    "retrieval-test": {
+        "pass": "passes",
+        "fail": "fails",
+        "gap": "gaps",
+        "void": "voids",
+    },
+    "shape-test": {
+        "adopted": "adopted",
+        "no-failure": "no-failure",
+        "unresolved": "unresolved",
+        "void": "voids",
+    },
+    "pressure-test": {
+        "bulletproof": "bulletproof",
+        "no-failure": "no-failure",
+        "unresolved": "unresolved",
+        "void": "voids",
+    },
+}
+
+
+def _scored_track_signals(scored_entries: list[dict]) -> list[str]:
+    """Collect the set of tracks the scored entries can be proven to
+    belong to, using only discriminating signals (see _TRACK_SUM_KEYS)."""
+    pressure = shape = retrieval = False
+    for e in scored_entries:
+        if not isinstance(e, dict):
+            continue
+        if e.get("result") == "bulletproof" or e.get("arm") in (
+            "red",
+            "green",
+        ):
+            pressure = True
+        if (
+            e.get("result") == "adopted"
+            or "adopted_arm" in e
+            or "restraint_gate" in e
+        ):
+            shape = True
+        if e.get("result") in ("pass", "fail", "gap") or any(
+            k in e for k in ("classification", "control", "ablation_flag")
+        ):
+            retrieval = True
+    signals = []
+    if pressure:
+        signals.append("pressure-test")
+    if shape:
+        signals.append("shape-test")
+    if retrieval:
+        signals.append("retrieval-test")
+    return signals
+
+
+def sums_from_scored(
+    scored_path: Path, track: str | None = None
+) -> tuple[str, dict[str, int]] | str:
+    """Load scored.json and derive (track, manifest count sums) from the
+    result values, mapping the result vocabulary to the manifest key
+    vocabulary for the detected track. When an explicit track is given
+    it must be consistent with the detection; when nothing in the file
+    discriminates, the explicit track is used and its absence is an
+    error — never a guess. Returns the exact error message on any
+    violation."""
+    scored_entries = load_scored_json(scored_path)
+    if isinstance(scored_entries, str):
+        return scored_entries
+    signals = _scored_track_signals(scored_entries)
+    if len(signals) > 1:
+        return (
+            f"{scored_path}: results mix track vocabularies "
+            f"({', '.join(signals)}); refusing to guess a track"
+        )
+    if track is not None and signals and track != signals[0]:
+        return (
+            f"--track {track} does not match the scored results "
+            f"(detected {signals[0]})"
+        )
+    resolved = track or (signals[0] if signals else None)
+    if resolved is None:
+        return (
+            f"{scored_path}: no track-discriminating results; pass "
+            f"--track explicitly"
+        )
+    vocab = _TRACK_SUM_KEYS[resolved]
+    sums = {manifest_key: 0 for manifest_key in vocab.values()}
+    for i, e in enumerate(scored_entries):
+        result = e.get("result") if isinstance(e, dict) else None
+        if result not in vocab:
+            return (
+                f"{scored_path}: entry {i}: result {result!r} is not in "
+                f"the {resolved} vocabulary ({', '.join(vocab)})"
+            )
+        sums[vocab[result]] += 1
+    return resolved, sums
+
+
+def _scored_skeleton_header(results_paths: list[str]) -> dict:
+    """campaign/skill header for the retrieval and pressure skeletons.
+    The scored-checks never validate the header, so these values are
+    driver context only: 'skill' comes from the first results file's
+    config block, 'campaign' from that file's parent directory when it
+    is named campaign-*, else the 'pilot' placeholder."""
+    skill = "pilot"
+    parent = Path(results_paths[0]).resolve().parent.name
+    try:
+        data = json.loads(Path(results_paths[0]).read_text())
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    config = data.get("config") if isinstance(data, dict) else None
+    if isinstance(config, dict) and isinstance(config.get("skill"), str):
+        skill = config["skill"] or "pilot"
+    campaign = parent if parent.startswith("campaign-") else "pilot"
+    return {"campaign": campaign, "skill": skill}
+
+
+def emit_scored_skeleton(
+    track: str,
+    results_ids: list[str],
+    extras: dict[str, dict],
+    out_path: Path,
+    header: dict | None = None,
+) -> None:
+    """Write the scored.json skeleton: every union id exactly once, all
+    mechanically derivable fields pre-filled, judgment fields null. The
+    per-track scored-checks reject the nulls, so an uncompleted skeleton
+    cannot pass as a scored artifact — the check is the you-forgot-to-
+    judge gate. Extras carry the union hooks' collections: retrieval's
+    expect rubric is judging context only and is never written; shape
+    kinds/marker_counts come from extras['kinds']/extras['marker_counts'];
+    pressure arm sets are merged into extras['arms'] by the caller."""
+    entries = []
+    for eid in results_ids:
+        if track == "retrieval":
+            entry = {
+                "id": eid,
+                "result": None,
+                "classification": None,
+                "control": None,
+                "ablation_flag": None,
+                "missed_bullets": None,
+                "notes": None,
+            }
+        elif track == "shape":
+            entry = {
+                "id": eid,
+                "kind": extras["kinds"][eid],
+                "result": None,
+                "adopted_arm": None,
+                "restraint_gate": None,
+                "marker_counts": extras["marker_counts"].get(eid, {}),
+                "notes": None,
+            }
+        else:  # "pressure"
+            arms = extras["arms"].get(eid, set())
+            if "red" not in arms:
+                # No red arm means the entry can never pass the scored
+                # check (RED always runs first); nothing to constrain.
+                constraint = None
+            elif "green" in arms:
+                constraint = ["bulletproof", "unresolved"]
+            else:
+                constraint = ["no-failure", "void"]
+            entry = {
+                "id": eid,
+                "result": None,
+                "counters": None,
+                "verdict_constraint": constraint,
+                "notes": None,
+            }
+        entries.append(entry)
+    doc = dict(header) if header else {}
+    doc["entries"] = entries
+    out_path.write_text(json.dumps(doc, indent=2) + "\n")
+
+
+def _scored_target_gate(args: argparse.Namespace) -> int | None:
+    """--scored / --emit-skeleton exclusivity: argparse cannot express
+    it (both are plain optional paths), so exactly one must be given.
+    Returns _err(...) on violation, None when exactly one is set."""
+    emit = getattr(args, "emit_skeleton", None)
+    if args.scored is None and emit is None:
+        return _err("one of --scored or --emit-skeleton is required")
+    if args.scored is not None and emit is not None:
+        return _err("--scored and --emit-skeleton are mutually exclusive")
+    return None
+
+
+def _emit_scored_skeleton_cmd(
+    track: str,
+    results_paths: list[str],
+    results_ids: list[str],
+    extras: dict,
+    args: argparse.Namespace,
+) -> int:
+    """The --emit-skeleton branch shared by the three scored-checks:
+    the results union has already been computed and validated; derive
+    the header for the header-carrying tracks, write the skeleton, and
+    confirm on one line."""
+    out_path = Path(args.emit_skeleton)
+    header = (
+        _scored_skeleton_header(results_paths)
+        if track in ("retrieval", "pressure")
+        else None
+    )
+    emit_scored_skeleton(track, results_ids, extras, out_path, header)
+    print(f"wrote skeleton: {out_path} ({len(results_ids)} entries)")
+    return 0
 
 
 def counts_gate(
@@ -1018,14 +1285,29 @@ def cmd_record(args: argparse.Namespace) -> int:
     """Write/update one track's manifest key after a completed campaign.
     Overwrites only the scope's key (`trigger-test`, `retrieval-test`,
     `shape-test`, or `pressure-test` with --scope dir --track); unknown
-    keys are preserved. --scope dir --track selects the count vocabulary:
-    retrieval-test uses passes/fails/gaps/voids (the default,
-    back-compatible), shape-test uses adopted/no-failure/unresolved/voids,
-    pressure-test uses bulletproof/no-failure/unresolved/voids."""
+    keys are preserved. With --scope dir --scored, the counts come from
+    the scored.json result sums and the track is detected from the file
+    (an explicit --track is checked against the detection); the legacy
+    counts-flag path is retained one release and prints a deprecation
+    note. --scope dir --track selects the count vocabulary for the
+    legacy path: retrieval-test uses passes/fails/gaps/voids (the
+    default, back-compatible), shape-test uses
+    adopted/no-failure/unresolved/voids, pressure-test uses
+    bulletproof/no-failure/unresolved/voids."""
     skill_path = Path(args.skill_path)
     scope = getattr(args, "scope", "frontmatter")
 
+    if getattr(args, "score_from", None) is not None:
+        if args.score is not None:
+            return _err("--score is replaced by --score-from")
+        score = score_from_results(Path(args.score_from))
+        if isinstance(score, str):
+            return _err(score)
+        args.score = score
+
     if scope == "frontmatter":
+        if getattr(args, "scored", None) is not None:
+            return _err("--scored is only valid with --scope dir")
         if args.score is None:
             return _err("--score is required with --scope frontmatter")
         if _any_counts_given(args):
@@ -1054,109 +1336,148 @@ def cmd_record(args: argparse.Namespace) -> int:
                 f"--scope dir expects the skill directory: {skill_path}"
             )
         checksum = hash_skill_dir(skill_path)
-        track = getattr(args, "track", "retrieval-test")
-        if track == "shape-test":
-            # voids is shared by both vocabularies; the retrieval-only
-            # counts must not appear on a shape-test record.
-            if any(
-                getattr(args, n, None) is not None
-                for n in (
-                    "passes",
-                    "fails",
-                    "gaps",
-                    "ablations",
-                    "bulletproof",
-                )
-            ):
-                return _err(
-                    "passes/fails/gaps/ablations/bulletproof are only "
-                    "valid with --track retrieval-test or --track "
-                    "pressure-test"
-                )
-            missing = [
-                n
-                for n in ("adopted", "no_failure", "unresolved", "voids")
-                if getattr(args, n, None) is None
-            ]
-            if missing:
-                return _err(
-                    "counts required with --scope dir --track shape-test: "
-                    + ", ".join(missing)
-                )
+        if getattr(args, "scored", None) is not None:
+            if _any_counts_given(args):
+                return _err("counts flags are replaced by --scored")
+            track_sums = sums_from_scored(
+                Path(args.scored), getattr(args, "track", None)
+            )
+            if isinstance(track_sums, str):
+                return _err(track_sums)
+            track, sums = track_sums
             entry = {
                 "date": args.date or datetime.now(UTC).date().isoformat(),
                 "checksum": checksum,
-                "adopted": args.adopted,
-                "no-failure": args.no_failure,
-                "unresolved": args.unresolved,
-                "voids": args.voids,
-            }
-            key = "shape-test"
-        elif track == "pressure-test":
-            # voids/no_failure/unresolved are shared with the shape
-            # vocabulary; the retrieval and shape-only counts must not
-            # appear on a pressure-test record.
-            if any(
-                getattr(args, n, None) is not None
-                for n in ("passes", "fails", "gaps", "ablations", "adopted")
-            ):
-                return _err(
-                    "passes/fails/gaps/ablations/adopted are only valid "
-                    "with --track retrieval-test or --track shape-test"
-                )
-            missing = [
-                n
-                for n in ("bulletproof", "no_failure", "unresolved", "voids")
-                if getattr(args, n, None) is None
-            ]
-            if missing:
-                return _err(
-                    "counts required with --scope dir --track "
-                    f"pressure-test: {', '.join(missing)}"
-                )
-            entry = {
-                "date": args.date or datetime.now(UTC).date().isoformat(),
-                "checksum": checksum,
-                "bulletproof": args.bulletproof,
-                "no-failure": args.no_failure,
-                "unresolved": args.unresolved,
-                "voids": args.voids,
-            }
-            key = "pressure-test"
-        else:
-            if any(
-                getattr(args, n, None) is not None
-                for n in (
-                    "adopted",
-                    "no_failure",
-                    "unresolved",
-                    "bulletproof",
-                )
-            ):
-                return _err(
-                    "adopted/no-failure/unresolved/bulletproof are only "
-                    "valid with --track shape-test or --track pressure-test"
-                )
-            missing = [
-                n
-                for n in ("passes", "fails", "gaps", "voids")
-                if getattr(args, n, None) is None
-            ]
-            if missing:
-                return _err(
-                    f"counts required with --scope dir: {', '.join(missing)}"
-                )
-            entry = {
-                "date": args.date or datetime.now(UTC).date().isoformat(),
-                "checksum": checksum,
-                "passes": args.passes,
-                "fails": args.fails,
-                "gaps": args.gaps,
-                "voids": args.voids,
+                **sums,
             }
             if args.ablations is not None:
                 entry["ablations"] = args.ablations
-            key = "retrieval-test"
+            key = track
+        else:
+            # Legacy counts-flag path, retained one release for
+            # back-compat; the deprecation note fires on stderr only
+            # when this path actually records.
+            track = getattr(args, "track", None) or "retrieval-test"
+            if track == "shape-test":
+                # voids is shared by both vocabularies; the retrieval-only
+                # counts must not appear on a shape-test record.
+                if any(
+                    getattr(args, n, None) is not None
+                    for n in (
+                        "passes",
+                        "fails",
+                        "gaps",
+                        "ablations",
+                        "bulletproof",
+                    )
+                ):
+                    return _err(
+                        "passes/fails/gaps/ablations/bulletproof are only "
+                        "valid with --track retrieval-test or --track "
+                        "pressure-test"
+                    )
+                missing = [
+                    n
+                    for n in ("adopted", "no_failure", "unresolved", "voids")
+                    if getattr(args, n, None) is None
+                ]
+                if missing:
+                    return _err(
+                        "counts required with --scope dir --track "
+                        "shape-test: " + ", ".join(missing)
+                    )
+                entry = {
+                    "date": args.date or datetime.now(UTC).date().isoformat(),
+                    "checksum": checksum,
+                    "adopted": args.adopted,
+                    "no-failure": args.no_failure,
+                    "unresolved": args.unresolved,
+                    "voids": args.voids,
+                }
+                key = "shape-test"
+            elif track == "pressure-test":
+                # voids/no_failure/unresolved are shared with the shape
+                # vocabulary; the retrieval and shape-only counts must
+                # not appear on a pressure-test record.
+                if any(
+                    getattr(args, n, None) is not None
+                    for n in (
+                        "passes",
+                        "fails",
+                        "gaps",
+                        "ablations",
+                        "adopted",
+                    )
+                ):
+                    return _err(
+                        "passes/fails/gaps/ablations/adopted are only "
+                        "valid with --track retrieval-test or --track "
+                        "shape-test"
+                    )
+                missing = [
+                    n
+                    for n in (
+                        "bulletproof",
+                        "no_failure",
+                        "unresolved",
+                        "voids",
+                    )
+                    if getattr(args, n, None) is None
+                ]
+                if missing:
+                    return _err(
+                        "counts required with --scope dir --track "
+                        f"pressure-test: {', '.join(missing)}"
+                    )
+                entry = {
+                    "date": args.date or datetime.now(UTC).date().isoformat(),
+                    "checksum": checksum,
+                    "bulletproof": args.bulletproof,
+                    "no-failure": args.no_failure,
+                    "unresolved": args.unresolved,
+                    "voids": args.voids,
+                }
+                key = "pressure-test"
+            else:
+                if any(
+                    getattr(args, n, None) is not None
+                    for n in (
+                        "adopted",
+                        "no_failure",
+                        "unresolved",
+                        "bulletproof",
+                    )
+                ):
+                    return _err(
+                        "adopted/no-failure/unresolved/bulletproof are "
+                        "only valid with --track shape-test or --track "
+                        "pressure-test"
+                    )
+                missing = [
+                    n
+                    for n in ("passes", "fails", "gaps", "voids")
+                    if getattr(args, n, None) is None
+                ]
+                if missing:
+                    return _err(
+                        "counts required with --scope dir: "
+                        f"{', '.join(missing)}"
+                    )
+                entry = {
+                    "date": args.date or datetime.now(UTC).date().isoformat(),
+                    "checksum": checksum,
+                    "passes": args.passes,
+                    "fails": args.fails,
+                    "gaps": args.gaps,
+                    "voids": args.voids,
+                }
+                if args.ablations is not None:
+                    entry["ablations"] = args.ablations
+                key = "retrieval-test"
+            print(
+                "note: counts flags are deprecated; use --scored",
+                file=sys.stderr,
+            )
 
     if args.campaign is not None:
         entry["campaign"] = args.campaign
@@ -1182,21 +1503,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     manifest.write_text(json.dumps(data, indent=2) + "\n")
     if scope == "frontmatter":
         detail = f"score {args.score}"
-    elif getattr(args, "track", "retrieval-test") == "shape-test":
-        detail = (
-            f"{args.adopted} adopted / {args.no_failure} no-failure / "
-            f"{args.unresolved} unresolved / {args.voids} void"
-        )
-    elif getattr(args, "track", "retrieval-test") == "pressure-test":
-        detail = (
-            f"{args.bulletproof} bulletproof / "
-            f"{args.no_failure} no-failure / {args.unresolved} unresolved / "
-            f"{args.voids} void"
-        )
     else:
-        detail = (
-            f"{args.passes} pass / {args.fails} fail / "
-            f"{args.gaps} gap / {args.voids} void"
+        detail = " / ".join(
+            f"{entry[k]} {k}" for k in _TRACK_SUM_KEYS[key].values()
         )
     print(
         f"recorded: {manifest} (scope {scope}, date {entry['date']}, "
@@ -1616,8 +1925,12 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
     ablation_flag must equal (control == "pass"), missed_bullets must be
     verbatim rubric text from the entry's expect list, and when the
     record-step counts are passed (--passes/--fails/--gaps/--voids) they
-    must match the scored sums."""
-    scored_path = Path(args.scored)
+    must match the scored sums. With --emit-skeleton PATH instead of
+    --scored, writes a scored.json skeleton (every results id once,
+    judgment fields null) and exits 0."""
+    gate = _scored_target_gate(args)
+    if gate is not None:
+        return gate
     union = union_results(
         [args.results], "retrieval", entry_hook=_retrieval_union_hook
     )
@@ -1626,6 +1939,12 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
     results_ids, _results_arms, extras = union
     results_expect = extras.get("expect", {})
 
+    if getattr(args, "emit_skeleton", None) is not None:
+        return _emit_scored_skeleton_cmd(
+            "retrieval", [args.results], results_ids, extras, args
+        )
+
+    scored_path = Path(args.scored)
     scored_entries = load_scored_json(scored_path)
     if isinstance(scored_entries, str):
         return _err(scored_entries)
@@ -2233,12 +2552,23 @@ def cmd_shape_scored_check(args: argparse.Namespace) -> int:
     adopted_arm must name a non-v0 arm present in that entry's results,
     the restraint_gate rule applies to adopted pattern entries, and the
     record-step counts (--adopted/--no-failure/--unresolved/--voids) must
-    be     given all together and match the scored sums."""
+    be     given all together and match the scored sums. With --emit-skeleton
+    PATH instead of --scored, writes a scored.json skeleton (every
+    results id once, kind and per-arm marker_counts pre-filled,
+    judgment fields null) and exits 0."""
+    gate = _scored_target_gate(args)
+    if gate is not None:
+        return gate
     union = union_results(args.results, "shape", entry_hook=_shape_union_hook)
     if isinstance(union, str):
         return _err(union)
     results_ids, results_arms, extras = union
     results_kinds = extras.get("kinds", {})
+
+    if getattr(args, "emit_skeleton", None) is not None:
+        return _emit_scored_skeleton_cmd(
+            "shape", args.results, results_ids, extras, args
+        )
 
     scored_path = Path(args.scored)
     scored_entries = load_scored_json(scored_path)
@@ -2744,13 +3074,25 @@ def cmd_pressure_scored_check(args: argparse.Namespace) -> int:
     must have no "green" arm, bulletproof and unresolved entries must
     have one, and the record-step counts (--bulletproof/--no-failure/
     --unresolved/--voids) must be given all together and match the scored
-    sums."""
+    sums. With --emit-skeleton PATH instead of --scored, writes a
+    scored.json skeleton (every results id once, a verdict_constraint
+    hint derived from the red/green arm union, judgment fields null)
+    and exits 0."""
+    gate = _scored_target_gate(args)
+    if gate is not None:
+        return gate
     union = union_results(
         args.results, "pressure", entry_hook=_pressure_union_hook
     )
     if isinstance(union, str):
         return _err(union)
-    results_ids, results_arms, _extras = union
+    results_ids, results_arms, extras = union
+
+    if getattr(args, "emit_skeleton", None) is not None:
+        extras["arms"] = results_arms
+        return _emit_scored_skeleton_cmd(
+            "pressure", args.results, results_ids, extras, args
+        )
 
     scored_path = Path(args.scored)
     scored_entries = load_scored_json(scored_path, "an object")
@@ -3110,12 +3452,23 @@ def main() -> int:
     )
     record.add_argument(
         "--track",
-        default="retrieval-test",
         choices=["retrieval-test", "shape-test", "pressure-test"],
-        help="manifest key + count vocabulary for --scope dir "
-        "(default: retrieval-test)",
+        help="manifest key + count vocabulary for --scope dir (legacy "
+        "default: retrieval-test; with --scored, checked against the "
+        "detected track)",
     )
     record.add_argument("--score", type=float)
+    record.add_argument(
+        "--scored",
+        help="scored.json to take the track counts from (replaces the "
+        "counts flags with --scope dir)",
+    )
+    record.add_argument(
+        "--score-from",
+        help="train/validate results JSON to compute the trigger score "
+        "from (Wilson bound over the recorded outcomes); replaces "
+        "--score",
+    )
     record.add_argument("--passes", type=int)
     record.add_argument("--fails", type=int)
     record.add_argument("--gaps", type=int)
@@ -3150,7 +3503,8 @@ def main() -> int:
 
     scored = sub.add_parser("scored-check")
     scored.add_argument("--results", required=True)
-    scored.add_argument("--scored", required=True)
+    scored.add_argument("--scored")
+    scored.add_argument("--emit-skeleton")
     scored.add_argument("--passes", type=int)
     scored.add_argument("--fails", type=int)
     scored.add_argument("--gaps", type=int)
@@ -3181,7 +3535,8 @@ def main() -> int:
 
     shape_scored = sub.add_parser("shape-scored-check")
     shape_scored.add_argument("--results", action="append", required=True)
-    shape_scored.add_argument("--scored", required=True)
+    shape_scored.add_argument("--scored")
+    shape_scored.add_argument("--emit-skeleton")
     shape_scored.add_argument("--adopted", type=int)
     shape_scored.add_argument("--no-failure", dest="no_failure", type=int)
     shape_scored.add_argument("--unresolved", type=int)
@@ -3219,7 +3574,8 @@ def main() -> int:
 
     pressure_scored = sub.add_parser("pressure-scored-check")
     pressure_scored.add_argument("--results", action="append", required=True)
-    pressure_scored.add_argument("--scored", required=True)
+    pressure_scored.add_argument("--scored")
+    pressure_scored.add_argument("--emit-skeleton")
     pressure_scored.add_argument("--bulletproof", type=int)
     pressure_scored.add_argument("--no-failure", dest="no_failure", type=int)
     pressure_scored.add_argument("--unresolved", type=int)

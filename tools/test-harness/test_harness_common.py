@@ -432,5 +432,306 @@ class EvidenceEnvelopeTests(unittest.TestCase):
         self._assert_missing_file("pressure")
 
 
+# The scored-check command per track and its count-gate argparse dests
+# (all None in these tests: the emit path never reaches the gate).
+SCORED_COMMANDS = {
+    "retrieval": ("cmd_scored_check", ("passes", "fails", "gaps", "voids")),
+    "shape": (
+        "cmd_shape_scored_check",
+        ("adopted", "no_failure", "unresolved", "voids"),
+    ),
+    "pressure": (
+        "cmd_pressure_scored_check",
+        ("bulletproof", "no_failure", "unresolved", "voids"),
+    ),
+}
+
+
+class SkeletonEmitTests(unittest.TestCase):
+    """--emit-skeleton on the three scored-checks: the emit writes an
+    object envelope with every union id exactly once, mechanically
+    derivable fields pre-filled (shape kind + per-arm marker_counts,
+    pressure verdict_constraint hints), and every judgment field null;
+    the existing checks reject the nulls (emit rc 0, check rc 1); and
+    --scored / --emit-skeleton conflict or are both absent. The
+    retrieval expect rubric is never written into the skeleton."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+
+    def _results(self, track):
+        """Per-track committed-shaped results files. Returns the
+        --results value (str for retrieval, list otherwise)."""
+        if track == "retrieval":
+            path = self.root / "results.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "config": {"skill": "demo-skill"},
+                        "entries": [
+                            {"id": "a", "expect": ["b1", "b2"]},
+                            {"id": "b", "expect": []},
+                        ],
+                    }
+                )
+            )
+            return str(path)
+        if track == "shape":
+            control = self.root / "control.json"
+            control.write_text(
+                json.dumps(
+                    {
+                        "config": {"skill": "demo-skill"},
+                        "entries": [
+                            {
+                                "id": "a",
+                                "kind": "shaping",
+                                "markers": {"inline_style": "style"},
+                                "arms": {
+                                    "v0": {
+                                        "runs": [
+                                            {"answer_text": "style one\nxx"},
+                                            {"answer_text": "clean"},
+                                        ]
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                )
+            )
+            variants = self.root / "variants.json"
+            variants.write_text(
+                json.dumps(
+                    {
+                        "entries": [
+                            {
+                                "id": "a",
+                                "kind": "shaping",
+                                "markers": {"inline_style": "style"},
+                                "arms": {
+                                    "v1": {"runs": [{"answer_text": "style"}]},
+                                    "v2": {"runs": [{"answer_text": "ok"}]},
+                                },
+                            },
+                            {
+                                "id": "p",
+                                "kind": "pattern",
+                                "markers": {"hover_hack": "onMouse"},
+                                "arms": {
+                                    "v1": {
+                                        "runs": [
+                                            {"answer_text": "onMouseEnter"}
+                                        ]
+                                    }
+                                },
+                            },
+                        ]
+                    }
+                )
+            )
+            # A restraint rerun of v2: same arm name across files sums
+            # (order-independent totals; the driver narrows by hand).
+            restraint = self.root / "restraint.json"
+            restraint.write_text(
+                json.dumps(
+                    {
+                        "entries": [
+                            {
+                                "id": "a",
+                                "kind": "shaping",
+                                "markers": {"inline_style": "style"},
+                                "arms": {
+                                    "v2": {"runs": [{"answer_text": "style!"}]}
+                                },
+                            }
+                        ]
+                    }
+                )
+            )
+            return [str(control), str(variants), str(restraint)]
+        red = self.root / "red.json"
+        red.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        {"id": "r1", "arms": {"red": {"runs": []}}},
+                        {"id": "r2", "arms": {"red": {"runs": []}}},
+                    ],
+                }
+            )
+        )
+        green = self.root / "green.json"
+        green.write_text(
+            json.dumps(
+                {"entries": [{"id": "r1", "arms": {"green": {"runs": []}}}]}
+            )
+        )
+        return [str(red), str(green)]
+
+    def _run(self, track, results, *, scored=None, emit=None):
+        cmd, counts_names = SCORED_COMMANDS[track]
+        ns = {"scored": scored, "emit_skeleton": emit}
+        if track == "retrieval":
+            ns["results"] = results
+        else:
+            ns["results"] = list(results)
+        for name in counts_names:
+            ns[name] = None
+        args = argparse.Namespace(**ns)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            rc = getattr(evaluator, cmd)(args)
+        return rc, stdout.getvalue(), stderr.getvalue()
+
+    def _emit(self, track):
+        results = self._results(track)
+        out = self.root / "skeleton.json"
+        rc, stdout, stderr = self._run(track, results, emit=str(out))
+        self.assertEqual(rc, 0, stderr)
+        self.assertIn("wrote skeleton:", stdout)
+        return json.loads(out.read_text())
+
+    def test_emit_skeleton_retrieval(self):
+        doc = self._emit("retrieval")
+        self.assertEqual(set(doc), {"campaign", "skill", "entries"})
+        # Parent dir is not campaign-*: placeholder; skill from config.
+        self.assertEqual(doc["campaign"], "pilot")
+        self.assertEqual(doc["skill"], "demo-skill")
+        self.assertEqual([e["id"] for e in doc["entries"]], ["a", "b"])
+        for entry in doc["entries"]:
+            for field in (
+                "result",
+                "classification",
+                "control",
+                "ablation_flag",
+                "missed_bullets",
+                "notes",
+            ):
+                self.assertIsNone(entry[field])
+            # The expect rubric is judging context, never scored output.
+            self.assertNotIn("expect", entry)
+
+    def test_emit_skeleton_shape(self):
+        doc = self._emit("shape")
+        self.assertEqual(set(doc), {"entries"})
+        by_id = {e["id"]: e for e in doc["entries"]}
+        self.assertEqual(list(by_id), ["a", "p"])
+        self.assertEqual(by_id["a"]["kind"], "shaping")
+        self.assertEqual(by_id["p"]["kind"], "pattern")
+        # v2 appears in two files: the counts sum across occurrences.
+        self.assertEqual(
+            by_id["a"]["marker_counts"],
+            {
+                "v0": {"inline_style": 1},
+                "v1": {"inline_style": 1},
+                "v2": {"inline_style": 1},
+            },
+        )
+        self.assertEqual(
+            by_id["p"]["marker_counts"], {"v1": {"hover_hack": 1}}
+        )
+        for entry in by_id.values():
+            for field in ("result", "adopted_arm", "restraint_gate", "notes"):
+                self.assertIsNone(entry[field])
+
+    def test_emit_skeleton_pressure(self):
+        doc = self._emit("pressure")
+        self.assertEqual(set(doc), {"campaign", "skill", "entries"})
+        self.assertEqual(doc["campaign"], "pilot")
+        self.assertEqual(doc["skill"], "demo-skill")
+        by_id = {e["id"]: e for e in doc["entries"]}
+        self.assertEqual(list(by_id), ["r1", "r2"])
+        # red+green implies bulletproof|unresolved; red only the others.
+        self.assertEqual(
+            by_id["r1"]["verdict_constraint"],
+            ["bulletproof", "unresolved"],
+        )
+        self.assertEqual(
+            by_id["r2"]["verdict_constraint"], ["no-failure", "void"]
+        )
+        for entry in by_id.values():
+            self.assertIsNone(entry["result"])
+            self.assertIsNone(entry["counters"])
+            self.assertIsNone(entry["notes"])
+
+    def test_emit_skeleton_header_campaign_derived(self):
+        campaign_dir = self.root / "campaign-2099-01-01"
+        campaign_dir.mkdir()
+        results = self.root / "results.json"
+        results.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [{"id": "a", "expect": []}],
+                }
+            )
+        )
+        nested = campaign_dir / "results.json"
+        nested.write_text(results.read_text())
+        out = self.root / "skel.json"
+        rc, _, stderr = self._run("retrieval", str(nested), emit=str(out))
+        self.assertEqual(rc, 0, stderr)
+        doc = json.loads(out.read_text())
+        self.assertEqual(doc["campaign"], "campaign-2099-01-01")
+        self.assertEqual(doc["skill"], "demo-skill")
+
+    def _assert_roundtrip_rejected(self, track):
+        results = self._results(track)
+        out = self.root / "skeleton.json"
+        rc, _, stderr = self._run(track, results, emit=str(out))
+        self.assertEqual(rc, 0, stderr)
+        rc, _, stderr = self._run(track, results, scored=str(out))
+        self.assertEqual(rc, 1)
+        self.assertIn("result must be one of", stderr)
+
+    def test_emit_then_check_rejected_retrieval(self):
+        self._assert_roundtrip_rejected("retrieval")
+
+    def test_emit_then_check_rejected_shape(self):
+        self._assert_roundtrip_rejected("shape")
+
+    def test_emit_then_check_rejected_pressure(self):
+        self._assert_roundtrip_rejected("pressure")
+
+    def _assert_conflict(self, track):
+        results = self._results(track)
+        out = self.root / "skeleton.json"
+        rc, _, stderr = self._run(
+            track, results, scored=str(out), emit=str(out)
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn(
+            "--scored and --emit-skeleton are mutually exclusive", stderr
+        )
+
+    def test_emit_and_scored_conflict_retrieval(self):
+        self._assert_conflict("retrieval")
+
+    def test_emit_and_scored_conflict_shape(self):
+        self._assert_conflict("shape")
+
+    def test_emit_and_scored_conflict_pressure(self):
+        self._assert_conflict("pressure")
+
+    def _assert_neither(self, track):
+        rc, _, stderr = self._run(track, self._results(track))
+        self.assertEqual(rc, 1)
+        self.assertIn("one of --scored or --emit-skeleton is required", stderr)
+
+    def test_neither_scored_nor_emit_retrieval(self):
+        self._assert_neither("retrieval")
+
+    def test_neither_scored_nor_emit_shape(self):
+        self._assert_neither("shape")
+
+    def test_neither_scored_nor_emit_pressure(self):
+        self._assert_neither("pressure")
+
+
 if __name__ == "__main__":
     unittest.main()
