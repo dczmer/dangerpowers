@@ -1,10 +1,10 @@
 {
   "skill": "writing-skills",
   "trigger-test": {
-    "date": "2026-09-13",
-    "checksum": "sha256:fbb818008f185a844d20addb1c1ce0acd8cd0c852b296f93c468ba4716fc9631",
-    "score": 0.711,
-    "campaign": "campaign-2026-09-13-4"
+    "date": "2026-09-20",
+    "checksum": "sha256:9123070bf76182346b077f13e1aee6ddfe5fcabdc3be28a320117b02ce1d3bdc",
+    "score": 0.845,
+    "campaign": "campaign-2026-09-20"
   },
   "retrieval-test": {
     "date": "2026-09-12",
