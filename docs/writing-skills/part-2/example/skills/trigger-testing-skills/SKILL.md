@@ -1,9 +1,6 @@
 ---
 name: trigger-testing-skills
 description: Use when the user asks to run a trigger test or trigger-testing campaign, check whether a skill triggers for a given query, or tune a skill description that fires too often or not often enough. Measures how reliably a skill's description causes it to load for one test query and reports pass/fail/void results.
-disable-model-invocation: true
-metadata.opencode/slash: true
-metadata.opencode/autoinvoke: false
 ---
 
 # Trigger Testing Skills

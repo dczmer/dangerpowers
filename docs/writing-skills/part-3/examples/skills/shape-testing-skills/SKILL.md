@@ -1,9 +1,6 @@
 ---
 name: shape-testing-skills
 description: Use when the user asks to run a shape test, micro-test, or wording test against a skill's output-shaping rules, verify that formatting or structure guidance actually holds in generated artifacts, or tune rule phrasing that produces inconsistent, bloated, or wrong-shaped output. Runs a temptation fixture through fresh-context subagents across wording variants with a no-guidance control and reports per-arm convergence with an adopted phrasing.
-disable-model-invocation: true
-metadata.opencode/slash: true
-metadata.opencode/autoinvoke: false
 ---
 
 # Shape Testing Skills

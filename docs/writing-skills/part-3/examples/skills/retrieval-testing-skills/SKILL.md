@@ -1,9 +1,6 @@
 ---
 name: retrieval-testing-skills
 description: Use when the user asks to run a retrieval test or retrieval-testing campaign against a reference skill, verify that agents can find and correctly apply documented facts, or surface gaps and unclear sections in a reference doc. Runs task-shaped eval queries from a queries file through read-only subagents and reports per-fact pass/fail with failure classifications.
-disable-model-invocation: true
-metadata.opencode/slash: true
-metadata.opencode/autoinvoke: false
 ---
 
 # Retrieval Testing Skills

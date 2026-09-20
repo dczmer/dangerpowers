@@ -1,9 +1,6 @@
 ---
 name: pressure-testing-skills
 description: Use when the user asks to run a pressure test or pressure-testing campaign against a skill's discipline rules, verify a behavioral rule survives rationalization under deadline, sunk-cost, or authority pressure, or harden a rule that agents talk themselves out of following. Runs forced-choice pressure scenarios through fresh subagents with a no-skill baseline and reports per-arm compliance with verbatim rationalizations and proposed counters.
-disable-model-invocation: true
-metadata.opencode/slash: true
-metadata.opencode/autoinvoke: false
 ---
 
 # Pressure Testing Skills
