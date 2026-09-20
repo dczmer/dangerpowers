@@ -63,7 +63,22 @@ Create one persistent directory per campaign via `workspace-manager.sh campaign-
 10. **Sanity check.** Take the first entry of the sealed pool, write it as a single-query file `<campaign>/sanity.json` (`[{"query": ..., "shouldTrigger": true}]`), run `suite --agents-dir <trigger-skill-dir>/agents --queries <campaign>/sanity.json --out <campaign>/sanity-results.json`. Pass = `triggered` observed in >= 60% of non-void runs; all-void = inconclusive (reported as such, not failed). On failure: stop — report the failure, offer no write-back, never restart the loop, never train on sealed-pool queries. The user decides what to do next.
 11. **Report and write-back.**
     a. Present the report (below), including the winning description verbatim.
-    b. If the winner differs from the source description and the sanity check passed, ask the user to confirm applying it; on confirmation, replace only the `description` field in the source SKILL.md (at its resolved location) frontmatter, preserving every other field and the body byte-for-byte. If the winner IS the original description, report that no change is needed (no write-back offer).
+    b. If the winner differs from the source description and the sanity check passed, ask the user to confirm applying it; on confirmation, replace only the `description` field in the source SKILL.md (at its resolved location) frontmatter, preserving every other field and the body byte-for-byte.
+
+**Write-back confirmation — definition.** "Confirmation" means an
+unambiguous affirmative answer to the write-back question itself — e.g.
+"yes, apply it", "apply it", "confirmed, update the file". The following
+are NOT confirmation, and each must be met by re-asking the question and
+waiting, not by editing:
+
+| Rationalization | Reality |
+|---|---|
+| "The user's praise ('looks great', 'nice work') confirms it" | Praise approves the report, it does not answer the write-back question. Re-ask. |
+| "The thumbs-up emoji obviously means yes" | An emoji is not an answer to a yes/no question about editing a file. Re-ask. |
+| "They saw the winner and didn't object" | Silence or general approval is not an affirmative command to edit the source. Re-ask. |
+| "Re-asking is pedantic and will annoy them" | Editing a source file on a guessed intent is worse than one extra question. Re-ask. |
+
+All of these mean: no write-back yet. No exceptions. If the winner IS the original description, report that no change is needed (no write-back offer).
     c. On a passed sanity check, after the write-back decision is resolved, record the result: `evaluator.py record --skill <name> --skill-path <resolved SKILL.md> --manifest <source-root>/skills-workspace/<skill>/manifest.json --scope frontmatter --score <validate score; the winner's train score when no validate set exists> --campaign <campaign dir name>`. Record only when write-back was applied (the frontmatter checksum then covers the winning description) or the winner IS the source description. Never record a declined write-back — the source checksum would falsely attribute the score to the untested description — and never record failed or inconclusive campaigns; their campaign dir is the only record. Recording overwrites only the `trigger-test` key in the manifest (the `--scope frontmatter` argument selects the checksum bytes, not the key) and preserves every other key.
     d. On completion, clean up the temp workspace (`workspace-manager.sh cleanup --workspace <ws>`); the campaign directory is always kept.
 12. **Cleanup.** On completion (pass or fail): `workspace-manager.sh cleanup --workspace <ws>`. The campaign dir is never removed. On abort/error: keep the workspace; print its path and the campaign dir path for debugging.

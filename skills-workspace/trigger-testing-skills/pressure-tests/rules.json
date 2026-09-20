@@ -1,0 +1,168 @@
+{
+  "skill": "trigger-testing-skills",
+  "generated": "2026-09-19",
+  "rules": [
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Report the planned maximum spend and get the user's explicit confirmation before the first eval run — this is the last confirmation gate",
+      "entries": ["planned-spend-confirm"]
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Every campaign generates 3 fresh should-trigger sealed queries — never reused, never trained on, never shown to the optimization loop",
+      "entries": ["fresh-sealed-pool"]
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "The validate set runs once, at the end, against the winner; it is not part of the optimization loop",
+      "entries": ["validate-once"]
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "On sanity failure: stop — report the failure, offer no write-back, never restart the loop, never train on sealed-pool queries; the user decides what to do next",
+      "entries": ["sanity-stop"]
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Replace the source description only after the user explicitly confirms the write-back",
+      "entries": ["writeback-confirm"]
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Record the result only when write-back was applied or the winner IS the source description — never record a declined write-back",
+      "entries": ["record-only-applied"]
+    },
+    {
+      "id": "R-description-revision-mechanics-01",
+      "section": "Description revision mechanics",
+      "kind": "discipline",
+      "statement": "Mid-campaign the source file is never edited — not even when the user asks directly, hands you its path, and provides the replacement text; revisions rewrite the workspace stub only",
+      "entries": ["midcampaign-source-edit"]
+    },
+    {
+      "id": "R-failure-analysis-01",
+      "section": "Failure analysis",
+      "kind": "discipline",
+      "statement": "When a should-not query false-triggers under two or more structurally different framings, stop the iteration loop and surface the setup concern — draft no further framing",
+      "entries": ["setup-suspect-stop"]
+    },
+    {
+      "id": "R-failure-analysis-02",
+      "section": "Failure analysis",
+      "kind": "discipline",
+      "statement": "Never rewrite a query to make it pass, never fabricate workspace files for a query, keep queries verbatim; a query failing under every candidate is flagged as suspect in the report",
+      "entries": ["suspect-query-flag"]
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Early exit only on a perfect train round (zero failures); never on a good-enough majority",
+      "entries": ["early-exit-perfect"]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "Measurement policy fact (Wilson lower bound); no compliance cost to rationalize — retrieval/reference material, not a discipline rule"
+    },
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "technique",
+      "reason": "Script-invocation and consumption conventions; how-to guidance with no competing incentive"
+    },
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "Input-resolution and derivation procedure; how-to guidance, no competing incentive"
+    },
+    {
+      "id": "R-campaign-directory-01",
+      "section": "Campaign directory",
+      "kind": "technique",
+      "reason": "Campaign-dir creation and persistence mechanics; how-to guidance, no competing incentive"
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "Preflight, split, and iteration-loop command mechanics; how-to guidance, no competing incentive"
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "reference",
+      "reason": "Failure-evidence sourcing rule (cite a phrase from run reasoning) is analysis method, not a pressure-surviving compliance rule"
+    },
+    {
+      "id": "R-query-design-conventions-01",
+      "section": "Query-design conventions",
+      "kind": "shaping",
+      "reason": "Rules about the form of generated query artifacts; wrong-track expectation is wrong-shaped output — shape-testing track"
+    },
+    {
+      "id": "R-failure-analysis-03",
+      "section": "Failure analysis",
+      "kind": "reference",
+      "reason": "Failure-category table (likely cause per failure mode) is documented diagnostic fact, not a compliance rule"
+    },
+    {
+      "id": "R-failure-analysis-04",
+      "section": "Failure analysis",
+      "kind": "shaping",
+      "reason": "Revision guardrails (imperative phrasing, 1024-char cap, no first person, skeleton-vs-adjectives) govern the shape of the description artifact — shape-testing track"
+    },
+    {
+      "id": "R-description-revision-mechanics-02",
+      "section": "Description revision mechanics",
+      "kind": "technique",
+      "reason": "Stub rewrite mechanics and per-iteration description archiving; how-to guidance, no competing incentive"
+    },
+    {
+      "id": "R-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "reason": "Report layout and line-format rules; artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-error-handling-01",
+      "section": "Error handling",
+      "kind": "reference",
+      "reason": "Abort semantics and error-surface rules are documented behavior for harness failures, not rationalizable compliance costs"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "Harness-specification and evaluator-agent installation facts; documented constraints, no competing incentive"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "Timeout/void-evidence interpretation guidance; diagnostic technique, no competing incentive"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "Checklist item format; artifact shape — shape-testing track"
+    }
+  ]
+}
