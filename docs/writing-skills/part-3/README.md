@@ -6,7 +6,7 @@ Dissecting superpowers' "bulletproof" system to see how it works, and creating a
 
 > You need to test your skills! If you are doing long-horizon tasks or deploying agents to production systems, then you _really_ need to test your skills, and test them often.
 
-This document ended up being a bit longer than expected, but I think the concepts are very important. Not everyone cares about how to design the different test campaigns or develop their own test harness, but you should try to understand the different ways that skills fail, and how to address those failure modes. This helps with every prompt or message you write, not just authoring skills.
+This document ended up being a bit longer than expected, but I think the concepts are very important. Not everyone cares about how to design the different test campaigns or develop their own test harness, but you should understand the different ways that skills fail, and how to address those failure modes. This helps with every prompt or message you write, not just authoring skills.
 
 Testing skills is far more important than I would have guessed. LLMs are more prone to ignoring or modifying your instructions than I expected. If the rules and instructions you write in your skills are important, you need to test them. You don't have to use my testing system (it's kind of jank, honestly), but think of testing skills like unit testing production code.
 
@@ -55,6 +55,7 @@ Superpowers defines four types of skills/rules, and each type needs specific for
 | **Technique** | Instructions on how to accomplish a task or work with a resource. | Can they apply the technique correctly? Do they handle edge cases? Do instructions have gaps? |
 | **Pattern** | Rules about when a "pattern" should be applied. | Do they recognize when a pattern applies? Can they use the right mental model to apply the pattern? Do they know when NOT to apply the pattern? |
 | **Reference** | Pure contextual information, no rules to break. | Can they find the right info? Can they use what they found correctly? Are common use cases covered? |
+
 We use 3 different types of test campaigns:
 1. **Pressure Test** discipline rules
 2. **Micro Test** shaping rules (I'm lumping parts of "Technique" and "Pattern" together)
@@ -102,15 +103,6 @@ To construct a retrieval test, record a file of test queries, very much like we 
 1. **Retrieval** — the agent must find the documented fact. The correct answer requires that exact fact, so a pass proves the fact was actually retrieved.
 2. **Application** — the agent must combine the retrieved fact with the task (multi-step). This catches "found it, used it wrong."
 3. **Gap probe** — the query exercises one of the top-N real use cases for the reference. If the doc doesn't cover it, that's a doc gap finding, not an agent failure — log it as content to add.
-
-Choosing a good gap probe takes some care:
-
-| | |
-|---|---|
-| **Bad** | "What HTTP status codes should trigger a retry?" |
-| **Good** | "Add retry handling for 429 responses to this upload function." |
-
-*Bad fails because it probes a gap the doc never claimed to fill — an unactionable noise finding. Good works because 429 retry handling is a top-N real use case for a Retry-After reference, so a miss is a genuine doc gap.*
 
 Given a fact like:
 
@@ -170,7 +162,7 @@ That last row is important. If the failure doesn't manifest when the test is run
 
 Here is a simplified retrieval testing skill: [retrieval-testing-skills example](./examples/skills/retrieval-testing-skills/SKILL.md). It uses subagents to run the evals but does not do any workspace isolation - other skills and rules files can potentially contaminate results.
 
-> WARNING: Retrieval campaigns are heaviest in the first phase, where the skill has to identify and classify all of the reference facts.
+> WARNING: Retrieval campaigns are token-intensive in the first phase, where the skill has to identify and classify all of the reference facts.
 
 ### My Implementation
 
@@ -190,11 +182,11 @@ Note that the custom agent file started out as a copy+paste of the subagent prom
 
 ## Shaping Skills
 
-> You can't reason your way to the right phrasing — you measure it, with a control group first.
+> You can't reason your way to the right phrasing — you have to measure it.
 
 Shaping rules dictate how the final product should be "shaped": React components use CSS modules, bash scripts should start with '/usr/bin/env' shebang, comments should be short and concise, etc. Things that you want to be invariant in the output, but are not guaranteed if you just leave it up to the AI.
 
-When AI produces artifacts, like html pages, react components, bash scripts, they tend to lean towards some specific shaping behavior like preferring self-contained, single-file solutions - html with inline styles, for example. The model's training data pulls it towards the most common shapes for the solution.
+When AI produces artifacts, like HTML pages, React components, bash scripts, they tend to lean towards some specific shaping behavior like preferring self-contained, single-file solutions - HTML with inline styles, for example. The model's training data pulls it towards the most common shapes for the solution.
 
 Other examples of shaping concerns include things like: file layout, section ordering, required elements, citation formatting, etc.
 
@@ -309,7 +301,7 @@ These body testing processes are turning out to be quite complicated and require
 
 I put this section last, after the other two types of test, because you should run these tests last. Changes to wording from the previous two types of tests can have a cascading effect on discipline rules.
 
-However, I considered moving to be the first section because I actually had to apply all of this stuff to the custom agent prompts to get the previous two types of tests to work consistently. This highlights the fact that the rules for hardening a skill body apply to ANY prompt that you would give to an agent: prompts, skills, commands, custom agents, system prompts, etc.
+However, I considered moving this to be the first section because I actually had to apply all of this stuff to the custom agent prompts to get the previous two types of tests to work consistently. This highlights the fact that the rules for hardening a skill body apply to ANY prompt that you would give to an agent: prompts, skills, commands, custom agents, system prompts, etc.
 
 It seems like agents are susceptible to "pressure" the way humans are susceptible to social pressure. Well, not exactly - it's more like their training and the contents of the context window create loopholes and conditions that create opportunities for your agent to rationalize when you actually want it to do something unconditionally. Once these loopholes are in your context window, they stick around for the whole session and affect everything else you do.
 
@@ -518,7 +510,7 @@ Always load the full SKILL.md file into context before answering.
 
 One counterpoint worth noting: the [agentskills.io skill-evaluation guide](#ref-c) suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
 
-I don't buy the conflict. The "why" is already in there — it lives in the rationalization tables, where every rebuttal is a reason stapled to a hard rule. Still, the point lands: an Iron Law with no stated reason is just a brittle directive. If you can't explain why a rule exists, an agent under pressure will invent a reason it doesn't apply.
+I don't buy the conflict. The "why" is already in there — it lives in the rationalization tables, where every rebuttal is a reason stapled to a hard rule. Still, the point stands: an Iron Law with no stated reason is just a brittle directive. If you can't explain why a rule exists, an agent under pressure will invent a reason it doesn't apply.
 
 ### Example
 
@@ -550,7 +542,7 @@ While writing this document, I compared my version of the process against the ag
 
 **Cost/benefit quantification.** I warned that campaigns are token-intensive, but never measure what the testing buys. The guide records tokens and duration per run and does an explicit delta analysis — "a skill that triples token usage for a 2-point improvement might not be worth it."
 
-**Assertions as a first-class artifact.** The guide separates human-readable `expected_output` from machine-checkable `assertions` — which you often can't write until *after* the first run, since you don't know what "good" looks like until the skill has run. It also grades harder than I do: assertions can be too brittle or too vague, and a PASS requires quoted evidence, no benefit of the doubt.
+**Assertions as a first-class artifact.** The guide separates human-readable `expected_output` from machine-checkable `assertions`. It also grades harder than I do: assertions can be too brittle or too vague, and a PASS requires quoted evidence, no benefit of the doubt.
 
 **Variance as a diagnostic signal.** High variance across runs means a flaky eval or ambiguous skill instructions — and the fix for the latter is examples and specificity, not more words. Noise is a signal about the skill, not just the test.
 
