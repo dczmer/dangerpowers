@@ -1,0 +1,246 @@
+{
+  "skill": "shape-testing-skills",
+  "generated": "2026-09-19",
+  "rules": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "discipline",
+      "statement": "A trigger/retrieval question is routed to its own track, and a discipline/reference rule is recorded in the manifest as excluded with its routing reason — never shape-tested.",
+      "entries": ["scope-routing"]
+    },
+    {
+      "id": "R-quick-reference-01",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "Harness: always user-specified — prompt the user; never assume, auto-detect, or pick one yourself.",
+      "entries": ["harness-ask"]
+    },
+    {
+      "id": "R-quick-reference-02",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "Model selection is via campaign --model/--variant flags only — never pin model/variant/temperature/top_p in the eval agent file.",
+      "entries": ["no-model-pin"]
+    },
+    {
+      "id": "R-quick-reference-03",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "Record only after a completed FULL campaign — never aborted campaigns, never mini-campaigns, never calibration pilots.",
+      "entries": ["record-full-only"]
+    },
+    {
+      "id": "R-quick-reference-04",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "Fix between campaigns, never mid-campaign: fixtures, variant texts, and section spans stay verbatim across campaigns; mid-campaign doc edits invalidate every later result.",
+      "entries": ["fix-between-campaigns"]
+    },
+    {
+      "id": "R-rule-inventory-01",
+      "section": "Rule inventory",
+      "kind": "discipline",
+      "statement": "Read the skill body fully and build the inventory fresh from the current doc — the manifest is a diff baseline, never a cache; refuse to reuse a previous campaign's manifest as a starting inventory.",
+      "entries": ["fresh-inventory"]
+    },
+    {
+      "id": "R-fixture-design-01",
+      "section": "Fixture design",
+      "kind": "discipline",
+      "statement": "Never quote the rule text, the markers, or the expected shape in fixtures or run prompts — that tests following directions, not shaping under a competing incentive.",
+      "entries": ["no-leakage"]
+    },
+    {
+      "id": "R-shape-suite-mechanics-01",
+      "section": "shape-suite mechanics",
+      "kind": "discipline",
+      "statement": "One entry, one arm at a time — never parallelize arms; only reps within one arm batch parallelize; the serial order is spend discipline.",
+      "entries": ["serial-arms"]
+    },
+    {
+      "id": "R-scoring-01",
+      "section": "Scoring",
+      "kind": "discipline",
+      "statement": "Grep is triage, not verdict: hand-read every flagged sample before it counts — convergence is established by reading the reps, never by marker counts alone.",
+      "entries": ["grep-triage"]
+    },
+    {
+      "id": "R-scoring-02",
+      "section": "Scoring",
+      "kind": "discipline",
+      "statement": "Never adopt a prohibition arm — adopted may only name a recipe/structural arm; a suppressed token that migrates to a worse shape is displacement, not a fix.",
+      "entries": ["no-prohibition-adopt"]
+    },
+    {
+      "id": "R-scoring-03",
+      "section": "Scoring",
+      "kind": "discipline",
+      "statement": "A pattern-rule variant is adoptable only after passing the restraint gate — 5 reps on the counter-example fixture scored against restraint_markers.",
+      "entries": ["restraint-gate-first"]
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Phase 2 runs only for rules whose control exhibited the failure, after a second spend confirmation — healthy rules get no variant spend at all.",
+      "entries": ["second-confirmation"]
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Rules whose control never exhibits the failure are scored no-failure + ablation flag and stopped — author nothing for them.",
+      "entries": ["no-failure-author-nothing"]
+    },
+    {
+      "id": "R-improving-the-skill-definition-01",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "statement": "Present recommended edits to the user and apply them only after confirmation — write-backs to the source SKILL.md only on explicit user confirmation.",
+      "entries": ["edits-after-confirmation"]
+    },
+    {
+      "id": "R-improving-the-skill-definition-02",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "statement": "Keep fixtures, variant texts, and section spans verbatim within and across campaigns — editing any of them invalidates comparison.",
+      "entries": ["verbatim-fixtures"]
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Never let the eval agent know this is a test — no framing that reveals the evaluation; fix the answer contract instead.",
+      "entries": ["blind-eval-agent"]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "X-overview-01",
+      "section": "Overview",
+      "kind": "technique",
+      "reason": "Injection-not-byte-states assembly mechanics: how-to guidance with no competing incentive."
+    },
+    {
+      "id": "X-overview-02",
+      "section": "Overview",
+      "kind": "technique",
+      "reason": "Reps-within-one-arm-batch parallelization mechanics: how-to guidance, no compliance cost."
+    },
+    {
+      "id": "X-quick-reference-01",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "Cost formula, per-rule caps, and defaults: documented facts with no rule to violate."
+    },
+    {
+      "id": "X-quick-reference-02",
+      "section": "Quick reference",
+      "kind": "technique",
+      "reason": "Serialization rationale and fix-between-campaigns restatement: process guidance; the normative force is carried by the discipline rules."
+    },
+    {
+      "id": "X-inputs-01",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "Input collection and source-root derivation: how-to guidance, no competing incentive."
+    },
+    {
+      "id": "X-rule-inventory-01",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "reason": "Trigger-structure classification rule ('classify by the rule's trigger structure, never by the layout'): decision procedure, no compliance cost under pressure."
+    },
+    {
+      "id": "X-rule-inventory-02",
+      "section": "Rule inventory",
+      "kind": "reference",
+      "reason": "rules.json manifest schema and entry key definitions: documented facts with no rule to violate."
+    },
+    {
+      "id": "X-fixture-design-01",
+      "section": "Fixture design",
+      "kind": "technique",
+      "reason": "Fixture temptation design and unsatisfiable-requirement guidance: how-to guidance, no compliance cost."
+    },
+    {
+      "id": "X-fixture-design-02",
+      "section": "Fixture design",
+      "kind": "technique",
+      "reason": "'Don't stack pressure into fixtures — the temptation here is structural': design guidance; adding pressure to a fixture has no clear competing incentive."
+    },
+    {
+      "id": "X-eval-agent-01",
+      "section": "Eval agent",
+      "kind": "reference",
+      "reason": "Eval agent description, permission set, and workspace contamination mechanics: documented facts."
+    },
+    {
+      "id": "X-campaign-flow-01",
+      "section": "Campaign flow",
+      "kind": "reference",
+      "reason": "Phase structure description: documented facts with no rule to violate."
+    },
+    {
+      "id": "X-workflow-01",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "Snapshot/skill-body pipeline commands and cleanup step: how-to guidance, no competing incentive."
+    },
+    {
+      "id": "X-shape-suite-mechanics-01",
+      "section": "shape-suite mechanics",
+      "kind": "reference",
+      "reason": "Pre-spend gate list, results JSON schema, and void-signal definitions: documented facts with no rule to violate."
+    },
+    {
+      "id": "X-scoring-01",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "'Ties go to the shorter phrasing' and adoption-discipline decision rules: heuristics with no compliance cost under pressure."
+    },
+    {
+      "id": "X-scoring-02",
+      "section": "Scoring",
+      "kind": "reference",
+      "reason": "Pattern-rule failure-mode taxonomy (silent non-application, over-application): documented facts."
+    },
+    {
+      "id": "X-improving-01",
+      "section": "Improving the skill definition",
+      "kind": "technique",
+      "reason": "Observed-result-to-form matching table, nuance-clause and exemption-clause guidance: how-to guidance, no compliance cost."
+    },
+    {
+      "id": "X-campaign-layout-01",
+      "section": "Campaign layout",
+      "kind": "reference",
+      "reason": "Campaign directory layout: documented facts with no rule to violate."
+    },
+    {
+      "id": "X-proposal-format-01",
+      "section": "Proposal format",
+      "kind": "shaping",
+      "reason": "Proposal card structure rule (heading/covers/fixture/markers/variants/why + closing lines): prescribes the form of an output artifact — shape-testing track."
+    },
+    {
+      "id": "X-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "reason": "Campaign report structure rule (four opening lines, per-rule blocks, summary line): prescribes the form of an output artifact — shape-testing track."
+    },
+    {
+      "id": "X-gotchas-01",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "'Raise --timeout before pressure-testing the agent body' and void re-run guidance: diagnostic how-to guidance, no compliance cost."
+    },
+    {
+      "id": "X-frontmatter-01",
+      "section": "frontmatter",
+      "kind": "frontmatter",
+      "reason": "Frontmatter-convention guidance (description conventions, disable-model-invocation, metadata) is always out of scope — the injected text is the body with frontmatter stripped, so there is no body anchor to test."
+    }
+  ]
+}

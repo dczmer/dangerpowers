@@ -54,7 +54,11 @@ Consume exit codes and JSON from those scripts only — never parse their prose 
 - Defaults: 5 reps per entry per arm; 120 s per-run timeout.
 - Phases: phase 1 runs 5 control reps for ALL rules (never skipped); phase 2 runs
   variants (5 reps each) only for rules whose control exhibited the failure, after a
-  second spend confirmation.
+  second spend confirmation. A generic continuation message ("keep going", "proceed",
+  "sounds good", a thumbs-up) is **NOT** a second spend confirmation. The second
+  spend confirmation must be an explicit approval that names the rules earning
+  variant runs — if the user's reply does not enumerate them, stop and ask again
+  before any variant rep dispatches.
 - Pattern winners run the restraint gate before adoption: 5 reps on the
   counter-example fixture, scored against `restraint_markers`; counter-example
   fixtures need no control arm.
@@ -217,7 +221,11 @@ retrieval track.)
 10. Score controls via `shape-evidence`. Rules whose control never exhibits the failure
     → `no-failure` + ablation flag; **stop those rules, author nothing**.
 11. **Spend confirmation #2**: failing rules × variants × 5 reps — only rules
-    whose control exhibited the failure earn variant runs.
+    whose control exhibited the failure earn variant runs. A generic continuation
+    message ("keep going", "proceed", "sounds good", a thumbs-up) is **NOT** a second
+    spend confirmation. The second spend confirmation must be an explicit approval
+    that names the rules earning variant runs — if the user's reply does not
+    enumerate them, stop and ask again before any variant rep dispatches.
 12. Write `$CAMP/entries-failing.json` (the filtered entries) and run `shape-suite
     --arms v1,v2,v3 --entries $CAMP/entries-failing.json --out $CAMP/results-variants.json`
     (same other flags).
