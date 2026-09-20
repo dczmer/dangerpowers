@@ -21,14 +21,10 @@ The campaign inventories **every** shaping and pattern rule in the skill body, t
 tests each with the same instrument as the single-rule micro-test: a temptation fixture
 run through a restricted headless agent across wording variants, with a no-guidance
 control as the stopping signal. Like the pressure track, this track uses **injection,
-not byte-states**: each arm's body (v0: the rule's section span removed; vN: the span
-replaced by the variant text) is assembled fresh from the snapshotted skill body and
-injected into every rep's prompt as "Project conventions". The skill is never synced
-and the workspace is never written, so a variant can never leak into another arm's
-run and there is no skill-load step that can fail — the conventions are always in
-context. The harness still serializes entries × arms — one entry, one arm at a time;
-only the reps *within* one arm batch parallelize (identical prompt bytes, read-only);
-the serial order is spend discipline, not an optimization target.
+not byte-states**: each arm's body is assembled fresh from the snapshotted skill body
+and injected into every rep's prompt as "Project conventions". The workspace is never
+written, so a variant can never leak into another arm's run and there is no
+skill-load step that can fail — the conventions are always in context.
 
 Scope rules, up front:
 
