@@ -57,6 +57,23 @@ description: Use when writing skills — drafts frontmatter, structures the body
 description: Use when creating new skills, editing existing skills, or reviewing a skill before deployment. Covers frontmatter and body structure for skill files.
 ```
 
+## Discovery
+
+A skill is used only if a future agent can find it. Optimize for the retrieval flow from the searching agent's side:
+
+1. Encounters a problem ("tests are flaky")
+2. Searches skills (greps descriptions)
+3. Matches a description
+4. Scans the overview (is this relevant?)
+5. Reads patterns (quick reference table)
+6. Loads the example (only when implementing)
+
+Consequences:
+
+- Description and overview must use the vocabulary an agent reaches for mid-task: error messages, symptoms, tool names, and synonyms ("flaky", "hang", "race condition") — not the skill's internal conceptual name.
+- Put searchable terms early and often; the overview has seconds to answer "is this relevant?".
+- Diagnose non-use by step: never found is a step 2–3 failure (description, keywords); found but dismissed is step 4 (overview); read but not applied is step 5–6 (patterns, example).
+
 ## Structure
 
 ```
@@ -80,6 +97,9 @@ skills/
 
 - A description that summarizes the workflow stops the skill from loading — the agent decides it
   already knows the process and skips the body. State WHAT + WHEN, never HOW.
+- Description triggering is testable, not a matter of taste: a description that fires too often or
+  not at all is a bug. Run trigger-testing-skills against it and confirm agents load the body and
+  follow it, rather than executing the description's summary.
 - Extracting to `references/` saves nothing if the file loads on every invocation — that is inline
   content with extra steps. Load a reference only under a condition.
 
@@ -102,6 +122,7 @@ Create a todo for each item.
 - [ ] `name` is hyphens/lowercase, ≤64 chars, gerund or verb-first
 - [ ] `description` has both slots: "Use when..." trigger clause + one coverage clause; no procedure steps; third person; ≤1024 chars
 - [ ] Trigger terms woven into prose; no `Keywords:`-style label
+- [ ] Triggering behavior verified with trigger-testing-skills, not assumed
 
 **Body:**
 - [ ] Overview states the core principle in 1-2 sentences

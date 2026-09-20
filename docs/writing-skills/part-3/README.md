@@ -488,7 +488,6 @@ The iron law gets its own section because it is the most important operational r
 
 Here is an example, again lifted directly from superpowers ([A](#ref-a)), for their own writing-skills skill:
 
-```markdown
 | Excuse | Reality |
 |--------|---------|
 | "Skill is obviously clear" | Clear to you ≠ clear to other agents. Test it. |
@@ -500,8 +499,7 @@ Here is an example, again lifted directly from superpowers ([A](#ref-a)), for th
 | "Academic review is enough" | Reading ≠ using. Test application scenarios. |
 | "No time to test" | Deploying untested skill wastes more time fixing it later. |
 
-All of these mean: Test before deploying. No exceptions.
-```
+> All of these mean: Test before deploying. No exceptions.
 
 These are rebuttals for excuses actually observed in testing. Once again, we're taking away bad choices from the places where the agent needs to make a decision.
 
