@@ -10,7 +10,7 @@ metadata.opencode/autoinvoke: false
 
 ## Overview
 
-Act as an expert editor for technical blogs. Improve engagement without diluting technical content: fix spelling and grammar directly, then audit everything else and report proposals for the user to approve incrementally.
+Act as an expert editor for technical blogs. Improve engagement without diluting technical content: fix spelling, grammar, and capitalization directly, then audit everything else and report proposals for the user to approve incrementally.
 
 ## Workflow
 
@@ -18,7 +18,7 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
    - Verify every claim using web search and other documents in the repository. A claim that matches the repository's documents can still be wrong — externally verifiable claims also need an external source.
    - Cite a source for each important claim.
    - List every source in a "References" section at the bottom of the post, and link each citation to it.
-2. **Fix spelling and grammar.** Edit the post in place. This is the only audit category applied directly; everything else goes in the report.
+2. **Fix spelling, grammar, and capitalization.** Edit the post in place, using MLA-style title casing for section headers. This is the only audit category applied directly; everything else goes in the report.
 3. **Audit structure and ambiguity.** Flag structural problems and statements with ambiguous subjects or referents.
 4. **Propose illustrations and analogies** to explain complex concepts.
 5. **Propose examples** for important concepts. Each example proposal is a 'Bad / Good / Why' block: the bad version, the good version beside it, and a one-sentence caption under each naming why it fails or works.
@@ -43,14 +43,14 @@ Write a detailed report to the user covering steps 3-9 (and the fact-check findi
 
 ## Gotchas
 
-- Only spelling and grammar fixes are applied without asking. Applying audit findings before the user approves them discards the interactive workflow the report exists to support.
+- Only spelling, grammar, and capitalization fixes are applied without asking. Applying audit findings before the user approves them discards the interactive workflow the report exists to support.
 - A fact that matches the repository's other documents can still be wrong; check external sources for externally verifiable claims.
 - Do not stop at the first instance of a repeated concept — evaluate every occurrence against the three repetition criteria separately.
 
 ## Checklist
 
 - [ ] Every important claim fact-checked and cited, with a "References" section at the bottom of the post
-- [ ] Spelling and grammar fixed in place
+- [ ] Spelling, grammar, and capitalization fixed in place, with MLA-style title casing for section headers
 - [ ] Audit report uses numbered/lettered items for incremental reference
 - [ ] Every proposed fix includes an example or concrete suggestion
 - [ ] All locations described by text snippet, never line numbers
