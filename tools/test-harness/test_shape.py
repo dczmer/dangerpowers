@@ -723,23 +723,6 @@ class ShapePreSpendGateTests(unittest.TestCase):
         self.assertEqual(cm.exception.code, 1)
         self.assertFalse(self.out.exists())
 
-    def test_agent_file_with_model_pin_exits_1(self):
-        (self.agents_dir / "shape-evaluator.opencode.md").write_text(
-            "---\nname: shape-evaluator\nmodel: gpt-x\n---\nbody\n"
-        )
-        with self.assertRaises(SystemExit) as cm:
-            self._run()
-        self.assertEqual(cm.exception.code, 1)
-        self.assertFalse(self.out.exists())
-
-    def test_agent_file_name_mismatch_exits_1(self):
-        (self.agents_dir / "shape-evaluator.opencode.md").write_text(
-            "---\nname: someone-else\n---\nbody\n"
-        )
-        with self.assertRaises(SystemExit) as cm:
-            self._run()
-        self.assertEqual(cm.exception.code, 1)
-
     def test_arm_not_defined_by_entry_exits_1(self):
         with self.assertRaises(SystemExit) as cm:
             args = argparse.Namespace(
@@ -886,20 +869,6 @@ class ShapeScoredCheckTests(unittest.TestCase):
             setattr(args, k, v)
         with redirect_stdout(io.StringIO()):
             return evaluator.cmd_shape_scored_check(args)
-
-    def test_union_dedupe_id_in_two_files_scored_once(self):
-        rc = self._check(
-            [
-                self._entry("a", result="adopted", adopted_arm="v2"),
-                self._entry(
-                    "p",
-                    result="adopted",
-                    adopted_arm="v1",
-                    restraint_gate="pass",
-                ),
-            ]
-        )
-        self.assertEqual(rc, 0)
 
     def test_missing_union_id_rejected(self):
         self.assertEqual(
@@ -1065,36 +1034,6 @@ class ShapeScoredCheckTests(unittest.TestCase):
             ),
             1,
         )
-
-    def test_count_gate_matching_passes(self):
-        rc = self._check(
-            [
-                self._entry("a", result="adopted", adopted_arm="v2"),
-                self._entry("p"),
-            ],
-            adopted=1,
-            no_failure=1,
-            unresolved=0,
-            voids=0,
-        )
-        self.assertEqual(rc, 0)
-
-    def test_count_gate_mismatch_rejected(self):
-        rc = self._check(
-            [
-                self._entry("a", result="adopted", adopted_arm="v2"),
-                self._entry("p"),
-            ],
-            adopted=2,
-            no_failure=0,
-            unresolved=0,
-            voids=0,
-        )
-        self.assertEqual(rc, 1)
-
-    def test_partial_count_gate_rejected(self):
-        rc = self._check([self._entry("a"), self._entry("p")], adopted=0)
-        self.assertEqual(rc, 1)
 
 
 class ShapeRecordTests(unittest.TestCase):
@@ -1315,15 +1254,6 @@ class ShapeEvidenceTests(unittest.TestCase):
 
     def test_unknown_entry_rejected(self):
         rc, _ = self._run(entry="zzz")
-        self.assertEqual(rc, 1)
-
-    def test_malformed_results_rejected(self):
-        self.results.write_text('{"entries": "nope"}')
-        rc, _ = self._run()
-        self.assertEqual(rc, 1)
-
-    def test_missing_results_file_rejected(self):
-        rc, _ = self._run(results=str(self.root / "nope.json"))
         self.assertEqual(rc, 1)
 
 

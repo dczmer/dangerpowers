@@ -641,30 +641,6 @@ class ScoredCheckTests(unittest.TestCase):
             1,
         )
 
-    def test_counts_matching_pass(self):
-        rc = self._check(
-            [self._entry("a"), self._entry("b")],
-            passes=2,
-            fails=0,
-            gaps=0,
-            voids=0,
-        )
-        self.assertEqual(rc, 0)
-
-    def test_counts_mismatch_rejected(self):
-        rc = self._check(
-            [self._entry("a"), self._entry("b")],
-            passes=1,
-            fails=0,
-            gaps=0,
-            voids=0,
-        )
-        self.assertEqual(rc, 1)
-
-    def test_partial_counts_rejected(self):
-        rc = self._check([self._entry("a"), self._entry("b")], passes=2)
-        self.assertEqual(rc, 1)
-
 
 class ControlPurityTests(unittest.TestCase):
     """cmd_retrieval_suite pre-spend validation: a control workspace that
@@ -934,11 +910,6 @@ class RetrievalEvidenceTests(unittest.TestCase):
 
     def test_unknown_entry_rejected(self):
         rc, _ = self._run(entry="zzz")
-        self.assertEqual(rc, 1)
-
-    def test_malformed_results_rejected(self):
-        self.results.write_text('{"entries": "nope"}')
-        rc, _ = self._run()
         self.assertEqual(rc, 1)
 
 

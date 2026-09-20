@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TextIO
+from typing import Callable, Iterator, TextIO
 
 from strategies import (
     EvalStrategy,
@@ -615,6 +615,357 @@ def _err(message: str) -> int:
     return 1
 
 
+# --------------------------------------------------------------------------
+# Shared campaign plumbing (retrieval / shape / pressure tracks)
+
+
+def validate_eval_agent(
+    probe: EvalStrategy, agents_dir: Path, expected_name: str
+) -> Path:
+    """Pre-spend gate: the agent file exists, its frontmatter name
+    matches, and it pins no model config. Any failure exits 1 with an
+    exact message before any harness invocation."""
+    agent_file = probe.agent_file(agents_dir, expected_name)
+    if not agent_file.exists():
+        _fail(f"evaluator agent file missing: {agent_file}")
+    info = scan_agent_frontmatter(agent_file)  # exits on bad frontmatter
+    if info["name"] != expected_name:
+        _fail(
+            f"agent file {agent_file}: frontmatter name "
+            f"'{info['name']}' does not match expected '{expected_name}'"
+        )
+    if info["pins"]:
+        _fail(
+            f"agent file {agent_file} pins model config "
+            f"({', '.join(info['pins'])}); eval agents must not pin "
+            "model/variant/temperature/top_p — selection flows "
+            "through --model/--variant only"
+        )
+    return agent_file
+
+
+def run_rep_batched(
+    run_one: Callable[[int], dict], reps: int, tag: str
+) -> list[dict]:
+    """Smoke rep alone, then reps 2..N in parallel batches of at most
+    MAX_WORKERS. A timeout is a record, never an abort; a
+    HarnessExecutionError in the smoke rep or any batch aborts with an
+    exact stderr message and exit 1. Shared by the retrieval, shape, and
+    pressure tracks; the trigger track keeps its own loop."""
+    runs: dict[int, dict] = {}
+
+    try:
+        runs[1] = run_one(1)
+    except HarnessExecutionError as e:
+        emit(
+            f"error: [{tag}] harness could not execute the query: {e}"
+            f"{_session_suffix(e)}",
+            err=True,
+        )
+        sys.exit(1)
+
+    remaining = list(range(2, reps + 1))
+    for i in range(0, len(remaining), MAX_WORKERS):
+        group = remaining[i : i + MAX_WORKERS]
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            futures = {pool.submit(run_one, n): n for n in group}
+            first_error: tuple[int, HarnessExecutionError] | None = None
+            for fut, n in futures.items():
+                try:
+                    runs[n] = fut.result()
+                except HarnessExecutionError as e:
+                    if first_error is None:
+                        first_error = (n, e)
+        if first_error is not None:
+            n, e = first_error
+            emit(
+                f"error: [{tag}] rep {n} could not execute: {e}"
+                f"{_session_suffix(e)}",
+                err=True,
+            )
+            emit("error: batch aborted", err=True)
+            sys.exit(1)
+
+    return [runs[n] for n in range(1, reps + 1)]
+
+
+def base_config(args: argparse.Namespace) -> dict:
+    """The six config keys every campaign results file shares; each
+    track's call site extends the returned dict with its own keys."""
+    return {
+        "skill": args.skill,
+        "harness": args.harness,
+        "model": args.model,
+        "variant": args.variant,
+        "reps": args.reps,
+        "timeout": args.timeout,
+        "date": datetime.now(UTC).date().isoformat(),
+    }
+
+
+def write_results(out: Path, config: dict, entries: list[dict]) -> None:
+    out.write_text(
+        json.dumps({"config": config, "entries": entries}, indent=2) + "\n"
+    )
+
+
+class EvidenceError(Exception):
+    """A malformed entry inside an evidence command's results file.
+    Evidence commands print the exact message to stderr and return 1 —
+    they never _fail/sys.exit, so this is raised instead."""
+
+
+def load_results_json(path: Path, track: str) -> tuple[list[dict], str | None]:
+    """Load a *-suite results file and validate the envelope: an object
+    with an 'entries' list. Returns ([], exact error message) on
+    failure — the caller prints it to stderr and returns 1, matching
+    the evidence commands' historical exit style."""
+    if not path.exists():
+        return [], f"results file not found: {path}"
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        return [], f"invalid JSON in {path}: {e}"
+    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
+        return [], (
+            f"{path}: not a {track}-suite results file "
+            f"(missing 'entries' list)"
+        )
+    return data["entries"], None
+
+
+def iter_evidence(
+    data_entries: list[dict], path: Path, entry_filter: str | None
+) -> Iterator[tuple[str, dict]]:
+    """Yield (eid, entry) pairs honoring --entry, after per-entry
+    envelope validation. Raises EvidenceError with the exact message on
+    a malformed entry."""
+    for i, entry in enumerate(data_entries):
+        if not isinstance(entry, dict):
+            raise EvidenceError(f"{path}: entry {i} is not an object")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            raise EvidenceError(
+                f"{path}: entry {i} missing 'id' (non-empty string)"
+            )
+        if entry_filter is not None and eid != entry_filter:
+            continue
+        yield eid, entry
+
+
+def _retrieval_union_hook(path: Path, e: dict, extras: dict) -> str | None:
+    """Collect each entry's expect rubric for the retrieval scored-check's
+    missed_bullets verbatim-text validation."""
+    expects = extras.setdefault("expect", {})
+    expect = e.get("expect")
+    expects[e["id"]] = expect if isinstance(expect, list) else []
+    return None
+
+
+def _shape_union_hook(path: Path, e: dict, extras: dict) -> str | None:
+    """Validate the arms object and kind consistency across shape
+    results files; records id -> kind in extras['kinds']."""
+    eid = e["id"]
+    arms = e.get("arms")
+    if not isinstance(arms, dict):
+        return f"{path}: entry {eid} is missing its 'arms' object"
+    kinds = extras.setdefault("kinds", {})
+    kind = e.get("kind")
+    if eid not in kinds:
+        if kind not in SHAPE_KINDS:
+            return (
+                f"{path}: entry {eid}: kind must be one of "
+                f"{sorted(SHAPE_KINDS)}, got {kind!r}"
+            )
+        kinds[eid] = kind
+    elif kind != kinds[eid]:
+        return (
+            f"{path}: entry {eid}: kind {kind!r} differs from earlier "
+            f"results file ({kinds[eid]!r})"
+        )
+    return None
+
+
+def _pressure_union_hook(path: Path, e: dict, extras: dict) -> str | None:
+    """Pressure results entries must carry their arms object: the
+    scored check's red/green implications read the union arm set."""
+    if not isinstance(e.get("arms"), dict):
+        return f"{path}: entry {e['id']} is missing its 'arms' object"
+    return None
+
+
+def union_results(
+    paths: list[str],
+    track: str,
+    entry_hook: Callable[[Path, dict, dict], str | None] | None = None,
+) -> tuple[list[str], dict[str, set[str]], dict[str, dict]] | str:
+    """Union with dedupe over repeated results files: an id appearing
+    in N files is scored exactly once. Returns (ordered ids, id ->
+    arm-key set, id -> hook-collected extras); entry_hook runs per
+    entry occurrence and returns an exact error message on violation.
+    On any failure returns the error message (caller passes it to
+    _err)."""
+    results_ids: list[str] = []
+    results_arms: dict[str, set[str]] = {}
+    extras: dict[str, dict] = {}
+    for results_str in paths:
+        results_path = Path(results_str)
+        if not results_path.exists():
+            return f"results file not found: {results_path}"
+        try:
+            data = json.loads(results_path.read_text())
+        except json.JSONDecodeError as e:
+            return f"invalid JSON in {results_path}: {e}"
+        if not isinstance(data, dict) or not isinstance(
+            data.get("entries"), list
+        ):
+            return (
+                f"{results_path}: not a {track}-suite results file "
+                f"(missing 'entries' list)"
+            )
+        for i, e in enumerate(data["entries"]):
+            eid = e.get("id") if isinstance(e, dict) else None
+            if not isinstance(eid, str) or not eid:
+                return (
+                    f"{results_path}: results entry {i} missing 'id' "
+                    f"(non-empty string)"
+                )
+            arms = e.get("arms") if isinstance(e, dict) else None
+            arm_keys = (
+                {a for a in arms if isinstance(a, str) and a}
+                if isinstance(arms, dict)
+                else set()
+            )
+            if eid not in results_arms:
+                results_ids.append(eid)
+            results_arms.setdefault(eid, set()).update(arm_keys)
+            if entry_hook is not None:
+                hook_error = entry_hook(results_path, e, extras)
+                if hook_error is not None:
+                    return hook_error
+    return results_ids, results_arms, extras
+
+
+def load_scored_json(
+    scored_path: Path, object_phrase: str = "a JSON object"
+) -> list[dict] | str:
+    """Load scored.json and validate its envelope. Returns the entries
+    list, or the exact error message. object_phrase carries the one
+    per-track wording difference in the envelope error (pressure says
+    "an object")."""
+    if not scored_path.exists():
+        return f"scored file not found: {scored_path}"
+    try:
+        scored = json.loads(scored_path.read_text())
+    except json.JSONDecodeError as e:
+        return f"invalid JSON in {scored_path}: {e}"
+    if not isinstance(scored, dict) or not isinstance(
+        scored.get("entries"), list
+    ):
+        return (
+            f"{scored_path}: expected {object_phrase} with an 'entries' list"
+        )
+    return scored["entries"]
+
+
+def check_coverage(
+    scored_entries: list[dict], results_ids: list[str], scored_path: Path
+) -> list[dict] | str:
+    """Exactly-once coverage: rejects non-object entries and missing/
+    duplicate/unknown ids, and union ids with no scored entry. Returns
+    the scored entries for per-track field checks, or the exact error
+    message."""
+    covered: set[str] = set()
+    for i, entry in enumerate(scored_entries):
+        if not isinstance(entry, dict):
+            return f"{scored_path}: entry {i} is not an object"
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            return f"{scored_path}: entry {i} missing 'id' (non-empty string)"
+        if eid in covered:
+            return f"{scored_path}: duplicate id: {eid}"
+        if eid not in results_ids:
+            return f"{scored_path}: unknown id: {eid}"
+        covered.add(eid)
+    missing = [eid for eid in results_ids if eid not in covered]
+    if missing:
+        return (
+            f"{scored_path}: missing scored entries for results ids: "
+            f"{', '.join(missing)}"
+        )
+    return scored_entries
+
+
+def counts_gate(
+    args: argparse.Namespace,
+    scored_entries: list[dict],
+    arg_names: tuple[str, ...],
+    result_names: tuple[str, ...],
+) -> int | None:
+    """When the record-step counts are given: all-or-none, and equal to
+    the scored sums. Returns _err(...) on violation, None when the gate
+    passes or no counts were given."""
+    given = [getattr(args, n, None) for n in arg_names]
+    if not any(c is not None for c in given):
+        return None
+    flags = "/".join(f"--{n.replace('_', '-')}" for n in arg_names)
+    if not all(c is not None for c in given):
+        return _err(f"{flags} must be given together")
+    computed = {
+        r: sum(1 for e in scored_entries if e.get("result") == r)
+        for r in result_names
+    }
+    if tuple(given) != tuple(computed[r] for r in computed):
+        shown = " / ".join(f"{computed[r]} {r}" for r in result_names)
+        got = " / ".join(f"{g} {r}" for g, r in zip(given, result_names))
+        return _err(
+            f"counts do not match scored results: computed {shown}, "
+            f"got {got}"
+        )
+    return None
+
+
+def load_entries(
+    path: Path,
+    file_noun: str,
+    item_noun: str,
+    field_hook: Callable[[Path, int, dict, str], None] | None = None,
+) -> list[dict]:
+    """Shared envelope validator for the campaign input files (retrieval
+    queries, shape entries, pressure scenarios): file-exists -> JSON
+    parse -> list-of-objects -> unique non-empty 'id'. On any violation
+    prints `error: <exact reason>` to stderr and exits 1 (pre-spend:
+    zero harness runs happen before this returns). Per-field checks
+    stay in the per-track field_hook, which runs between the envelope
+    checks and the append so multi-violation error order is unchanged.
+    file_noun/item_noun carry the two per-track wording differences
+    ("query file"/"query objects", "entries file"/"entry objects",
+    "scenarios file"/"scenario objects")."""
+    if not path.exists():
+        _fail(f"{file_noun} file not found: {path}")
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        _fail(f"invalid JSON in {path}: {e}")
+    if not isinstance(data, list):
+        _fail(f"{path}: expected a JSON list of {item_noun} objects")
+    entries: list[dict] = []
+    seen: set[str] = set()
+    for i, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            _fail(f"{path}: entry {i} is not an object")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            _fail(f"{path}: entry {i} missing 'id' (non-empty string)")
+        if eid in seen:
+            _fail(f"{path}: duplicate id: {eid}")
+        seen.add(eid)
+        if field_hook is not None:
+            field_hook(path, i, entry, eid)
+        entries.append(entry)
+    return entries
+
+
 def _any_counts_given(args: argparse.Namespace) -> bool:
     return any(
         getattr(args, n, None) is not None
@@ -908,89 +1259,70 @@ def cmd_retrieval_evidence(args: argparse.Namespace) -> int:
     scores from presented evidence instead of hand-rolling JSON walks.
     Exit 0 with an entry count line; exit 1 only on a malformed file."""
     path = Path(args.results)
-    if not path.exists():
-        print(f"error: results file not found: {path}", file=sys.stderr)
-        return 1
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
-        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
-        return 1
-    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
-        print(
-            f"error: {path}: not a retrieval-suite results file "
-            f"(missing 'entries' list)",
-            file=sys.stderr,
-        )
+    data_entries, error = load_results_json(path, "retrieval")
+    if error is not None:
+        print(f"error: {error}", file=sys.stderr)
         return 1
 
     n_printed = 0
-    for i, entry in enumerate(data["entries"]):
-        if not isinstance(entry, dict):
-            print(
-                f"error: {path}: entry {i} is not an object", file=sys.stderr
-            )
-            return 1
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            print(
-                f"error: {path}: entry {i} missing 'id' (non-empty string)",
-                file=sys.stderr,
-            )
-            return 1
-        if args.entry is not None and eid != args.entry:
-            continue
-        skill_arm = entry.get("skill_arm")
-        control_arm = entry.get("control_arm")
-        if (
-            not isinstance(skill_arm, dict)
-            or not isinstance(skill_arm.get("runs"), list)
-            or not isinstance(control_arm, dict)
-            or not isinstance(control_arm.get("runs"), list)
-        ):
-            print(
-                f"error: {path}: entry {eid} is missing arm run lists",
-                file=sys.stderr,
-            )
-            return 1
+    try:
+        for eid, entry in iter_evidence(data_entries, path, args.entry):
+            skill_arm = entry.get("skill_arm")
+            control_arm = entry.get("control_arm")
+            if (
+                not isinstance(skill_arm, dict)
+                or not isinstance(skill_arm.get("runs"), list)
+                or not isinstance(control_arm, dict)
+                or not isinstance(control_arm.get("runs"), list)
+            ):
+                print(
+                    f"error: {path}: entry {eid} is missing arm run lists",
+                    file=sys.stderr,
+                )
+                return 1
 
-        print(f"## {eid}")
-        print(f'query: "{entry.get("query", "")}"')
-        expect = entry.get("expect") or []
-        print("expect:")
-        for b in expect:
-            print(f"  - {b}")
-        print()
-        for arm_key, arm in (
-            ("skill_arm", skill_arm),
-            ("control_arm", control_arm),
-        ):
-            for n, run in enumerate(arm["runs"], start=1):
-                timeout = "timeout" if run.get("timeout") else "ok"
-                session = run.get("session_id") or "no-session"
-                print(
-                    f"[{ARM_TAGS[arm_key]}] rep {n:>3} ({session}, {timeout})"
-                )
-                answer = run.get("answer_text") or "(empty answer)"
-                print("answer:")
-                for line in answer.splitlines():
-                    print(f"  {line}")
-                src = run.get("sources_consulted")
-                if src:
-                    print(f"sources consulted: {src}")
-                signals = run.get("void_signals") or []
-                joined = ", ".join(signals) if signals else "none"
-                print(f"void signals: {joined}")
-                targets = [
-                    c.get("target")
-                    for c in run.get("tool_calls") or []
-                    if c.get("target")
-                ]
-                print(
-                    f"tool calls: {', '.join(targets) if targets else 'none'}"
-                )
-                print()
-        n_printed += 1
+            print(f"## {eid}")
+            print(f'query: "{entry.get("query", "")}"')
+            expect = entry.get("expect") or []
+            print("expect:")
+            for b in expect:
+                print(f"  - {b}")
+            print()
+            for arm_key, arm in (
+                ("skill_arm", skill_arm),
+                ("control_arm", control_arm),
+            ):
+                for n, run in enumerate(arm["runs"], start=1):
+                    timeout = "timeout" if run.get("timeout") else "ok"
+                    session = run.get("session_id") or "no-session"
+                    print(
+                        f"[{ARM_TAGS[arm_key]}] rep {n:>3} "
+                        f"({session}, {timeout})"
+                    )
+                    answer = run.get("answer_text") or "(empty answer)"
+                    print("answer:")
+                    for line in answer.splitlines():
+                        print(f"  {line}")
+                    src = run.get("sources_consulted")
+                    if src:
+                        print(f"sources consulted: {src}")
+                    signals = run.get("void_signals") or []
+                    joined = ", ".join(signals) if signals else "none"
+                    print(f"void signals: {joined}")
+                    targets = [
+                        c.get("target")
+                        for c in run.get("tool_calls") or []
+                        if c.get("target")
+                    ]
+                    print(
+                        f"tool calls: "
+                        f"{', '.join(targets) if targets else 'none'}"
+                    )
+                    print()
+            n_printed += 1
+    except EvidenceError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
 
     if args.entry is not None and n_printed == 0:
         print(f"error: no entry with id: {args.entry}", file=sys.stderr)
@@ -1031,72 +1363,57 @@ def load_retrieval_queries(path: Path) -> list[dict]:
     """Read and strictly validate a retrieval query file (design §8 schema).
     On any violation prints `error: <exact reason>` to stderr and exits 1
     (pre-spend: zero harness runs happen before this returns)."""
-    if not path.exists():
-        _fail(f"query file not found: {path}")
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
-        _fail(f"invalid JSON in {path}: {e}")
-    if not isinstance(data, list):
-        _fail(f"{path}: expected a JSON list of query objects")
-    entries: list[dict] = []
-    seen: set[str] = set()
-    for i, entry in enumerate(data):
-        if not isinstance(entry, dict):
-            _fail(f"{path}: entry {i} is not an object")
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            _fail(f"{path}: entry {i} missing 'id' (non-empty string)")
-        if eid in seen:
-            _fail(f"{path}: duplicate id: {eid}")
-        seen.add(eid)
-        q = entry.get("query")
-        if not isinstance(q, str) or not q:
-            _fail(
-                f"{path}: entry {i} ({eid}) missing 'query' "
-                f"(non-empty string)"
-            )
-        expect = entry.get("expect")
+    return load_entries(path, "query", "query", _check_retrieval_fields)
+
+
+def _check_retrieval_fields(path: Path, i: int, entry: dict, eid: str) -> None:
+    """Per-field checks for a retrieval query entry: the query and expect
+    rubric, optional fixtures with on-disk presence, and the {RUN_DIR}
+    token agreement rule."""
+    q = entry.get("query")
+    if not isinstance(q, str) or not q:
+        _fail(
+            f"{path}: entry {i} ({eid}) missing 'query' " f"(non-empty string)"
+        )
+    expect = entry.get("expect")
+    if (
+        not isinstance(expect, list)
+        or not expect
+        or not all(isinstance(b, str) and b for b in expect)
+    ):
+        _fail(
+            f"{path}: entry {i} ({eid}) missing 'expect' "
+            f"(non-empty list of strings)"
+        )
+    fixtures = entry.get("fixtures")
+    has_fixtures = fixtures is not None
+    if has_fixtures:
         if (
-            not isinstance(expect, list)
-            or not expect
-            or not all(isinstance(b, str) and b for b in expect)
+            not isinstance(fixtures, list)
+            or not fixtures
+            or not all(isinstance(n, str) and n for n in fixtures)
         ):
             _fail(
-                f"{path}: entry {i} ({eid}) missing 'expect' "
-                f"(non-empty list of strings)"
+                f"{path}: entry {i} ({eid}) 'fixtures' must be a "
+                f"non-empty list of strings"
             )
-        fixtures = entry.get("fixtures")
-        has_fixtures = fixtures is not None
+        for name in fixtures:
+            fixture_path = path.parent / "fixtures" / name
+            if not fixture_path.is_file():
+                _fail(
+                    f"{path}: entry {i} ({eid}) fixture not found: "
+                    f"{fixture_path}"
+                )
+    if ("{RUN_DIR}" in q) != has_fixtures:
         if has_fixtures:
-            if (
-                not isinstance(fixtures, list)
-                or not fixtures
-                or not all(isinstance(n, str) and n for n in fixtures)
-            ):
-                _fail(
-                    f"{path}: entry {i} ({eid}) 'fixtures' must be a "
-                    f"non-empty list of strings"
-                )
-            for name in fixtures:
-                fixture_path = path.parent / "fixtures" / name
-                if not fixture_path.is_file():
-                    _fail(
-                        f"{path}: entry {i} ({eid}) fixture not found: "
-                        f"{fixture_path}"
-                    )
-        if ("{RUN_DIR}" in q) != has_fixtures:
-            if has_fixtures:
-                _fail(
-                    f"{path}: entry {i} ({eid}) declares fixtures but its "
-                    f"query has no {{RUN_DIR}} token"
-                )
             _fail(
-                f"{path}: entry {i} ({eid}) query has a {{RUN_DIR}} token "
-                f"but declares no fixtures"
+                f"{path}: entry {i} ({eid}) declares fixtures but its "
+                f"query has no {{RUN_DIR}} token"
             )
-        entries.append(entry)
-    return entries
+        _fail(
+            f"{path}: entry {i} ({eid}) query has a {{RUN_DIR}} token "
+            f"but declares no fixtures"
+        )
 
 
 def build_run_record(
@@ -1154,7 +1471,6 @@ def run_records_batch(
     fixtures_dir = Path(args.queries).parent / "fixtures"
     skill = args.skill if arm == "skill_arm" else None
     tag = ARM_TAGS[arm]
-    runs: dict[int, dict] = {}
 
     def run_rep(n: int) -> dict:
         log_start(n, tag)
@@ -1180,42 +1496,7 @@ def run_records_batch(
         emit(line)
         return record
 
-    # Smoke rep runs alone; a harness failure here aborts before further
-    # spend. A timeout is a record, never an abort (design §7).
-    try:
-        runs[1] = run_rep(1)
-    except HarnessExecutionError as e:
-        emit(
-            f"error: [{tag}] harness could not execute the query: {e}"
-            f"{_session_suffix(e)}",
-            err=True,
-        )
-        sys.exit(1)
-
-    # Remaining reps in parallel batches of at most MAX_WORKERS.
-    remaining = list(range(2, args.reps + 1))
-    for i in range(0, len(remaining), MAX_WORKERS):
-        group = remaining[i : i + MAX_WORKERS]
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {pool.submit(run_rep, n): n for n in group}
-            first_error: tuple[int, HarnessExecutionError] | None = None
-            for fut, n in futures.items():
-                try:
-                    runs[n] = fut.result()
-                except HarnessExecutionError as e:
-                    if first_error is None:
-                        first_error = (n, e)
-        if first_error is not None:
-            n, e = first_error
-            emit(
-                f"error: [{tag}] rep {n} could not execute: {e}"
-                f"{_session_suffix(e)}",
-                err=True,
-            )
-            emit("error: batch aborted", err=True)
-            sys.exit(1)
-
-    return [runs[n] for n in range(1, args.reps + 1)]
+    return run_rep_batched(run_rep, args.reps, tag)
 
 
 def cmd_retrieval_suite(args: argparse.Namespace) -> int:
@@ -1233,22 +1514,7 @@ def cmd_retrieval_suite(args: argparse.Namespace) -> int:
     # ---- pre-spend validation: any failure exits 1, exact message ----
     probe = strategy_cls(timeout=args.timeout)
     for base in (RETRIEVAL_EVALUATOR_AGENT, RETRIEVAL_CONTROL_AGENT):
-        f = probe.agent_file(agents_dir, base)
-        if not f.exists():
-            _fail(f"evaluator agent file missing: {f}")
-        info = scan_agent_frontmatter(f)  # exits on bad frontmatter
-        if info["name"] != base:
-            _fail(
-                f"agent file {f}: frontmatter name "
-                f"'{info['name']}' does not match expected '{base}'"
-            )
-        if info["pins"]:
-            _fail(
-                f"agent file {f} pins model config "
-                f"({', '.join(info['pins'])}); eval agents must not pin "
-                "model/variant/temperature/top_p — selection flows "
-                "through --model/--variant only"
-            )
+        validate_eval_agent(probe, agents_dir, base)
     if args.reps < 1:
         return _err("--reps must be >= 1")
     if args.timeout < 1:
@@ -1325,25 +1591,9 @@ def cmd_retrieval_suite(args: argparse.Namespace) -> int:
                     return 1
         results.append(record)
         emit(f"[{len(results)}/{len(entries)}] {entry['id']}")
-    out.write_text(
-        json.dumps(
-            {
-                "config": {
-                    "skill": args.skill,
-                    "harness": args.harness,
-                    "model": args.model,
-                    "variant": args.variant,
-                    "reps": args.reps,
-                    "timeout": args.timeout,
-                    "date": datetime.now(UTC).date().isoformat(),
-                    "queries": str(queries_path),
-                },
-                "entries": results,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    config = base_config(args)
+    config["queries"] = str(queries_path)
+    write_results(out, config, results)
     emit(f"retrieval suite: {len(entries)} entries -> {out}")
     return 0
 
@@ -1367,62 +1617,24 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
     verbatim rubric text from the entry's expect list, and when the
     record-step counts are passed (--passes/--fails/--gaps/--voids) they
     must match the scored sums."""
-    results_path = Path(args.results)
     scored_path = Path(args.scored)
-    if not results_path.exists():
-        return _err(f"results file not found: {results_path}")
-    try:
-        results = json.loads(results_path.read_text())
-    except json.JSONDecodeError as e:
-        return _err(f"invalid JSON in {results_path}: {e}")
-    if not isinstance(results, dict) or not isinstance(
-        results.get("entries"), list
-    ):
-        return _err(
-            f"{results_path}: not a retrieval-suite results file "
-            f"(missing 'entries' list)"
-        )
-    results_ids: list[str] = []
-    results_expect: dict[str, list[str]] = {}
-    for i, e in enumerate(results["entries"]):
-        eid = e.get("id") if isinstance(e, dict) else None
-        if not isinstance(eid, str) or not eid:
-            return _err(
-                f"{results_path}: results entry {i} missing 'id' "
-                f"(non-empty string)"
-            )
-        results_ids.append(eid)
-        expect = e.get("expect") if isinstance(e, dict) else None
-        results_expect[eid] = expect if isinstance(expect, list) else []
+    union = union_results(
+        [args.results], "retrieval", entry_hook=_retrieval_union_hook
+    )
+    if isinstance(union, str):
+        return _err(union)
+    results_ids, _results_arms, extras = union
+    results_expect = extras.get("expect", {})
 
-    if not scored_path.exists():
-        return _err(f"scored file not found: {scored_path}")
-    try:
-        scored = json.loads(scored_path.read_text())
-    except json.JSONDecodeError as e:
-        return _err(f"invalid JSON in {scored_path}: {e}")
-    if not isinstance(scored, dict) or not isinstance(
-        scored.get("entries"), list
-    ):
-        return _err(
-            f"{scored_path}: expected a JSON object with an 'entries' list"
-        )
+    scored_entries = load_scored_json(scored_path)
+    if isinstance(scored_entries, str):
+        return _err(scored_entries)
+    covered_entries = check_coverage(scored_entries, results_ids, scored_path)
+    if isinstance(covered_entries, str):
+        return _err(covered_entries)
 
-    covered: set[str] = set()
-    for i, entry in enumerate(scored["entries"]):
-        if not isinstance(entry, dict):
-            return _err(f"{scored_path}: entry {i} is not an object")
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            return _err(
-                f"{scored_path}: entry {i} missing 'id' (non-empty string)"
-            )
-        if eid in covered:
-            return _err(f"{scored_path}: duplicate id: {eid}")
-        if eid not in results_ids:
-            return _err(f"{scored_path}: unknown id: {eid}")
-        covered.add(eid)
-
+    for entry in covered_entries:
+        eid = entry["id"]
         result = entry.get("result")
         if result not in RESULTS:
             return _err(
@@ -1490,35 +1702,14 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
                     f"{', '.join(not_in_expect)}"
                 )
 
-    missing = [eid for eid in results_ids if eid not in covered]
-    if missing:
-        return _err(
-            f"{scored_path}: missing scored entries for results ids: "
-            f"{', '.join(missing)}"
-        )
-
-    # Optional count gate: when the record-step counts are given, they
-    # must equal what the scored entries actually sum to.
-    given = [
-        getattr(args, n, None) for n in ("passes", "fails", "gaps", "voids")
-    ]
-    if any(c is not None for c in given):
-        if not all(c is not None for c in given):
-            return _err(
-                "--passes/--fails/--gaps/--voids must be given together"
-            )
-        computed = {
-            r: sum(1 for e in scored["entries"] if e.get("result") == r)
-            for r in ("pass", "fail", "gap", "void")
-        }
-        if tuple(given) != tuple(computed[r] for r in computed):
-            return _err(
-                f"counts do not match scored results: computed "
-                f"{computed['pass']} pass / {computed['fail']} fail / "
-                f"{computed['gap']} gap / {computed['void']} void, got "
-                f"{given[0]} pass / {given[1]} fail / {given[2]} gap / "
-                f"{given[3]} void"
-            )
+    rc = counts_gate(
+        args,
+        covered_entries,
+        ("passes", "fails", "gaps", "voids"),
+        ("pass", "fail", "gap", "void"),
+    )
+    if rc is not None:
+        return rc
     print(f"ok: {scored_path} covers {len(results_ids)} entries")
     return 0
 
@@ -1559,122 +1750,108 @@ def load_shape_entries(path: Path) -> list[dict]:
     lives in cmd_shape_suite, which owns the body bytes. On any violation
     prints `error: <exact reason>` to stderr and exits 1 (pre-spend: zero
     harness runs happen before this returns)."""
-    if not path.exists():
-        _fail(f"entries file not found: {path}")
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
-        _fail(f"invalid JSON in {path}: {e}")
-    if not isinstance(data, list):
-        _fail(f"{path}: expected a JSON list of entry objects")
-    entries: list[dict] = []
-    seen: set[str] = set()
-    for i, entry in enumerate(data):
-        if not isinstance(entry, dict):
-            _fail(f"{path}: entry {i} is not an object")
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            _fail(f"{path}: entry {i} missing 'id' (non-empty string)")
-        if eid in seen:
-            _fail(f"{path}: duplicate id: {eid}")
-        seen.add(eid)
-        kind = entry.get("kind")
-        if kind not in SHAPE_KINDS:
+    return load_entries(path, "entries", "entry", _check_shape_fields)
+
+
+def _check_shape_fields(path: Path, i: int, entry: dict, eid: str) -> None:
+    """Per-field checks for a shape entry: kind, the verbatim section
+    span, fixtures (with the pattern counter-example rules), grep-token
+    markers (with the pattern restraint rules), and variants."""
+    kind = entry.get("kind")
+    if kind not in SHAPE_KINDS:
+        _fail(
+            f"{path}: entry {i} ({eid}) kind must be one of "
+            f"{sorted(SHAPE_KINDS)}, got {kind!r}"
+        )
+    section = entry.get("section")
+    if not isinstance(section, str) or not section:
+        _fail(
+            f"{path}: entry {i} ({eid}) missing 'section' "
+            f"(non-empty string)"
+        )
+    fixtures = entry.get("fixtures")
+    if not isinstance(fixtures, dict) or not fixtures:
+        _fail(
+            f"{path}: entry {i} ({eid}) 'fixtures' must be a "
+            f"non-empty object"
+        )
+    application = fixtures.get("application")
+    if not isinstance(application, str) or not application:
+        _fail(
+            f"{path}: entry {i} ({eid}) fixtures.application must be "
+            f"a non-empty string"
+        )
+    unknown = [k for k in fixtures if k not in SHAPE_FIXTURE_KEYS]
+    if unknown:
+        _fail(
+            f"{path}: entry {i} ({eid}) has unknown fixture keys: "
+            f"{', '.join(unknown)} (allowed: "
+            f"{', '.join(SHAPE_FIXTURE_KEYS)})"
+        )
+    has_counter = isinstance(fixtures.get("counter-example"), str) and bool(
+        fixtures.get("counter-example")
+    )
+    if kind == "pattern" and not has_counter:
+        _fail(
+            f"{path}: entry {i} ({eid}) is a pattern entry and must "
+            f"declare a 'counter-example' fixture"
+        )
+    if kind == "shaping" and "counter-example" in fixtures:
+        _fail(
+            f"{path}: entry {i} ({eid}) is a shaping entry and must "
+            f"not declare a 'counter-example' fixture"
+        )
+    markers = entry.get("markers")
+    if not isinstance(markers, dict) or not markers:
+        _fail(
+            f"{path}: entry {i} ({eid}) 'markers' must be a non-empty "
+            f"dict of grep tokens"
+        )
+    if not all(isinstance(t, str) and t for t in markers.values()) or not all(
+        isinstance(k, str) and k for k in markers
+    ):
+        _fail(
+            f"{path}: entry {i} ({eid}) 'markers' keys and tokens "
+            f"must be non-empty strings"
+        )
+    _check_marker_tokens(path, eid, "markers", markers)
+    restraint = entry.get("restraint_markers")
+    if kind == "pattern":
+        if not isinstance(restraint, dict) or not restraint:
             _fail(
-                f"{path}: entry {i} ({eid}) kind must be one of "
-                f"{sorted(SHAPE_KINDS)}, got {kind!r}"
-            )
-        section = entry.get("section")
-        if not isinstance(section, str) or not section:
-            _fail(
-                f"{path}: entry {i} ({eid}) missing 'section' "
-                f"(non-empty string)"
-            )
-        fixtures = entry.get("fixtures")
-        if not isinstance(fixtures, dict) or not fixtures:
-            _fail(
-                f"{path}: entry {i} ({eid}) 'fixtures' must be a "
-                f"non-empty object"
-            )
-        application = fixtures.get("application")
-        if not isinstance(application, str) or not application:
-            _fail(
-                f"{path}: entry {i} ({eid}) fixtures.application must be "
-                f"a non-empty string"
-            )
-        unknown = [k for k in fixtures if k not in SHAPE_FIXTURE_KEYS]
-        if unknown:
-            _fail(
-                f"{path}: entry {i} ({eid}) has unknown fixture keys: "
-                f"{', '.join(unknown)} (allowed: "
-                f"{', '.join(SHAPE_FIXTURE_KEYS)})"
-            )
-        has_counter = isinstance(
-            fixtures.get("counter-example"), str
-        ) and bool(fixtures.get("counter-example"))
-        if kind == "pattern" and not has_counter:
-            _fail(
-                f"{path}: entry {i} ({eid}) is a pattern entry and must "
-                f"declare a 'counter-example' fixture"
-            )
-        if kind == "shaping" and "counter-example" in fixtures:
-            _fail(
-                f"{path}: entry {i} ({eid}) is a shaping entry and must "
-                f"not declare a 'counter-example' fixture"
-            )
-        markers = entry.get("markers")
-        if not isinstance(markers, dict) or not markers:
-            _fail(
-                f"{path}: entry {i} ({eid}) 'markers' must be a non-empty "
-                f"dict of grep tokens"
+                f"{path}: entry {i} ({eid}) 'restraint_markers' "
+                f"(non-empty dict of grep tokens) is required for "
+                f"pattern entries"
             )
         if not all(
-            isinstance(t, str) and t for t in markers.values()
-        ) or not all(isinstance(k, str) and k for k in markers):
+            isinstance(t, str) and t for t in restraint.values()
+        ) or not all(isinstance(k, str) and k for k in restraint):
             _fail(
-                f"{path}: entry {i} ({eid}) 'markers' keys and tokens "
-                f"must be non-empty strings"
+                f"{path}: entry {i} ({eid}) 'restraint_markers' keys "
+                f"and tokens must be non-empty strings"
             )
-        _check_marker_tokens(path, eid, "markers", markers)
-        restraint = entry.get("restraint_markers")
-        if kind == "pattern":
-            if not isinstance(restraint, dict) or not restraint:
-                _fail(
-                    f"{path}: entry {i} ({eid}) 'restraint_markers' "
-                    f"(non-empty dict of grep tokens) is required for "
-                    f"pattern entries"
-                )
-            if not all(
-                isinstance(t, str) and t for t in restraint.values()
-            ) or not all(isinstance(k, str) and k for k in restraint):
-                _fail(
-                    f"{path}: entry {i} ({eid}) 'restraint_markers' keys "
-                    f"and tokens must be non-empty strings"
-                )
-            _check_marker_tokens(path, eid, "restraint_markers", restraint)
-        elif restraint is not None:
-            _fail(
-                f"{path}: entry {i} ({eid}) 'restraint_markers' is only "
-                f"valid for pattern entries"
-            )
-        variants = entry.get("variants")
-        if not isinstance(variants, dict) or not variants:
-            _fail(
-                f"{path}: entry {i} ({eid}) 'variants' must be a "
-                f"non-empty object"
-            )
-        if len(variants) > 3 or not set(variants) <= set(SHAPE_VARIANT_KEYS):
-            _fail(
-                f"{path}: entry {i} ({eid}) 'variants' must have 1-3 "
-                f"entries keyed {', '.join(SHAPE_VARIANT_KEYS)}"
-            )
-        if not all(isinstance(v, str) and v for v in variants.values()):
-            _fail(
-                f"{path}: entry {i} ({eid}) 'variants' values must be "
-                f"non-empty strings"
-            )
-        entries.append(entry)
-    return entries
+        _check_marker_tokens(path, eid, "restraint_markers", restraint)
+    elif restraint is not None:
+        _fail(
+            f"{path}: entry {i} ({eid}) 'restraint_markers' is only "
+            f"valid for pattern entries"
+        )
+    variants = entry.get("variants")
+    if not isinstance(variants, dict) or not variants:
+        _fail(
+            f"{path}: entry {i} ({eid}) 'variants' must be a "
+            f"non-empty object"
+        )
+    if len(variants) > 3 or not set(variants) <= set(SHAPE_VARIANT_KEYS):
+        _fail(
+            f"{path}: entry {i} ({eid}) 'variants' must have 1-3 "
+            f"entries keyed {', '.join(SHAPE_VARIANT_KEYS)}"
+        )
+    if not all(isinstance(v, str) and v for v in variants.values()):
+        _fail(
+            f"{path}: entry {i} ({eid}) 'variants' values must be "
+            f"non-empty strings"
+        )
 
 
 # Per-run prompt assembly. The per-run prompt never contains the rule
@@ -1793,13 +1970,8 @@ def run_shape_rep_batch(
     args: argparse.Namespace,
 ) -> list[dict]:
     """Reps for one (entry, arm) pair. Every rep shares identical prompt
-    bytes (injection, not byte-states), so reps within the arm batch
-    parallelize; entries x arms stay strictly serialized by
-    cmd_shape_suite — spend discipline, not an optimization target. The
-    smoke rep runs alone; remaining reps batch at most MAX_WORKERS
-    wide."""
+    bytes; per-rep scheduling lives in run_rep_batched."""
     tag = f" {arm} "
-    runs: dict[int, dict] = {}
 
     def run_rep(n: int) -> dict:
         log_start(n, tag)
@@ -1819,41 +1991,7 @@ def run_shape_rep_batch(
         emit(line)
         return record
 
-    # Smoke rep runs alone; a harness failure here aborts before further
-    # spend. A timeout is a record, never an abort (retrieval policy).
-    try:
-        runs[1] = run_rep(1)
-    except HarnessExecutionError as e:
-        emit(
-            f"error: [{tag}] harness could not execute the query: {e}"
-            f"{_session_suffix(e)}",
-            err=True,
-        )
-        sys.exit(1)
-
-    remaining = list(range(2, args.reps + 1))
-    for i in range(0, len(remaining), MAX_WORKERS):
-        group = remaining[i : i + MAX_WORKERS]
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {pool.submit(run_rep, n): n for n in group}
-            first_error: tuple[int, HarnessExecutionError] | None = None
-            for fut, n in futures.items():
-                try:
-                    runs[n] = fut.result()
-                except HarnessExecutionError as e:
-                    if first_error is None:
-                        first_error = (n, e)
-        if first_error is not None:
-            n, e = first_error
-            emit(
-                f"error: [{tag}] rep {n} could not execute: {e}"
-                f"{_session_suffix(e)}",
-                err=True,
-            )
-            emit("error: batch aborted", err=True)
-            sys.exit(1)
-
-    return [runs[n] for n in range(1, args.reps + 1)]
+    return run_rep_batched(run_rep, args.reps, tag)
 
 
 def cmd_shape_suite(args: argparse.Namespace) -> int:
@@ -1873,23 +2011,7 @@ def cmd_shape_suite(args: argparse.Namespace) -> int:
 
     # ---- pre-spend validation: any failure exits 1, exact message ----
     probe = strategy_cls(timeout=args.timeout)
-    agent_file = probe.agent_file(agents_dir, SHAPE_EVALUATOR_AGENT)
-    if not agent_file.exists():
-        _fail(f"evaluator agent file missing: {agent_file}")
-    info = scan_agent_frontmatter(agent_file)  # exits on bad frontmatter
-    if info["name"] != SHAPE_EVALUATOR_AGENT:
-        _fail(
-            f"agent file {agent_file}: frontmatter name "
-            f"'{info['name']}' does not match expected "
-            f"'{SHAPE_EVALUATOR_AGENT}'"
-        )
-    if info["pins"]:
-        _fail(
-            f"agent file {agent_file} pins model config "
-            f"({', '.join(info['pins'])}); eval agents must not pin "
-            "model/variant/temperature/top_p — selection flows "
-            "through --model/--variant only"
-        )
+    validate_eval_agent(probe, agents_dir, SHAPE_EVALUATOR_AGENT)
     if args.reps < 1:
         _fail("--reps must be >= 1")
     if args.timeout < 1:
@@ -1993,28 +2115,12 @@ def cmd_shape_suite(args: argparse.Namespace) -> int:
         results.append(record)
         emit(f"[{i}/{len(entries)}] {entry['id']}")
 
-    out.write_text(
-        json.dumps(
-            {
-                "config": {
-                    "skill": args.skill,
-                    "harness": args.harness,
-                    "model": args.model,
-                    "variant": args.variant,
-                    "reps": args.reps,
-                    "timeout": args.timeout,
-                    "date": datetime.now(UTC).date().isoformat(),
-                    "entries": str(entries_path),
-                    "skill_file": str(skill_file),
-                    "arms": arms,
-                    "fixture_key": args.fixture_key,
-                },
-                "entries": results,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    config = base_config(args)
+    config["entries"] = str(entries_path)
+    config["skill_file"] = str(skill_file)
+    config["arms"] = arms
+    config["fixture_key"] = args.fixture_key
+    write_results(out, config, results)
     emit(f"shape suite: {len(entries)} entries -> {out}")
     return 0
 
@@ -2038,99 +2144,78 @@ def cmd_shape_evidence(args: argparse.Namespace) -> int:
     judges convergence across the reps by hand. Exit 0 with an entry
     count line; exit 1 only on a malformed file or unknown --entry."""
     path = Path(args.results)
-    if not path.exists():
-        print(f"error: results file not found: {path}", file=sys.stderr)
-        return 1
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
-        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
-        return 1
-    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
-        print(
-            f"error: {path}: not a shape-suite results file "
-            f"(missing 'entries' list)",
-            file=sys.stderr,
-        )
+    data_entries, error = load_results_json(path, "shape")
+    if error is not None:
+        print(f"error: {error}", file=sys.stderr)
         return 1
 
     n_printed = 0
-    for i, entry in enumerate(data["entries"]):
-        if not isinstance(entry, dict):
-            print(
-                f"error: {path}: entry {i} is not an object", file=sys.stderr
-            )
-            return 1
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            print(
-                f"error: {path}: entry {i} missing 'id' (non-empty string)",
-                file=sys.stderr,
-            )
-            return 1
-        if args.entry is not None and eid != args.entry:
-            continue
-        arms = entry.get("arms")
-        if not isinstance(arms, dict):
-            print(
-                f"error: {path}: entry {eid} is missing its 'arms' object",
-                file=sys.stderr,
-            )
-            return 1
-        markers = entry.get("markers")
-        markers = markers if isinstance(markers, dict) else {}
-        restraint = entry.get("restraint_markers")
-        restraint = restraint if isinstance(restraint, dict) else {}
-
-        print(f"## {eid} ({entry.get('kind', '?')})")
-        for arm in arms:
-            if args.arm is not None and arm != args.arm:
-                continue
-            arm_data = arms[arm]
-            if not isinstance(arm_data, dict) or not isinstance(
-                arm_data.get("runs"), list
-            ):
+    try:
+        for eid, entry in iter_evidence(data_entries, path, args.entry):
+            arms = entry.get("arms")
+            if not isinstance(arms, dict):
                 print(
-                    f"error: {path}: entry {eid} arm {arm!r} is missing "
-                    f"its run list",
+                    f"error: {path}: entry {eid} is missing its 'arms' object",
                     file=sys.stderr,
                 )
                 return 1
-            for n, run in enumerate(arm_data["runs"], start=1):
-                if not isinstance(run, dict):
+            markers = entry.get("markers")
+            markers = markers if isinstance(markers, dict) else {}
+            restraint = entry.get("restraint_markers")
+            restraint = restraint if isinstance(restraint, dict) else {}
+
+            print(f"## {eid} ({entry.get('kind', '?')})")
+            for arm in arms:
+                if args.arm is not None and arm != args.arm:
+                    continue
+                arm_data = arms[arm]
+                if not isinstance(arm_data, dict) or not isinstance(
+                    arm_data.get("runs"), list
+                ):
                     print(
-                        f"error: {path}: entry {eid} arm {arm!r} run {n} "
-                        f"is not an object",
+                        f"error: {path}: entry {eid} arm {arm!r} is "
+                        f"missing its run list",
                         file=sys.stderr,
                     )
                     return 1
-                timeout = "timeout" if run.get("timeout") else "ok"
-                session = run.get("session_id") or "no-session"
-                print(f"[ {arm} ] rep {n:>3} ({session}, {timeout})")
-                answer = run.get("answer_text")
-                answer = answer if isinstance(answer, str) else ""
-                if answer:
-                    print("answer:")
-                    for line in answer.splitlines():
-                        print(f"  {line}")
-                else:
-                    print("answer: (empty)")
-                signals = run.get("void_signals") or []
-                joined = ", ".join(signals) if signals else "none"
-                print(f"void signals: {joined}")
-                counts = marker_triage_counts(answer, markers)
-                print(
-                    "markers: "
-                    + ", ".join(f"{k}={v}" for k, v in counts.items())
-                )
-                if restraint:
-                    rcounts = marker_triage_counts(answer, restraint)
+                for n, run in enumerate(arm_data["runs"], start=1):
+                    if not isinstance(run, dict):
+                        print(
+                            f"error: {path}: entry {eid} arm {arm!r} "
+                            f"run {n} is not an object",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    timeout = "timeout" if run.get("timeout") else "ok"
+                    session = run.get("session_id") or "no-session"
+                    print(f"[ {arm} ] rep {n:>3} ({session}, {timeout})")
+                    answer = run.get("answer_text")
+                    answer = answer if isinstance(answer, str) else ""
+                    if answer:
+                        print("answer:")
+                        for line in answer.splitlines():
+                            print(f"  {line}")
+                    else:
+                        print("answer: (empty)")
+                    signals = run.get("void_signals") or []
+                    joined = ", ".join(signals) if signals else "none"
+                    print(f"void signals: {joined}")
+                    counts = marker_triage_counts(answer, markers)
                     print(
-                        "restraint markers: "
-                        + ", ".join(f"{k}={v}" for k, v in rcounts.items())
+                        "markers: "
+                        + ", ".join(f"{k}={v}" for k, v in counts.items())
                     )
-                print()
-        n_printed += 1
+                    if restraint:
+                        rcounts = marker_triage_counts(answer, restraint)
+                        print(
+                            "restraint markers: "
+                            + ", ".join(f"{k}={v}" for k, v in rcounts.items())
+                        )
+                    print()
+            n_printed += 1
+    except EvidenceError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
 
     if args.entry is not None and n_printed == 0:
         print(f"error: no entry with id: {args.entry}", file=sys.stderr)
@@ -2148,84 +2233,23 @@ def cmd_shape_scored_check(args: argparse.Namespace) -> int:
     adopted_arm must name a non-v0 arm present in that entry's results,
     the restraint_gate rule applies to adopted pattern entries, and the
     record-step counts (--adopted/--no-failure/--unresolved/--voids) must
-    be given all together and match the scored sums."""
-    results_ids: list[str] = []
-    results_kinds: dict[str, str] = {}
-    results_arms: dict[str, set[str]] = {}
-    for results_str in args.results:
-        results_path = Path(results_str)
-        if not results_path.exists():
-            return _err(f"results file not found: {results_path}")
-        try:
-            data = json.loads(results_path.read_text())
-        except json.JSONDecodeError as e:
-            return _err(f"invalid JSON in {results_path}: {e}")
-        if not isinstance(data, dict) or not isinstance(
-            data.get("entries"), list
-        ):
-            return _err(
-                f"{results_path}: not a shape-suite results file "
-                f"(missing 'entries' list)"
-            )
-        for i, e in enumerate(data["entries"]):
-            eid = e.get("id") if isinstance(e, dict) else None
-            if not isinstance(eid, str) or not eid:
-                return _err(
-                    f"{results_path}: results entry {i} missing 'id' "
-                    f"(non-empty string)"
-                )
-            kind = e.get("kind")
-            arms = e.get("arms") if isinstance(e, dict) else None
-            if not isinstance(arms, dict):
-                return _err(
-                    f"{results_path}: entry {eid} is missing its 'arms' "
-                    f"object"
-                )
-            arm_keys = {a for a in arms if isinstance(a, str) and a}
-            if eid not in results_kinds:
-                if kind not in SHAPE_KINDS:
-                    return _err(
-                        f"{results_path}: entry {eid}: kind must be one "
-                        f"of {sorted(SHAPE_KINDS)}, got {kind!r}"
-                    )
-                results_ids.append(eid)
-                results_kinds[eid] = kind
-            elif kind != results_kinds[eid]:
-                return _err(
-                    f"{results_path}: entry {eid}: kind {kind!r} differs "
-                    f"from earlier results file "
-                    f"({results_kinds[eid]!r})"
-                )
-            results_arms.setdefault(eid, set()).update(arm_keys)
+    be     given all together and match the scored sums."""
+    union = union_results(args.results, "shape", entry_hook=_shape_union_hook)
+    if isinstance(union, str):
+        return _err(union)
+    results_ids, results_arms, extras = union
+    results_kinds = extras.get("kinds", {})
 
     scored_path = Path(args.scored)
-    if not scored_path.exists():
-        return _err(f"scored file not found: {scored_path}")
-    try:
-        scored = json.loads(scored_path.read_text())
-    except json.JSONDecodeError as e:
-        return _err(f"invalid JSON in {scored_path}: {e}")
-    if not isinstance(scored, dict) or not isinstance(
-        scored.get("entries"), list
-    ):
-        return _err(
-            f"{scored_path}: expected a JSON object with an 'entries' list"
-        )
+    scored_entries = load_scored_json(scored_path)
+    if isinstance(scored_entries, str):
+        return _err(scored_entries)
+    covered_entries = check_coverage(scored_entries, results_ids, scored_path)
+    if isinstance(covered_entries, str):
+        return _err(covered_entries)
 
-    covered: set[str] = set()
-    for i, entry in enumerate(scored["entries"]):
-        if not isinstance(entry, dict):
-            return _err(f"{scored_path}: entry {i} is not an object")
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            return _err(
-                f"{scored_path}: entry {i} missing 'id' (non-empty string)"
-            )
-        if eid in covered:
-            return _err(f"{scored_path}: duplicate id: {eid}")
-        if eid not in results_kinds:
-            return _err(f"{scored_path}: unknown id: {eid}")
-        covered.add(eid)
+    for entry in covered_entries:
+        eid = entry["id"]
         kind = entry.get("kind")
         if kind != results_kinds[eid]:
             return _err(
@@ -2256,7 +2280,8 @@ def cmd_shape_scored_check(args: argparse.Namespace) -> int:
                 return _err(
                     f"{scored_path}: entry {eid}: adopted_arm "
                     f"{adopted_arm!r} is not an arm present in this "
-                    f"entry's results ({', '.join(sorted(results_arms[eid]))})"
+                    f"entry's results "
+                    f"({', '.join(sorted(results_arms[eid]))})"
                 )
         elif adopted_arm is not None:
             return _err(
@@ -2289,37 +2314,14 @@ def cmd_shape_scored_check(args: argparse.Namespace) -> int:
         if notes is not None and not isinstance(notes, str):
             return _err(f"{scored_path}: entry {eid}: notes must be a string")
 
-    missing = [eid for eid in results_ids if eid not in covered]
-    if missing:
-        return _err(
-            f"{scored_path}: missing scored entries for results ids: "
-            f"{', '.join(missing)}"
-        )
-
-    # Optional count gate: when the record-step counts are given, they
-    # must be all four together and equal what the scored entries sum to.
-    count_names = ("adopted", "no_failure", "unresolved", "voids")
-    given = [getattr(args, n, None) for n in count_names]
-    if any(c is not None for c in given):
-        if not all(c is not None for c in given):
-            return _err(
-                "--adopted/--no-failure/--unresolved/--voids must be "
-                "given together"
-            )
-        computed = {
-            r: sum(1 for e in scored["entries"] if e.get("result") == r)
-            for r in ("adopted", "no-failure", "unresolved", "void")
-        }
-        if tuple(given) != tuple(computed[r] for r in computed):
-            return _err(
-                f"counts do not match scored results: computed "
-                f"{computed['adopted']} adopted / "
-                f"{computed['no-failure']} no-failure / "
-                f"{computed['unresolved']} unresolved / "
-                f"{computed['void']} void, got "
-                f"{given[0]} adopted / {given[1]} no-failure / "
-                f"{given[2]} unresolved / {given[3]} void"
-            )
+    rc = counts_gate(
+        args,
+        covered_entries,
+        ("adopted", "no_failure", "unresolved", "voids"),
+        ("adopted", "no-failure", "unresolved", "void"),
+    )
+    if rc is not None:
+        return rc
     print(f"ok: {scored_path} covers {len(results_ids)} entries")
     return 0
 
@@ -2368,69 +2370,53 @@ def load_pressure_scenarios(path: Path) -> list[dict]:
     """Read and strictly validate a pressure scenarios file. On any
     violation prints `error: <exact reason>` to stderr and exits 1
     (pre-spend: zero harness runs happen before this returns)."""
-    if not path.exists():
-        _fail(f"scenarios file not found: {path}")
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
-        _fail(f"invalid JSON in {path}: {e}")
-    if not isinstance(data, list):
-        _fail(f"{path}: expected a JSON list of scenario objects")
-    entries: list[dict] = []
-    seen: set[str] = set()
-    for i, entry in enumerate(data):
-        if not isinstance(entry, dict):
-            _fail(f"{path}: entry {i} is not an object")
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            _fail(f"{path}: entry {i} missing 'id' (non-empty string)")
-        if eid in seen:
-            _fail(f"{path}: duplicate id: {eid}")
-        seen.add(eid)
-        rule = entry.get("rule")
-        if not isinstance(rule, str) or not rule:
-            _fail(
-                f"{path}: entry {i} ({eid}) missing 'rule' "
-                f"(non-empty string)"
-            )
-        statement = entry.get("statement")
-        if not isinstance(statement, str) or not statement:
-            _fail(
-                f"{path}: entry {i} ({eid}) missing 'statement' "
-                f"(non-empty string)"
-            )
-        scenario = entry.get("scenario")
-        if not isinstance(scenario, str) or not scenario:
-            _fail(
-                f"{path}: entry {i} ({eid}) missing 'scenario' "
-                f"(non-empty string)"
-            )
-        pressures = entry.get("pressures")
-        if (
-            not isinstance(pressures, list)
-            or len(pressures) < 3
-            or not all(isinstance(p, str) and p for p in pressures)
-            or len(set(pressures)) != len(pressures)
-        ):
-            _fail(
-                f"{path}: entry {i} ({eid}) 'pressures' must be a list of "
-                f"at least 3 distinct non-empty strings"
-            )
-        unknown = [p for p in pressures if p not in PRESSURE_TYPES]
-        if unknown:
-            _fail(
-                f"{path}: entry {i} ({eid}) pressures not in the "
-                f"taxonomy: {', '.join(unknown)} (allowed: "
-                f"{', '.join(sorted(PRESSURE_TYPES))})"
-            )
-        compliant = entry.get("compliant_option")
-        if not isinstance(compliant, str) or not compliant:
-            _fail(
-                f"{path}: entry {i} ({eid}) missing 'compliant_option' "
-                f"(non-empty string)"
-            )
-        entries.append(entry)
-    return entries
+    return load_entries(path, "scenarios", "scenario", _check_pressure_fields)
+
+
+def _check_pressure_fields(path: Path, i: int, entry: dict, eid: str) -> None:
+    """Per-field checks for a pressure scenario: rule, statement,
+    scenario, the pressures taxonomy list, and the compliant option."""
+    rule = entry.get("rule")
+    if not isinstance(rule, str) or not rule:
+        _fail(
+            f"{path}: entry {i} ({eid}) missing 'rule' " f"(non-empty string)"
+        )
+    statement = entry.get("statement")
+    if not isinstance(statement, str) or not statement:
+        _fail(
+            f"{path}: entry {i} ({eid}) missing 'statement' "
+            f"(non-empty string)"
+        )
+    scenario = entry.get("scenario")
+    if not isinstance(scenario, str) or not scenario:
+        _fail(
+            f"{path}: entry {i} ({eid}) missing 'scenario' "
+            f"(non-empty string)"
+        )
+    pressures = entry.get("pressures")
+    if (
+        not isinstance(pressures, list)
+        or len(pressures) < 3
+        or not all(isinstance(p, str) and p for p in pressures)
+        or len(set(pressures)) != len(pressures)
+    ):
+        _fail(
+            f"{path}: entry {i} ({eid}) 'pressures' must be a list of "
+            f"at least 3 distinct non-empty strings"
+        )
+    unknown = [p for p in pressures if p not in PRESSURE_TYPES]
+    if unknown:
+        _fail(
+            f"{path}: entry {i} ({eid}) pressures not in the "
+            f"taxonomy: {', '.join(unknown)} (allowed: "
+            f"{', '.join(sorted(PRESSURE_TYPES))})"
+        )
+    compliant = entry.get("compliant_option")
+    if not isinstance(compliant, str) or not compliant:
+        _fail(
+            f"{path}: entry {i} ({eid}) missing 'compliant_option' "
+            f"(non-empty string)"
+        )
 
 
 def build_pressure_prompt(
@@ -2491,12 +2477,9 @@ def run_pressure_rep_batch(
     skill_text: str | None,
 ) -> list[dict]:
     """Reps for one (entry, arm) pair. Every rep shares identical prompt
-    bytes (injection, not byte-states), so reps within the arm batch
-    parallelize. The smoke rep runs alone; remaining reps batch at most
-    MAX_WORKERS wide. A timeout is a record, never an abort."""
+    bytes; per-rep scheduling lives in run_rep_batched."""
     prompt = build_pressure_prompt(entry, arm, skill_text)
     tag = PRESSURE_ARM_TAGS[arm]
-    runs: dict[int, dict] = {}
 
     def run_rep(n: int) -> dict:
         log_start(n, tag)
@@ -2516,41 +2499,7 @@ def run_pressure_rep_batch(
         emit(line)
         return record
 
-    # Smoke rep runs alone; a harness failure here aborts before further
-    # spend. A timeout is a record, never an abort (retrieval policy).
-    try:
-        runs[1] = run_rep(1)
-    except HarnessExecutionError as e:
-        emit(
-            f"error: [{tag}] harness could not execute the query: {e}"
-            f"{_session_suffix(e)}",
-            err=True,
-        )
-        sys.exit(1)
-
-    remaining = list(range(2, args.reps + 1))
-    for i in range(0, len(remaining), MAX_WORKERS):
-        group = remaining[i : i + MAX_WORKERS]
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {pool.submit(run_rep, n): n for n in group}
-            first_error: tuple[int, HarnessExecutionError] | None = None
-            for fut, n in futures.items():
-                try:
-                    runs[n] = fut.result()
-                except HarnessExecutionError as e:
-                    if first_error is None:
-                        first_error = (n, e)
-        if first_error is not None:
-            n, e = first_error
-            emit(
-                f"error: [{tag}] rep {n} could not execute: {e}"
-                f"{_session_suffix(e)}",
-                err=True,
-            )
-            emit("error: batch aborted", err=True)
-            sys.exit(1)
-
-    return [runs[n] for n in range(1, args.reps + 1)]
+    return run_rep_batched(run_rep, args.reps, tag)
 
 
 def cmd_pressure_suite(args: argparse.Namespace) -> int:
@@ -2566,23 +2515,7 @@ def cmd_pressure_suite(args: argparse.Namespace) -> int:
 
     # ---- pre-spend validation: any failure exits 1, exact message ----
     probe = strategy_cls(timeout=args.timeout)
-    agent_file = probe.agent_file(agents_dir, PRESSURE_EVALUATOR_AGENT)
-    if not agent_file.exists():
-        _fail(f"evaluator agent file missing: {agent_file}")
-    info = scan_agent_frontmatter(agent_file)  # exits on bad frontmatter
-    if info["name"] != PRESSURE_EVALUATOR_AGENT:
-        _fail(
-            f"agent file {agent_file}: frontmatter name "
-            f"'{info['name']}' does not match expected "
-            f"'{PRESSURE_EVALUATOR_AGENT}'"
-        )
-    if info["pins"]:
-        _fail(
-            f"agent file {agent_file} pins model config "
-            f"({', '.join(info['pins'])}); eval agents must not pin "
-            "model/variant/temperature/top_p — selection flows "
-            "through --model/--variant only"
-        )
+    validate_eval_agent(probe, agents_dir, PRESSURE_EVALUATOR_AGENT)
     if args.arm not in PRESSURE_ARMS:
         _fail(
             f"--arm must be one of {', '.join(sorted(PRESSURE_ARMS))}, "
@@ -2660,22 +2593,12 @@ def cmd_pressure_suite(args: argparse.Namespace) -> int:
         results.append(record)
         emit(f"[{i}/{len(entries)}] {entry['id']}")
 
-    config = {
-        "skill": args.skill,
-        "harness": args.harness,
-        "model": args.model,
-        "variant": args.variant,
-        "reps": args.reps,
-        "timeout": args.timeout,
-        "date": datetime.now(UTC).date().isoformat(),
-        "scenarios": str(scenarios_path),
-        "arm": args.arm,
-    }
+    config = base_config(args)
+    config["scenarios"] = str(scenarios_path)
+    config["arm"] = args.arm
     if args.skill_file is not None:
         config["skill_file"] = args.skill_file
-    out.write_text(
-        json.dumps({"config": config, "entries": results}, indent=2) + "\n"
-    )
+    write_results(out, config, results)
     emit(f"pressure suite: {len(entries)} entries -> {out}")
     return 0
 
@@ -2688,93 +2611,72 @@ def cmd_pressure_evidence(args: argparse.Namespace) -> int:
     choice + citation by hand. Exit 0 with an entry count line; exit 1
     only on a malformed file or unknown --entry."""
     path = Path(args.results)
-    if not path.exists():
-        print(f"error: results file not found: {path}", file=sys.stderr)
-        return 1
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
-        print(f"error: invalid JSON in {path}: {e}", file=sys.stderr)
-        return 1
-    if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
-        print(
-            f"error: {path}: not a pressure-suite results file "
-            f"(missing 'entries' list)",
-            file=sys.stderr,
-        )
+    data_entries, error = load_results_json(path, "pressure")
+    if error is not None:
+        print(f"error: {error}", file=sys.stderr)
         return 1
 
     n_printed = 0
-    for i, entry in enumerate(data["entries"]):
-        if not isinstance(entry, dict):
-            print(
-                f"error: {path}: entry {i} is not an object", file=sys.stderr
-            )
-            return 1
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            print(
-                f"error: {path}: entry {i} missing 'id' (non-empty string)",
-                file=sys.stderr,
-            )
-            return 1
-        if args.entry is not None and eid != args.entry:
-            continue
-        arms = entry.get("arms")
-        if not isinstance(arms, dict):
-            print(
-                f"error: {path}: entry {eid} is missing its 'arms' object",
-                file=sys.stderr,
-            )
-            return 1
-
-        print(f"## {eid}")
-        statement = entry.get("statement")
-        if isinstance(statement, str) and statement:
-            print(f"statement: {statement}")
-        pressures = entry.get("pressures")
-        if isinstance(pressures, list) and pressures:
-            print(f"pressures: {', '.join(str(p) for p in pressures)}")
-        print(f"compliant_option: {entry.get('compliant_option', '?')}")
-        print()
-        for arm in arms:
-            if args.arm is not None and arm != args.arm:
-                continue
-            arm_data = arms[arm]
-            if not isinstance(arm_data, dict) or not isinstance(
-                arm_data.get("runs"), list
-            ):
+    try:
+        for eid, entry in iter_evidence(data_entries, path, args.entry):
+            arms = entry.get("arms")
+            if not isinstance(arms, dict):
                 print(
-                    f"error: {path}: entry {eid} arm {arm!r} is missing "
-                    f"its run list",
+                    f"error: {path}: entry {eid} is missing its 'arms' object",
                     file=sys.stderr,
                 )
                 return 1
-            for n, run in enumerate(arm_data["runs"], start=1):
-                if not isinstance(run, dict):
+
+            print(f"## {eid}")
+            statement = entry.get("statement")
+            if isinstance(statement, str) and statement:
+                print(f"statement: {statement}")
+            pressures = entry.get("pressures")
+            if isinstance(pressures, list) and pressures:
+                print(f"pressures: {', '.join(str(p) for p in pressures)}")
+            print(f"compliant_option: {entry.get('compliant_option', '?')}")
+            print()
+            for arm in arms:
+                if args.arm is not None and arm != args.arm:
+                    continue
+                arm_data = arms[arm]
+                if not isinstance(arm_data, dict) or not isinstance(
+                    arm_data.get("runs"), list
+                ):
                     print(
-                        f"error: {path}: entry {eid} arm {arm!r} run {n} "
-                        f"is not an object",
+                        f"error: {path}: entry {eid} arm {arm!r} is "
+                        f"missing its run list",
                         file=sys.stderr,
                     )
                     return 1
-                timeout = "timeout" if run.get("timeout") else "ok"
-                session = run.get("session_id") or "no-session"
-                tag = PRESSURE_ARM_TAGS.get(arm, f" {arm} ")
-                print(f"[{tag}] rep {n:>3} ({session}, {timeout})")
-                answer = run.get("answer_text")
-                answer = answer if isinstance(answer, str) else ""
-                if answer:
-                    print("answer:")
-                    for line in answer.splitlines():
-                        print(f"  {line}")
-                else:
-                    print("answer: (empty)")
-                signals = run.get("void_signals") or []
-                joined = ", ".join(signals) if signals else "none"
-                print(f"void signals: {joined}")
-                print()
-        n_printed += 1
+                for n, run in enumerate(arm_data["runs"], start=1):
+                    if not isinstance(run, dict):
+                        print(
+                            f"error: {path}: entry {eid} arm {arm!r} "
+                            f"run {n} is not an object",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    timeout = "timeout" if run.get("timeout") else "ok"
+                    session = run.get("session_id") or "no-session"
+                    tag = PRESSURE_ARM_TAGS.get(arm, f" {arm} ")
+                    print(f"[{tag}] rep {n:>3} ({session}, {timeout})")
+                    answer = run.get("answer_text")
+                    answer = answer if isinstance(answer, str) else ""
+                    if answer:
+                        print("answer:")
+                        for line in answer.splitlines():
+                            print(f"  {line}")
+                    else:
+                        print("answer: (empty)")
+                    signals = run.get("void_signals") or []
+                    joined = ", ".join(signals) if signals else "none"
+                    print(f"void signals: {joined}")
+                    print()
+            n_printed += 1
+    except EvidenceError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
 
     if args.entry is not None and n_printed == 0:
         print(f"error: no entry with id: {args.entry}", file=sys.stderr)
@@ -2843,71 +2745,24 @@ def cmd_pressure_scored_check(args: argparse.Namespace) -> int:
     have one, and the record-step counts (--bulletproof/--no-failure/
     --unresolved/--voids) must be given all together and match the scored
     sums."""
-    results_ids: list[str] = []
-    results_arms: dict[str, set[str]] = {}
-    for results_str in args.results:
-        results_path = Path(results_str)
-        if not results_path.exists():
-            return _err(f"results file not found: {results_path}")
-        try:
-            data = json.loads(results_path.read_text())
-        except json.JSONDecodeError as e:
-            return _err(f"invalid JSON in {results_path}: {e}")
-        if not isinstance(data, dict) or not isinstance(
-            data.get("entries"), list
-        ):
-            return _err(
-                f"{results_path}: not a pressure-suite results file "
-                f"(missing 'entries' list)"
-            )
-        for i, e in enumerate(data["entries"]):
-            eid = e.get("id") if isinstance(e, dict) else None
-            if not isinstance(eid, str) or not eid:
-                return _err(
-                    f"{results_path}: results entry {i} missing 'id' "
-                    f"(non-empty string)"
-                )
-            arms = e.get("arms") if isinstance(e, dict) else None
-            if not isinstance(arms, dict):
-                return _err(
-                    f"{results_path}: entry {eid} is missing its 'arms' "
-                    f"object"
-                )
-            arm_keys = {a for a in arms if isinstance(a, str) and a}
-            if eid not in results_arms:
-                results_ids.append(eid)
-            results_arms.setdefault(eid, set()).update(arm_keys)
+    union = union_results(
+        args.results, "pressure", entry_hook=_pressure_union_hook
+    )
+    if isinstance(union, str):
+        return _err(union)
+    results_ids, results_arms, _extras = union
 
     scored_path = Path(args.scored)
-    if not scored_path.exists():
-        return _err(f"scored file not found: {scored_path}")
-    try:
-        scored = json.loads(scored_path.read_text())
-    except json.JSONDecodeError as e:
-        return _err(f"invalid JSON in {scored_path}: {e}")
-    if not isinstance(scored, dict) or not isinstance(
-        scored.get("entries"), list
-    ):
-        return _err(
-            f"{scored_path}: expected an object with an 'entries' list"
-        )
+    scored_entries = load_scored_json(scored_path, "an object")
+    if isinstance(scored_entries, str):
+        return _err(scored_entries)
+    covered_entries = check_coverage(scored_entries, results_ids, scored_path)
+    if isinstance(covered_entries, str):
+        return _err(covered_entries)
 
-    covered: set[str] = set()
-    for i, entry in enumerate(scored["entries"]):
-        if not isinstance(entry, dict):
-            return _err(f"{scored_path}: entry {i} is not an object")
-        eid = entry.get("id")
-        if not isinstance(eid, str) or not eid:
-            return _err(
-                f"{scored_path}: entry {i} missing 'id' (non-empty string)"
-            )
-        if eid in covered:
-            return _err(f"{scored_path}: duplicate id: {eid}")
-        if eid not in results_arms:
-            return _err(f"{scored_path}: unknown id: {eid}")
-        covered.add(eid)
+    for entry in covered_entries:
+        eid = entry["id"]
         arms = results_arms[eid]
-
         result = entry.get("result")
         if result not in PRESSURE_RESULTS:
             return _err(
@@ -2945,37 +2800,14 @@ def cmd_pressure_scored_check(args: argparse.Namespace) -> int:
         if notes is not None and not isinstance(notes, str):
             return _err(f"{scored_path}: entry {eid}: notes must be a string")
 
-    missing = [eid for eid in results_ids if eid not in covered]
-    if missing:
-        return _err(
-            f"{scored_path}: missing scored entries for results ids: "
-            f"{', '.join(missing)}"
-        )
-
-    # Optional count gate: when the record-step counts are given, they
-    # must be all four together and equal what the scored entries sum to.
-    count_names = ("bulletproof", "no_failure", "unresolved", "voids")
-    given = [getattr(args, n, None) for n in count_names]
-    if any(c is not None for c in given):
-        if not all(c is not None for c in given):
-            return _err(
-                "--bulletproof/--no-failure/--unresolved/--voids must be "
-                "given together"
-            )
-        computed = {
-            r: sum(1 for e in scored["entries"] if e.get("result") == r)
-            for r in ("bulletproof", "no-failure", "unresolved", "void")
-        }
-        if tuple(given) != tuple(computed[r] for r in computed):
-            return _err(
-                f"counts do not match scored results: computed "
-                f"{computed['bulletproof']} bulletproof / "
-                f"{computed['no-failure']} no-failure / "
-                f"{computed['unresolved']} unresolved / "
-                f"{computed['void']} void, got "
-                f"{given[0]} bulletproof / {given[1]} no-failure / "
-                f"{given[2]} unresolved / {given[3]} void"
-            )
+    rc = counts_gate(
+        args,
+        covered_entries,
+        ("bulletproof", "no_failure", "unresolved", "voids"),
+        ("bulletproof", "no-failure", "unresolved", "void"),
+    )
+    if rc is not None:
+        return rc
     print(f"ok: {scored_path} covers {len(results_ids)} entries")
     return 0
 

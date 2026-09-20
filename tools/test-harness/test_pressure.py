@@ -488,22 +488,6 @@ class PressurePreSpendGateTests(unittest.TestCase):
         )
         self._assert_blocked()
 
-    def test_agent_file_with_model_pin_exits_1(self):
-        (self.agents_dir / "pressure-evaluator.opencode.md").write_text(
-            "---\nname: pressure-evaluator\nmodel: gpt-x\n---\nbody\n"
-        )
-        self._assert_blocked()
-
-    def test_agent_file_name_mismatch_exits_1(self):
-        (self.agents_dir / "pressure-evaluator.opencode.md").write_text(
-            "---\nname: someone-else\n---\nbody\n"
-        )
-        self._assert_blocked()
-
-    def test_missing_agent_file_exits_1(self):
-        (self.agents_dir / "pressure-evaluator.opencode.md").unlink()
-        self._assert_blocked()
-
     def test_reps_below_one_exits_1(self):
         self._assert_blocked(reps=0)
 
@@ -601,17 +585,6 @@ class PressureScoredCheckTests(unittest.TestCase):
             no_failure=1,
             unresolved=1,
             voids=1,
-        )
-        self.assertEqual(rc, 0)
-
-    def test_union_dedupe_id_in_two_files_scored_once(self):
-        rc = self._check(
-            [
-                self._entry("a", result="bulletproof"),
-                self._entry("n"),
-                self._entry("u", result="unresolved"),
-                self._entry("v", result="void"),
-            ]
         )
         self.assertEqual(rc, 0)
 
@@ -762,37 +735,6 @@ class PressureScoredCheckTests(unittest.TestCase):
                     self._entry("u", result="unresolved"),
                     self._entry("v", result="void"),
                 ]
-            ),
-            1,
-        )
-
-    def test_count_gate_mismatch_rejected(self):
-        self.assertEqual(
-            self._check(
-                [
-                    self._entry("a", result="bulletproof"),
-                    self._entry("n"),
-                    self._entry("u", result="unresolved"),
-                    self._entry("v", result="void"),
-                ],
-                bulletproof=2,
-                no_failure=1,
-                unresolved=1,
-                voids=1,
-            ),
-            1,
-        )
-
-    def test_partial_count_gate_rejected(self):
-        self.assertEqual(
-            self._check(
-                [
-                    self._entry("a", result="bulletproof"),
-                    self._entry("n"),
-                    self._entry("u", result="unresolved"),
-                    self._entry("v", result="void"),
-                ],
-                bulletproof=1,
             ),
             1,
         )
@@ -1200,15 +1142,6 @@ class PressureEvidenceTests(unittest.TestCase):
 
     def test_unknown_entry_rejected(self):
         rc, _ = self._run(entry="zzz")
-        self.assertEqual(rc, 1)
-
-    def test_malformed_results_rejected(self):
-        self.results.write_text('{"entries": "nope"}')
-        rc, _ = self._run()
-        self.assertEqual(rc, 1)
-
-    def test_missing_results_file_rejected(self):
-        rc, _ = self._run(results=str(self.root / "nope.json"))
         self.assertEqual(rc, 1)
 
 

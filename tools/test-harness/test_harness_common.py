@@ -1,0 +1,436 @@
+#!/usr/bin/env python3
+"""Tests for the shared campaign plumbing in evaluator.py (the "Shared
+campaign plumbing" section): run_rep_batched's abort policy,
+validate_eval_agent's pre-spend gate, counts_gate, union_results, and the
+evidence commands' envelope errors. Cases the three tracks pin with only
+vocabulary differing are consolidated here as one test per track, sharing
+a parameterized helper; per-track policy (vocabularies, prompt bytes, arm
+rules) stays in test_retrieval.py / test_shape.py / test_pressure.py.
+Stdlib only; no harness commands are ever invoked (zero model spend).
+"""
+
+import argparse
+import io
+import json
+import tempfile
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from typing import cast
+
+import evaluator
+from strategies import EvalStrategy, HarnessExecutionError
+
+# The eval agent each track installs through the shared pre-spend gate.
+TRACK_AGENTS = {
+    "retrieval": "retrieval-evaluator",
+    "shape": "shape-evaluator",
+    "pressure": "pressure-evaluator",
+}
+
+# Count-gate vocabularies: argparse dests (underscores) vs scored result
+# names (hyphens where the track uses them).
+COUNTS_VOCABULARY = {
+    "retrieval": {
+        "arg_names": ("passes", "fails", "gaps", "voids"),
+        "result_names": ("pass", "fail", "gap", "void"),
+    },
+    "shape": {
+        "arg_names": ("adopted", "no_failure", "unresolved", "voids"),
+        "result_names": ("adopted", "no-failure", "unresolved", "void"),
+    },
+    "pressure": {
+        "arg_names": ("bulletproof", "no_failure", "unresolved", "voids"),
+        "result_names": ("bulletproof", "no-failure", "unresolved", "void"),
+    },
+}
+
+# The evidence command per track and its extra argparse defaults.
+EVIDENCE_COMMANDS = {
+    "retrieval": ("cmd_retrieval_evidence", {"entry": None}),
+    "shape": ("cmd_shape_evidence", {"entry": None, "arm": None}),
+    "pressure": ("cmd_pressure_evidence", {"entry": None, "arm": None}),
+}
+
+
+class RunRepBatchedTests(unittest.TestCase):
+    """run_rep_batched: the smoke rep runs alone and a harness error in
+    the smoke rep or any batch aborts with the exact stderr lines and
+    exit 1; a clean run returns every rep's record in order. Shared by
+    the retrieval, shape, and pressure tracks (the trigger track keeps
+    its own loop, pinned in test_evaluator.py)."""
+
+    def test_smoke_rep_error_aborts_with_exact_message(self):
+        def run_one(n):
+            raise HarnessExecutionError("provider 429", "s1")
+
+        stderr = io.StringIO()
+        with (
+            redirect_stderr(stderr),
+            redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.run_rep_batched(run_one, 3, " x ")
+        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(
+            stderr.getvalue(),
+            "error: [ x ] harness could not execute the query: "
+            "provider 429 [session s1]\n",
+        )
+
+    def test_batch_error_aborts_with_first_error_and_batch_line(self):
+        def run_one(n):
+            if n == 2:
+                raise HarnessExecutionError("provider 429", "s2")
+            return {"rep": n}
+
+        stderr = io.StringIO()
+        with (
+            redirect_stderr(stderr),
+            redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.run_rep_batched(run_one, 3, " x ")
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn(
+            "error: [ x ] rep 2 could not execute: "
+            "provider 429 [session s2]",
+            stderr.getvalue(),
+        )
+        self.assertIn("error: batch aborted\n", stderr.getvalue())
+
+    def test_clean_run_returns_records_in_rep_order(self):
+        def run_one(n):
+            return {"rep": n}
+
+        with redirect_stdout(io.StringIO()):
+            runs = evaluator.run_rep_batched(run_one, 3, " x ")
+        self.assertEqual(runs, [{"rep": 1}, {"rep": 2}, {"rep": 3}])
+
+
+class AgentGateTests(unittest.TestCase):
+    """validate_eval_agent: the pre-spend gate every campaign suite runs
+    before any harness invocation — the agent file must exist, its
+    frontmatter name must match, and it must pin no model config. Moved
+    out of the shape/pressure pre-spend gate suites and parameterized by
+    track agent; the retrieval parameter sets are new coverage (the
+    retrieval suite runs the same gate for both of its arms)."""
+
+    class _Probe:
+        def agent_file(self, agents_dir, base):
+            return Path(agents_dir) / f"{base}.opencode.md"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.agents_dir = Path(self.tmp.name) / "agents"
+        self.agents_dir.mkdir()
+        # validate_eval_agent types its probe as EvalStrategy; the gate
+        # only calls agent_file(), which _Probe implements.
+        self.probe = cast(EvalStrategy, self._Probe())
+
+    def _write_agent(self, name, body):
+        agent_file = self.agents_dir / f"{name}.opencode.md"
+        agent_file.write_text(body)
+        return agent_file
+
+    def _assert_aborts(self, name, body, expected_err):
+        agent_file = self._write_agent(name, body)
+        stderr = io.StringIO()
+        with (
+            redirect_stderr(stderr),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.validate_eval_agent(self.probe, self.agents_dir, name)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(stderr.getvalue(), expected_err.format(f=agent_file))
+
+    def _assert_passes(self, name):
+        agent_file = self._write_agent(
+            name, f"---\nname: {name}\nmode: primary\n---\nbody\n"
+        )
+        self.assertEqual(
+            evaluator.validate_eval_agent(self.probe, self.agents_dir, name),
+            agent_file,
+        )
+
+    def test_agent_gate_missing_file_aborts(self):
+        for name in TRACK_AGENTS.values():
+            with self.subTest(agent=name):
+                stderr = io.StringIO()
+                with (
+                    redirect_stderr(stderr),
+                    self.assertRaises(SystemExit) as cm,
+                ):
+                    evaluator.validate_eval_agent(
+                        self.probe, self.agents_dir, name
+                    )
+                self.assertEqual(cm.exception.code, 1)
+                self.assertEqual(
+                    stderr.getvalue(),
+                    "error: evaluator agent file missing: "
+                    f"{self.agents_dir / (name + '.opencode.md')}\n",
+                )
+
+    def test_agent_gate_name_mismatch_aborts(self):
+        for name in TRACK_AGENTS.values():
+            with self.subTest(agent=name):
+                self._assert_aborts(
+                    name,
+                    "---\nname: someone-else\n---\nbody\n",
+                    "error: agent file {f}: frontmatter name "
+                    "'someone-else' does not match expected "
+                    f"'{name}'\n",
+                )
+
+    def test_agent_gate_model_pin_aborts(self):
+        for name in TRACK_AGENTS.values():
+            with self.subTest(agent=name):
+                self._assert_aborts(
+                    name,
+                    f"---\nname: {name}\nmodel: gpt-x\n---\nbody\n",
+                    "error: agent file {f} pins model config (model); "
+                    "eval agents must not pin model/variant/temperature/"
+                    "top_p — selection flows through --model/--variant "
+                    "only\n",
+                )
+
+    def test_agent_gate_accepts_valid_agent(self):
+        for name in TRACK_AGENTS.values():
+            with self.subTest(agent=name):
+                self._assert_passes(name)
+
+
+class CountsGateTests(unittest.TestCase):
+    """counts_gate: when the record-step counts are given they must be
+    all four together and equal the scored sums. Moved out of the three
+    per-track scored-check suites and parameterized by track vocabulary;
+    every previously pinned scenario (matching passes, mismatch
+    rejected, partial rejected) stays pinned per track."""
+
+    def _entries(self, track):
+        rn = COUNTS_VOCABULARY[track]["result_names"]
+        return [{"id": "a", "result": rn[0]}, {"id": "b", "result": rn[1]}]
+
+    def _args(self, track, **counts):
+        arg_names = COUNTS_VOCABULARY[track]["arg_names"]
+        args = argparse.Namespace(**{n: counts.get(n) for n in arg_names})
+        return args
+
+    def _assert_matching_passes(self, track):
+        arg_names = COUNTS_VOCABULARY[track]["arg_names"]
+        rc = evaluator.counts_gate(
+            self._args(track, **dict(zip(arg_names, (1, 1, 0, 0)))),
+            self._entries(track),
+            arg_names,
+            COUNTS_VOCABULARY[track]["result_names"],
+        )
+        self.assertIsNone(rc)
+
+    def _assert_mismatch_rejected(self, track):
+        arg_names = COUNTS_VOCABULARY[track]["arg_names"]
+        result_names = COUNTS_VOCABULARY[track]["result_names"]
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            rc = evaluator.counts_gate(
+                self._args(track, **dict(zip(arg_names, (2, 0, 0, 0)))),
+                self._entries(track),
+                arg_names,
+                result_names,
+            )
+        self.assertEqual(rc, 1)
+        computed = " / ".join(
+            f"{n} {r}" for n, r in zip((1, 1, 0, 0), result_names)
+        )
+        got = " / ".join(
+            f"{n} {r}" for n, r in zip((2, 0, 0, 0), result_names)
+        )
+        self.assertEqual(
+            stderr.getvalue(),
+            "error: counts do not match scored results: "
+            f"computed {computed}, got {got}\n",
+        )
+
+    def _assert_partial_rejected(self, track):
+        arg_names = COUNTS_VOCABULARY[track]["arg_names"]
+        flags = "/".join(f"--{n.replace('_', '-')}" for n in arg_names)
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            rc = evaluator.counts_gate(
+                self._args(track, **{arg_names[0]: 1}),
+                self._entries(track),
+                arg_names,
+                COUNTS_VOCABULARY[track]["result_names"],
+            )
+        self.assertEqual(rc, 1)
+        self.assertEqual(
+            stderr.getvalue(), f"error: {flags} must be given together\n"
+        )
+
+    def test_counts_gate_matching_passes_retrieval(self):
+        self._assert_matching_passes("retrieval")
+
+    def test_counts_gate_matching_passes_shape(self):
+        self._assert_matching_passes("shape")
+
+    def test_counts_gate_matching_passes_pressure(self):
+        self._assert_matching_passes("pressure")
+
+    def test_counts_gate_mismatch_rejected_retrieval(self):
+        self._assert_mismatch_rejected("retrieval")
+
+    def test_counts_gate_mismatch_rejected_shape(self):
+        self._assert_mismatch_rejected("shape")
+
+    def test_counts_gate_mismatch_rejected_pressure(self):
+        self._assert_mismatch_rejected("pressure")
+
+    def test_counts_gate_partial_rejected_retrieval(self):
+        self._assert_partial_rejected("retrieval")
+
+    def test_counts_gate_partial_rejected_shape(self):
+        self._assert_partial_rejected("shape")
+
+    def test_counts_gate_partial_rejected_pressure(self):
+        self._assert_partial_rejected("pressure")
+
+
+class UnionResultsTests(unittest.TestCase):
+    """union_results: an id appearing in N results files enters the union
+    exactly once, with its arm keys unioned across files. Moved out of
+    the shape/pressure scored-check suites and parameterized by track;
+    the retrieval parameter set is new coverage (retrieval passes a
+    single --results and ignores the arm map)."""
+
+    def _fixtures(self, track, root):
+        if track == "retrieval":
+            first = [
+                {"id": "a", "expect": ["b1"]},
+                {"id": "b", "expect": []},
+            ]
+            second = [{"id": "a", "expect": ["b2"]}, {"id": "c"}]
+        elif track == "shape":
+            first = [
+                {"id": "a", "kind": "shaping", "arms": {"v0": {"runs": []}}},
+                {"id": "p", "kind": "pattern", "arms": {"v0": {"runs": []}}},
+            ]
+            second = [
+                {
+                    "id": "a",
+                    "kind": "shaping",
+                    "arms": {"v1": {"runs": []}, "v2": {"runs": []}},
+                }
+            ]
+        else:
+            first = [
+                {"id": "a", "arms": {"red": {"runs": []}}},
+                {"id": "n", "arms": {"red": {"runs": []}}},
+            ]
+            second = [{"id": "a", "arms": {"green": {"runs": []}}}]
+        f1 = root / f"{track}-1.json"
+        f2 = root / f"{track}-2.json"
+        f1.write_text(json.dumps({"entries": first}))
+        f2.write_text(json.dumps({"entries": second}))
+        return [str(f1), str(f2)]
+
+    def _assert_dedupe(self, track, expected_ids, expected_arms):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        paths = self._fixtures(track, Path(tmp.name))
+        hook = {
+            "retrieval": evaluator._retrieval_union_hook,
+            "shape": evaluator._shape_union_hook,
+            "pressure": evaluator._pressure_union_hook,
+        }[track]
+        out = evaluator.union_results(paths, track, entry_hook=hook)
+        if isinstance(out, str):
+            self.fail(f"union_results returned an error: {out}")
+        ids, arms, extras = out
+        self.assertEqual(ids, expected_ids)
+        self.assertEqual(len(ids), len(set(ids)))
+        for eid, arm_set in expected_arms.items():
+            self.assertEqual(arms[eid], arm_set)
+        if track == "shape":
+            self.assertEqual(extras["kinds"], {"a": "shaping", "p": "pattern"})
+        if track == "retrieval":
+            self.assertEqual(extras["expect"], {"a": ["b2"], "b": [], "c": []})
+
+    def test_union_dedupe_retrieval(self):
+        self._assert_dedupe("retrieval", ["a", "b", "c"], {})
+
+    def test_union_dedupe_shape(self):
+        self._assert_dedupe(
+            "shape", ["a", "p"], {"a": {"v0", "v1", "v2"}, "p": {"v0"}}
+        )
+
+    def test_union_dedupe_pressure(self):
+        self._assert_dedupe(
+            "pressure", ["a", "n"], {"a": {"red", "green"}, "n": {"red"}}
+        )
+
+
+class EvidenceEnvelopeTests(unittest.TestCase):
+    """The evidence commands' shared envelope: a missing results file or
+    a non-list 'entries' envelope exits 1 with the exact track-qualified
+    message. Moved out of the per-track evidence suites and parameterized
+    by track; the retrieval missing-file case is new coverage."""
+
+    def _run(self, track, results_path):
+        cmd, extra = EVIDENCE_COMMANDS[track]
+        args = argparse.Namespace(results=str(results_path), **extra)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = getattr(evaluator, cmd)(args)
+        return rc
+
+    def _assert_malformed_envelope(self, track):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "results.json"
+        path.write_text('{"entries": "nope"}')
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            rc = self._run(track, path)
+        self.assertEqual(rc, 1)
+        self.assertEqual(
+            stderr.getvalue(),
+            f"error: {path}: not a {track}-suite results file "
+            "(missing 'entries' list)\n",
+        )
+
+    def _assert_missing_file(self, track):
+        path = Path(self._tmpdir()) / "nope.json"
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            rc = self._run(track, path)
+        self.assertEqual(rc, 1)
+        self.assertEqual(
+            stderr.getvalue(), f"error: results file not found: {path}\n"
+        )
+
+    def _tmpdir(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return tmp.name
+
+    def test_evidence_malformed_envelope_rejected_retrieval(self):
+        self._assert_malformed_envelope("retrieval")
+
+    def test_evidence_malformed_envelope_rejected_shape(self):
+        self._assert_malformed_envelope("shape")
+
+    def test_evidence_malformed_envelope_rejected_pressure(self):
+        self._assert_malformed_envelope("pressure")
+
+    def test_evidence_missing_file_rejected_retrieval(self):
+        self._assert_missing_file("retrieval")
+
+    def test_evidence_missing_file_rejected_shape(self):
+        self._assert_missing_file("shape")
+
+    def test_evidence_missing_file_rejected_pressure(self):
+        self._assert_missing_file("pressure")
+
+
+if __name__ == "__main__":
+    unittest.main()
