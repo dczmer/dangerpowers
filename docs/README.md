@@ -1,25 +1,20 @@
 # Docs Index
 
-> TODO: tldr; ai-native development is a new discipline, need to learn the fundamentals. what are the fundamentals?
-
-AI-native development is here. And it's so easy because it's "intelligent." You can just tell it to do something and it does it perfectly, every time, no mistakes. Unless you read the code carefully, or double check it's math, or pay attention to application design and architecture, or care about maintaining a program over time.
-
-I'm being a bit facetious, but AI has some pretty serious limitations, if you care about details. Some observations I've made, that seem to hold true across every model I've tested:
-
-- Bad at type-level programming
-- Bad at designing and using good data structures
-- Gradually duplicating and re-inventing things
-- Doesn't know when/where to put seams in your design
-- Prefers to add more code vs fixing or refactoring existing code
-- Writes extremely brittle tests and tightly coupled components
-- Over-comments code with superfluous details that make no sense outside of the current session
-- Silently rationalizes reasons to subvert the rules and processes you give to it
-
-That last one is pretty important. Not only are LLMs non-deterministic by nature, they also consider your rules and instructions as part of the message - the AI gets to interpret what they mean. Your rules are just suggestions.
-
-AI-native development introduces more problems than people seem to realize. Mistakes and bad design spiral out of control at a staggering pace and the only one who can fix it is the AI. But the bigger and more complicated your project gets, the more duplication and cruft that accrue over time. This leads to every subsequent task or refactoring to take exponentially longer and more expensive, as it needs to do more and more work to try to keep things consistent at the surface level.
+AI-native development introduces more problems than some people seem to realize. Mistakes and bad design spiral out of control at a staggering pace and the only one who can fix it is the AI. But the bigger and more complicated your project gets, the more duplication and cruft that accrue over time. This leads to every subsequent task or refactoring taking exponentially longer and requiring more tokens to complete (expensive), as it needs to do more and more work to try to keep things consistent at the surface level.
 
 This tells me that AI is not ready to replace engineers (despite what Anthropic says). Instead, it means we need to learn an entirely new discipline - in addition to everything you already needed to learn to be an engineer. In other words, you need to earn an entirely new CS degree, and that starts by learning the fundamentals.
+
+But what are the fundamentals of AI-native development? The high-level list I'm starting from:
+
+1. Extending model capabilities (through skills and custom tools/harness)
+2. Understanding attention, and how it can fail
+3. Coercing the model to do what we want, not to reason-away the rules
+4. Managing context
+5. Planning and specification - get the implementation right, the first time (or try again).
+6. Separating deterministic behavior and inference with scripts and custom harnesses (know where to use code and where to use the LLM)
+7. Application design. Same thing as before AI. You are the designer and architect, communicate your vision to the AI to build.
+
+Starting at the fundamentals and learning how to do things "manually" - or at a low level - give a solid foundation that will support you wherever you decide to go. The first step to writing a long-horizon autonomous production agent is learning to keep the AI following the rules and operating procedures consistently. The key to building deterministic behavior on a non-deterministic platform is understanding when and where to use code vs inference.
 
 ## Writing Skills Deep Dive
 

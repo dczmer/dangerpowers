@@ -1,13 +1,12 @@
-This is a repository containing a library of custom skills under the skills/ directory.
+## New Skill Placement
 
-Newly created skills should be created under skills/ and NOT as per-project skills that would reside under `.opencode/skills` or `.pi/skills`, for example.
+Unless explicitly stated by the user, newly created skills should be created under skills/ and NOT as per-project skills that would reside under `.opencode/skills` or `.pi/skills`, for example.
 
 ## Operational Rules
 
 - You DO NOT modify README.md. Only humans edit that file, unless the user asks you to make a specific edit.
 - You may update AGENTS.md but always get confirmation from the user first. AGENTS.md should contain important information about the project and commands, issues that happen frequently and require trial and error to fix. But the file should be, otherwise, as short and minimal as possible.
 - Skills live under the `skills` directory below the project root. When told to load, use, or test a skill, use the Glob tool to look under `./skills` instead of inventing plausible-sounding paths or searching the system.
-- Never reference other files by line number (e.g. `SKILL.md:42` or "see line 24") in skills, references, or docs — line numbers drift on edit. Reference by file path and section/heading name instead.
 
 ## Auditing Python / shell
 
@@ -19,11 +18,9 @@ Configs live in pyproject.toml (`[tool.black]`, `[tool.ruff]`, line-length 79) a
 - `uv run pyright <paths>` — type check
 - `shellcheck <files>` — shell scripts
 
-Gotchas: E203 is ignored everywhere (black mandates its slice style); black targets py310 (`target-version = ["py310"]`) because tools/test-harness scripts must stay Python >= 3.10-grammar-safe (enforced by an ast.parse feature_version=(3, 10) unit test) — do not raise it, or black rewrites the parenthesized except-tuple into PEP 758 bare-tuple syntax.
-
 ## Mermaid diagrams
 
-To validate or render mermaid diagrams (e.g. in SKILL.md files), use the installed `mermaidx` Python library — no npm/mmdc needed. `mermaidx.render(src)` parses with real mermaid.js (v11) and raises on syntax errors; the returned `Diagram` has `.svg()`, `.png()`, `.ascii()`, `.save(path)` methods. Runs via `uv run python`, default `quickjs` backend (use `backend="v8"` for speed, but it can't render mindmaps).
+To validate or render mermaid diagrams (e.g. in SKILL.md files), use the installed `mermaidx` Python library;
 
 ## Project Layout
 
