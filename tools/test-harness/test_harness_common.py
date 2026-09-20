@@ -48,7 +48,10 @@ COUNTS_VOCABULARY = {
 # The evidence command per track and its extra argparse defaults.
 EVIDENCE_COMMANDS = {
     "retrieval": ("cmd_retrieval_evidence", {"entry": None}),
-    "shape": ("cmd_shape_evidence", {"entry": None, "arm": None}),
+    "shape": (
+        "cmd_shape_evidence",
+        {"entry": None, "arm": None, "compare": False},
+    ),
     "pressure": ("cmd_pressure_evidence", {"entry": None, "arm": None}),
 }
 

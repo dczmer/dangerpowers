@@ -229,8 +229,10 @@ retrieval track.)
 12. Write `$CAMP/entries-failing.json` (the filtered entries) and run `shape-suite
     --arms v1,v2,v3 --entries $CAMP/entries-failing.json --out $CAMP/results-variants.json`
     (same other flags).
-13. Score: `shape-evidence` marker triage → hand-read every flagged sample →
-    convergence verdict per rule (see Scoring). Pattern-rule winners: restraint gate —
+13. Score: `shape-evidence` marker triage (pattern rules: add `--compare` and read
+    the script's per-marker EXCEEDS/does-not-exceed verdicts instead of hand-comparing
+    frequencies) → hand-read every flagged sample → convergence verdict per rule (see
+    Scoring). Pattern-rule winners: restraint gate —
     `shape-suite --arms <winner> --fixture-key counter-example --out
     $CAMP/results-restraint.json` (5 reps, scored against `restraint_markers`); a
     variant that over-applies is disqualified — gate the next-best converging variant
@@ -315,10 +317,18 @@ Two rules govern every scoring decision:
 - Never adopt a prohibition arm: `adopted` may only name a recipe / structural arm —
   a suppressed token that migrates to a worse shape is displacement, not a fix.
 
-`shape-evidence --results <file> [--entry <id>] [--arm vN]` prints per entry/arm/rep the
+`shape-evidence --results <file> [--entry <id>] [--arm vN] [--compare]` prints per entry/arm/rep the
 answer text, void signals, session id, and marker triage counts (per-marker count of
-answer lines matching each grep token). Triage only — the driver reads every flagged
-sample by hand and judges **convergence across the 5 reps**: when wording lands, all
+answer lines matching each grep token). With `--compare` it also prints, per candidate
+arm and marker, one line `compare <name>: <arm> <c> vs v0 <b> -> EXCEEDS|does-not-exceed`:
+the script compares each non-control arm's per-marker property frequency against the
+v0 control (frequency = matching answer lines / answer lines, pooled across the arm's
+runs; a candidate must strictly EXCEED the control, so a tie is does-not-exceed).
+Candidate arms are every arm outside the v0 control family (`v0`, `v0-rerun`, … — a
+control re-run is control evidence, never a candidate); a missing v0 arm prints a
+per-entry skip note and the exit stays 0. Read the script's verdict instead of
+hand-comparing frequencies — a strict-`>` tie boundary decided by mental arithmetic
+is a coin flip. Triage only — the driver reads every flagged sample by hand and judges **convergence across the 5 reps**: when wording lands, all
 reps produce the same structure; five different structures across five reps means the
 wording is not binding. Template echoes and quoted counter-examples masquerade as
 marker hits — grep is triage, not verdict. For pattern rules the v0-vs-winner

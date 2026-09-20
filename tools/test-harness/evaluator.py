@@ -2455,6 +2455,57 @@ def marker_triage_counts(answer: str, markers: dict) -> dict:
     return counts
 
 
+def _is_v0_family(arm: object) -> bool:
+    """v0 control arms, including disclosed control re-run keys (e.g.
+    v0-rerun): control evidence, never candidates."""
+    return isinstance(arm, str) and (arm == "v0" or arm.startswith("v0-"))
+
+
+def aggregate_counts(arm_data: dict | None, markers: dict) -> dict:
+    """Per-marker property frequency for one arm: the arm's total
+    marker-matching answer lines over its total answer lines across its
+    runs (frequency = matching lines / answer lines, per the adoption
+    rule). Runs without answer text contribute no lines; an arm with
+    zero answer lines has frequency 0.0 (no evidence of the property)."""
+    runs = arm_data.get("runs") if isinstance(arm_data, dict) else None
+    runs = runs if isinstance(runs, list) else []
+    matching = {name: 0 for name in markers}
+    total_lines = 0
+    for run in runs:
+        if not isinstance(run, dict):
+            continue
+        answer = run.get("answer_text")
+        answer = answer if isinstance(answer, str) else ""
+        for name, n in marker_triage_counts(answer, markers).items():
+            matching[name] += n
+        total_lines += len(answer.splitlines())
+    if total_lines == 0:
+        return {name: 0.0 for name in markers}
+    return {name: matching[name] / total_lines for name in markers}
+
+
+def _print_shape_compare(eid: str, arms: dict, markers: dict) -> None:
+    """--compare: per-marker property-frequency verdict of each candidate
+    arm against the v0 control. The adoption rule hinges on the strict >
+    on the normalized frequency: equal frequency means the rule is not
+    binding. A missing v0 control skips the comparison with a note —
+    there is nothing to beat, and comparing against an empty base would
+    manufacture EXCEEDS verdicts from no control evidence."""
+    if "v0" not in arms:
+        print(f"compare: entry {eid}: no v0 control arm; comparison skipped")
+        return
+    base = aggregate_counts(arms.get("v0"), markers)
+    for arm in arms:
+        if _is_v0_family(arm):
+            continue  # control re-runs (e.g. v0-rerun) are control
+        # evidence, not candidates
+        cand = aggregate_counts(arms[arm], markers)
+        for name in markers:
+            b, c = base.get(name, 0), cand.get(name, 0)
+            verdict = "EXCEEDS" if c > b else "does-not-exceed"
+            print(f"compare {name}: {arm} {c} vs v0 {b} -> {verdict}")
+
+
 def cmd_shape_evidence(args: argparse.Namespace) -> int:
     """Print the per-run scoring evidence from a shape-suite results JSON:
     per entry/arm/rep the answer text, void signals, session id, and
@@ -2531,6 +2582,8 @@ def cmd_shape_evidence(args: argparse.Namespace) -> int:
                             + ", ".join(f"{k}={v}" for k, v in rcounts.items())
                         )
                     print()
+            if args.compare:
+                _print_shape_compare(eid, arms, markers)
             n_printed += 1
     except EvidenceError as e:
         print(f"error: {e}", file=sys.stderr)
@@ -2600,11 +2653,13 @@ def cmd_shape_scored_check(args: argparse.Namespace) -> int:
                     f"{scored_path}: entry {eid}: adopted_arm required "
                     f"(non-empty string) for result 'adopted'"
                 )
-            if adopted_arm == "v0":
+            if _is_v0_family(adopted_arm):
                 return _err(
-                    f"{scored_path}: entry {eid}: adopted_arm must not "
-                    f"be the v0 control arm (a prohibition/absence arm is "
-                    f"a measurement instrument, never a candidate)"
+                    f"{scored_path}: entry {eid}: adopted_arm must "
+                    f"not be a v0 control-family arm (including "
+                    f"disclosed re-run keys like v0-rerun; a "
+                    f"control-family arm is measurement evidence, "
+                    f"never a candidate)"
                 )
             if adopted_arm not in results_arms[eid]:
                 return _err(
@@ -3532,6 +3587,14 @@ def main() -> int:
     shape_evidence.add_argument("--results", required=True)
     shape_evidence.add_argument("--entry")
     shape_evidence.add_argument("--arm")
+    shape_evidence.add_argument(
+        "--compare",
+        action="store_true",
+        help="compare each non-control arm's per-marker property "
+        "frequency against the v0 control (frequency = matching "
+        "answer lines / answer lines; a candidate must strictly "
+        "EXCEED the control)",
+    )
 
     shape_scored = sub.add_parser("shape-scored-check")
     shape_scored.add_argument("--results", action="append", required=True)

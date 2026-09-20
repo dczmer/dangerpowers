@@ -948,6 +948,31 @@ class ShapeScoredCheckTests(unittest.TestCase):
             1,
         )
 
+    def test_adopted_arm_v0_rerun_rejected(self):
+        run = {"answer_text": "a", "void_signals": [], "session_id": "s"}
+        rerun = self.root / "control-rerun.json"
+        results_file(
+            rerun,
+            [
+                {
+                    "id": "a",
+                    "kind": "shaping",
+                    "arms": {"v0-rerun": {"runs": [run]}},
+                }
+            ],
+            arms=["v0-rerun"],
+        )
+        self.results.append(str(rerun))
+        self.assertEqual(
+            self._check(
+                [
+                    self._entry("a", result="adopted", adopted_arm="v0-rerun"),
+                    self._entry("p"),
+                ]
+            ),
+            1,
+        )
+
     def test_adopted_arm_not_in_results_rejected(self):
         self.assertEqual(
             self._check(
@@ -1225,7 +1250,7 @@ class ShapeEvidenceTests(unittest.TestCase):
 
     def _run(self, **overrides):
         args = argparse.Namespace(
-            results=str(self.results), entry=None, arm=None
+            results=str(self.results), entry=None, arm=None, compare=False
         )
         for k, v in overrides.items():
             setattr(args, k, v)
@@ -1255,6 +1280,149 @@ class ShapeEvidenceTests(unittest.TestCase):
     def test_unknown_entry_rejected(self):
         rc, _ = self._run(entry="zzz")
         self.assertEqual(rc, 1)
+
+    def test_compare_exceeds_only_on_strictly_greater_frequency(self):
+        results_file(
+            self.results,
+            [
+                {
+                    "id": "a",
+                    "kind": "pattern",
+                    "markers": {"m": "TODO"},
+                    "restraint_markers": None,
+                    "arms": {
+                        # pooled: 2 matching / 4 answer lines = 0.5
+                        "v0": {
+                            "runs": [
+                                {
+                                    "answer_text": "TODO\nline",
+                                    "void_signals": [],
+                                    "session_id": "s1",
+                                    "timeout": False,
+                                },
+                                {
+                                    "answer_text": "TODO\nline",
+                                    "void_signals": [],
+                                    "session_id": "s2",
+                                    "timeout": False,
+                                },
+                            ]
+                        },
+                        # 2/2 = 1.0 -> EXCEEDS
+                        "v1": {
+                            "runs": [
+                                {
+                                    "answer_text": "TODO\nTODO",
+                                    "void_signals": [],
+                                    "session_id": "s3",
+                                    "timeout": False,
+                                }
+                            ]
+                        },
+                        # 1/2 = 0.5 -> tie, does-not-exceed
+                        "v2": {
+                            "runs": [
+                                {
+                                    "answer_text": "TODO\nline",
+                                    "void_signals": [],
+                                    "session_id": "s4",
+                                    "timeout": False,
+                                }
+                            ]
+                        },
+                        # 0/2 = 0.0 -> does-not-exceed
+                        "v3": {
+                            "runs": [
+                                {
+                                    "answer_text": "line\nline",
+                                    "void_signals": [],
+                                    "session_id": "s5",
+                                    "timeout": False,
+                                }
+                            ]
+                        },
+                    },
+                }
+            ],
+        )
+        rc, out = self._run(entry="a", compare=True)
+        self.assertEqual(rc, 0)
+        self.assertIn("compare m: v1 1.0 vs v0 0.5 -> EXCEEDS", out)
+        self.assertIn("compare m: v2 0.5 vs v0 0.5 -> does-not-exceed", out)
+        self.assertIn("compare m: v3 0.0 vs v0 0.5 -> does-not-exceed", out)
+        self.assertEqual(out.count("compare m:"), 3)
+
+    def test_compare_skips_v0_family_arms_as_candidates(self):
+        results_file(
+            self.results,
+            [
+                {
+                    "id": "a",
+                    "kind": "pattern",
+                    "markers": {"m": "TODO"},
+                    "restraint_markers": None,
+                    "arms": {
+                        "v0": {
+                            "runs": [
+                                {
+                                    "answer_text": "TODO\nline",
+                                    "void_signals": [],
+                                    "session_id": "s1",
+                                    "timeout": False,
+                                }
+                            ]
+                        },
+                        "v0-rerun": {
+                            "runs": [
+                                {
+                                    "answer_text": "TODO\nTODO",
+                                    "void_signals": [],
+                                    "session_id": "s2",
+                                    "timeout": False,
+                                }
+                            ]
+                        },
+                    },
+                }
+            ],
+        )
+        rc, out = self._run(entry="a", compare=True)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("compare m:", out)
+
+    def test_compare_without_v0_control_skips_with_note(self):
+        results_file(
+            self.results,
+            [
+                {
+                    "id": "a",
+                    "kind": "pattern",
+                    "markers": {"m": "TODO"},
+                    "restraint_markers": None,
+                    "arms": {
+                        "v1": {
+                            "runs": [
+                                {
+                                    "answer_text": "TODO\nTODO",
+                                    "void_signals": [],
+                                    "session_id": "s1",
+                                    "timeout": False,
+                                }
+                            ]
+                        }
+                    },
+                }
+            ],
+        )
+        rc, out = self._run(entry="a", compare=True)
+        self.assertEqual(rc, 0)
+        self.assertIn("compare: entry a: no v0 control arm", out)
+        self.assertNotIn("compare m:", out)
+
+    def test_compare_off_leaves_output_unchanged(self):
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertNotIn("compare", out)
 
 
 class MarkerTriageTests(unittest.TestCase):
