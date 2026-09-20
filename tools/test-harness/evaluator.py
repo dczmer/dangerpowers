@@ -2812,6 +2812,252 @@ def cmd_pressure_scored_check(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# Inventory tooling: rules.json / facts.json validation, id minting, diff
+
+# One implementation serving all three multi-rule tracks: kind "rule" is a
+# rules.json (item array "rules", ids prefixed "R"); kind "fact" is a
+# facts.json (item array "facts", ids prefixed "F"). The schemas differ in
+# exactly one field: rule items/excluded entries carry 'kind', fact ones do
+# not (verified against the committed inventories).
+INVENTORY_KINDS = {"rule": "R", "fact": "F"}
+INVENTORY_ARRAYS = {"rule": "rules", "fact": "facts"}
+
+
+def _section_slug(section: str) -> str:
+    """'## When to use' -> 'when-to-use'; lowercase, non-alnum runs -> '-',
+    stripped. Deterministic and stable across regenerations."""
+    return re.sub(r"[^a-z0-9]+", "-", section.lower()).strip("-")
+
+
+def mint_inventory_id(kind_prefix: str, section: str, n: int) -> str:
+    """The canonical id form: <prefix>-<section-slug>-<nn>, e.g.
+    'R-when-to-use-03'."""
+    return f"{kind_prefix}-{_section_slug(section)}-{n:02d}"
+
+
+def _inventory_require_str(
+    path: Path, label: str, i: int | str, item: dict, field: str
+) -> str:
+    value = item.get(field)
+    if not isinstance(value, str) or not value:
+        _fail(f"{path}: {label} {i} missing '{field}' (non-empty string)")
+    return value
+
+
+def load_inventory(path: Path, kind: str, allow_idless: bool = False) -> dict:
+    """Load a rules.json/facts.json inventory and validate the unified
+    schema: skill/generated header, the item array named by kind, and an
+    excluded list whose entries carry a routing reason. Item ids must be
+    unique across the items and the excluded list. On any violation prints
+    `error: <exact reason>` to stderr and exits 1. With allow_idless
+    (inventory-mint on a draft) items missing 'id' are accepted so ids can
+    be assigned; every other command requires ids on all items."""
+    array_name = INVENTORY_ARRAYS[kind]
+    if not path.exists():
+        _fail(f"inventory file not found: {path}")
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        _fail(f"invalid JSON in {path}: {e}")
+    if not isinstance(data, dict):
+        _fail(f"{path}: expected a JSON object with a '{array_name}' list")
+    for key in ("skill", "generated"):
+        _inventory_require_str(path, "header", key, data, key)
+    items = data.get(array_name)
+    if not isinstance(items, list):
+        _fail(f"{path}: missing '{array_name}' list")
+    excluded = data.get("excluded")
+    if not isinstance(excluded, list):
+        _fail(f"{path}: missing 'excluded' list")
+    seen: set[str] = set()
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            _fail(f"{path}: item {i} is not an object")
+        if kind == "rule":
+            _inventory_require_str(path, "item", i, item, "kind")
+        _inventory_require_str(path, "item", i, item, "section")
+        _inventory_require_str(path, "item", i, item, "statement")
+        if not isinstance(item.get("entries"), list):
+            _fail(f"{path}: item {i} missing 'entries' (list)")
+        eid = item.get("id")
+        if not isinstance(eid, str) or not eid:
+            if not allow_idless:
+                _fail(f"{path}: item {i} missing 'id' (non-empty string)")
+        elif eid in seen:
+            _fail(f"{path}: duplicate id: {eid}")
+        else:
+            seen.add(eid)
+    for i, entry in enumerate(excluded):
+        if not isinstance(entry, dict):
+            _fail(f"{path}: excluded entry {i} is not an object")
+        if kind == "rule":
+            _inventory_require_str(path, "excluded entry", i, entry, "kind")
+        eid = _inventory_require_str(path, "excluded entry", i, entry, "id")
+        _inventory_require_str(path, "excluded entry", i, entry, "section")
+        _inventory_require_str(path, "excluded entry", i, entry, "reason")
+        if eid in seen:
+            _fail(f"{path}: duplicate id: {eid}")
+        seen.add(eid)
+    return data
+
+
+def _inventory_array(inv: dict) -> str:
+    return "rules" if isinstance(inv.get("rules"), list) else "facts"
+
+
+def inventory_diff(old: dict, new: dict) -> dict:
+    """Set logic over ids between two validated inventories:
+      new:       new items whose id is in neither old items nor old excluded
+      changed:   items in both whose statement/entries/kind differ, each
+                 recorded as {id, fields, old, new}
+      deleted:   old items absent from new items and from new excluded
+                 (an item moved into new.excluded is a state change in
+                 the excluded bucket, never a deletion)
+      excluded:  only exclusions whose state changed: 'newly-excluded'
+                 (in new.excluded, unknown to old.excluded) or
+                 'resurrected' (was excluded in old, back in new items);
+                 an unchanged exclusion appears in no bucket, keeping a
+                 no-op diff empty in all four
+    Pure function; no I/O."""
+    array = _inventory_array(old)
+    old_by_id = {item["id"]: item for item in old[array]}
+    old_excluded_ids = {entry["id"] for entry in old["excluded"]}
+    new_ids = {item["id"] for item in new[array]}
+    new_excluded_ids = {entry["id"] for entry in new["excluded"]}
+    added: list[dict] = []
+    changed: list[dict] = []
+    for item in new[array]:
+        eid = item["id"]
+        prior = old_by_id.get(eid)
+        if prior is None:
+            if eid not in old_excluded_ids:
+                added.append(item)
+            continue
+        fields = [
+            f
+            for f in ("statement", "entries", "kind")
+            if prior.get(f) != item.get(f)
+        ]
+        if fields:
+            changed.append(
+                {"id": eid, "fields": fields, "old": prior, "new": item}
+            )
+    deleted = [
+        item
+        for item in old[array]
+        if item["id"] not in new_ids and item["id"] not in new_excluded_ids
+    ]
+    excluded: list[dict] = []
+    for entry in new["excluded"]:
+        if entry["id"] not in old_excluded_ids:
+            excluded.append({**entry, "status": "newly-excluded"})
+    for entry in old["excluded"]:
+        if entry["id"] not in new_excluded_ids and entry["id"] in new_ids:
+            excluded.append({**entry, "status": "resurrected"})
+    return {
+        "new": added,
+        "changed": changed,
+        "deleted": deleted,
+        "excluded": excluded,
+    }
+
+
+def cmd_inventory_check(args: argparse.Namespace) -> int:
+    """Validate an inventory and report id stats."""
+    path = Path(args.inventory)
+    inv = load_inventory(path, args.kind)
+    array_name = INVENTORY_ARRAYS[args.kind]
+    items = inv[array_name]
+    sections = {item["section"] for item in items}
+    emit(
+        f"{path}: {len(items)} {array_name} in {len(sections)} sections, "
+        f"{len(inv['excluded'])} excluded"
+    )
+    return 0
+
+
+def cmd_inventory_mint(args: argparse.Namespace) -> int:
+    """Assign ids to id-less items of a draft inventory. Ids are minted in
+    document order, numbered 01.. within each section, skipping numbers
+    already taken by existing ids in that section. Items that already have
+    an id pass through untouched, so re-running on an unchanged file is a
+    byte-identical no-op — the stability rule that makes inventory-diff
+    silent-mis-diff-proof."""
+    path = Path(args.inventory)
+    raw = path.read_text()
+    inv = load_inventory(path, args.kind, allow_idless=True)
+    array_name = INVENTORY_ARRAYS[args.kind]
+    prefix = INVENTORY_KINDS[args.kind]
+    items = inv[array_name]
+    used: dict[str, set[int]] = {}
+    for item in items:
+        eid = item.get("id")
+        if isinstance(eid, str) and eid:
+            m = re.search(r"-(\d+)$", eid)
+            if m:
+                used.setdefault(item["section"], set()).add(int(m.group(1)))
+    minted = 0
+    for i, item in enumerate(items):
+        eid = item.get("id")
+        if isinstance(eid, str) and eid:
+            continue
+        section = item["section"]
+        n = 1
+        while n in used.setdefault(section, set()):
+            n += 1
+        used[section].add(n)
+        items[i] = {"id": mint_inventory_id(prefix, section, n), **item}
+        minted += 1
+    out = Path(args.out)
+    if minted == 0:
+        out.write_text(raw)
+    else:
+        out.write_text(json.dumps(inv, indent=2, ensure_ascii=False) + "\n")
+    emit(f"{out}: minted {minted} id(s)")
+    return 0
+
+
+def cmd_inventory_diff(args: argparse.Namespace) -> int:
+    """Print the id diff between two inventories as JSON, to --out or
+    stdout. Exit 1 on schema violation (either file, via load_inventory),
+    a new-file id that doesn't match its item's section (slug drift, new
+    ids only — ids --old already knows are grandfathered, so a no-op diff
+    on unmodified copies stays a no-op), or a changed item whose id does
+    not exist in --old."""
+    old_path = Path(args.old)
+    new_path = Path(args.new)
+    old = load_inventory(old_path, args.kind)
+    new = load_inventory(new_path, args.kind)
+    array_name = INVENTORY_ARRAYS[args.kind]
+    old_item_ids = {item["id"] for item in old[array_name]}
+    old_ids = old_item_ids | {entry["id"] for entry in old["excluded"]}
+    prefix = INVENTORY_KINDS[args.kind]
+    for i, item in enumerate(new[array_name]):
+        eid = item["id"]
+        if eid in old_ids:
+            continue
+        expected = f"{prefix}-{_section_slug(item['section'])}-"
+        if not re.match(rf"^{re.escape(expected)}\d+$", eid):
+            return _err(
+                f"{new_path}: item {i} id '{eid}' does not match its "
+                f"section '{item['section']}' (expected '{expected}<nn>')"
+            )
+    diff = inventory_diff(old, new)
+    for change in diff["changed"]:
+        if change["id"] not in old_item_ids:
+            return _err(
+                f"{new_path}: changed item '{change['id']}' does not "
+                f"exist in --old"
+            )
+    payload = json.dumps(diff, indent=2, ensure_ascii=False) + "\n"
+    if args.out:
+        Path(args.out).write_text(payload)
+    else:
+        sys.stdout.write(payload)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="evaluator.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -2979,6 +3225,34 @@ def main() -> int:
     pressure_scored.add_argument("--unresolved", type=int)
     pressure_scored.add_argument("--voids", type=int)
 
+    inv = sub.add_parser(
+        "inventory-check",
+        help="validate a rules.json/facts.json "
+        "inventory and report id stats",
+    )
+    inv.add_argument("--inventory", required=True)
+    inv.add_argument("--kind", required=True, choices=["rule", "fact"])
+
+    mint = sub.add_parser(
+        "inventory-mint",
+        help="assign ids to id-less items of a draft "
+        "inventory; re-running on an unchanged file is a byte-identical "
+        "no-op",
+    )
+    mint.add_argument("--inventory", required=True)
+    mint.add_argument("--kind", required=True, choices=["rule", "fact"])
+    mint.add_argument("--out", required=True)
+
+    idiff = sub.add_parser(
+        "inventory-diff",
+        help="diff two inventories by id into "
+        "new/changed/deleted/excluded buckets (JSON to --out or stdout)",
+    )
+    idiff.add_argument("--old", required=True)
+    idiff.add_argument("--new", required=True)
+    idiff.add_argument("--kind", required=True, choices=["rule", "fact"])
+    idiff.add_argument("--out")
+
     args = parser.parse_args()
     if args.command == "check":
         return cmd_check(args)
@@ -3010,6 +3284,12 @@ def main() -> int:
         return cmd_pressure_meta(args)
     if args.command == "pressure-scored-check":
         return cmd_pressure_scored_check(args)
+    if args.command == "inventory-check":
+        return cmd_inventory_check(args)
+    if args.command == "inventory-mint":
+        return cmd_inventory_mint(args)
+    if args.command == "inventory-diff":
+        return cmd_inventory_diff(args)
     return cmd_run(args)
 
 

@@ -109,11 +109,17 @@ The inventory is a `rules.json` file:
 - `excluded` — array of `{id, section, kind, reason}` — there is no other
   manifest, and every excluded rule carries its routing reason in `reason`
 - Rule ids are section-anchored: `R-<section-slug>-<nn>`, numbered within
-  their section so doc edits never renumber other sections
+  their section so doc edits never renumber other sections. Ids are minted by
+  the script, not assigned by hand: draft the inventory id-less, then run
+  `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.
+  Re-minting an unchanged file is a byte-identical no-op, which is what makes
+  the diff below trustworthy.
 
-Diff a rebuilt inventory against the existing `rules.json`: a new discipline
-rule → propose a scenario; a changed rule statement → flag for re-test; a
-deleted rule → propose pruning its scenario.
+Diff a rebuilt inventory against the existing `rules.json` with
+`evaluator.py inventory-diff --old <old> --new <new> --kind rule` and read its
+JSON (new / changed / deleted / excluded): the script diffs, you propose — a
+new discipline rule → propose a scenario; a changed rule statement → flag for
+re-test; a deleted rule → propose pruning its scenario.
 
 ## Scenario design
 
@@ -165,7 +171,7 @@ per refactor (cap 3) + 1 meta per violating rep` (per-rule cap 25 runs + meta
 resumes) and the spend-confirmation policy: one confirmation before the
 rule's RED arm, one before its GREEN arm (only when RED violated), one per
 REFACTOR round. User approves the cards; then write/update `scenarios.json`
-and regenerate `rules.json`.
+and regenerate `rules.json` via `inventory-mint`.
 
 ## Eval agent
 
@@ -198,7 +204,7 @@ convention as the other testing tracks.)
    report the routings.
 3. **Scenarios**: draft one per rule per Scenario design; present proposal
    cards (user approves); write/update `scenarios.json`; regenerate
-   `rules.json`.
+   `rules.json` via `inventory-mint`.
 4. **Preflight** (no spend): `python3 --version` (≥ 3.10); `evaluator.py
    check --harness <h> [--model m]` (with `--model`, the check also
    validates the model against the harness's model list).

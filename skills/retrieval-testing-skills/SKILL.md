@@ -33,7 +33,7 @@ Collect all inputs before starting. Prompt the user for any that are missing.
 - **Reps** — runs per entry per arm; default 1.
 - **Timeout** — per-run abort, in seconds; default 120.
 
-After resolving the source root, read the skill under test fully and build the fact inventory fresh from the current doc (see Fact inventory) — the manifest is a diff baseline, never a cache. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise diff the inventory against the manifest (see Fact inventory for the diff rules) and present a proposal for whatever the diff requires (see Proposal format). With the user's approval, apply the changes to the queries file — creating any fixtures new entries reference under `fixtures/` and regenerating `facts.json` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
+After resolving the source root, read the skill under test fully and build the fact inventory fresh from the current doc (see Fact inventory) — the manifest is a diff baseline, never a cache. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise diff the inventory against the manifest (see Fact inventory for the diff rules) and present a proposal for whatever the diff requires (see Proposal format). With the user's approval, apply the changes to the queries file — creating any fixtures new entries reference under `fixtures/` and regenerating `facts.json` via `inventory-mint` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
 
 ## Fact inventory
 
@@ -68,7 +68,7 @@ Persist the inventory as `facts.json` next to the queries file: fact id, home se
 }
 ```
 
-The manifest is a diff baseline, never a cache — rebuild the inventory fresh from the doc every campaign. Regenerate the manifest at proposal time and whenever entries are added or retired; never hand-maintain it between campaigns. Each campaign's diff against the previous manifest drives the work:
+The manifest is a diff baseline, never a cache — rebuild the inventory fresh from the doc every campaign, drafted id-less: ids are minted by `inventory-mint` (`evaluator.py inventory-mint --inventory <path> --kind fact --out <path>`), never assigned by hand. Regenerate the manifest via the script at proposal time and whenever entries are added or retired; never hand-maintain it between campaigns. Re-running `inventory-mint` on an unchanged file is a byte-identical no-op, which is what makes the diff trustworthy. Each campaign's diff against the previous manifest — the `inventory-diff` JSON (`--old`/`--new`/`--kind fact`), read by you, not computed by hand — drives the work:
 
 - New fact (no manifest id) → propose queries.
 - Changed fact (same id, different statement) → flag its entries for re-scoring this campaign; queries stay verbatim.
@@ -218,7 +218,7 @@ Campaign rules:
 
 Present the proposal as one card per entry, numbered in dispatch order. Each card is exactly these lines in order: `## N. <entry-id>`, `covers:` (fact ids), `facts:` (one line per fact, imperative, ≤15 words), `query:` (full verbatim query text), `expect:` (one bullet per rubric item), `why:` (one line). Close with `coverage:`, `excluded:`, `cost:` (as a formula), and `fixtures:` lines. Every fact appears in exactly one card's `covers:` or in the `excluded:` line.
 
-- Fact ids are section-anchored (`F-<section-slug>-<nn>`) so doc edits never renumber other sections; keep them stable across campaigns.
+- Fact ids are section-anchored (`F-<section-slug>-<nn>`) so doc edits never renumber other sections; they are minted by `inventory-mint` (draft the inventory id-less), so keep them stable across campaigns.
 
 ## Report format
 

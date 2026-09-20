@@ -124,7 +124,10 @@ The inventory is a `rules.json` file:
   are recorded — there is no other manifest — and every excluded rule carries its
   routing reason in `reason`
 - Rule ids are section-anchored: `R-<section-slug>-<nn>`, numbered within their
-  section so doc edits never renumber other sections
+  section so doc edits never renumber other sections. Ids are minted by the
+  script, not assigned by hand: draft the inventory id-less, then run
+  `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.
+  Re-minting an unchanged file is a byte-identical no-op.
 
 Every entry is a JSON object with exactly these keys: `id` (stable, never reused), `rule` (manifest id), `kind` (`shaping` or `pattern`), `section` (the rule's verbatim span from the skill body), `fixtures` (`application` always; `counter-example` exactly when kind is `pattern`), `markers` (non-empty dict of grep tokens for wrong and right shapes), `restraint_markers` (exactly when kind is `pattern`, forbidden otherwise), `variants` (1-3 entries keyed `v1`..`v3`; the v0 control is implicit and never stored).
 
@@ -185,8 +188,9 @@ failure does not reproduce.
 retrieval track.)
 
 1. Inputs per the Inputs section; read the skill body fully.
-2. Build the rule inventory fresh; classify every rule; diff against `rules.json`.
-   No shaping/pattern rules → stop, report routings.
+2. Build the rule inventory fresh; classify every rule; mint ids with
+   `inventory-mint`, then read the `inventory-diff` JSON against `rules.json` —
+   the script diffs, you propose. No shaping/pattern rules → stop, report routings.
 3. Present proposal cards (see Proposal format) — one per entry: covered rule,
    classification confirmation, full fixture text, markers (and `restraint_markers`
    for pattern entries), variant texts, `why:` line, and the cost formula (`5 +
