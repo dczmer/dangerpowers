@@ -11,6 +11,7 @@ ever invoked (zero model spend).
 import argparse
 import io
 import json
+import subprocess
 import tempfile
 import threading
 import time
@@ -20,15 +21,48 @@ from pathlib import Path
 from unittest import mock
 
 import evaluator
+from src import strategies
 from src.strategies import EventStream
 from src.tracks import (
     TRACKS,
     assemble_arm_body,
+    build_shape_prompt,
     build_shape_run_record,
     load_shape_entries,
     marker_triage_counts,
     verify_arm_bytes,
 )
+
+SKILL = "writing-skills"
+
+
+def ndjson(*events: dict) -> str:
+    return "\n".join(json.dumps(e) for e in events) + "\n"
+
+
+def text_event(text: str) -> dict:
+    return {
+        "type": "text",
+        "sessionID": "s1",
+        "part": {"type": "text", "text": text},
+    }
+
+
+def skill_tool_event(name: str, status: str) -> dict:
+    return {
+        "type": "tool_use",
+        "sessionID": "s1",
+        "part": {
+            "type": "tool",
+            "tool": "skill",
+            "state": {"status": status, "input": {"name": name}},
+        },
+    }
+
+
+def session_event(session: str, etype: str, part: dict) -> dict:
+    return {"type": etype, "sessionID": session, "part": part}
+
 
 FRONTMATTER = "---\nname: demo-skill\n---\n"
 SECTION_A = "## Styling\n\nComponents use css modules, never inline"
@@ -1384,6 +1418,222 @@ class MarkerTriageTests(unittest.TestCase):
             "", {"inline_style": "style", "other": "x"}
         )
         self.assertEqual(counts, {"inline_style": 0, "other": 0})
+
+
+class ShapeInjectionTests(unittest.TestCase):
+    """Shape track: prompt injection (not byte-states). Covers arm body
+    assembly, the injected prompt, the new void signals, and the
+    end-to-end suite path with a sterile workspace."""
+
+    BODY = (
+        "# Conventions\n"
+        "\n"
+        "## Styling\n"
+        "Always use CSS modules.\n"
+        "\n"
+        "## Layout\n"
+        "One file per component.\n"
+    )
+    # The span covers the whole section, heading included — the form the
+    # doc-drift gate and assemble_arm_body are designed around.
+    SECTION = "## Styling\nAlways use CSS modules."
+    ENTRY = {
+        "id": "R-styling-01",
+        "kind": "shaping",
+        "section": SECTION,
+        "fixtures": {
+            "application": "Build a Badge component.",
+            "counter-example": "Build a plain div.",
+        },
+        "variants": {"v1": "Never use inline styles."},
+    }
+
+    def test_v0_removes_span_and_one_blank_line(self):
+        arm_body = assemble_arm_body(self.BODY, self.ENTRY, "v0")
+        self.assertNotIn(self.SECTION, arm_body)
+        # Neighbour sections keep exactly one blank line between them.
+        self.assertIn("# Conventions\n\n## Layout", arm_body)
+
+    def test_variant_replaces_span(self):
+        arm_body = assemble_arm_body(self.BODY, self.ENTRY, "v1")
+        self.assertIn("Never use inline styles.", arm_body)
+        self.assertNotIn(self.SECTION, arm_body)
+
+    def test_non_unique_span_raises(self):
+        body = self.BODY + "\n" + self.SECTION + "\n"
+        with self.assertRaises(ValueError):
+            assemble_arm_body(body, self.ENTRY, "v0")
+
+    def test_verify_arm_bytes_catches_bad_assembly(self):
+        with self.assertRaises(ValueError):
+            verify_arm_bytes(self.BODY, self.ENTRY, "v0")
+        with self.assertRaises(ValueError):
+            verify_arm_bytes(self.BODY, self.ENTRY, "v1")
+        ok = assemble_arm_body(self.BODY, self.ENTRY, "v0")
+        verify_arm_bytes(ok, self.ENTRY, "v0")  # no raise
+
+    def test_prompt_injects_conventions_and_fixture(self):
+        arm_body = assemble_arm_body(self.BODY, self.ENTRY, "v0")
+        prompt = build_shape_prompt(
+            arm_body, self.ENTRY["fixtures"]["application"]
+        )
+        self.assertTrue(prompt.startswith("Project conventions:\n"))
+        self.assertIn(arm_body, prompt)
+        self.assertTrue(prompt.endswith("Task:\nBuild a Badge component."))
+        self.assertNotIn(self.SECTION, prompt)
+
+    def _ev(self, events: list[dict]):
+        return strategies.OpencodeStrategy.parse_stream(ndjson(*events), None)
+
+    def test_skill_load_attempt_is_void_signal(self):
+        ev = self._ev(
+            [
+                skill_tool_event("anything", "completed"),
+                text_event("the artifact"),
+            ]
+        )
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
+        self.assertIn("skill-load-attempted", record["void_signals"])
+        self.assertNotIn("empty-answer", record["void_signals"])
+
+    def test_clean_run_has_no_signals(self):
+        ev = self._ev([text_event("the artifact")])
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
+        self.assertEqual(record["void_signals"], [])
+        self.assertNotIn("skill_load_completed", record)
+
+
+class ShapeSuiteEndToEndTests(unittest.TestCase):
+    """cmd_shape_suite with a stubbed harness: injection lands in the
+    dispatched prompt and the sterile workspace is never written."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.workspace = self.root / "ws"
+        self.workspace.mkdir()
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "shape-evaluator.opencode.md").write_text(
+            "---\nname: shape-evaluator\n---\n# Agent\n"
+        )
+        self.skill_body = self.root / "skill-body.txt"
+        self.skill_body.write_text(
+            "# Conventions\n\n## Styling\nAlways use CSS modules.\n"
+        )
+        self.entries = self.root / "entries.json"
+        self.entries.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": "R-styling-01",
+                        "rule": "R-styling-01",
+                        "kind": "shaping",
+                        "section": "Always use CSS modules.",
+                        "fixtures": {"application": "Build a Badge."},
+                        "markers": {"inline-style": r"style="},
+                        "variants": {"v1": "Never use inline styles."},
+                    }
+                ]
+            )
+        )
+        self.out = self.root / "results.json"
+
+    def tearDown(self):
+        if evaluator._Log.file is not None:
+            evaluator._Log.file.close()
+            evaluator._Log.file = None
+        self.tmp.cleanup()
+
+    def _args(self) -> argparse.Namespace:
+        return argparse.Namespace(
+            harness="opencode",
+            skill=SKILL,
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.workspace),
+            entries=str(self.entries),
+            skill_file=str(self.skill_body),
+            arms="v0,v1",
+            out=str(self.out),
+            fixture_key="application",
+            model=None,
+            variant=None,
+            reps=1,
+            timeout=30,
+        )
+
+    def _answer(self, session: str) -> str:
+        part = {"type": "text", "text": "artifact"}
+        return ndjson(session_event(session, "text", part))
+
+    def _proc(self, stdout: str) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=stdout, stderr=""
+        )
+
+    def test_injection_lands_and_workspace_stays_sterile(self):
+        with (
+            mock.patch.object(
+                strategies.subprocess,
+                "run",
+                return_value=self._proc(self._answer("s1")),
+            ),
+            mock.patch.object(
+                strategies.shutil, "which", return_value="/usr/bin/opencode"
+            ),
+            redirect_stdout(io.StringIO()),
+        ):
+            rc = evaluator.run_suite(TRACKS["shape-test"], self._args())
+        self.assertEqual(rc, 0)
+        data = json.loads(self.out.read_text())
+        self.assertEqual(data["config"]["skill_file"], str(self.skill_body))
+        runs_v0 = data["entries"][0]["arms"]["v0"]["runs"]
+        runs_v1 = data["entries"][0]["arms"]["v1"]["runs"]
+        # v0 injects the body minus the rule span; v1 injects the variant.
+        dispatched_v0 = runs_v0[0]["query_dispatched"]
+        dispatched_v1 = runs_v1[0]["query_dispatched"]
+        self.assertNotIn("Always use CSS modules.", dispatched_v0)
+        self.assertIn("Never use inline styles.", dispatched_v1)
+        for runs in (runs_v0, runs_v1):
+            self.assertTrue(
+                runs[0]["query_dispatched"].startswith(
+                    "Project conventions:\n"
+                )
+            )
+            self.assertEqual(runs[0]["void_signals"], [])
+        # Nothing was synced or written into the workspace.
+        self.assertFalse((self.workspace / ".agents").exists())
+
+    def test_synced_skill_fails_contamination_gate(self):
+        stub = self.workspace / ".agents" / "skills" / SKILL / "SKILL.md"
+        stub.parent.mkdir(parents=True)
+        stub.write_text("---\nname: x\n---\n")
+        buf = io.StringIO()
+        with (
+            mock.patch.object(
+                strategies.shutil, "which", return_value="/usr/bin/opencode"
+            ),
+            redirect_stderr(buf),
+            redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            evaluator.run_suite(TRACKS["shape-test"], self._args())
+        self.assertIn("never sync", buf.getvalue())
+
+    def test_missing_skill_file_fails_pre_spend(self):
+        args = self._args()
+        args.skill_file = str(self.root / "absent.txt")
+        buf = io.StringIO()
+        with (
+            mock.patch.object(
+                strategies.shutil, "which", return_value="/usr/bin/opencode"
+            ),
+            redirect_stderr(buf),
+            redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            evaluator.run_suite(TRACKS["shape-test"], args)
+        self.assertIn("skill file not found", buf.getvalue())
 
 
 if __name__ == "__main__":
