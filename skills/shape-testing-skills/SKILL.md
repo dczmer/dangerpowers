@@ -217,8 +217,8 @@ retrieval track.)
    ```
 8. **Spend confirmation #1**: rules × 5 control reps — phase 1 covers ALL rules
    and is never skipped.
-9. `evaluator.py shape-suite --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 120]`
-10. Score controls via `shape-evidence`. Rules whose control never exhibits the failure
+9. `evaluator.py suite --track shape-test --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 120]`
+10. Score controls via `evidence --track shape-test`. Rules whose control never exhibits the failure
     → `no-failure` + ablation flag; **stop those rules, author nothing**.
 11. **Spend confirmation #2**: failing rules × variants × 5 reps — only rules
     whose control exhibited the failure earn variant runs. A generic continuation
@@ -226,21 +226,23 @@ retrieval track.)
     spend confirmation. The second spend confirmation must be an explicit approval
     that names the rules earning variant runs — if the user's reply does not
     enumerate them, stop and ask again before any variant rep dispatches.
-12. Write `$CAMP/entries-failing.json` (the filtered entries) and run `shape-suite
-    --arms v1,v2,v3 --entries $CAMP/entries-failing.json --out $CAMP/results-variants.json`
+12. Write `$CAMP/entries-failing.json` (the filtered entries) and run `suite
+    --track shape-test --arms v1,v2,v3 --entries $CAMP/entries-failing.json
+    --out $CAMP/results-variants.json`
     (same other flags).
-13. Score: `shape-evidence` marker triage (pattern rules: add `--compare` and read
+13. Score: `evidence --track shape-test` marker triage (pattern rules: add `--compare` and read
     the script's per-marker EXCEEDS/does-not-exceed verdicts instead of hand-comparing
     frequencies) → hand-read every flagged sample → convergence verdict per rule (see
     Scoring). Pattern-rule winners: restraint gate —
-    `shape-suite --arms <winner> --fixture-key counter-example --out
+    `suite --track shape-test --arms <winner> --fixture-key
+    counter-example --out
     $CAMP/results-restraint.json` (5 reps, scored against `restraint_markers`); a
     variant that over-applies is disqualified — gate the next-best converging variant
     the same way.
 14. Non-converging rules → round-2 mini-campaign (changed FORM, new filtered entries
     file, second campaign dir, **never recorded**), cap 2 rounds → else `unresolved`,
     escalate to the user.
-15. `evaluator.py shape-scored-check --results $CAMP/results-control.json
+15. `evaluator.py scored-check --track shape-test --results $CAMP/results-control.json
     --results $CAMP/results-variants.json [--results $CAMP/results-restraint.json]
     --emit-skeleton $CAMP/scored.json` emits the skeleton from the results union —
     one entry per union id, `kind` and per-arm `marker_counts` pre-filled from
@@ -259,7 +261,7 @@ retrieval track.)
     dir, never recorded).
 19. `cleanup --workspace $WS --prefix shape-test`.
 
-## shape-suite mechanics
+## suite mechanics
 
 Pre-spend gates (all exit 1 with an exact message before any harness invocation):
 harness CLI on PATH; agent file exists, frontmatter `name:` matches `shape-evaluator`,
@@ -295,7 +297,7 @@ carrying `arm`, `answer_text`, `tool_calls`, `void_signals`, `timeout`, `session
 and the full run record, plus a `config` block (`skill`, `harness`, `model`, `variant`,
 `reps`, `timeout`, `date`, entries-file path, `skill_file`, `arms`, `fixture_key`) so
 every run is attributable to the exact model selection that produced it. The entry's
-`markers`/`restraint_markers` are carried into the results so `shape-evidence` triages
+`markers`/`restraint_markers` are carried into the results so `evidence --track shape-test` triages
 without re-reading the entries file.
 
 Void signals: `skill-load-attempted` (any captured skill tool call — the conventions
@@ -317,7 +319,8 @@ Two rules govern every scoring decision:
 - Never adopt a prohibition arm: `adopted` may only name a recipe / structural arm —
   a suppressed token that migrates to a worse shape is displacement, not a fix.
 
-`shape-evidence --results <file> [--entry <id>] [--arm vN] [--compare]` prints per entry/arm/rep the
+`evidence --track shape-test --results <file> [--entry <id>] [--arm vN]
+[--compare]` prints per entry/arm/rep the
 answer text, void signals, session id, and marker triage counts (per-marker count of
 answer lines matching each grep token). With `--compare` it also prints, per candidate
 arm and marker, one line `compare <name>: <arm> <c> vs v0 <b> -> EXCEEDS|does-not-exceed`:
@@ -420,7 +423,7 @@ Every pre-campaign plan is one self-contained card per planned entry, in this or
 
 Every campaign report opens with four lines — `shape test: <skill> — <date>`, `entries:`, `artifacts:`, `manifest:` — then one block per rule — **every** rule, including no-failure, unresolved, and void rules, gets its own `## <entry-id> (<kind>) — <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, a `write-back:` line; then `no-failure (ablation review):` and `unresolved:` sections — indexes listing those same rules, never substitutes for the per-rule blocks — where applicable; and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line.
 
-scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern`, matching the results), `result` (one of `adopted`, `no-failure`, `unresolved`, `void`), `adopted_arm` (exactly when result is adopted; a non-v0 arm present in that entry's results), `restraint_gate` (`pass`/`fail`, exactly when kind is pattern and result is adopted; `null` otherwise), optional `marker_counts` and `notes`. Every entry id in the results is covered exactly once — a missing, duplicate, or unknown id fails `shape-scored-check`. Example:
+scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern`, matching the results), `result` (one of `adopted`, `no-failure`, `unresolved`, `void`), `adopted_arm` (exactly when result is adopted; a non-v0 arm present in that entry's results), `restraint_gate` (`pass`/`fail`, exactly when kind is pattern and result is adopted; `null` otherwise), optional `marker_counts` and `notes`. Every entry id in the results is covered exactly once — a missing, duplicate, or unknown id fails `scored-check --track shape-test`. Example:
 
 ```json
 {
@@ -453,7 +456,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
   abort clean runs mid-answer (observed in calibration: 2 empty-answer voids at 120 s,
   0 at 300 s). Raise `--timeout` before pressure-testing the agent body.
 - Every run in a results file carries its headless `session_id` (shown by
-  `shape-evidence`), and harness-abort error lines end with `[session <id>]` when the
+  `evidence --track shape-test`), and harness-abort error lines end with `[session <id>]` when the
   harness emitted one before failing — include it when reporting an abort so the failed
   session can be inspected.
 
@@ -465,13 +468,13 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped); `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
 - [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` (with `--model` when a model is set) exit 0; ONE workspace initialized with `--prefix shape-test`
 - [ ] Workspace never synced (contamination gate clean); campaign dir created; entries.json, rules.json, the source skill dir, and skill-body.txt (via the documented pipeline — never hand-edited) snapshotted with the exact commands recorded
-- [ ] Spend confirmation #1 (rules × 5 control reps) before phase 1; `shape-suite --arms v0` wrote results-control.json; only exit codes and JSON consumed
-- [ ] Controls scored via `shape-evidence`; no-failure rules stopped with nothing authored and flagged for ablation review
-- [ ] Spend confirmation #2 (failing rules × variants × 5 reps) before phase 2; `shape-suite --arms v1,v2,v3 --entries $CAMP/entries-failing.json` wrote results-variants.json
+- [ ] Spend confirmation #1 (rules × 5 control reps) before phase 1; `suite --track shape-test --arms v0` wrote results-control.json; only exit codes and JSON consumed
+- [ ] Controls scored via `evidence --track shape-test`; no-failure rules stopped with nothing authored and flagged for ablation review
+- [ ] Spend confirmation #2 (failing rules × variants × 5 reps) before phase 2; `suite --track shape-test --arms v1,v2,v3 --entries $CAMP/entries-failing.json` wrote results-variants.json
 - [ ] Every flagged marker sample hand-read; convergence judged across the 5 reps, not by marker averages; prohibition arms never adopted; ties to the shorter phrasing
 - [ ] Pattern-rule winners gated: 5 reps on `counter-example` with `--fixture-key counter-example`, scored against `restraint_markers`; over-applying variants disqualified and the next-best gated
 - [ ] Round 2 (if any) changed the FORM in a never-recorded mini-campaign; hard cap 2 rounds respected
-- [ ] scored.json skeleton emitted and the null judgment fields filled for every union results id; `shape-scored-check` exits 0
+- [ ] scored.json skeleton emitted and the null judgment fields filled for every union results id; `scored-check --track shape-test` exits 0
 - [ ] Report shows per-rule per-arm tables, gate lines for pattern rules, no-failure/unresolved sections, summary counts, and the `artifacts:`/`manifest:` lines
 - [ ] `record --scope dir --scored $CAMP/scored.json` run only after a completed full campaign — never aborted, never a mini-campaign, never a calibration pilot
 - [ ] Write-backs applied only with user confirmation, followed by a never-recorded confirmation mini-campaign; `cleanup --workspace $WS --prefix shape-test` run

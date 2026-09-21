@@ -214,21 +214,21 @@ convention as the other testing tracks.)
    `scenarios.json`, `rules.json`, the source skill dir, and `skill-body.txt`
    (record the exact commands).
 6. **Per rule, strictly serial** — spend confirmation, then RED (5 reps,
-   scenario only, nothing injected) → `pressure-evidence` → read every
+   scenario only, nothing injected) → `evidence --track pressure-test` → read every
    answer. Baseline complies → `no-failure` + ablation flag; author nothing;
    next rule.
 7. Baseline violates → spend confirmation → **GREEN** (5 reps,
    `skill-body.txt` injected) → evidence: a rep passes only if it chose
    `compliant_option` AND cited a section; record every violating rep's
    rationalization **verbatim** — the exact words are what you counter.
-8. **Meta-test** every violating green/refactor rep via `pressure-meta`;
+8. **Meta-test** every violating green/refactor rep via `meta --track pressure-test`;
    classify each reply (see Meta-testing).
 9. **REFACTOR**: one counter per observed verbatim rationalization, matched
    to a bulletproofing convention (see Plugging rationalizations); write
    `counters/<rule>-round<N>.md` — a full revised body; spend confirmation →
    re-run green with the revised file. Hard cap 3 rounds → else `unresolved`,
    escalate (restructure or enforce mechanically instead of prose).
-10. `evaluator.py pressure-scored-check --results $CAMP/results-<arm>-<rule>.json
+10. `evaluator.py scored-check --track pressure-test --results $CAMP/results-<arm>-<rule>.json
     [--results … one flag per results file] --emit-skeleton $CAMP/scored.json`
     emits the skeleton from the results union — one entry per union id, arm
     presence and `verdict_constraint` hints pre-filled, judgment fields
@@ -249,31 +249,31 @@ Per-rule commands (from the repo root):
 
 ```bash
 # RED — one-entry scenarios file, nothing injected
-evaluator.py pressure-suite --harness <h> --skill <s> \
+evaluator.py suite --track pressure-test --harness <h> --skill <s> \
   --agents-dir <pressure-skill-dir>/agents --workspace $WS \
   --scenarios $CAMP/scenario-<rule>.json --arm red \
   --out $CAMP/results-red-<rule>.json [--model m] [--variant v] \
   [--reps 5] [--timeout 120]
 
 # GREEN — original snapshotted body injected
-evaluator.py pressure-suite ... --arm green \
+evaluator.py suite --track pressure-test ... --arm green \
   --skill-file $CAMP/skill-body.txt \
   --out $CAMP/results-green-<rule>.json
 
 # meta — one invocation per violating rep, full question text supplied
-evaluator.py pressure-meta --harness <h> \
+evaluator.py meta --track pressure-test --harness <h> \
   --agents-dir <pressure-skill-dir>/agents --workspace $WS \
   --session <session-id> --question "<full meta question text>" \
   --out $CAMP/meta-<rule>-r<round>-rep<n>.json \
   [--model m] [--variant v] [--timeout 120]
 
 # REFACTOR round N — counter body injected
-evaluator.py pressure-suite ... --arm green \
+evaluator.py suite --track pressure-test ... --arm green \
   --skill-file $CAMP/counters/<rule>-round<N>.md \
   --out $CAMP/results-refactor-<rule>-r<N>.json
 ```
 
-## pressure-suite mechanics
+## suite mechanics
 
 Pre-spend gates (all exit 1 with an exact message before any harness
 invocation): harness CLI on PATH; agent file exists, frontmatter `name:`
@@ -318,7 +318,7 @@ boolean, never a void signal: an abort after a complete answer still scores;
 abort with partial/empty output is caught by `empty-answer` plus driver
 judgment.
 
-**Re-run semantics**: `pressure-suite` silently overwrites an existing
+**Re-run semantics**: `suite --track pressure-test` silently overwrites an existing
 `--out` file. Re-running a rule's completed arm mid-campaign is legitimate
 (e.g. after a void-heavy batch) but must be disclosed in the report.
 `campaign-init` auto-suffixes same-day campaign dirs (`-2`, `-3`, …), so a
@@ -326,7 +326,7 @@ fresh campaign never collides with a previous one.
 
 ## Scoring
 
-`pressure-evidence --results <file> [--entry <id>] [--arm red|green]` prints
+`evidence --track pressure-test --results <file> [--entry <id>] [--arm red|green]` prints
 per entry the statement, pressures, and compliant option, and per arm/rep the
 full answer text, void signals, and session id. **It never extracts the
 choice letter** — the driver reads every answer and judges choice + citation
@@ -348,7 +348,7 @@ non-empty strings — one per applied counter), optional `notes`. The harness
 emits the skeleton; the driver fills the judgment fields (result, counters,
 notes).
 
-`pressure-scored-check --results <f> [--results <f> ...] --scored <f>
+`scored-check --track pressure-test --results <f> [--results <f> ...] --scored <f>
 [--emit-skeleton <f>]` validates beyond
 schema (repeated `--results` union-dedupes entry ids; every union id covered
 exactly once): `result` must be one of the four verdicts; every entry must
@@ -361,7 +361,7 @@ run); `bulletproof` and `unresolved` entries must have one. With
 
 ## Meta-testing
 
-`pressure-meta` resumes one violating rep's `session_id` in-session and
+`meta --track pressure-test` resumes one violating rep's `session_id` in-session and
 writes JSON (`session_id`, `question`, `answer_text`, `timeout`,
 `void_signals`). The driver composes the full question text per invocation,
 substituting the actual letters:
@@ -552,7 +552,7 @@ on those paths — only a completed full campaign is recorded.
   with `--pure`/`--dir`/`--agent` in headless mode is the one mechanic that
   can still surprise: if resume proves unusable, the documented fallback is
   re-dispatch with the original transcript embedded in the prompt — it
-  changes only `pressure-meta`, nothing else.
+  changes only `meta --track pressure-test`, nothing else.
 - A violating rep with an empty `session_id` cannot be resumed: note `meta
   unavailable` in the report, not an error.
 - `void` is a harness/agent problem — never a rule finding. Every red rep
@@ -561,11 +561,11 @@ on those paths — only a completed full campaign is recorded.
 - `no-failure` ⟺ ablation flag: there is no separate ablation field, and
   `no-failure` entries must have no green arm in the results union — running
   GREEN "just to see" after a compliant baseline breaks
-  `pressure-scored-check`.
+  `scored-check --track pressure-test`.
 - Meta output is report evidence only — it never gates `scored.json`.
 - Counters are full revised bodies, never fragments; a refactor round must
   differ from the GREEN baseline by exactly the counters.
-- `pressure-evidence` never extracts the choice letter — read every answer
+- `evidence --track pressure-test` never extracts the choice letter — read every answer
   and judge by hand. Grep is triage, not verdict.
 - An unmarked fictional prop is a void-generator: the rep hunts for the
   mentioned path, and any tool call voids the rep. Mark every prop
@@ -574,7 +574,7 @@ on those paths — only a completed full campaign is recorded.
   scores. On slow local endpoints raise `--timeout` before blaming the agent
   body.
 - Re-running a completed arm mid-campaign is legitimate (e.g. after a
-  void-heavy batch) but must be disclosed in the report; `pressure-suite`
+  void-heavy batch) but must be disclosed in the report; `suite --track pressure-test`
   silently overwrites `--out`.
 - A scenario without temptation proves nothing — if every red rep complies,
   suspect the scenario before declaring the rule healthy; but if it tempts
@@ -618,7 +618,7 @@ on those paths — only a completed full campaign is recorded.
   escalated
 - [ ] Mid-campaign arm re-runs (if any) disclosed in the report
 - [ ] scored.json skeleton emitted and the null judgment fields filled;
-  covers every union results id; `pressure-scored-check` exits 0
+  covers every union results id; `scored-check --track pressure-test` exits 0
 - [ ] Report shows per-rule per-arm tables for every rule, verbatim
   rationalizations, counters, meta findings, index sections, the manifest
   line variant, and summary counts
