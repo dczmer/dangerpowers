@@ -7,6 +7,7 @@ Unless explicitly stated by the user, newly created skills should be created und
 - You DO NOT modify README.md. Only humans edit that file, unless the user asks you to make a specific edit.
 - You may update AGENTS.md but always get confirmation from the user first. AGENTS.md should contain important information about the project and commands, issues that happen frequently and require trial and error to fix. But the file should be, otherwise, as short and minimal as possible.
 - Skills live under the `skills` directory below the project root. When told to load, use, or test a skill, use the Glob tool to look under `./skills` instead of inventing plausible-sounding paths or searching the system.
+- Temporary files, like research or planning documents can be placed under `./.tmp`, which is ignored by git.
 
 ## Auditing Python / shell
 

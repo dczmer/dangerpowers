@@ -11,3 +11,4 @@ skills-workspace/**/campaign-*/*
 # mini-campaign query sets are scratch, never recorded
 skills-workspace/**/retrieval-tests/queries-mini-*.json
 .agent/skills-workspace/**/retrieval-tests/queries-mini-*.json
+.tmp
