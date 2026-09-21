@@ -21,6 +21,14 @@ from unittest import mock
 
 import evaluator
 from src.strategies import EventStream
+from src.tracks import (
+    TRACKS,
+    assemble_arm_body,
+    build_shape_run_record,
+    load_shape_entries,
+    marker_triage_counts,
+    verify_arm_bytes,
+)
 
 FRONTMATTER = "---\nname: demo-skill\n---\n"
 SECTION_A = "## Styling\n\nComponents use css modules, never inline"
@@ -93,7 +101,7 @@ class ShapeEntriesTests(unittest.TestCase):
         self.path.write_text(json.dumps(entries))
 
     def _load(self):
-        return evaluator.load_shape_entries(self.path)
+        return load_shape_entries(self.path)
 
     def _rejected(self):
         with self.assertRaises(SystemExit) as cm:
@@ -111,7 +119,7 @@ class ShapeEntriesTests(unittest.TestCase):
     def test_missing_file_rejected(self):
         with self.assertRaises(SystemExit) as cm:
             with redirect_stderr(io.StringIO()):
-                evaluator.load_shape_entries(self.path)
+                load_shape_entries(self.path)
         self.assertEqual(cm.exception.code, 1)
 
     def test_top_level_list_required(self):
@@ -232,7 +240,7 @@ class ArmAssemblyTests(unittest.TestCase):
         self.entry = shaping_entry()
 
     def test_v0_removes_span_and_one_blank_line(self):
-        new_body = evaluator.assemble_arm_body(self.body, self.entry, "v0")
+        new_body = assemble_arm_body(self.body, self.entry, "v0")
         self.assertEqual(
             new_body,
             "# Demo\n\nintro paragraph\n\n## Later\n\nstill here\n",
@@ -240,16 +248,16 @@ class ArmAssemblyTests(unittest.TestCase):
 
     def test_v0_removes_only_one_blank_line(self):
         body = f"pre\n\n{SECTION_A}\n\n\npost\n"
-        new_body = evaluator.assemble_arm_body(body, self.entry, "v0")
+        new_body = assemble_arm_body(body, self.entry, "v0")
         self.assertEqual(new_body, "pre\n\n\npost\n")
 
     def test_v0_span_at_end_without_trailing_blank(self):
         body = f"pre\n\n{SECTION_A}"
-        new_body = evaluator.assemble_arm_body(body, self.entry, "v0")
+        new_body = assemble_arm_body(body, self.entry, "v0")
         self.assertEqual(new_body, "pre\n\n")
 
     def test_vn_replaces_span_keeps_surrounding_bytes(self):
-        new_body = evaluator.assemble_arm_body(self.body, self.entry, "v1")
+        new_body = assemble_arm_body(self.body, self.entry, "v1")
         self.assertEqual(
             new_body,
             "# Demo\n\nintro paragraph\n\n"
@@ -259,34 +267,34 @@ class ArmAssemblyTests(unittest.TestCase):
 
     def test_vn_variant_text_not_in_body_is_assembled(self):
         entry = shaping_entry(variants={"v1": "totally fresh text"})
-        new_body = evaluator.assemble_arm_body(self.body, entry, "v1")
+        new_body = assemble_arm_body(self.body, entry, "v1")
         self.assertIn("totally fresh text", new_body)
 
     def test_non_unique_span_raises(self):
         body = f"{SECTION_A}\n\n{SECTION_A}\n"
         with self.assertRaises(ValueError):
-            evaluator.assemble_arm_body(body, self.entry, "v0")
+            assemble_arm_body(body, self.entry, "v0")
 
     def test_absent_span_raises(self):
         with self.assertRaises(ValueError):
-            evaluator.assemble_arm_body("nothing here\n", self.entry, "v0")
+            assemble_arm_body("nothing here\n", self.entry, "v0")
 
     def test_verify_v0_rejects_span_left_behind(self):
         with self.assertRaises(ValueError):
-            evaluator.verify_arm_bytes(self.body, self.entry, "v0")
+            verify_arm_bytes(self.body, self.entry, "v0")
 
     def test_verify_vn_rejects_missing_variant(self):
         with self.assertRaises(ValueError):
-            evaluator.verify_arm_bytes(self.body, self.entry, "v1")
+            verify_arm_bytes(self.body, self.entry, "v1")
 
     def test_verify_accepts_valid_assemblies(self):
-        evaluator.verify_arm_bytes(
-            evaluator.assemble_arm_body(self.body, self.entry, "v0"),
+        verify_arm_bytes(
+            assemble_arm_body(self.body, self.entry, "v0"),
             self.entry,
             "v0",
         )
-        evaluator.verify_arm_bytes(
-            evaluator.assemble_arm_body(self.body, self.entry, "v2"),
+        verify_arm_bytes(
+            assemble_arm_body(self.body, self.entry, "v2"),
             self.entry,
             "v2",
         )
@@ -307,9 +315,7 @@ class ShapeRunRecordTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def _record(self, ev, arm="v0"):
-        return evaluator.build_shape_run_record(
-            ev, "the prompt", False, self.ws, arm
-        )
+        return build_shape_run_record(ev, "the prompt", False, self.ws, arm)
 
     def test_arm_key_recorded(self):
         rec = self._record(EventStream(answer_parts=["a"]), arm="v2")
@@ -344,7 +350,7 @@ class ShapeRunRecordTests(unittest.TestCase):
         rec = self._record(ev)
         self.assertTrue(rec["timeout"] is False)
         ev_timeout = EventStream(answer_parts=["complete answer"])
-        rec = evaluator.build_shape_run_record(
+        rec = build_shape_run_record(
             ev_timeout, "the prompt", True, self.ws, "v0"
         )
         self.assertTrue(rec["timeout"])
@@ -443,7 +449,7 @@ class ShapeSuiteTests(unittest.TestCase):
         buf = io.StringIO()
         with mock_check_and_resolve(fake):
             with redirect_stdout(buf):
-                rc = evaluator.cmd_shape_suite(args)
+                rc = evaluator.run_suite(TRACKS["shape-test"], args)
         return rc, buf.getvalue(), fake
 
     def test_entries_x_arms_serialized_and_prompts_carry_arm_bodies(self):
@@ -571,7 +577,7 @@ class ShapeSuiteTests(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 with redirect_stderr(io.StringIO()):
                     with self.assertRaises(RuntimeError):
-                        evaluator.cmd_shape_suite(args)
+                        evaluator.run_suite(TRACKS["shape-test"], args)
         # Nothing to restore: the workspace never carries a byte state.
         self.assertFalse((self.ws / ".agents").exists())
 
@@ -668,7 +674,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
         with mock_check_and_resolve(None):
             with redirect_stdout(io.StringIO()):
                 with redirect_stderr(io.StringIO()):
-                    return evaluator.cmd_shape_suite(args)
+                    return evaluator.run_suite(TRACKS["shape-test"], args)
 
     def test_span_absent_from_body_exits_1(self):
         self.skill_body.write_text("# Demo\n\nother text\n")
@@ -719,7 +725,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
             with mock_check_and_resolve(None):
                 with redirect_stdout(io.StringIO()):
                     with redirect_stderr(io.StringIO()):
-                        evaluator.cmd_shape_suite(args)
+                        evaluator.run_suite(TRACKS["shape-test"], args)
         self.assertEqual(cm.exception.code, 1)
         self.assertFalse(self.out.exists())
 
@@ -743,7 +749,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
             with mock_check_and_resolve(None):
                 with redirect_stdout(io.StringIO()):
                     with redirect_stderr(io.StringIO()):
-                        evaluator.cmd_shape_suite(args)
+                        evaluator.run_suite(TRACKS["shape-test"], args)
         self.assertEqual(cm.exception.code, 1)
 
     def test_invalid_fixture_key_exits_1(self):
@@ -766,7 +772,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
             with mock_check_and_resolve(None):
                 with redirect_stdout(io.StringIO()):
                     with redirect_stderr(io.StringIO()):
-                        evaluator.cmd_shape_suite(args)
+                        evaluator.run_suite(TRACKS["shape-test"], args)
         self.assertEqual(cm.exception.code, 1)
 
     def test_reps_below_one_exits_1(self):
@@ -789,7 +795,7 @@ class ShapePreSpendGateTests(unittest.TestCase):
             with mock_check_and_resolve(None):
                 with redirect_stdout(io.StringIO()):
                     with redirect_stderr(io.StringIO()):
-                        evaluator.cmd_shape_suite(args)
+                        evaluator.run_suite(TRACKS["shape-test"], args)
         self.assertEqual(cm.exception.code, 1)
 
 
@@ -868,7 +874,7 @@ class ShapeScoredCheckTests(unittest.TestCase):
         for k, v in overrides.items():
             setattr(args, k, v)
         with redirect_stdout(io.StringIO()):
-            return evaluator.cmd_shape_scored_check(args)
+            return evaluator._scored_check(TRACKS["shape-test"], args)
 
     def test_missing_union_id_rejected(self):
         self.assertEqual(
@@ -916,7 +922,9 @@ class ShapeScoredCheckTests(unittest.TestCase):
             voids=None,
         )
         with redirect_stdout(io.StringIO()):
-            self.assertEqual(evaluator.cmd_shape_scored_check(args), 1)
+            self.assertEqual(
+                evaluator._scored_check(TRACKS["shape-test"], args), 1
+            )
 
     def test_kind_mismatch_vs_results_rejected(self):
         self.assertEqual(
@@ -1256,7 +1264,7 @@ class ShapeEvidenceTests(unittest.TestCase):
             setattr(args, k, v)
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = evaluator.cmd_shape_evidence(args)
+            rc = evaluator.cmd_evidence(TRACKS["shape-test"], args)
         return rc, buf.getvalue()
 
     def test_prints_runs_with_marker_triage(self):
@@ -1428,13 +1436,11 @@ class ShapeEvidenceTests(unittest.TestCase):
 class MarkerTriageTests(unittest.TestCase):
     def test_counts_lines_matching_token(self):
         answer = "a style={{x}}\nb plain\nc style={{y}}\n"
-        counts = evaluator.marker_triage_counts(
-            answer, {"inline_style": "style=\\{\\{"}
-        )
+        counts = marker_triage_counts(answer, {"inline_style": "style=\\{\\{"})
         self.assertEqual(counts, {"inline_style": 2})
 
     def test_empty_answer_zeroes_all_markers(self):
-        counts = evaluator.marker_triage_counts(
+        counts = marker_triage_counts(
             "", {"inline_style": "style", "other": "x"}
         )
         self.assertEqual(counts, {"inline_style": 0, "other": 0})

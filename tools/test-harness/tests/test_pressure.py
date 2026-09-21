@@ -21,6 +21,12 @@ from pathlib import Path
 
 import evaluator
 from src.strategies import EventStream, HarnessExecutionError, OpencodeStrategy
+from src.tracks import (
+    TRACKS,
+    build_pressure_prompt,
+    build_pressure_run_record,
+    load_pressure_scenarios,
+)
 
 from tests.test_shape import mock_check_and_resolve
 
@@ -88,7 +94,7 @@ class PressureScenariosTests(unittest.TestCase):
         self.path.write_text(json.dumps(entries))
 
     def _load(self):
-        return evaluator.load_pressure_scenarios(self.path)
+        return load_pressure_scenarios(self.path)
 
     def _rejected(self):
         with self.assertRaises(SystemExit) as cm:
@@ -105,7 +111,7 @@ class PressureScenariosTests(unittest.TestCase):
     def test_missing_file_rejected(self):
         with self.assertRaises(SystemExit) as cm:
             with redirect_stderr(io.StringIO()):
-                evaluator.load_pressure_scenarios(self.path)
+                load_pressure_scenarios(self.path)
         self.assertEqual(cm.exception.code, 1)
 
     def test_top_level_list_required(self):
@@ -171,15 +177,13 @@ class PressurePromptTests(unittest.TestCase):
         self.entry = scenario_entry()
 
     def test_red_prompt_is_scenario_only(self):
-        prompt = evaluator.build_pressure_prompt(self.entry, "red", None)
+        prompt = build_pressure_prompt(self.entry, "red", None)
         self.assertEqual(prompt, f"Scenario: {SCENARIO}")
         self.assertNotIn("Project conventions", prompt)
         self.assertNotIn("cite it by section name", prompt)
 
     def test_green_prompt_injects_exact_skill_bytes(self):
-        prompt = evaluator.build_pressure_prompt(
-            self.entry, "green", SKILL_BODY
-        )
+        prompt = build_pressure_prompt(self.entry, "green", SKILL_BODY)
         expected = (
             "Project conventions:\n"
             f"{SKILL_BODY}"
@@ -191,22 +195,18 @@ class PressurePromptTests(unittest.TestCase):
 
     def test_scenario_text_is_verbatim_in_both_arms(self):
         for arm in ("red", "green"):
-            prompt = evaluator.build_pressure_prompt(
-                self.entry, arm, SKILL_BODY
-            )
+            prompt = build_pressure_prompt(self.entry, arm, SKILL_BODY)
             self.assertIn(SCENARIO, prompt)
 
     def test_neither_prompt_leaks_statement_or_compliant_option(self):
         entry = scenario_entry(compliant_option="OPTION-ZED-NOT-IN-TEXT")
         for arm in ("red", "green"):
-            prompt = evaluator.build_pressure_prompt(entry, arm, SKILL_BODY)
+            prompt = build_pressure_prompt(entry, arm, SKILL_BODY)
             self.assertNotIn(STATEMENT, prompt)
             self.assertNotIn("OPTION-ZED-NOT-IN-TEXT", prompt)
 
     def test_unknown_arm_falls_back_to_red_template(self):
-        prompt = evaluator.build_pressure_prompt(
-            self.entry, "chartreuse", None
-        )
+        prompt = build_pressure_prompt(self.entry, "chartreuse", None)
         self.assertEqual(prompt, f"Scenario: {SCENARIO}")
 
 
@@ -217,7 +217,7 @@ class PressureRunRecordTests(unittest.TestCase):
     timeout stays a boolean, never a void signal."""
 
     def _record(self, ev, arm="red"):
-        return evaluator.build_pressure_run_record(ev, "prompt", False, arm)
+        return build_pressure_run_record(ev, "prompt", False, arm)
 
     def test_record_fields(self):
         ev = EventStream(
@@ -277,7 +277,7 @@ class PressureRunRecordTests(unittest.TestCase):
 
     def test_timeout_is_a_boolean_not_a_void_signal(self):
         ev = EventStream(answer_parts=["complete answer"])
-        rec = evaluator.build_pressure_run_record(ev, "prompt", True, "red")
+        rec = build_pressure_run_record(ev, "prompt", True, "red")
         self.assertTrue(rec["timeout"])
         self.assertEqual(rec["void_signals"], [])
 
@@ -352,7 +352,7 @@ class PressureSuiteTests(unittest.TestCase):
         buf = io.StringIO()
         with mock_check_and_resolve(fake):
             with redirect_stdout(buf):
-                rc = evaluator.cmd_pressure_suite(args)
+                rc = evaluator.run_suite(TRACKS["pressure-test"], args)
         return rc, buf.getvalue(), fake
 
     def test_red_arm_dispatches_bare_scenario(self):
@@ -365,9 +365,7 @@ class PressureSuiteTests(unittest.TestCase):
     def test_green_arm_injects_exact_skill_bytes(self):
         rc, out, fake = self._run(arm="green", skill_file=str(self.skill_file))
         self.assertEqual(rc, 0)
-        expected = evaluator.build_pressure_prompt(
-            scenario_entry(), "green", SKILL_BODY
-        )
+        expected = build_pressure_prompt(scenario_entry(), "green", SKILL_BODY)
         for query in fake.queries:
             self.assertEqual(query, expected)
         self.assertIn("[green] [rep   1] started", out)
@@ -455,7 +453,7 @@ class PressurePreSpendGateTests(unittest.TestCase):
         with mock_check_and_resolve(None):
             with redirect_stdout(io.StringIO()):
                 with redirect_stderr(io.StringIO()):
-                    evaluator.cmd_pressure_suite(args)
+                    evaluator.run_suite(TRACKS["pressure-test"], args)
 
     def _assert_blocked(self, **overrides):
         with self.assertRaises(SystemExit) as cm:
@@ -572,7 +570,7 @@ class PressureScoredCheckTests(unittest.TestCase):
         for k, v in overrides.items():
             setattr(args, k, v)
         with redirect_stdout(io.StringIO()):
-            return evaluator.cmd_pressure_scored_check(args)
+            return evaluator._scored_check(TRACKS["pressure-test"], args)
 
     def test_full_coverage_with_matching_count_gate_passes(self):
         rc = self._check(
@@ -980,7 +978,9 @@ class PressureMetaTests(unittest.TestCase):
         buf = io.StringIO()
         with mock_check_and_resolve(fake):
             with redirect_stdout(buf):
-                rc = evaluator.cmd_pressure_meta(self._args(**overrides))
+                rc = evaluator.cmd_meta(
+                    TRACKS["pressure-test"], self._args(**overrides)
+                )
         return rc, buf.getvalue()
 
     def test_resume_writes_json_payload(self):
@@ -1109,7 +1109,7 @@ class PressureEvidenceTests(unittest.TestCase):
             setattr(args, k, v)
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = evaluator.cmd_pressure_evidence(args)
+            rc = evaluator.cmd_evidence(TRACKS["pressure-test"], args)
         return rc, buf.getvalue()
 
     def test_prints_entry_scoring_fields_and_run_evidence(self):

@@ -20,6 +20,16 @@ from unittest import mock
 
 import evaluator
 from src import strategies
+from src.common import _score_counts
+from src.strategies import HarnessExecutionError, Verdict
+from src.tracks import (
+    TRACKS,
+    assemble_arm_body,
+    build_shape_prompt,
+    build_shape_run_record,
+    cmd_run,
+    verify_arm_bytes,
+)
 
 SKILL = "writing-skills"
 
@@ -67,7 +77,7 @@ class VerdictTests(unittest.TestCase):
 
     def _evaluate(
         self, stdout: str = "", stderr: str = "", returncode: int = 0
-    ) -> evaluator.Verdict:
+    ) -> Verdict:
         proc = subprocess.CompletedProcess(
             args=[], returncode=returncode, stdout=stdout, stderr=stderr
         )
@@ -76,7 +86,7 @@ class VerdictTests(unittest.TestCase):
         ):
             return self.strategy.evaluate(SKILL, "test query", self.ws)
 
-    def _evaluate_timeout(self, partial_stdout: str) -> evaluator.Verdict:
+    def _evaluate_timeout(self, partial_stdout: str) -> Verdict:
         err = subprocess.TimeoutExpired(
             cmd=["opencode"], timeout=30, output=partial_stdout
         )
@@ -202,7 +212,7 @@ class VerdictTests(unittest.TestCase):
             f'agent "{self.strategy.agent_name}" not found. '
             f"Falling back to default agent\n"
         )
-        with self.assertRaises(evaluator.HarnessExecutionError):
+        with self.assertRaises(HarnessExecutionError):
             self._evaluate(
                 stdout=ndjson(text_event("No skill matched.")), stderr=stderr
             )
@@ -598,7 +608,7 @@ class RecordScoreFromTests(unittest.TestCase):
         rc, _out = self._record()
         self.assertEqual(rc, 0)
         entry = json.loads(self.manifest.read_text())["trigger-test"]
-        _low, _high, expected = evaluator._score_counts(3, 3)
+        _low, _high, expected = _score_counts(3, 3)
         self.assertIsNotNone(expected)
         assert expected is not None  # narrowing for the type checker
         self.assertEqual(entry["score"], expected)
@@ -611,7 +621,7 @@ class RecordScoreFromTests(unittest.TestCase):
         rc, _out = self._record()
         self.assertEqual(rc, 0)
         entry = json.loads(self.manifest.read_text())["trigger-test"]
-        _low, _high, expected = evaluator._score_counts(4, 1)
+        _low, _high, expected = _score_counts(4, 1)
         self.assertIsNotNone(expected)
         assert expected is not None
         self.assertEqual(entry["score"], expected)
@@ -663,7 +673,7 @@ class FailuresTests(unittest.TestCase):
         args = argparse.Namespace(results=str(path or self.results))
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            rc = evaluator.cmd_failures(args)
+            rc = TRACKS["trigger-test"].print_evidence(args)
         return rc, buf.getvalue()
 
     def _failure(self, run: int = 2, reasoning: str = "it looked\nrelevant"):
@@ -890,7 +900,7 @@ class SuiteTests(HarnessWorkspaceMixin, unittest.TestCase):
             ),
             contextlib.redirect_stdout(io.StringIO()),
         ):
-            return evaluator.cmd_suite(args)
+            return evaluator.run_suite(TRACKS["trigger-test"], args)
 
     def test_failures_and_voids_carry_session_ids(self):
         # rep 1 passes (smoke rep); reps 2 and 3 run concurrently and may
@@ -960,7 +970,7 @@ class AbortSessionTests(HarnessWorkspaceMixin, unittest.TestCase):
             contextlib.redirect_stdout(io.StringIO()),
             self.assertRaises(SystemExit),
         ):
-            evaluator.cmd_run(self._run_args(reps))
+            cmd_run(self._run_args(reps))
         return buf.getvalue()
 
     def test_smoke_abort_line_carries_session_id(self):
@@ -1008,32 +1018,32 @@ class ShapeInjectionTests(unittest.TestCase):
     }
 
     def test_v0_removes_span_and_one_blank_line(self):
-        arm_body = evaluator.assemble_arm_body(self.BODY, self.ENTRY, "v0")
+        arm_body = assemble_arm_body(self.BODY, self.ENTRY, "v0")
         self.assertNotIn(self.SECTION, arm_body)
         # Neighbour sections keep exactly one blank line between them.
         self.assertIn("# Conventions\n\n## Layout", arm_body)
 
     def test_variant_replaces_span(self):
-        arm_body = evaluator.assemble_arm_body(self.BODY, self.ENTRY, "v1")
+        arm_body = assemble_arm_body(self.BODY, self.ENTRY, "v1")
         self.assertIn("Never use inline styles.", arm_body)
         self.assertNotIn(self.SECTION, arm_body)
 
     def test_non_unique_span_raises(self):
         body = self.BODY + "\n" + self.SECTION + "\n"
         with self.assertRaises(ValueError):
-            evaluator.assemble_arm_body(body, self.ENTRY, "v0")
+            assemble_arm_body(body, self.ENTRY, "v0")
 
     def test_verify_arm_bytes_catches_bad_assembly(self):
         with self.assertRaises(ValueError):
-            evaluator.verify_arm_bytes(self.BODY, self.ENTRY, "v0")
+            verify_arm_bytes(self.BODY, self.ENTRY, "v0")
         with self.assertRaises(ValueError):
-            evaluator.verify_arm_bytes(self.BODY, self.ENTRY, "v1")
-        ok = evaluator.assemble_arm_body(self.BODY, self.ENTRY, "v0")
-        evaluator.verify_arm_bytes(ok, self.ENTRY, "v0")  # no raise
+            verify_arm_bytes(self.BODY, self.ENTRY, "v1")
+        ok = assemble_arm_body(self.BODY, self.ENTRY, "v0")
+        verify_arm_bytes(ok, self.ENTRY, "v0")  # no raise
 
     def test_prompt_injects_conventions_and_fixture(self):
-        arm_body = evaluator.assemble_arm_body(self.BODY, self.ENTRY, "v0")
-        prompt = evaluator.build_shape_prompt(
+        arm_body = assemble_arm_body(self.BODY, self.ENTRY, "v0")
+        prompt = build_shape_prompt(
             arm_body, self.ENTRY["fixtures"]["application"]
         )
         self.assertTrue(prompt.startswith("Project conventions:\n"))
@@ -1051,17 +1061,13 @@ class ShapeInjectionTests(unittest.TestCase):
                 text_event("the artifact"),
             ]
         )
-        record = evaluator.build_shape_run_record(
-            ev, "p", False, Path("/"), "v0"
-        )
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
         self.assertIn("skill-load-attempted", record["void_signals"])
         self.assertNotIn("empty-answer", record["void_signals"])
 
     def test_clean_run_has_no_signals(self):
         ev = self._ev([text_event("the artifact")])
-        record = evaluator.build_shape_run_record(
-            ev, "p", False, Path("/"), "v0"
-        )
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
         self.assertEqual(record["void_signals"], [])
         self.assertNotIn("skill_load_completed", record)
 
@@ -1146,7 +1152,7 @@ class ShapeSuiteEndToEndTests(unittest.TestCase):
             ),
             contextlib.redirect_stdout(io.StringIO()),
         ):
-            rc = evaluator.cmd_shape_suite(self._args())
+            rc = evaluator.run_suite(TRACKS["shape-test"], self._args())
         self.assertEqual(rc, 0)
         data = json.loads(self.out.read_text())
         self.assertEqual(data["config"]["skill_file"], str(self.skill_body))
@@ -1180,7 +1186,7 @@ class ShapeSuiteEndToEndTests(unittest.TestCase):
             contextlib.redirect_stdout(io.StringIO()),
             self.assertRaises(SystemExit),
         ):
-            evaluator.cmd_shape_suite(self._args())
+            evaluator.run_suite(TRACKS["shape-test"], self._args())
         self.assertIn("never sync", buf.getvalue())
 
     def test_missing_skill_file_fails_pre_spend(self):
@@ -1195,7 +1201,7 @@ class ShapeSuiteEndToEndTests(unittest.TestCase):
             contextlib.redirect_stdout(io.StringIO()),
             self.assertRaises(SystemExit),
         ):
-            evaluator.cmd_shape_suite(args)
+            evaluator.run_suite(TRACKS["shape-test"], args)
         self.assertIn("skill file not found", buf.getvalue())
 
 

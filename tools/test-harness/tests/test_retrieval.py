@@ -21,6 +21,12 @@ from unittest import mock
 
 import evaluator
 from src.strategies import EventStream
+from src.tracks import (
+    TRACKS,
+    build_run_record,
+    load_retrieval_queries,
+    stage_and_dispatch,
+)
 
 
 class DirHashTests(unittest.TestCase):
@@ -202,7 +208,7 @@ class RetrievalQueryTests(unittest.TestCase):
         self.queries.write_text(json.dumps(entries))
 
     def _load(self):
-        return evaluator.load_retrieval_queries(self.queries)
+        return load_retrieval_queries(self.queries)
 
     def test_valid_file_loads(self):
         self._write(
@@ -302,7 +308,7 @@ class FixtureStagingTests(unittest.TestCase):
             "expect": ["b"],
             "fixtures": ["f.md"],
         }
-        dispatched = evaluator.stage_and_dispatch(
+        dispatched = stage_and_dispatch(
             entry, "skill_arm", 1, 2, self.arm_ws, self.fixtures_dir
         )
         run_dir = self.arm_ws / "fixtures" / "q1" / "skill_arm-rep1"
@@ -316,7 +322,7 @@ class FixtureStagingTests(unittest.TestCase):
             "expect": ["b"],
             "fixtures": ["f.md"],
         }
-        evaluator.stage_and_dispatch(
+        stage_and_dispatch(
             entry, "control_arm", 1, 1, self.arm_ws, self.fixtures_dir
         )
         self.assertTrue(
@@ -325,7 +331,7 @@ class FixtureStagingTests(unittest.TestCase):
 
     def test_no_fixtures_returns_query_verbatim(self):
         entry = {"id": "q1", "query": "plain query", "expect": ["b"]}
-        dispatched = evaluator.stage_and_dispatch(
+        dispatched = stage_and_dispatch(
             entry, "skill_arm", 1, 1, self.arm_ws, self.fixtures_dir
         )
         self.assertEqual(dispatched, "plain query")
@@ -350,7 +356,7 @@ class RunRecordTests(unittest.TestCase):
             skill=skill,
         )
         defaults.update(kwargs)
-        return evaluator.build_run_record(ev, **defaults)
+        return build_run_record(ev, **defaults)
 
     def test_skill_arm_without_completed_load_signals(self):
         ev = EventStream(answer_parts=["answer"])
@@ -695,7 +701,7 @@ class ControlPurityTests(unittest.TestCase):
         with mock.patch.object(evaluator, "check_harness", lambda *a: None):
             with self.assertRaises(SystemExit) as cm:
                 with redirect_stderr(io.StringIO()):
-                    evaluator.cmd_retrieval_suite(self._args())
+                    evaluator.run_suite(TRACKS["retrieval-test"], self._args())
         self.assertEqual(cm.exception.code, 1)
         self.assertFalse(self.out.exists())
 
@@ -789,7 +795,7 @@ class ParallelArmTests(unittest.TestCase):
                 lambda h: lambda timeout=30: fake,
             ):
                 with redirect_stdout(buf):
-                    rc = evaluator.cmd_retrieval_suite(args)
+                    rc = evaluator.run_suite(TRACKS["retrieval-test"], args)
         return rc, buf.getvalue(), fake
 
     def test_arms_of_an_entry_run_concurrently(self):
@@ -884,7 +890,7 @@ class RetrievalEvidenceTests(unittest.TestCase):
             setattr(args, key, value)
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = evaluator.cmd_retrieval_evidence(args)
+            rc = evaluator.cmd_evidence(TRACKS["retrieval-test"], args)
         return rc, buf.getvalue()
 
     def test_prints_all_evidence_arm_tagged(self):

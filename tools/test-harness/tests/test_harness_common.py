@@ -19,7 +19,19 @@ from pathlib import Path
 from typing import cast
 
 import evaluator
+from src.common import (
+    counts_gate,
+    run_rep_batched,
+    union_results,
+    validate_eval_agent,
+)
 from src.strategies import EvalStrategy, HarnessExecutionError
+from src.tracks import (
+    TRACKS,
+    _pressure_union_hook,
+    _retrieval_union_hook,
+    _shape_union_hook,
+)
 
 # The eval agent each track installs through the shared pre-spend gate.
 TRACK_AGENTS = {
@@ -56,6 +68,18 @@ EVIDENCE_COMMANDS = {
 }
 
 
+def cmd_retrieval_evidence(args):
+    return evaluator.cmd_evidence(TRACKS["retrieval-test"], args)
+
+
+def cmd_shape_evidence(args):
+    return evaluator.cmd_evidence(TRACKS["shape-test"], args)
+
+
+def cmd_pressure_evidence(args):
+    return evaluator.cmd_evidence(TRACKS["pressure-test"], args)
+
+
 class RunRepBatchedTests(unittest.TestCase):
     """run_rep_batched: the smoke rep runs alone and a harness error in
     the smoke rep or any batch aborts with the exact stderr lines and
@@ -73,7 +97,7 @@ class RunRepBatchedTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             self.assertRaises(SystemExit) as cm,
         ):
-            evaluator.run_rep_batched(run_one, 3, " x ")
+            run_rep_batched(run_one, 3, " x ")
         self.assertEqual(cm.exception.code, 1)
         self.assertEqual(
             stderr.getvalue(),
@@ -93,7 +117,7 @@ class RunRepBatchedTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             self.assertRaises(SystemExit) as cm,
         ):
-            evaluator.run_rep_batched(run_one, 3, " x ")
+            run_rep_batched(run_one, 3, " x ")
         self.assertEqual(cm.exception.code, 1)
         self.assertIn(
             "error: [ x ] rep 2 could not execute: "
@@ -107,7 +131,7 @@ class RunRepBatchedTests(unittest.TestCase):
             return {"rep": n}
 
         with redirect_stdout(io.StringIO()):
-            runs = evaluator.run_rep_batched(run_one, 3, " x ")
+            runs = run_rep_batched(run_one, 3, " x ")
         self.assertEqual(runs, [{"rep": 1}, {"rep": 2}, {"rep": 3}])
 
 
@@ -144,7 +168,7 @@ class AgentGateTests(unittest.TestCase):
             redirect_stderr(stderr),
             self.assertRaises(SystemExit) as cm,
         ):
-            evaluator.validate_eval_agent(self.probe, self.agents_dir, name)
+            validate_eval_agent(self.probe, self.agents_dir, name)
         self.assertEqual(cm.exception.code, 1)
         self.assertEqual(stderr.getvalue(), expected_err.format(f=agent_file))
 
@@ -153,7 +177,7 @@ class AgentGateTests(unittest.TestCase):
             name, f"---\nname: {name}\nmode: primary\n---\nbody\n"
         )
         self.assertEqual(
-            evaluator.validate_eval_agent(self.probe, self.agents_dir, name),
+            validate_eval_agent(self.probe, self.agents_dir, name),
             agent_file,
         )
 
@@ -165,9 +189,7 @@ class AgentGateTests(unittest.TestCase):
                     redirect_stderr(stderr),
                     self.assertRaises(SystemExit) as cm,
                 ):
-                    evaluator.validate_eval_agent(
-                        self.probe, self.agents_dir, name
-                    )
+                    validate_eval_agent(self.probe, self.agents_dir, name)
                 self.assertEqual(cm.exception.code, 1)
                 self.assertEqual(
                     stderr.getvalue(),
@@ -222,7 +244,7 @@ class CountsGateTests(unittest.TestCase):
 
     def _assert_matching_passes(self, track):
         arg_names = COUNTS_VOCABULARY[track]["arg_names"]
-        rc = evaluator.counts_gate(
+        rc = counts_gate(
             self._args(track, **dict(zip(arg_names, (1, 1, 0, 0)))),
             self._entries(track),
             arg_names,
@@ -235,7 +257,7 @@ class CountsGateTests(unittest.TestCase):
         result_names = COUNTS_VOCABULARY[track]["result_names"]
         stderr = io.StringIO()
         with redirect_stderr(stderr):
-            rc = evaluator.counts_gate(
+            rc = counts_gate(
                 self._args(track, **dict(zip(arg_names, (2, 0, 0, 0)))),
                 self._entries(track),
                 arg_names,
@@ -259,7 +281,7 @@ class CountsGateTests(unittest.TestCase):
         flags = "/".join(f"--{n.replace('_', '-')}" for n in arg_names)
         stderr = io.StringIO()
         with redirect_stderr(stderr):
-            rc = evaluator.counts_gate(
+            rc = counts_gate(
                 self._args(track, **{arg_names[0]: 1}),
                 self._entries(track),
                 arg_names,
@@ -341,11 +363,11 @@ class UnionResultsTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         paths = self._fixtures(track, Path(tmp.name))
         hook = {
-            "retrieval": evaluator._retrieval_union_hook,
-            "shape": evaluator._shape_union_hook,
-            "pressure": evaluator._pressure_union_hook,
+            "retrieval": _retrieval_union_hook,
+            "shape": _shape_union_hook,
+            "pressure": _pressure_union_hook,
         }[track]
-        out = evaluator.union_results(paths, track, entry_hook=hook)
+        out = union_results(paths, track, entry_hook=hook)
         if isinstance(out, str):
             self.fail(f"union_results returned an error: {out}")
         ids, arms, extras = out
@@ -383,7 +405,7 @@ class EvidenceEnvelopeTests(unittest.TestCase):
         args = argparse.Namespace(results=str(results_path), **extra)
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = getattr(evaluator, cmd)(args)
+            rc = globals()[cmd](args)
         return rc
 
     def _assert_malformed_envelope(self, track):
@@ -448,6 +470,18 @@ SCORED_COMMANDS = {
         ("bulletproof", "no_failure", "unresolved", "voids"),
     ),
 }
+
+
+def cmd_scored_check(args):
+    return evaluator.cmd_scored_check(args)
+
+
+def cmd_shape_scored_check(args):
+    return evaluator._scored_check(TRACKS["shape-test"], args)
+
+
+def cmd_pressure_scored_check(args):
+    return evaluator._scored_check(TRACKS["pressure-test"], args)
 
 
 class SkeletonEmitTests(unittest.TestCase):
@@ -588,7 +622,7 @@ class SkeletonEmitTests(unittest.TestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
-            rc = getattr(evaluator, cmd)(args)
+            rc = globals()[cmd](args)
         return rc, stdout.getvalue(), stderr.getvalue()
 
     def _emit(self, track):
