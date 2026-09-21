@@ -20,7 +20,7 @@ from typing import Any
 from unittest import mock
 
 import evaluator
-from strategies import EventStream
+from src.strategies import EventStream
 
 
 class DirHashTests(unittest.TestCase):

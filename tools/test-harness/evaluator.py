@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable, Iterator, TextIO
 
-from strategies import (
+from src.strategies import (
     EvalStrategy,
     HarnessExecutionError,
     Verdict,

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent / "workspace-manager.sh"
+SCRIPT = Path(__file__).resolve().parent.parent / "workspace-manager.sh"
 
 
 def run_wm(*args):

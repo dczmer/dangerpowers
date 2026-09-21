@@ -20,7 +20,7 @@ from pathlib import Path
 from unittest import mock
 
 import evaluator
-from strategies import EventStream
+from src.strategies import EventStream
 
 FRONTMATTER = "---\nname: demo-skill\n---\n"
 SECTION_A = "## Styling\n\nComponents use css modules, never inline"

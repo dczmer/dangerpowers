@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import cast
 
 import evaluator
-from strategies import EvalStrategy, HarnessExecutionError
+from src.strategies import EvalStrategy, HarnessExecutionError
 
 # The eval agent each track installs through the shared pre-spend gate.
 TRACK_AGENTS = {

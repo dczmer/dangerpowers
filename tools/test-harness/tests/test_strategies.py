@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import strategies
+from src import strategies
 
 SKILL = "writing-skills"
 

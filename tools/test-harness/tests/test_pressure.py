@@ -20,8 +20,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import evaluator
-from strategies import EventStream, HarnessExecutionError, OpencodeStrategy
-from test_shape import mock_check_and_resolve
+from src.strategies import EventStream, HarnessExecutionError, OpencodeStrategy
+
+from tests.test_shape import mock_check_and_resolve
 
 SKILL_BODY = (
     "# Conventions\n\n"
