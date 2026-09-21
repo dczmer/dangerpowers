@@ -149,10 +149,17 @@ def extract_frontmatter(text: str) -> str | None:
     return None
 
 
+# Historical listing order of the mixed-vocabulary error message
+# (pressure-first, as since the per-track scored checks were introduced);
+# registry iteration order would surface retrieval-first instead.
+_SCORED_TRACK_ORDER = ("pressure-test", "shape-test", "retrieval-test")
+
+
 def _scored_track_signals(scored_entries: list[dict]) -> list[str]:
     """Collect the set of tracks the scored entries can be proven to
     belong to, using only discriminating signals (each scored track's
-    scored_signal over the registry)."""
+    scored_signal over the registry), listed in the historical
+    _SCORED_TRACK_ORDER."""
     hits = {
         name: False for name, track in TRACKS.items() if track.supports_scored
     }
@@ -162,7 +169,7 @@ def _scored_track_signals(scored_entries: list[dict]) -> list[str]:
         for name, track in TRACKS.items():
             if track.supports_scored and track.scored_signal(e):
                 hits[name] = True
-    return [name for name, hit in hits.items() if hit]
+    return [name for name in _SCORED_TRACK_ORDER if hits.get(name, False)]
 
 
 def sums_from_scored(

@@ -949,9 +949,9 @@ class RetrievalTrack(Track):
         """Order preserved from the old cmd_retrieval_suite: check_harness
         → agent validation → --reps → --timeout → skill-ws sync check →
         control contamination → load queries → --out parent. Returns the
-        validated entries, or an int rc with the         exact error already
-        printed. The merged-parser flag requirement and the historical 1/120
-        reps/timeout defaults are applied here (Q7a)."""
+        validated entries, or an int rc with the exact error already
+        printed. The merged-parser flag requirement and the historical
+        1/120 reps/timeout defaults are applied here (Q7a)."""
         _required(
             args, self, "skill_workspace", "control_workspace", "queries"
         )

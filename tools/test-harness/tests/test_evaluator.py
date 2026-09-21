@@ -223,6 +223,42 @@ class RecordScoredTests(unittest.TestCase):
         )
         self.assertNotIn("deprecated", err)
 
+    def test_dir_scope_preserves_existing_manifest_keys(self):
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "test-skill",
+                    "trigger-test": {"date": "old", "score": 0.5},
+                    "future-test": {"date": "x"},
+                }
+            )
+        )
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record()
+        self.assertEqual(rc, 0)
+        data = json.loads(self.manifest.read_text())
+        self.assertEqual(data["future-test"], {"date": "x"})
+        self.assertEqual(data["trigger-test"]["score"], 0.5)
+        entry = data["retrieval-test"]
+        self.assertEqual(
+            set(entry),
+            {
+                "date",
+                "checksum",
+                "passes",
+                "fails",
+                "gaps",
+                "voids",
+                "campaign",
+            },
+        )
+        self.assertEqual(entry["date"], "2026-09-14")
+        self.assertEqual(entry["campaign"], "campaign-2026-09-14")
+        self.assertEqual(entry["passes"], 1)
+        self.assertEqual(
+            entry["checksum"], evaluator.hash_skill_dir(self.skill_dir)
+        )
+
     def test_scored_shape_sums_and_key(self):
         self._write_scored(
             [
@@ -310,6 +346,10 @@ class RecordScoredTests(unittest.TestCase):
         rc, _out, err = self._record()
         self.assertEqual(rc, 1)
         self.assertIn("refusing to guess", err)
+        self.assertIn(
+            "mix track vocabularies (pressure-test, shape-test)",
+            err,
+        )
         self.assertFalse(self.manifest.exists())
 
     def test_scored_result_outside_vocabulary_rejected(self):
