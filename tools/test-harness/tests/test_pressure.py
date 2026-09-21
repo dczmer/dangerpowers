@@ -560,6 +560,7 @@ class PressureScoredCheckTests(unittest.TestCase):
     def _check(self, entries, results=None, **overrides):
         self.scored.write_text(json.dumps({"entries": entries}))
         args = argparse.Namespace(
+            track="pressure-test",
             results=list(results if results is not None else self.results),
             scored=str(self.scored),
             bulletproof=None,
@@ -570,7 +571,7 @@ class PressureScoredCheckTests(unittest.TestCase):
         for k, v in overrides.items():
             setattr(args, k, v)
         with redirect_stdout(io.StringIO()):
-            return evaluator._scored_check(TRACKS["pressure-test"], args)
+            return evaluator.cmd_scored_check(args)
 
     def test_full_coverage_with_matching_count_gate_passes(self):
         rc = self._check(
@@ -753,11 +754,10 @@ class PressureScoredCheckTests(unittest.TestCase):
 
 
 class PressureRecordTests(unittest.TestCase):
-    """record --track pressure-test: the pressure vocabulary lands under
-    the pressure-test manifest key, the retrieval/shape vocabularies are
-    rejected on this track, --bulletproof is rejected under
-    --scope frontmatter, and omitting --track keeps the back-compatible
-    retrieval-test default."""
+    """record --track pressure-test: the counts flags are rejected on the
+    dir scope (`counts flags are replaced by --scored` / `--scored is
+    required with --scope dir`) and --bulletproof is rejected under
+    --scope frontmatter."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -794,69 +794,25 @@ class PressureRecordTests(unittest.TestCase):
         )
         for k, v in overrides.items():
             setattr(args, k, v)
-        with redirect_stdout(io.StringIO()):
-            return evaluator.cmd_record(args)
+        err = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(err):
+            rc = evaluator.cmd_record(args)
+        self.last_err = err.getvalue()
+        return rc
 
-    def test_pressure_track_writes_pressure_key_and_preserves_others(self):
-        self.manifest.write_text(
-            json.dumps(
-                {
-                    "skill": "test-skill",
-                    "trigger-test": {"date": "old", "score": 0.5},
-                    "shape-test": {"date": "old", "adopted": 1},
-                }
-            )
-        )
+    def test_counts_flags_replaced_by_scored(self):
         rc = self._record()
-        self.assertEqual(rc, 0)
-        data = json.loads(self.manifest.read_text())
-        self.assertEqual(data["trigger-test"]["score"], 0.5)
-        self.assertEqual(data["shape-test"]["adopted"], 1)
-        entry = data["pressure-test"]
-        self.assertEqual(
-            set(entry),
-            {
-                "date",
-                "checksum",
-                "bulletproof",
-                "no-failure",
-                "unresolved",
-                "voids",
-                "campaign",
-            },
-        )
-        self.assertEqual(entry["bulletproof"], 3)
-        self.assertEqual(entry["no-failure"], 1)
-        self.assertEqual(entry["unresolved"], 0)
-        self.assertEqual(entry["voids"], 0)
-        self.assertEqual(
-            entry["checksum"], evaluator.hash_skill_dir(self.skill_dir)
-        )
-
-    def test_adopted_rejected_on_pressure_track(self):
-        rc = self._record(adopted=1)
         self.assertEqual(rc, 1)
+        self.assertIn("counts flags are replaced by --scored", self.last_err)
         self.assertFalse(self.manifest.exists())
 
-    def test_retrieval_counts_rejected_on_pressure_track(self):
-        rc = self._record(passes=1, bulletproof=None)
-        self.assertEqual(rc, 1)
-        self.assertFalse(self.manifest.exists())
-
-    def test_missing_pressure_count_rejected(self):
-        rc = self._record(voids=None)
-        self.assertEqual(rc, 1)
-        self.assertFalse(self.manifest.exists())
-
-    def test_pressure_counts_rejected_on_retrieval_track(self):
+    def test_missing_scored_rejected(self):
         rc = self._record(
-            track="retrieval-test",
-            passes=1,
-            fails=0,
-            gaps=0,
-            bulletproof=None,
+            voids=None, bulletproof=None, no_failure=None, unresolved=None
         )
         self.assertEqual(rc, 1)
+        self.assertIn("--scored is required with --scope dir", self.last_err)
+        self.assertFalse(self.manifest.exists())
 
     def test_bulletproof_rejected_under_scope_frontmatter(self):
         skill_md = self.root / "SKILL.md"
@@ -884,33 +840,6 @@ class PressureRecordTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("counts are only valid with --scope dir", err.getvalue())
         self.assertFalse(self.manifest.exists())
-
-    def test_track_omitted_defaults_to_retrieval_test(self):
-        args = argparse.Namespace(
-            skill="test-skill",
-            skill_path=str(self.skill_dir),
-            manifest=str(self.manifest),
-            scope="dir",
-            score=None,
-            passes=1,
-            fails=0,
-            gaps=0,
-            voids=0,
-            adopted=None,
-            bulletproof=None,
-            no_failure=None,
-            unresolved=None,
-            ablations=None,
-            campaign=None,
-            date="2026-09-18",
-        )
-        # No 'track' attribute at all — the phase-1 back-compat path.
-        with redirect_stdout(io.StringIO()):
-            rc = evaluator.cmd_record(args)
-        self.assertEqual(rc, 0)
-        data = json.loads(self.manifest.read_text())
-        self.assertIn("retrieval-test", data)
-        self.assertNotIn("pressure-test", data)
 
 
 class PressureMetaTests(unittest.TestCase):
@@ -960,6 +889,7 @@ class PressureMetaTests(unittest.TestCase):
 
     def _args(self, **overrides):
         args = argparse.Namespace(
+            track="pressure-test",
             harness="opencode",
             agents_dir=str(self.agents_dir),
             workspace=str(self.ws),
@@ -978,9 +908,7 @@ class PressureMetaTests(unittest.TestCase):
         buf = io.StringIO()
         with mock_check_and_resolve(fake):
             with redirect_stdout(buf):
-                rc = evaluator.cmd_meta(
-                    TRACKS["pressure-test"], self._args(**overrides)
-                )
+                rc = evaluator.cmd_meta(self._args(**overrides))
         return rc, buf.getvalue()
 
     def test_resume_writes_json_payload(self):
@@ -1103,13 +1031,17 @@ class PressureEvidenceTests(unittest.TestCase):
 
     def _run(self, **overrides):
         args = argparse.Namespace(
-            results=str(self.results), entry=None, arm=None
+            track="pressure-test",
+            results=str(self.results),
+            entry=None,
+            arm=None,
+            compare=False,
         )
         for k, v in overrides.items():
             setattr(args, k, v)
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = evaluator.cmd_evidence(TRACKS["pressure-test"], args)
+            rc = evaluator.cmd_evidence(args)
         return rc, buf.getvalue()
 
     def test_prints_entry_scoring_fields_and_run_evidence(self):

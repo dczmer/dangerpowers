@@ -281,13 +281,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     `shape-test`, or `pressure-test` with --scope dir --track); unknown
     keys are preserved. With --scope dir --scored, the counts come from
     the scored.json result sums and the track is detected from the file
-    (an explicit --track is checked against the detection); the legacy
-    counts-flag path is retained one release and prints a deprecation
-    note. --scope dir --track selects the count vocabulary for the
-    legacy path: retrieval-test uses passes/fails/gaps/voids (the
-    default, back-compatible), shape-test uses
-    adopted/no-failure/unresolved/voids, pressure-test uses
-    bulletproof/no-failure/unresolved/voids."""
+    (an explicit --track is checked against the detection); the counts
+    flags are rejected (`counts flags are replaced by --scored`) and
+    --scored is required with --scope dir."""
     skill_path = Path(args.skill_path)
     scope = getattr(args, "scope", "frontmatter")
 
@@ -330,148 +326,24 @@ def cmd_record(args: argparse.Namespace) -> int:
                 f"--scope dir expects the skill directory: {skill_path}"
             )
         checksum = hash_skill_dir(skill_path)
-        if getattr(args, "scored", None) is not None:
-            if _any_counts_given(args):
-                return _err("counts flags are replaced by --scored")
-            track_sums = sums_from_scored(
-                Path(args.scored), getattr(args, "track", None)
-            )
-            if isinstance(track_sums, str):
-                return _err(track_sums)
-            track, sums = track_sums
-            entry = {
-                "date": args.date or datetime.now(UTC).date().isoformat(),
-                "checksum": checksum,
-                **sums,
-            }
-            if args.ablations is not None:
-                entry["ablations"] = args.ablations
-            key = track
-        else:
-            # Legacy counts-flag path, retained one release for
-            # back-compat; the deprecation note fires on stderr only
-            # when this path actually records.
-            track = getattr(args, "track", None) or "retrieval-test"
-            if track == "shape-test":
-                # voids is shared by both vocabularies; the retrieval-only
-                # counts must not appear on a shape-test record.
-                if any(
-                    getattr(args, n, None) is not None
-                    for n in (
-                        "passes",
-                        "fails",
-                        "gaps",
-                        "ablations",
-                        "bulletproof",
-                    )
-                ):
-                    return _err(
-                        "passes/fails/gaps/ablations/bulletproof are only "
-                        "valid with --track retrieval-test or --track "
-                        "pressure-test"
-                    )
-                missing = [
-                    n
-                    for n in ("adopted", "no_failure", "unresolved", "voids")
-                    if getattr(args, n, None) is None
-                ]
-                if missing:
-                    return _err(
-                        "counts required with --scope dir --track "
-                        "shape-test: " + ", ".join(missing)
-                    )
-                entry = {
-                    "date": args.date or datetime.now(UTC).date().isoformat(),
-                    "checksum": checksum,
-                    "adopted": args.adopted,
-                    "no-failure": args.no_failure,
-                    "unresolved": args.unresolved,
-                    "voids": args.voids,
-                }
-                key = "shape-test"
-            elif track == "pressure-test":
-                # voids/no_failure/unresolved are shared with the shape
-                # vocabulary; the retrieval and shape-only counts must
-                # not appear on a pressure-test record.
-                if any(
-                    getattr(args, n, None) is not None
-                    for n in (
-                        "passes",
-                        "fails",
-                        "gaps",
-                        "ablations",
-                        "adopted",
-                    )
-                ):
-                    return _err(
-                        "passes/fails/gaps/ablations/adopted are only "
-                        "valid with --track retrieval-test or --track "
-                        "shape-test"
-                    )
-                missing = [
-                    n
-                    for n in (
-                        "bulletproof",
-                        "no_failure",
-                        "unresolved",
-                        "voids",
-                    )
-                    if getattr(args, n, None) is None
-                ]
-                if missing:
-                    return _err(
-                        "counts required with --scope dir --track "
-                        f"pressure-test: {', '.join(missing)}"
-                    )
-                entry = {
-                    "date": args.date or datetime.now(UTC).date().isoformat(),
-                    "checksum": checksum,
-                    "bulletproof": args.bulletproof,
-                    "no-failure": args.no_failure,
-                    "unresolved": args.unresolved,
-                    "voids": args.voids,
-                }
-                key = "pressure-test"
-            else:
-                if any(
-                    getattr(args, n, None) is not None
-                    for n in (
-                        "adopted",
-                        "no_failure",
-                        "unresolved",
-                        "bulletproof",
-                    )
-                ):
-                    return _err(
-                        "adopted/no-failure/unresolved/bulletproof are "
-                        "only valid with --track shape-test or --track "
-                        "pressure-test"
-                    )
-                missing = [
-                    n
-                    for n in ("passes", "fails", "gaps", "voids")
-                    if getattr(args, n, None) is None
-                ]
-                if missing:
-                    return _err(
-                        "counts required with --scope dir: "
-                        f"{', '.join(missing)}"
-                    )
-                entry = {
-                    "date": args.date or datetime.now(UTC).date().isoformat(),
-                    "checksum": checksum,
-                    "passes": args.passes,
-                    "fails": args.fails,
-                    "gaps": args.gaps,
-                    "voids": args.voids,
-                }
-                if args.ablations is not None:
-                    entry["ablations"] = args.ablations
-                key = "retrieval-test"
-            print(
-                "note: counts flags are deprecated; use --scored",
-                file=sys.stderr,
-            )
+        if _any_counts_given(args):
+            return _err("counts flags are replaced by --scored")
+        if getattr(args, "scored", None) is None:
+            return _err("--scored is required with --scope dir")
+        track_sums = sums_from_scored(
+            Path(args.scored), getattr(args, "track", None)
+        )
+        if isinstance(track_sums, str):
+            return _err(track_sums)
+        track, sums = track_sums
+        entry = {
+            "date": args.date or datetime.now(UTC).date().isoformat(),
+            "checksum": checksum,
+            **sums,
+        }
+        if args.ablations is not None:
+            entry["ablations"] = args.ablations
+        key = track
 
     if args.campaign is not None:
         entry["campaign"] = args.campaign
@@ -509,35 +381,48 @@ def cmd_record(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------
-# Interim generic drivers (plan §2.7b, Phase-2 form): the track is a
-# leading parameter and the dispatch below hardcodes it per old command
-# name; Phase 3 replaces the parameter with TRACKS[args.track] on the
-# unified parsers and adds the gates only a merged parser makes
-# reachable.
+# Generic drivers (plan §3.2): the track comes off the unified parser's
+# --track; the gates that only a merged parser makes reachable live here.
+
+_ALL_COUNT_DESTS = (
+    "passes",
+    "fails",
+    "gaps",
+    "voids",
+    "adopted",
+    "bulletproof",
+    "no_failure",
+    "unresolved",
+)
 
 
-def _scored_check(track: Track, args: argparse.Namespace) -> int:
+def cmd_scored_check(args: argparse.Namespace) -> int:
     """Validate scored.json against the results files it claims to cover
-    (generic driver, plan §2.7b Phase-2 form: leading track parameter;
-    Phase 3 promotes it to cmd_scored_check(args) reading TRACKS[args.
-    track] on the unified parser). Named apart from the legacy command
-    because `cmd_scored_check` stays bound to its historical single-arg
-    signature below and pyright's reportRedeclaration forbids the
-    shadowing redefinition. Per-entry rules live in the track's
-    check_scored_entry. Exact messages, exit 1 on any violation; exit 0
-    with a coverage line when every results id is accounted for exactly
-    once; the record-step counts flags must match the scored sums when
-    given. With --emit-skeleton PATH instead of --scored, writes a
-    scored.json skeleton (every results id once, mechanically derivable
-    fields pre-filled, judgment fields null) and exits 0."""
+    (generic driver; per-entry rules live in the track's
+    check_scored_entry). With --emit-skeleton PATH, write the skeleton.
+    Exact messages, exit 1 on any violation, coverage line on success."""
+    track = TRACKS[args.track]
     gate = _scored_target_gate(args)
     if gate is not None:
         return gate
-    results_paths = (
-        [args.results] if isinstance(args.results, str) else args.results
-    )
+    if not track.multi_results and len(args.results) != 1:
+        return _err(
+            f"exactly one --results file is valid with --track {track.name}"
+        )
+    foreign = [
+        n
+        for n in _ALL_COUNT_DESTS
+        if n not in track.count_arg_names
+        and getattr(args, n, None) is not None
+    ]
+    if foreign:
+        flags = "/".join(f"--{n.replace('_', '-')}" for n in foreign)
+        return _err(
+            f"counts flags {flags} are only valid with their own track "
+            f"(not --track {track.name})"
+        )
     union = union_results(
-        results_paths, track.results_noun, entry_hook=track.union_hook
+        args.results, track.results_noun, entry_hook=track.union_hook
     )
     if isinstance(union, str):
         return _err(union)
@@ -546,7 +431,7 @@ def _scored_check(track: Track, args: argparse.Namespace) -> int:
     if getattr(args, "emit_skeleton", None) is not None:
         out_path = Path(args.emit_skeleton)
         header = (
-            _scored_skeleton_header(results_paths)
+            _scored_skeleton_header(args.results)
             if track.skeleton_header
             else None
         )
@@ -561,20 +446,17 @@ def _scored_check(track: Track, args: argparse.Namespace) -> int:
     scored_entries = load_scored_json(scored_path, track.scored_object_phrase)
     if isinstance(scored_entries, str):
         return _err(scored_entries)
-    covered_entries = check_coverage(scored_entries, results_ids, scored_path)
-    if isinstance(covered_entries, str):
-        return _err(covered_entries)
-    for entry in covered_entries:
+    covered = check_coverage(scored_entries, results_ids, scored_path)
+    if isinstance(covered, str):
+        return _err(covered)
+    for entry in covered:
         rc = track.check_scored_entry(
             scored_path, entry, results_arms[entry["id"]], extras
         )
         if rc is not None:
             return rc
     rc = counts_gate(
-        args,
-        covered_entries,
-        track.count_arg_names,
-        track.count_result_names,
+        args, covered, track.count_arg_names, track.count_result_names
     )
     if rc is not None:
         return rc
@@ -582,25 +464,28 @@ def _scored_check(track: Track, args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_evidence(track: Track, args: argparse.Namespace) -> int:
-    """Generic evidence dispatcher, Phase-2 form: the old per-track
-    parsers already restrict the flags each command accepts, so the
-    --arm/--compare pairing gates arrive only with the unified parser
-    (Phase 3)."""
+def cmd_evidence(args: argparse.Namespace) -> int:
+    """Generic evidence dispatcher: flag/track pairing gates, then the
+    track's printer."""
+    track = TRACKS[args.track]
+    if args.arm is not None and track.name not in (
+        "shape-test",
+        "pressure-test",
+    ):
+        return _err(
+            "--arm is only valid with --track shape-test or "
+            "--track pressure-test"
+        )
+    if args.compare and track.name != "shape-test":
+        return _err("--compare is only valid with --track shape-test")
     return track.print_evidence(args)
 
 
-def cmd_scored_check(args: argparse.Namespace) -> int:
-    """The scored-check command (retrieval track), via the generic
-    scored-check driver. The one-arg binding stays until Phase 3's
-    unified parser promotes the generic _scored_check to this name."""
-    return _scored_check(TRACKS["retrieval-test"], args)
-
-
-def cmd_meta(track: Track, args: argparse.Namespace) -> int:
-    """Session resume; pressure-only today via supports_meta. The
-    binary-only harness preflight lives here in the driver, per the
-    old cmd_pressure_meta's check_harness position."""
+def cmd_meta(args: argparse.Namespace) -> int:
+    """Session resume; pressure-only today via supports_meta."""
+    track = TRACKS[args.track]
+    if not track.supports_meta:
+        return _err(f"--track {args.track} does not support meta")
     strategy_cls = resolve_strategy(args.harness)
     check_harness(args.harness, strategy_cls)  # binary only
     return track.run_meta(args, strategy_cls)
@@ -884,16 +769,35 @@ def main() -> int:
     split.add_argument("--seed", type=int)
 
     suite = sub.add_parser("suite")
+    suite.add_argument(
+        "--track",
+        required=True,
+        choices=[t.name for t in TRACKS.values()],
+    )
     suite.add_argument("--harness", required=True)
     suite.add_argument("--skill", required=True)
     suite.add_argument("--agents-dir", required=True)
-    suite.add_argument("--workspace", required=True)
-    suite.add_argument("--queries", required=True)
     suite.add_argument("--out", required=True)
     suite.add_argument("--model")
     suite.add_argument("--variant")
-    suite.add_argument("--reps", type=int, default=3)
-    suite.add_argument("--timeout", type=int, default=30)
+    # No parser defaults: each track applies its historical default as
+    # the first lines of pre_spend_gates. A parser default would make
+    # args.reps/args.timeout never-None and flatten all four tracks to
+    # one default.
+    suite.add_argument("--reps", type=int)
+    suite.add_argument("--timeout", type=int)
+    # per-track flags (Q7a: historical names kept); required status is
+    # enforced per track inside pre_spend_gates
+    suite.add_argument("--workspace")  # trigger, shape, pressure
+    suite.add_argument("--queries")  # trigger, retrieval
+    suite.add_argument("--skill-workspace")  # retrieval
+    suite.add_argument("--control-workspace")  # retrieval
+    suite.add_argument("--entries")  # shape
+    suite.add_argument("--skill-file")  # shape, pressure
+    suite.add_argument("--arms")  # shape
+    suite.add_argument("--fixture-key", default="application")  # shape
+    suite.add_argument("--scenarios")  # pressure
+    suite.add_argument("--arm")  # pressure
 
     record = sub.add_parser("record")
     record.add_argument("--skill", required=True)
@@ -905,9 +809,8 @@ def main() -> int:
     record.add_argument(
         "--track",
         choices=["retrieval-test", "shape-test", "pressure-test"],
-        help="manifest key + count vocabulary for --scope dir (legacy "
-        "default: retrieval-test; with --scored, checked against the "
-        "detected track)",
+        help="manifest key for --scope dir (with --scored, checked "
+        "against the detected track)",
     )
     record.add_argument("--score", type=float)
     record.add_argument(
@@ -933,113 +836,45 @@ def main() -> int:
     record.add_argument("--campaign")
     record.add_argument("--date")
 
-    failures = sub.add_parser("failures")
-    failures.add_argument("--results", required=True)
-
-    retrieval = sub.add_parser("retrieval-suite")
-    retrieval.add_argument("--harness", required=True)
-    retrieval.add_argument("--skill", required=True)
-    retrieval.add_argument("--agents-dir", required=True)
-    retrieval.add_argument("--skill-workspace", required=True)
-    retrieval.add_argument("--control-workspace", required=True)
-    retrieval.add_argument("--queries", required=True)
-    retrieval.add_argument("--out", required=True)
-    retrieval.add_argument("--model")
-    retrieval.add_argument("--variant")
-    retrieval.add_argument("--reps", type=int, default=1)
-    retrieval.add_argument("--timeout", type=int, default=120)
-
-    evidence = sub.add_parser("retrieval-evidence")
+    evidence = sub.add_parser("evidence")
+    evidence.add_argument(
+        "--track", required=True, choices=[t.name for t in TRACKS.values()]
+    )
     evidence.add_argument("--results", required=True)
     evidence.add_argument("--entry")
+    # free-form: shape arms are v0/variant names, pressure's are
+    # red/green; the tracks' printers validate (no argparse choices —
+    # the old shape-evidence --arm took any arm name)
+    evidence.add_argument("--arm")
+    evidence.add_argument("--compare", action="store_true")
 
     scored = sub.add_parser("scored-check")
-    scored.add_argument("--results", required=True)
+    scored.add_argument(
+        "--track",
+        required=True,
+        choices=[n for n, t in TRACKS.items() if t.supports_scored],
+    )
+    scored.add_argument("--results", action="append", required=True)
     scored.add_argument("--scored")
     scored.add_argument("--emit-skeleton")
-    scored.add_argument("--passes", type=int)
-    scored.add_argument("--fails", type=int)
-    scored.add_argument("--gaps", type=int)
-    scored.add_argument("--voids", type=int)
+    for dest in _ALL_COUNT_DESTS:
+        scored.add_argument(f"--{dest.replace('_', '-')}", type=int)
 
-    shape = sub.add_parser("shape-suite")
-    shape.add_argument("--harness", required=True)
-    shape.add_argument("--skill", required=True)
-    shape.add_argument("--agents-dir", required=True)
-    shape.add_argument("--workspace", required=True)
-    shape.add_argument("--entries", required=True)
-    shape.add_argument("--skill-file", required=True)
-    shape.add_argument("--arms", required=True)
-    shape.add_argument("--out", required=True)
-    shape.add_argument(
-        "--fixture-key",
-        default="application",
+    meta = sub.add_parser("meta")
+    meta.add_argument(
+        "--track",
+        required=True,
+        choices=[n for n, t in TRACKS.items() if t.supports_meta],
     )
-    shape.add_argument("--model")
-    shape.add_argument("--variant")
-    shape.add_argument("--reps", type=int, default=5)
-    shape.add_argument("--timeout", type=int, default=120)
-
-    shape_evidence = sub.add_parser("shape-evidence")
-    shape_evidence.add_argument("--results", required=True)
-    shape_evidence.add_argument("--entry")
-    shape_evidence.add_argument("--arm")
-    shape_evidence.add_argument(
-        "--compare",
-        action="store_true",
-        help="compare each non-control arm's per-marker property "
-        "frequency against the v0 control (frequency = matching "
-        "answer lines / answer lines; a candidate must strictly "
-        "EXCEED the control)",
-    )
-
-    shape_scored = sub.add_parser("shape-scored-check")
-    shape_scored.add_argument("--results", action="append", required=True)
-    shape_scored.add_argument("--scored")
-    shape_scored.add_argument("--emit-skeleton")
-    shape_scored.add_argument("--adopted", type=int)
-    shape_scored.add_argument("--no-failure", dest="no_failure", type=int)
-    shape_scored.add_argument("--unresolved", type=int)
-    shape_scored.add_argument("--voids", type=int)
-
-    pressure = sub.add_parser("pressure-suite")
-    pressure.add_argument("--harness", required=True)
-    pressure.add_argument("--skill", required=True)
-    pressure.add_argument("--agents-dir", required=True)
-    pressure.add_argument("--workspace", required=True)
-    pressure.add_argument("--scenarios", required=True)
-    pressure.add_argument("--arm", required=True)
-    pressure.add_argument("--skill-file")
-    pressure.add_argument("--out", required=True)
-    pressure.add_argument("--model")
-    pressure.add_argument("--variant")
-    pressure.add_argument("--reps", type=int, default=5)
-    pressure.add_argument("--timeout", type=int, default=120)
-
-    pressure_evidence = sub.add_parser("pressure-evidence")
-    pressure_evidence.add_argument("--results", required=True)
-    pressure_evidence.add_argument("--entry")
-    pressure_evidence.add_argument("--arm", choices=["red", "green"])
-
-    pressure_meta = sub.add_parser("pressure-meta")
-    pressure_meta.add_argument("--harness", required=True)
-    pressure_meta.add_argument("--agents-dir", required=True)
-    pressure_meta.add_argument("--workspace", required=True)
-    pressure_meta.add_argument("--session", required=True)
-    pressure_meta.add_argument("--question", required=True)
-    pressure_meta.add_argument("--out", required=True)
-    pressure_meta.add_argument("--model")
-    pressure_meta.add_argument("--variant")
-    pressure_meta.add_argument("--timeout", type=int, default=120)
-
-    pressure_scored = sub.add_parser("pressure-scored-check")
-    pressure_scored.add_argument("--results", action="append", required=True)
-    pressure_scored.add_argument("--scored")
-    pressure_scored.add_argument("--emit-skeleton")
-    pressure_scored.add_argument("--bulletproof", type=int)
-    pressure_scored.add_argument("--no-failure", dest="no_failure", type=int)
-    pressure_scored.add_argument("--unresolved", type=int)
-    pressure_scored.add_argument("--voids", type=int)
+    meta.add_argument("--harness", required=True)
+    meta.add_argument("--agents-dir", required=True)
+    meta.add_argument("--workspace", required=True)
+    meta.add_argument("--session", required=True)
+    meta.add_argument("--question", required=True)
+    meta.add_argument("--out", required=True)
+    meta.add_argument("--model")
+    meta.add_argument("--variant")
+    meta.add_argument("--timeout", type=int, default=120)
 
     inv = sub.add_parser(
         "inventory-check",
@@ -1070,43 +905,25 @@ def main() -> int:
     idiff.add_argument("--out")
 
     args = parser.parse_args()
-    if args.command == "check":
-        return cmd_check(args)
-    if args.command == "split":
-        return cmd_split(args)
     if args.command == "suite":
-        return run_suite(TRACKS["trigger-test"], args)
-    if args.command == "record":
-        return cmd_record(args)
-    if args.command == "failures":
-        return cmd_evidence(TRACKS["trigger-test"], args)
-    if args.command == "retrieval-suite":
-        return run_suite(TRACKS["retrieval-test"], args)
-    if args.command == "retrieval-evidence":
-        return cmd_evidence(TRACKS["retrieval-test"], args)
+        return run_suite(TRACKS[args.track], args)
+    if args.command == "evidence":
+        return cmd_evidence(args)
     if args.command == "scored-check":
         return cmd_scored_check(args)
-    if args.command == "shape-suite":
-        return run_suite(TRACKS["shape-test"], args)
-    if args.command == "shape-evidence":
-        return cmd_evidence(TRACKS["shape-test"], args)
-    if args.command == "shape-scored-check":
-        return _scored_check(TRACKS["shape-test"], args)
-    if args.command == "pressure-suite":
-        return run_suite(TRACKS["pressure-test"], args)
-    if args.command == "pressure-evidence":
-        return cmd_evidence(TRACKS["pressure-test"], args)
-    if args.command == "pressure-meta":
-        return cmd_meta(TRACKS["pressure-test"], args)
-    if args.command == "pressure-scored-check":
-        return _scored_check(TRACKS["pressure-test"], args)
-    if args.command == "inventory-check":
-        return cmd_inventory_check(args)
-    if args.command == "inventory-mint":
-        return cmd_inventory_mint(args)
-    if args.command == "inventory-diff":
-        return cmd_inventory_diff(args)
-    return cmd_run(args)
+    if args.command == "meta":
+        return cmd_meta(args)
+    handlers = {
+        "check": cmd_check,
+        "split": cmd_split,
+        "record": cmd_record,
+        "inventory-check": cmd_inventory_check,
+        "inventory-mint": cmd_inventory_mint,
+        "inventory-diff": cmd_inventory_diff,
+    }
+    if args.command in handlers:
+        return handlers[args.command](args)
+    return cmd_run(args)  # "run"
 
 
 if __name__ == "__main__":

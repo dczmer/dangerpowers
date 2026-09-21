@@ -27,7 +27,6 @@ from src.common import (
 )
 from src.strategies import EvalStrategy, HarnessExecutionError
 from src.tracks import (
-    TRACKS,
     _pressure_union_hook,
     _retrieval_union_hook,
     _shape_union_hook,
@@ -57,27 +56,21 @@ COUNTS_VOCABULARY = {
     },
 }
 
-# The evidence command per track and its extra argparse defaults.
-EVIDENCE_COMMANDS = {
-    "retrieval": ("cmd_retrieval_evidence", {"entry": None}),
-    "shape": (
-        "cmd_shape_evidence",
+# The evidence --track choice per consolidated track and its extra
+# argparse defaults.
+# arm/compare are the merged parser's defaults on every evidence call;
+# only shape's printer consumes compare, only shape/pressure consume arm.
+EVIDENCE_TRACKS = {
+    "retrieval": (
+        "retrieval-test",
         {"entry": None, "arm": None, "compare": False},
     ),
-    "pressure": ("cmd_pressure_evidence", {"entry": None, "arm": None}),
+    "shape": ("shape-test", {"entry": None, "arm": None, "compare": False}),
+    "pressure": (
+        "pressure-test",
+        {"entry": None, "arm": None, "compare": False},
+    ),
 }
-
-
-def cmd_retrieval_evidence(args):
-    return evaluator.cmd_evidence(TRACKS["retrieval-test"], args)
-
-
-def cmd_shape_evidence(args):
-    return evaluator.cmd_evidence(TRACKS["shape-test"], args)
-
-
-def cmd_pressure_evidence(args):
-    return evaluator.cmd_evidence(TRACKS["pressure-test"], args)
 
 
 class RunRepBatchedTests(unittest.TestCase):
@@ -401,11 +394,13 @@ class EvidenceEnvelopeTests(unittest.TestCase):
     by track; the retrieval missing-file case is new coverage."""
 
     def _run(self, track, results_path):
-        cmd, extra = EVIDENCE_COMMANDS[track]
-        args = argparse.Namespace(results=str(results_path), **extra)
+        name, extra = EVIDENCE_TRACKS[track]
+        args = argparse.Namespace(
+            track=name, results=str(results_path), **extra
+        )
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = globals()[cmd](args)
+            rc = evaluator.cmd_evidence(args)
         return rc
 
     def _assert_malformed_envelope(self, track):
@@ -457,31 +452,17 @@ class EvidenceEnvelopeTests(unittest.TestCase):
         self._assert_missing_file("pressure")
 
 
-# The scored-check command per track and its count-gate argparse dests
-# (all None in these tests: the emit path never reaches the gate).
-SCORED_COMMANDS = {
-    "retrieval": ("cmd_scored_check", ("passes", "fails", "gaps", "voids")),
-    "shape": (
-        "cmd_shape_scored_check",
-        ("adopted", "no_failure", "unresolved", "voids"),
-    ),
+# The scored-check --track choice per consolidated track and its
+# count-gate argparse dests (all None in these tests: the emit path never
+# reaches the gate).
+SCORED_TRACKS = {
+    "retrieval": ("retrieval-test", ("passes", "fails", "gaps", "voids")),
+    "shape": ("shape-test", ("adopted", "no_failure", "unresolved", "voids")),
     "pressure": (
-        "cmd_pressure_scored_check",
+        "pressure-test",
         ("bulletproof", "no_failure", "unresolved", "voids"),
     ),
 }
-
-
-def cmd_scored_check(args):
-    return evaluator.cmd_scored_check(args)
-
-
-def cmd_shape_scored_check(args):
-    return evaluator._scored_check(TRACKS["shape-test"], args)
-
-
-def cmd_pressure_scored_check(args):
-    return evaluator._scored_check(TRACKS["pressure-test"], args)
 
 
 class SkeletonEmitTests(unittest.TestCase):
@@ -610,19 +591,18 @@ class SkeletonEmitTests(unittest.TestCase):
         return [str(red), str(green)]
 
     def _run(self, track, results, *, scored=None, emit=None):
-        cmd, counts_names = SCORED_COMMANDS[track]
-        ns = {"scored": scored, "emit_skeleton": emit}
-        if track == "retrieval":
-            ns["results"] = results
-        else:
-            ns["results"] = list(results)
+        name, counts_names = SCORED_TRACKS[track]
+        ns = {"track": name, "scored": scored, "emit_skeleton": emit}
+        ns["results"] = (
+            [results] if isinstance(results, str) else list(results)
+        )
         for name in counts_names:
             ns[name] = None
         args = argparse.Namespace(**ns)
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
-            rc = globals()[cmd](args)
+            rc = evaluator.cmd_scored_check(args)
         return rc, stdout.getvalue(), stderr.getvalue()
 
     def _emit(self, track):

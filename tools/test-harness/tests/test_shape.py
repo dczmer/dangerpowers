@@ -864,6 +864,7 @@ class ShapeScoredCheckTests(unittest.TestCase):
     def _check(self, entries, **overrides):
         self.scored.write_text(json.dumps({"entries": entries}))
         args = argparse.Namespace(
+            track="shape-test",
             results=list(self.results),
             scored=str(self.scored),
             adopted=None,
@@ -874,7 +875,7 @@ class ShapeScoredCheckTests(unittest.TestCase):
         for k, v in overrides.items():
             setattr(args, k, v)
         with redirect_stdout(io.StringIO()):
-            return evaluator._scored_check(TRACKS["shape-test"], args)
+            return evaluator.cmd_scored_check(args)
 
     def test_missing_union_id_rejected(self):
         self.assertEqual(
@@ -914,6 +915,7 @@ class ShapeScoredCheckTests(unittest.TestCase):
             )
         )
         args = argparse.Namespace(
+            track="shape-test",
             results=[self.results[0], str(bad)],
             scored=str(self.scored),
             adopted=None,
@@ -922,9 +924,7 @@ class ShapeScoredCheckTests(unittest.TestCase):
             voids=None,
         )
         with redirect_stdout(io.StringIO()):
-            self.assertEqual(
-                evaluator._scored_check(TRACKS["shape-test"], args), 1
-            )
+            self.assertEqual(evaluator.cmd_scored_check(args), 1)
 
     def test_kind_mismatch_vs_results_rejected(self):
         self.assertEqual(
@@ -1070,10 +1070,9 @@ class ShapeScoredCheckTests(unittest.TestCase):
 
 
 class ShapeRecordTests(unittest.TestCase):
-    """record --track shape-test: the shape vocabulary lands under the
-    shape-test manifest key, the retrieval vocabulary is rejected on this
-    track, and omitting --track keeps the back-compatible retrieval-test
-    default."""
+    """record --track shape-test: the counts flags are rejected on the
+    dir scope (`counts flags are replaced by --scored` / `--scored is
+    required with --scope dir`)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1109,88 +1108,25 @@ class ShapeRecordTests(unittest.TestCase):
         )
         for k, v in overrides.items():
             setattr(args, k, v)
-        with redirect_stdout(io.StringIO()):
-            return evaluator.cmd_record(args)
-
-    def test_shape_track_writes_shape_key_and_preserves_others(self):
-        self.manifest.write_text(
-            json.dumps(
-                {
-                    "skill": "test-skill",
-                    "trigger-test": {"date": "old", "score": 0.5},
-                    "retrieval-test": {"date": "old", "passes": 1},
-                }
-            )
-        )
-        rc = self._record()
-        self.assertEqual(rc, 0)
-        data = json.loads(self.manifest.read_text())
-        self.assertEqual(data["trigger-test"]["score"], 0.5)
-        self.assertEqual(data["retrieval-test"]["passes"], 1)
-        entry = data["shape-test"]
-        self.assertEqual(
-            set(entry),
-            {
-                "date",
-                "checksum",
-                "adopted",
-                "no-failure",
-                "unresolved",
-                "voids",
-                "campaign",
-            },
-        )
-        self.assertEqual(entry["adopted"], 2)
-        self.assertEqual(entry["no-failure"], 1)
-        self.assertEqual(entry["voids"], 0)
-        self.assertEqual(
-            entry["checksum"], evaluator.hash_skill_dir(self.skill_dir)
-        )
-
-    def test_missing_shape_count_rejected(self):
-        rc = self._record(voids=None)
-        self.assertEqual(rc, 1)
-        self.assertFalse(self.manifest.exists())
-
-    def test_retrieval_vocabulary_on_shape_track_rejected(self):
-        rc = self._record(passes=1)
-        self.assertEqual(rc, 1)
-        self.assertFalse(self.manifest.exists())
-
-    def test_shape_count_on_retrieval_track_rejected(self):
-        rc = self._record(
-            track="retrieval-test",
-            passes=1,
-            fails=0,
-            gaps=0,
-        )
-        self.assertEqual(rc, 1)
-
-    def test_track_omitted_defaults_to_retrieval_test(self):
-        args = argparse.Namespace(
-            skill="test-skill",
-            skill_path=str(self.skill_dir),
-            manifest=str(self.manifest),
-            scope="dir",
-            score=None,
-            passes=1,
-            fails=0,
-            gaps=0,
-            voids=0,
-            adopted=None,
-            no_failure=None,
-            unresolved=None,
-            ablations=None,
-            campaign=None,
-            date="2026-09-13",
-        )
-        # No 'track' attribute at all — the phase-1 back-compat path.
-        with redirect_stdout(io.StringIO()):
+        err = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(err):
             rc = evaluator.cmd_record(args)
-        self.assertEqual(rc, 0)
-        data = json.loads(self.manifest.read_text())
-        self.assertIn("retrieval-test", data)
-        self.assertNotIn("shape-test", data)
+        self.last_err = err.getvalue()
+        return rc
+
+    def test_counts_flags_replaced_by_scored(self):
+        rc = self._record()
+        self.assertEqual(rc, 1)
+        self.assertIn("counts flags are replaced by --scored", self.last_err)
+        self.assertFalse(self.manifest.exists())
+
+    def test_missing_scored_rejected(self):
+        rc = self._record(
+            voids=None, adopted=None, no_failure=None, unresolved=None
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--scored is required with --scope dir", self.last_err)
+        self.assertFalse(self.manifest.exists())
 
 
 class ShapeEvidenceTests(unittest.TestCase):
@@ -1258,13 +1194,17 @@ class ShapeEvidenceTests(unittest.TestCase):
 
     def _run(self, **overrides):
         args = argparse.Namespace(
-            results=str(self.results), entry=None, arm=None, compare=False
+            track="shape-test",
+            results=str(self.results),
+            entry=None,
+            arm=None,
+            compare=False,
         )
         for k, v in overrides.items():
             setattr(args, k, v)
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = evaluator.cmd_evidence(TRACKS["shape-test"], args)
+            rc = evaluator.cmd_evidence(args)
         return rc, buf.getvalue()
 
     def test_prints_runs_with_marker_triage(self):

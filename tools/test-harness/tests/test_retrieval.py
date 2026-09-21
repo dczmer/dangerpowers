@@ -124,7 +124,11 @@ class RecordScopeTests(unittest.TestCase):
         )
         for k, v in overrides.items():
             setattr(args, k, v)
-        return evaluator.cmd_record(args)
+        err = io.StringIO()
+        with redirect_stderr(err):
+            rc = evaluator.cmd_record(args)
+        self.last_err = err.getvalue()
+        return rc
 
     def test_frontmatter_with_counts_rejected(self):
         skill_md = self.skill_dir / "SKILL.md"
@@ -139,13 +143,14 @@ class RecordScopeTests(unittest.TestCase):
         )
         self.assertEqual(rc, 1)
 
-    def test_dir_with_score_rejected(self):
-        rc = self._record(score=0.8)
+    def test_dir_missing_scored_rejected(self):
+        rc = self._record(passes=None, fails=None, gaps=None, voids=None)
         self.assertEqual(rc, 1)
+        self.assertIn("--scored is required with --scope dir", self.last_err)
         self.assertFalse(self.manifest.exists())
 
-    def test_dir_missing_count_rejected(self):
-        rc = self._record(voids=None)
+    def test_dir_with_score_rejected(self):
+        rc = self._record(score=0.8)
         self.assertEqual(rc, 1)
         self.assertFalse(self.manifest.exists())
 
@@ -157,39 +162,6 @@ class RecordScopeTests(unittest.TestCase):
         skill_md = self.skill_dir / "SKILL.md"
         rc = self._record(skill_path=str(skill_md))
         self.assertEqual(rc, 1)
-
-    def test_dir_writes_retrieval_test_preserving_trigger_key(self):
-        self.manifest.write_text(
-            json.dumps(
-                {
-                    "skill": "test-skill",
-                    "trigger-test": {"date": "old", "score": 0.5},
-                    "future-test": {"date": "x"},
-                }
-            )
-        )
-        rc = self._record()
-        self.assertEqual(rc, 0)
-        data = json.loads(self.manifest.read_text())
-        self.assertEqual(data["future-test"], {"date": "x"})
-        self.assertEqual(data["trigger-test"]["score"], 0.5)
-        entry = data["retrieval-test"]
-        self.assertEqual(
-            set(entry),
-            {"date", "checksum", "passes", "fails", "gaps", "voids"},
-        )
-        self.assertEqual(entry["date"], "2026-09-12")
-        self.assertEqual(entry["passes"], 3)
-        self.assertEqual(entry["voids"], 2)
-        self.assertEqual(
-            entry["checksum"], evaluator.hash_skill_dir(self.skill_dir)
-        )
-
-    def test_dir_records_ablations_when_given(self):
-        rc = self._record(ablations="fixtures-staged")
-        self.assertEqual(rc, 0)
-        entry = json.loads(self.manifest.read_text())["retrieval-test"]
-        self.assertEqual(entry["ablations"], "fixtures-staged")
 
 
 class RetrievalQueryTests(unittest.TestCase):
@@ -507,7 +479,8 @@ class ScoredCheckTests(unittest.TestCase):
             )
         )
         args = argparse.Namespace(
-            results=str(self.results),
+            track="retrieval-test",
+            results=[str(self.results)],
             scored=str(self.scored),
             passes=None,
             fails=None,
@@ -885,12 +858,18 @@ class RetrievalEvidenceTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def _run(self, **overrides):
-        args = argparse.Namespace(results=str(self.results), entry=None)
+        args = argparse.Namespace(
+            track="retrieval-test",
+            results=str(self.results),
+            entry=None,
+            arm=None,
+            compare=False,
+        )
         for key, value in overrides.items():
             setattr(args, key, value)
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = evaluator.cmd_evidence(TRACKS["retrieval-test"], args)
+            rc = evaluator.cmd_evidence(args)
         return rc, buf.getvalue()
 
     def test_prints_all_evidence_arm_tagged(self):

@@ -13,6 +13,7 @@ import hashlib
 import io
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -333,8 +334,8 @@ class RecordScoredTests(unittest.TestCase):
     scored.json result sums (one source of truth), the track is detected
     from discriminating signals and never guessed, an explicit --track is
     checked against the detection, --ablations passes through verbatim,
-    and the legacy counts-flag path keeps working with a stderr
-    deprecation note."""
+    and the counts flags are rejected (`counts flags are replaced by
+    --scored`)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -520,27 +521,13 @@ class RecordScoredTests(unittest.TestCase):
         self.assertEqual(entry["ablations"], "arm-rerun-of-v2")
         self.assertEqual(entry["passes"], 1)
 
-    def test_legacy_counts_path_emits_deprecation_note(self):
-        rc, _out, err = self._record(
-            scored=None, passes=1, fails=0, gaps=0, voids=0
-        )
-        self.assertEqual(rc, 0)
-        self.assertIn("note: counts flags are deprecated; use --scored", err)
-        self.assertIn("retrieval-test", json.loads(self.manifest.read_text()))
-
-    def test_legacy_shape_path_still_rejects_ablations(self):
-        # --ablations stays a retrieval-only field on the legacy path.
-        rc, _out, err = self._record(
-            scored=None,
-            track="shape-test",
-            adopted=1,
-            no_failure=0,
-            unresolved=0,
-            voids=0,
-            ablations="x",
-        )
+    def test_counts_flags_without_scored_rejected(self):
+        # The counts flags stay parseable but can no longer record:
+        # without --scored they fail with the exact replacement error.
+        rc, _out, err = self._record(scored=None, passes=1, fails=0)
         self.assertEqual(rc, 1)
-        self.assertIn("ablations", err)
+        self.assertIn("counts flags are replaced by --scored", err)
+        self.assertFalse(self.manifest.exists())
 
 
 class RecordScoreFromTests(unittest.TestCase):
@@ -1203,6 +1190,444 @@ class ShapeSuiteEndToEndTests(unittest.TestCase):
         ):
             evaluator.run_suite(TRACKS["shape-test"], args)
         self.assertIn("skill file not found", buf.getvalue())
+
+
+class _ProbeStrategy:
+    """Satisfies validate_eval_agent's agent_file probe in gate tests
+    without any harness binary."""
+
+    def __init__(self, timeout=30):
+        self.timeout = timeout
+
+    def agent_file(self, agents_dir, base):
+        return Path(agents_dir) / f"{base}.opencode.md"
+
+
+class UnifiedCliGateTests(unittest.TestCase):
+    """The unified --track CLI (plan §3.3/§3.4): the _required gate's
+    first-missing-flag contract, the per-track reps/timeout defaults
+    applied when the merged parser leaves them None, and the pairing
+    gates only a merged parser makes reachable. Zero harness runs: the
+    preflight is stubbed and every assertion fires pre-spend."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        for base in (
+            "trigger-evaluator",
+            "retrieval-evaluator",
+            "retrieval-control",
+            "shape-evaluator",
+            "pressure-evaluator",
+        ):
+            (self.agents_dir / f"{base}.opencode.md").write_text(
+                f"---\nname: {base}\n---\n# Agent\n"
+            )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _gates(self, track, args):
+        """Run one track's pre-spend gates with the harness preflight
+        stubbed. Tracks are singletons: the previous preflight is
+        restored so later tests keep their historical patch point."""
+        preflight = track._harness_preflight
+        track._harness_preflight = lambda *a: None
+        try:
+            return track.pre_spend_gates(args, _ProbeStrategy)
+        finally:
+            track._harness_preflight = preflight
+
+    def _assert_required_gate(self, track_name, args, first_flag):
+        err = io.StringIO()
+        with (
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            self._gates(TRACKS[track_name], args)
+        # Runtime gate (Q7a): exit 1 with the exact message, not
+        # argparse's exit-2 "the following arguments are required".
+        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(
+            err.getvalue(),
+            f"error: --{first_flag} is required with --track {track_name}\n",
+        )
+
+    def test_required_gate_first_missing_flag_wins(self):
+        # Each track's declared order decides which of two missing
+        # flags fires (§3.3: first missing flag wins).
+        common = {
+            "harness": "opencode",
+            "skill": SKILL,
+            "agents_dir": str(self.agents_dir),
+            "model": None,
+            "variant": None,
+            "reps": None,
+            "timeout": None,
+            "out": str(self.root / "results.json"),
+        }
+        self._assert_required_gate(
+            "trigger-test",
+            argparse.Namespace(workspace=None, queries=None, **common),
+            "workspace",
+        )
+        self._assert_required_gate(
+            "retrieval-test",
+            argparse.Namespace(
+                skill_workspace=None,
+                control_workspace=None,
+                queries=None,
+                **common,
+            ),
+            "skill-workspace",
+        )
+        self._assert_required_gate(
+            "shape-test",
+            argparse.Namespace(
+                workspace=str(self.root / "ws"),
+                entries=None,
+                skill_file=None,
+                arms=None,
+                **common,
+            ),
+            "entries",
+        )
+        self._assert_required_gate(
+            "pressure-test",
+            argparse.Namespace(
+                workspace=str(self.root / "ws"),
+                scenarios=None,
+                arm=None,
+                **common,
+            ),
+            "scenarios",
+        )
+
+    def _assert_defaults(self, track_name, args, expected):
+        entries = self._gates(TRACKS[track_name], args)
+        self.assertNotIsInstance(entries, int)
+        self.assertEqual(
+            (args.reps, args.timeout),
+            expected,
+            f"--track {track_name} must apply its historical defaults",
+        )
+
+    def test_trigger_default_reps_timeout(self):
+        ws = self.root / "trigger-ws"
+        stub = ws / ".agents" / "skills" / SKILL / "SKILL.md"
+        stub.parent.mkdir(parents=True)
+        stub.write_text(f"---\nname: {SKILL}\n---\n")
+        queries = self.root / "trigger-queries.json"
+        queries.write_text("[]")
+        self._assert_defaults(
+            "trigger-test",
+            argparse.Namespace(
+                harness="opencode",
+                skill=SKILL,
+                agents_dir=str(self.agents_dir),
+                workspace=str(ws),
+                queries=str(queries),
+                out=str(self.root / "trigger-results.json"),
+                model=None,
+                variant=None,
+                reps=None,
+                timeout=None,
+            ),
+            (3, 30),
+        )
+
+    def test_retrieval_default_reps_timeout(self):
+        skill_ws = self.root / "retrieval-skill-ws"
+        (skill_ws / ".agents" / "skills" / SKILL).mkdir(parents=True)
+        control_ws = self.root / "retrieval-control-ws"
+        control_ws.mkdir()
+        queries = self.root / "retrieval-queries.json"
+        queries.write_text(
+            json.dumps([{"id": "a", "query": "q", "expect": ["b"]}])
+        )
+        self._assert_defaults(
+            "retrieval-test",
+            argparse.Namespace(
+                harness="opencode",
+                skill=SKILL,
+                agents_dir=str(self.agents_dir),
+                skill_workspace=str(skill_ws),
+                control_workspace=str(control_ws),
+                queries=str(queries),
+                out=str(self.root / "retrieval-results.json"),
+                model=None,
+                variant=None,
+                reps=None,
+                timeout=None,
+            ),
+            (1, 120),
+        )
+
+    def test_shape_default_reps_timeout(self):
+        section = "Always use CSS modules."
+        skill_body = self.root / "shape-body.txt"
+        skill_body.write_text("# Conventions\n\n" + section + "\n")
+        entries = self.root / "shape-entries.json"
+        entries.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": "R-styling-01",
+                        "rule": "R-styling-01",
+                        "kind": "shaping",
+                        "section": section,
+                        "fixtures": {"application": "Build a Badge."},
+                        "markers": {"inline-style": "style="},
+                        "variants": {"v1": "Never use inline styles."},
+                    }
+                ]
+            )
+        )
+        ws = self.root / "shape-ws"
+        ws.mkdir()
+        self._assert_defaults(
+            "shape-test",
+            argparse.Namespace(
+                harness="opencode",
+                skill=SKILL,
+                agents_dir=str(self.agents_dir),
+                workspace=str(ws),
+                entries=str(entries),
+                skill_file=str(skill_body),
+                arms="v0",
+                fixture_key="application",
+                out=str(self.root / "shape-results.json"),
+                model=None,
+                variant=None,
+                reps=None,
+                timeout=None,
+            ),
+            (5, 120),
+        )
+
+    def test_pressure_default_reps_timeout(self):
+        scenarios = self.root / "pressure-scenarios.json"
+        scenarios.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": "s1",
+                        "rule": "R-workflow-01",
+                        "statement": "no failing test, no production code",
+                        "scenario": "The refactor is half done and green.",
+                        "pressures": ["sunk-cost", "time", "social"],
+                        "compliant_option": "A",
+                    }
+                ]
+            )
+        )
+        ws = self.root / "pressure-ws"
+        ws.mkdir()
+        self._assert_defaults(
+            "pressure-test",
+            argparse.Namespace(
+                harness="opencode",
+                skill=SKILL,
+                agents_dir=str(self.agents_dir),
+                workspace=str(ws),
+                scenarios=str(scenarios),
+                arm="red",
+                skill_file=None,
+                out=str(self.root / "pressure-results.json"),
+                model=None,
+                variant=None,
+                reps=None,
+                timeout=None,
+            ),
+            (5, 120),
+        )
+
+    def _scored_args(self, track_name, results, **counts):
+        ns = {
+            "track": track_name,
+            "results": results,
+            "scored": str(self.root / "scored.json"),
+            "emit_skeleton": None,
+        }
+        for dest in evaluator._ALL_COUNT_DESTS:
+            ns[dest] = counts.get(dest)
+        return argparse.Namespace(**ns)
+
+    def test_scored_check_foreign_counts_flags_rejected(self):
+        # Each counts vocabulary belongs to its own track; a foreign
+        # flag fails with the exact merged-parser message pre-union.
+        cases = (
+            ("retrieval-test", {"adopted": 1}, "--adopted"),
+            ("shape-test", {"passes": 1}, "--passes"),
+            ("pressure-test", {"gaps": 1}, "--gaps"),
+        )
+        for track_name, counts, flag in cases:
+            with self.subTest(track=track_name):
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    rc = evaluator.cmd_scored_check(
+                        self._scored_args(
+                            track_name,
+                            [str(self.root / "nope.json")],
+                            **counts,
+                        )
+                    )
+                self.assertEqual(rc, 1)
+                self.assertEqual(
+                    err.getvalue(),
+                    f"error: counts flags {flag} are only valid with "
+                    f"their own track (not --track {track_name})\n",
+                )
+
+    def test_scored_check_retrieval_rejects_multiple_results(self):
+        # Retrieval's single --results contract, enforced at runtime now
+        # that one parser serves every track.
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_scored_check(
+                self._scored_args(
+                    "retrieval-test",
+                    ["a.json", "b.json"],
+                )
+            )
+        self.assertEqual(rc, 1)
+        self.assertEqual(
+            err.getvalue(),
+            "error: exactly one --results file is valid with --track "
+            "retrieval-test\n",
+        )
+
+    def test_evidence_compare_only_on_shape(self):
+        args = argparse.Namespace(
+            track="trigger-test",
+            results="x.json",
+            entry=None,
+            arm=None,
+            compare=True,
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        self.assertEqual(rc, 1)
+        self.assertEqual(
+            err.getvalue(),
+            "error: --compare is only valid with --track shape-test\n",
+        )
+
+    def test_evidence_arm_only_on_shape_or_pressure(self):
+        for track_name in ("trigger-test", "retrieval-test"):
+            with self.subTest(track=track_name):
+                args = argparse.Namespace(
+                    track=track_name,
+                    results="x.json",
+                    entry=None,
+                    arm="red",
+                    compare=False,
+                )
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    rc = evaluator.cmd_evidence(args)
+                self.assertEqual(rc, 1)
+                self.assertEqual(
+                    err.getvalue(),
+                    "error: --arm is only valid with --track shape-test "
+                    "or --track pressure-test\n",
+                )
+
+    def test_meta_rejects_non_meta_track_with_exit_2(self):
+        # supports_meta tracks are the argparse choices, so a non-meta
+        # track is an invalid choice, exit 2 — never a runtime gate.
+        argv = [
+            "evaluator.py",
+            "meta",
+            "--track",
+            "retrieval-test",
+            "--harness",
+            "opencode",
+            "--agents-dir",
+            "a",
+            "--workspace",
+            "w",
+            "--session",
+            "s",
+            "--question",
+            "q",
+            "--out",
+            "o",
+        ]
+        err = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("invalid choice", err.getvalue())
+
+    def test_legacy_subcommand_names_are_invalid_choices(self):
+        # Q9a hard removal: every old per-track command name is gone.
+        for name in (
+            "failures",
+            "retrieval-suite",
+            "retrieval-evidence",
+            "shape-suite",
+            "shape-evidence",
+            "shape-scored-check",
+            "pressure-suite",
+            "pressure-evidence",
+            "pressure-meta",
+            "pressure-scored-check",
+        ):
+            with self.subTest(name=name):
+                err = io.StringIO()
+                with (
+                    mock.patch.object(sys, "argv", ["evaluator.py", name]),
+                    contextlib.redirect_stderr(err),
+                    self.assertRaises(SystemExit) as cm,
+                ):
+                    evaluator.main()
+                self.assertEqual(cm.exception.code, 2)
+                self.assertIn("invalid choice", err.getvalue())
+
+
+class EmptyTriggerLogTests(HarnessWorkspaceMixin, unittest.TestCase):
+    """§2.7 ordering pin: the campaign-log mirror opens before the
+    zero_results_on_empty branch, so an empty trigger campaign still
+    creates/truncates the .log and mirrors the note into it."""
+
+    def test_empty_query_file_creates_log_with_note(self):
+        queries = self.root / "queries.json"
+        queries.write_text("[]")
+        out = self.root / "results.json"
+        args = argparse.Namespace(
+            harness="opencode",
+            skill=SKILL,
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.workspace),
+            queries=str(queries),
+            out=str(out),
+            model=None,
+            variant=None,
+            reps=None,
+            timeout=None,
+        )
+        with (
+            mock.patch.object(evaluator, "check_harness"),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            rc = evaluator.run_suite(TRACKS["trigger-test"], args)
+        self.assertEqual(rc, 0)
+        log = out.with_suffix(".log")
+        self.assertTrue(log.exists())
+        self.assertIn("note: empty query file", log.read_text())
+        # The zeroed envelope carries the per-track default reps/timeout.
+        data = json.loads(out.read_text())
+        self.assertEqual(data["queries"], [])
+        self.assertEqual(data["totals"]["score"], None)
+        self.assertEqual((data["reps"], data["timeout"]), (3, 30))
 
 
 if __name__ == "__main__":

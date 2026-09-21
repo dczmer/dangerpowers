@@ -54,6 +54,15 @@ class _HarnessPreflight:
         check_harness(name, strategy_cls, model)
 
 
+def _required(args: argparse.Namespace, track: "Track", *names: str) -> None:
+    """Runtime replacement for argparse required=True on merged flags
+    (Q7a): the first missing flag fails with the exact message."""
+    for n in names:
+        if getattr(args, n, None) is None:
+            flag = f"--{n.replace('_', '-')}"
+            _fail(f"{flag} is required with --track {track.name}")
+
+
 class Track:
     """One track's campaign behavior. Class attributes are track data
     (the registry); methods are the four-step interface plus suite
@@ -525,7 +534,14 @@ class TriggerTrack(Track):
         """Order preserved from the old cmd_suite: stub-synced check
         (returns 1) → --reps → --timeout → check_harness → load_queries →
         --out parent; the empty case is handled by the driver via
-        zero_results_on_empty."""
+        zero_results_on_empty. The merged-parser --workspace/--queries
+        requirement and the historical 3/30 reps/timeout defaults are
+        applied here (Q7a)."""
+        _required(args, self, "workspace", "queries")
+        if args.reps is None:
+            args.reps = 3
+        if args.timeout is None:
+            args.timeout = 30
         workspace = Path(args.workspace)
         stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
         if not stub.exists():
@@ -933,8 +949,16 @@ class RetrievalTrack(Track):
         """Order preserved from the old cmd_retrieval_suite: check_harness
         → agent validation → --reps → --timeout → skill-ws sync check →
         control contamination → load queries → --out parent. Returns the
-        validated entries, or an int rc with the exact error already
-        printed."""
+        validated entries, or an int rc with the         exact error already
+        printed. The merged-parser flag requirement and the historical 1/120
+        reps/timeout defaults are applied here (Q7a)."""
+        _required(
+            args, self, "skill_workspace", "control_workspace", "queries"
+        )
+        if args.reps is None:
+            args.reps = 1
+        if args.timeout is None:
+            args.timeout = 120
         self._harness_preflight(args.harness, strategy_cls, args.model)
         skill_ws = Path(args.skill_workspace)
         control_ws = Path(args.control_workspace)
@@ -1662,8 +1686,14 @@ class ShapeTrack(Track):
         agent validation → --reps → --timeout → skill_file exists/
         non-empty → --fixture-key → --arms → load entries → per-entry
         arm/variant + fixture gates → doc-drift gate → --out parent →
-        contamination. Returns the validated entries, or an int rc with
-        the exact error already printed."""
+        contamination. Returns the validated entries, or an int rc with the
+        exact error already printed. The merged-parser flag requirement and
+        the historical 5/120 reps/timeout defaults are applied here (Q7a)."""
+        _required(args, self, "workspace", "entries", "skill_file", "arms")
+        if args.reps is None:
+            args.reps = 5
+        if args.timeout is None:
+            args.timeout = 120
         self._harness_preflight(args.harness, strategy_cls, args.model)
         ws = Path(args.workspace)
         agents_dir = Path(args.agents_dir)
@@ -2241,8 +2271,14 @@ class PressureTrack(Track):
         """Order preserved from the old cmd_pressure_suite: check_harness
         → agent validation → --arm validity → green/red --skill-file
         rules → load scenarios → --reps → --timeout → --out parent →
-        contamination. Returns the validated entries, or an int rc with
-        the exact error already printed."""
+        contamination. Returns the validated entries, or an int rc with the
+        exact error already printed. The merged-parser flag requirement and
+        the historical 5/120 reps/timeout defaults are applied here (Q7a)."""
+        _required(args, self, "workspace", "scenarios", "arm")
+        if args.reps is None:
+            args.reps = 5
+        if args.timeout is None:
+            args.timeout = 120
         ws = Path(args.workspace)
         agents_dir = Path(args.agents_dir)
         scenarios_path = Path(args.scenarios)
