@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""Evaluator: run one query (--expect trigger|not-trigger) for N reps against a
-harness workspace and report whether the skill under test loaded.
+"""Evaluator: command-line driver for the skill-testing harness.
 
-Every rep runs under the restricted `trigger-evaluator` agent (skill tool only,
-steps capped), installed into the workspace by the harness strategy before any
-rep. Harness specifics live in the strategy registry in strategies.py; only
-opencode is implemented.
+Subcommands: check (harness/model validation); run and split (single-query
+trigger probing: one invocation = one query, N reps under the restricted
+`trigger-evaluator` agent); suite, evidence, scored-check, and meta (the
+unified --track campaign commands for trigger-test, retrieval-test,
+shape-test, and pressure-test); record (manifest recording from frontmatter
+scores, --score-from results, or --scored files); and inventory-check /
+inventory-mint / inventory-diff (discipline-rule inventories).
 
-Scope: the trigger inner core (eval_batch: one invocation = one query), the
-retrieval campaign tooling (retrieval-suite, scored-check, record with
---scope frontmatter|dir), the shape campaign tooling (shape-suite,
-shape-evidence, shape-scored-check, record --track shape-test), and the
-pressure campaign tooling (pressure-suite, pressure-evidence, pressure-meta,
-pressure-scored-check, record --track pressure-test).
+Per-track campaign behavior lives behind the Track interface in
+src/tracks.py; shared campaign primitives (rep batching, evidence
+extraction, scored validation) live in src/common.py. Harness specifics
+live in the strategy registry in src/strategies.py; only opencode is
+implemented.
 """
 
 import argparse
