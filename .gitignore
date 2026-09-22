@@ -6,4 +6,9 @@ node_modules
 __pycache__
 
 # choosing to gitignore the per-campaign artifacts and only keep the manifest
-skills-workspace/*/trigger-tests/campaign-*/*
+skills-workspace/**/campaign-*/*
+.agent/skills-workspace/**/campaign-*/*
+# mini-campaign query sets are scratch, never recorded
+skills-workspace/**/retrieval-tests/queries-mini-*.json
+.agent/skills-workspace/**/retrieval-tests/queries-mini-*.json
+.tmp

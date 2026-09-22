@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when creating a new skill, editing or updating an existing skill, or reviewing a skill before deployment — including when the request names a specific skill to work on. Covers frontmatter conventions and body structure for skill files. This skill authors and edits skill definitions themselves; it is not for discovering which skills exist, picking a skill for a task, answering questions about what a skill does, or testing whether a skill's description triggers.
+description: Use when authoring, editing, or reviewing the definition file of a skill — creating a new skill, updating an existing one, or checking one against conventions before deployment. Covers frontmatter conventions and body structure for skill files. Trigger only when the request asks to change or review a skill's definition content; a request that operates on a skill without changing its definition — running or testing it, loading or invoking one by name, discovering which skills exist, picking a skill for a task, or asking what a skill does — is not for this skill.
 ---
 
 # Writing Skills
@@ -25,28 +25,29 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 ## Content
 
 - Written as directives, not essays.
-- Lean and short (`SKILL.md` should be <500 lines).
+- Lean and short: the whole skill — `SKILL.md` plus every file the body loads — must stay under 500 lines total. This is a hard limit, not a guideline.
+- Moving content into `references/` (or any companion file) to get under the limit is a violation, not a way to comply: any content a reader must open to use the skill counts toward the limit. No exceptions — a reviewer calling the file "dense, not bloated" does not raise the limit, and a release deadline does not suspend it.
 - Instruction specificity matches task fragility. Prescribe exact steps where the operation is irreversible, order-dependent, or has one correct form. State goals, constraints and end conditions everywhere else.
 - Does not contain no-op statements or commentary that is not relevant to the goals, constraints, or end conditions.
 - Use explicit instructions ("Always use X"), never passive phrasing ("X is recommended").
 - State constraints directly. No nuance or exemption clauses that scope a directive ("unless X", "except when Y") — fold the condition into the directive or leave it out.
-- Provide defaults, not menus. Name the one library or approach; mention the escape hatch if one exists.
+- Provide defaults, not menus. Name the one approach unconditionally. Give alternatives only as condition-scoped switches — each gated on the concrete condition that disqualifies the default ("use setuptools when the build compiles C extensions"). Never frame the choice as open: no neutral comparisons, no "pick whichever fits."
 - Pick one term per concept and use it everywhere.
 - No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.
-- Include a "Gotchas" section: the things about the setup that a sensible guess gets wrong.
+- Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps.
 - Ends with a checklist or verification procedure so the agent can verify its work.
+- When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.
 
 ## Frontmatter
 
-Two required fields: `name` and `description`.
+- Open every SKILL.md with a YAML frontmatter block delimited by `---`, carrying the two required fields `name` and `description`, before any body content.
 
-- `name`: lowercase letters, numbers, hyphens only, ≤64 chars. Use a gerund or verb-first name: `writing-skills`, not `skill-writing`.
-- `description`: third person about the skill, never first or second person ("I can help you..."). Open with an imperative trigger clause ("Use when..."), then state WHAT the skill does — a few sentences to a short paragraph, ≤1024 chars.
-  - Start with "Use when..." plus concrete triggering conditions and symptoms.
-  - Weave trigger terms into prose. Never use a `Keywords:`-style label or a bare list of quoted phrases.
-  - State what the skill produces (one clause) so the agent can match user intent, not just internal mechanics.
-  - **Never summarize the workflow.** A description that summarizes the process becomes a shortcut agents follow instead of reading the skill body.
-   - Keep it concise. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
+- Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`.
+- `description`: third person about the skill, never first or second person ("I can help you..."). Exactly two parts, in order, ≤1024 chars:
+  1. An imperative trigger clause — "Use when..." plus the concrete triggering conditions and symptoms. Weave trigger terms into prose; never a `Keywords:`-style label or a bare list of quoted phrases.
+  2. One coverage clause naming the domain or technique the skill covers.
+  No procedure steps: a sequence of things the workflow does is not a coverage clause. The body owns the HOW; the description exists only so the agent can match user intent.
+  Keep it concise. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
 
 ```yaml
 # Bad: summarizes workflow
@@ -55,6 +56,23 @@ description: Use when writing skills — drafts frontmatter, structures the body
 # Good: what + when, keywords woven
 description: Use when creating new skills, editing existing skills, or reviewing a skill before deployment. Covers frontmatter and body structure for skill files.
 ```
+
+## Discovery
+
+A skill is used only if a future agent can find it. Optimize for the retrieval flow from the searching agent's side:
+
+1. Encounters a problem ("tests are flaky")
+2. Searches skills (greps descriptions)
+3. Matches a description
+4. Scans the overview (is this relevant?)
+5. Reads patterns (quick reference table)
+6. Loads the example (only when implementing)
+
+Consequences:
+
+- Description and overview must use the vocabulary an agent reaches for mid-task: error messages, symptoms, tool names, and synonyms ("flaky", "hang", "race condition") — not the skill's internal conceptual name.
+- Put searchable terms early and often; the overview has seconds to answer "is this relevant?".
+- Diagnose non-use by step: never found is a step 2–3 failure (description, keywords); found but dismissed is step 4 (overview); read but not applied is step 5–6 (patterns, example).
 
 ## Structure
 
@@ -67,11 +85,11 @@ skills/
     scripts/              # Reusable tools
 ```
 
-- Keep principles, patterns, and short code inline. Move heavy reference to `references/` and reusable tools to `scripts/`, referenced one level deep from SKILL.md.
+- SKILL.md carries the workflow and one short illustrative snippet. Bulk reference data (matrices, catalogs, long lists) lives in `references/<topic>.md`, linked once from SKILL.md. Small tables may stay inline.
 - Use scripts for fully deterministic processes. Scripts handle their own error cases instead of failing back to the agent. No magic constants — justify every number in the script.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
 - Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.
-- Use flowcharts for non-obvious decisions or loops with early exits, tables for reference data, numbered lists for linear steps.
+- A procedure with branches or early exits MUST be a ```mermaid flowchart TD block: one node per step, one diamond per branch, one terminal node per early exit. Reference data MUST be a markdown table. Numbered lists are only for strictly linear steps.
 - When editing an existing skill, read it fully first.
 - Don't assume a skill that works on a large model works on a small one; spell out instructions a frontier model could follow implicitly.
 
@@ -79,6 +97,9 @@ skills/
 
 - A description that summarizes the workflow stops the skill from loading — the agent decides it
   already knows the process and skips the body. State WHAT + WHEN, never HOW.
+- Description triggering is testable, not a matter of taste: a description that fires too often or
+  not at all is a bug. Run trigger-testing-skills against it and confirm agents load the body and
+  follow it, rather than executing the description's summary.
 - Extracting to `references/` saves nothing if the file loads on every invocation — that is inline
   content with extra steps. Load a reference only under a condition.
 
@@ -99,8 +120,9 @@ Create a todo for each item.
 
 **Frontmatter:**
 - [ ] `name` is hyphens/lowercase, ≤64 chars, gerund or verb-first
-- [ ] `description` starts with "Use when...", third person, states WHAT + WHEN — no workflow summary
-- [ ] Trigger terms woven into prose; no `Keywords:`-style label; ≤1024 chars
+- [ ] `description` has both slots: "Use when..." trigger clause + one coverage clause; no procedure steps; third person; ≤1024 chars
+- [ ] Trigger terms woven into prose; no `Keywords:`-style label
+- [ ] Triggering behavior verified with trigger-testing-skills, not assumed
 
 **Body:**
 - [ ] Overview states the core principle in 1-2 sentences

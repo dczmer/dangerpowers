@@ -128,7 +128,7 @@ modifying an old one.
 
 One frustration I have encountered is how often the AI will forget or ignore an instruction by rationalizing a reason to circumvent a rule that is making it hard to accomplish its task. A process called "pressure testing" can be used to make sure your skill's rules are consistently followed. We'll cover pressure testing in the next installment.
 
-> NOTE: Read about AI rationalization [here](../../rationalization-and-non-determinism.md).
+> NOTE: Read about AI rationalization [here](./rationalization-and-non-determinism.md).
 
 One way to make your rules more effective, and less likely to be ignored, is to avoid passive phrasing. Don't say "X is preferred" because that gives the AI room to decide the rule isn't necessary. Use strongly worded phrases like "always use X" or "X must be used when Y happens" ([A](#ref-a)).
 

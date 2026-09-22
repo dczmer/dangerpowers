@@ -12,33 +12,15 @@ I've also been writing about the concepts I've learned and applied along the way
 
 When I first installed [superpowers](https://github.com/obra/superpowers), I was amazed by how consistently the skills fired, and how well they enforced the operational constraints without the AI rationalizing or working around the rules.
 
-(Read about "rationalization" and why agents break your rules [here](./docs/rationalization-and-non-determinism.md)).
+(Read about "rationalization" and why agents break your rules [here](./docs/writing-skills/part-1/rationalization-and-non-determinism.md)).
 
 Then I watched a presentation from `humanlayer`: [Advanced Context Engineering for Coding Agents](https://www.humanlayer.dev/blog/advanced-context-engineering). They describe a system that is designed specifically for large and complex codebases, which is where I've been having the most trouble producing results that are actually satisfying. This process involves researching and scouting the codebase and building a detailed spec, which takes out decision making at implementation time, that a human must review and approve. They champion the concepts of "human in the loop" and "don't outsource your thinking."
 
 I wanted a full end-to-end development system, designed to work on complex codebases, inspired by the `humanlayer` approach. I decided to implement a similar system of my own using a small collection of 'core' skills, and I would use the `superpowers` method of writing effective skills to do it.
 
-The heart of this plugin is the `writing-skills` skill, based heavily off the `superpowers` skill by the same name. Every skill in this plugin is developed and tested using my own `writing-skills` plugin.
+The heart of this plugin is the `writing-skills` skill, based heavily off the `superpowers` skill by the same name. Every skill in this plugin is developed and tested using my own `writing-skills` plugin, and tested with the skill testing skills.
 
-Core Skills (building blocks, auto-trigger, no orchestration):
-- `writing-skills`
-- `writing-prds`
-- `writing-plans`
-- `shaping-prompts`
-- `iterating-plans`
-- `isolating-worktrees`
-- `researching-codebase`
-- `scouting-context`
-- `executing-plans`
-- `reviewing-changes`
-
-Orchestration skills (no auto-trigger):
-- `writing-detailed-plans`
-- `prd-to-plan`
-- `plan-to-execution`
-- `finalizing-implementation`
-
-The scope of this plugin is intentionally very slim: these skills are intended to be loaded in EVER development session and not bloat your context window.
+The scope of this plugin is intentionally very slim: these skills are intended to be loaded in EVERY development session and not bloat your context window.
 
 ---
 
@@ -48,14 +30,14 @@ The scope of this plugin is intentionally very slim: these skills are intended t
 
 The first step is to adapt how `superpowers` writes quality skills. Then we can use this to bootstrap all the skills in the library.
 
-(Read about writing effective skills [here](./docs/writing-skills/part-1/README.md)).
+Read about writing effective skills [Writing Skills Deep Dive Part 1: Basics](./docs/writing-skills/part-1/README.md).
 
 ```mermaid
 flowchart LR
     desc[Skill Definition]
     skills[writing-skills]
     trigger-test[Trigger Testing Campaign]
-    pressure-test[Pressure Testing Campaign]
+    pressure-test[Bulletproof Testing Campaign]
 
     desc --> skills
     skills --> trigger-test
@@ -65,17 +47,25 @@ flowchart LR
 1. A _HUMAN_ writes an initial skill definition.
 2. The `writing-skills` skill ensures the new skill follows established conventions.
 3. A "trigger-testing" campaign tests and optimizes how well your skill description triggers.
-4. A "pressure-testing" campaign test and optimizes how well your skill's discipline rules hold up when the agent is under pressure (countering "rationalization").
+4. A "bulletproofing" campaign test and optimizes how well your skill's discipline rules hold up when the agent is under pressure (countering "rationalization").
 
 #### Trigger Testing
 
-[TODO](./docs/writing-skills/part-2/README.md)
+You've written a useful skill. Congratulations! But it's useless if the agent never actually loads it. If the agent loads it when you don't need it, then you pollute your context window.
 
-#### Pressure Testing
+Trigger testing is a method for judging how well agents invoke (or don't invoke) a skill based on various test query phrases.
 
-#### Output Quality Testing
+[Writing Skills Deep Dive Part 2: Trigger Testing](./docs/writing-skills/part-2/README.md)
 
-> TODO: See https://agentskills.io/skill-creation/evaluating-skills
+Of course, you could disable auto-invocation and just use "commands" for most things.
+
+#### Bulletproofing
+
+If you tried the trigger testing process, then you know how unreliably agents actually decide to load your skills. Surprise! Every rule and every fact in your skill body are also likely to be applied inconsistently - or not at all!
+
+Bulletproofing is a technique I "borrowed" from superpowers. It hardens and reinforces the rules and facts in your skill body so the agent interprets and applies them more consistently.
+
+[Writing Skills Deep Dive Part 2: Bulletproofing](./docs/writing-skills/part-3/README.md)
 
 ### Primary Workflow
 
