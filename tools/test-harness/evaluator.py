@@ -50,6 +50,7 @@ from src.tracks import (
 
 
 def cmd_check(args: argparse.Namespace) -> int:
+    """The check command: harness binary (+ model when given) preflight."""
     strategy_cls = resolve_strategy(args.harness)
     check_harness(args.harness, strategy_cls, args.model)
     return 0
@@ -746,6 +747,7 @@ def cmd_inventory_diff(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    """The CLI entry point: build the unified parser and dispatch."""
     parser = argparse.ArgumentParser(prog="evaluator.py")
     sub = parser.add_subparsers(dest="command", required=True)
 

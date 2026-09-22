@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Tests for the retrieval-track additions to evaluator.py: the dir hasher,
-record --scope validation, retrieval query-file validation, run-record
-assembly with script-computed void signals, scored-check, and the
-control-workspace purity gate. Stdlib only; no harness commands are ever
-invoked (zero model spend).
+"""Tests for the retrieval track (src/tracks.py RetrievalTrack) plus
+evaluator.py's dir hasher and record --scope validation: retrieval
+query-file validation, run-record assembly with script-computed void
+signals, scored-check, and the control-workspace purity gate. Stdlib
+only; no harness commands are ever invoked (zero model spend).
 """
 
 import argparse
@@ -622,7 +622,7 @@ class ScoredCheckTests(unittest.TestCase):
 
 
 class ControlPurityTests(unittest.TestCase):
-    """cmd_retrieval_suite pre-spend validation: a control workspace that
+    """RetrievalTrack.pre_spend_gates validation: a control workspace that
     contains the skill aborts with exit 1 before any harness invocation."""
 
     def setUp(self):
@@ -680,9 +680,10 @@ class ControlPurityTests(unittest.TestCase):
 
 
 class ParallelArmTests(unittest.TestCase):
-    """cmd_retrieval_suite runs the skill and control arms of an entry in
-    parallel (same ThreadPoolExecutor pattern as the trigger reps) and tags
-    every progress line with its arm so interleaved output stays readable."""
+    """RetrievalTrack.run_entry runs the skill and control arms of an entry
+    in parallel (same ThreadPoolExecutor pattern as the trigger reps) and
+    tags every progress line with its arm so interleaved output stays
+    readable."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -797,9 +798,9 @@ class ParallelArmTests(unittest.TestCase):
 
 
 class RetrievalEvidenceTests(unittest.TestCase):
-    """cmd_retrieval_evidence: extraction only — expect rubric plus per
-    arm/rep answer text, sources consulted, void signals, and tool-call
-    targets, arm-tagged like the suite progress lines."""
+    """RetrievalTrack.print_evidence: extraction only — expect rubric plus
+    per arm/rep answer text, sources consulted, void signals, and
+    tool-call targets, arm-tagged like the suite progress lines."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

@@ -216,6 +216,7 @@ def run_rep(
     effort: str | None,
     n: int,
 ) -> Verdict:
+    """One trigger rep: logged start/completion around strategy.evaluate."""
     common.log_start(n)
     verdict = strategy.evaluate(skill, case.query, workspace, model, effort)
     common.log_complete(n, verdict)
@@ -223,6 +224,7 @@ def run_rep(
 
 
 def print_report(result: BatchResult) -> None:
+    """The human-readable per-run report after a cmd_run batch."""
     print()
     print(
         f'query: "{result.case.query}"   expected: '
@@ -267,6 +269,7 @@ def print_report(result: BatchResult) -> None:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    """The single-query trigger probe: one case, N reps, printed report."""
     strategy_cls = resolve_strategy(args.harness)
     workspace = Path(args.workspace)
     stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
@@ -349,6 +352,7 @@ def load_queries(path_str: str) -> list[EvalCase] | None:
 
 
 def cmd_split(args: argparse.Namespace) -> int:
+    """Split a query file into stratified train/validate sets."""
     if not (0.0 < args.train_frac < 1.0):
         print("error: --train-frac must be in (0, 1)", file=sys.stderr)
         return 1
@@ -722,7 +726,7 @@ TRIGGER_TRACK = TriggerTrack()
 
 
 # --------------------------------------------------------------------------
-# Retrieval track: retrieval-suite + retrieval-evidence + scored-check
+# Retrieval track: suite + evidence + scored-check
 
 # Track constants: the retrieval track evaluates under
 # RETRIEVAL_EVALUATOR_AGENT and baselines under RETRIEVAL_CONTROL_AGENT
@@ -748,6 +752,8 @@ def stage_and_dispatch(
     arm_ws: Path,
     fixtures_dir: Path,
 ) -> str:
+    """Stage the entry's fixtures into the arm workspace, substitute
+    {RUN_DIR}, and return the dispatched query."""
     query = entry["query"]
     if not entry.get("fixtures"):
         return query
@@ -825,6 +831,8 @@ def build_run_record(
     arm: str,
     skill: str,
 ) -> dict:
+    """One retrieval run's record: answer, sources block, void signals,
+    and tool-call targets relative to the workspace root."""
     answer = "".join(ev.answer_parts)
     m = SOURCES_RE.search(answer)
     signals = []
@@ -869,6 +877,8 @@ def run_records_batch(
     agent: str,
     args: argparse.Namespace,
 ) -> list[dict]:
+    """All reps of one (entry, arm) pair via run_rep_batched, with
+    arm-tagged progress lines."""
     fixtures_dir = Path(args.queries).parent / "fixtures"
     skill = args.skill if arm == "skill_arm" else None
     tag = ARM_TAGS[arm]
@@ -910,10 +920,9 @@ def _retrieval_union_hook(path: Path, e: dict, extras: dict) -> str | None:
 
 
 # Scored result values and parallel vocabularies for the retrieval
-# scored-check.
+# scored-check. "gap" is a result value, not a classification.
 RESULTS = {"pass", "fail", "gap", "void"}
-CLASSIFICATIONS = {"findability", "clarity"}  # "gap" is a result, not a
-#                                              classification
+CLASSIFICATIONS = {"findability", "clarity"}
 CONTROLS = {"pass", "fail", "void"}
 
 
@@ -1063,9 +1072,11 @@ class RetrievalTrack(Track):
         return record
 
     def extra_config(self, args: argparse.Namespace) -> dict:
+        """The queries-file path, merged into base_config."""
         return {"queries": str(Path(args.queries))}
 
     def done_line(self, n: int, out: Path) -> str:
+        """The final emit line: entry count and output path."""
         return f"retrieval suite: {n} entries -> {out}"
 
     def print_evidence(self, args: argparse.Namespace) -> int:
@@ -1258,7 +1269,7 @@ RETRIEVAL_TRACK = RetrievalTrack()
 
 
 # --------------------------------------------------------------------------
-# Shape track: shape-suite + shape-evidence + shape-scored-check
+# Shape track: suite + evidence + scored-check
 
 SHAPE_EVALUATOR_AGENT = "shape-evaluator"
 
@@ -1401,13 +1412,11 @@ def _check_shape_fields(path: Path, i: int, entry: dict, eid: str) -> None:
         )
 
 
-# Per-run prompt assembly. The per-run prompt never contains the rule
-# statement, the markers, or the expected shape; the answer contract
-# lives in the agent body, constant across arms. Every arm injects the
-# assembled body (v0: the rule's section span removed; vN: the span
-# replaced by the variant text) as "Project conventions" — injection,
-# not byte-states: the workspace is never written, so arms differ only
-# in prompt bytes and a variant can never leak into another arm's run.
+# Per-run prompt assembly: the prompt never contains the rule statement,
+# the markers, or the expected shape — the answer contract lives in the
+# agent body, constant across arms. Arms differ only in the injected body
+# bytes; the workspace is never written, so a variant can never leak into
+# another arm's run.
 SHAPE_PROMPT_TEMPLATE = """\
 Project conventions:
 {body}
@@ -1594,8 +1603,7 @@ def _print_shape_compare(eid: str, arms: dict, markers: dict) -> None:
     base = aggregate_counts(arms.get("v0"), markers)
     for arm in arms:
         if _is_v0_family(arm):
-            continue  # control re-runs (e.g. v0-rerun) are control
-            # evidence, not candidates
+            continue  # v0-family arms are control evidence, not candidates
         cand = aggregate_counts(arms[arm], markers)
         for name in markers:
             b, c = base.get(name, 0), cand.get(name, 0)
@@ -1828,6 +1836,8 @@ class ShapeTrack(Track):
         return record
 
     def extra_config(self, args: argparse.Namespace) -> dict:
+        """The track keys merged into base_config: entries/skill_file
+        paths, arms, and fixture_key."""
         return {
             "entries": str(Path(args.entries)),
             "skill_file": str(Path(args.skill_file)),
@@ -1836,6 +1846,7 @@ class ShapeTrack(Track):
         }
 
     def done_line(self, n: int, out: Path) -> str:
+        """The final emit line: entry count and output path."""
         return f"shape suite: {n} entries -> {out}"
 
     def print_evidence(self, args: argparse.Namespace) -> int:
@@ -2038,8 +2049,7 @@ SHAPE_TRACK = ShapeTrack()
 
 
 # --------------------------------------------------------------------------
-# Pressure track: pressure-suite + pressure-evidence + pressure-meta +
-# pressure-scored-check
+# Pressure track: suite + evidence + meta + scored-check
 
 # Track constants: the pressure track runs one arm per invocation and
 # evaluates under PRESSURE_EVALUATOR_AGENT.
@@ -2060,11 +2070,10 @@ PRESSURE_TYPES = {
 PRESSURE_RESULTS = {"bulletproof", "no-failure", "unresolved", "void"}
 PRESSURE_ARMS = {"red", "green"}
 
-# Per-run prompt assembly. The per-run prompt never contains the rule
-# statement, the compliant option, or any hint that this is a test; the
-# answer contract lives in the agent body, constant across arms. The
-# green arm injects the snapshotted skill body (frontmatter already
-# stripped by the driver) as "Project conventions".
+# Per-run prompt assembly: the prompt never contains the rule statement,
+# the compliant option, or any hint that this is a test — the answer
+# contract lives in the agent body. The green arm injects the snapshotted
+# skill body (frontmatter stripped by the driver) as "Project conventions".
 PRESSURE_GREEN_TEMPLATE = """\
 Project conventions:
 {skill_text}
@@ -2378,12 +2387,15 @@ class PressureTrack(Track):
         return record
 
     def extra_config(self, args: argparse.Namespace) -> dict:
+        """The track keys merged into base_config: scenarios path, arm,
+        and skill_file on green runs."""
         config = {"scenarios": str(Path(args.scenarios)), "arm": args.arm}
         if args.skill_file is not None:
             config["skill_file"] = args.skill_file
         return config
 
     def done_line(self, n: int, out: Path) -> str:
+        """The final emit line: entry count and output path."""
         return f"pressure suite: {n} entries -> {out}"
 
     def print_evidence(self, args: argparse.Namespace) -> int:

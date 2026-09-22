@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Tests for the shared campaign plumbing in evaluator.py (the "Shared
-campaign plumbing" section): run_rep_batched's abort policy,
-validate_eval_agent's pre-spend gate, counts_gate, union_results, and the
-evidence commands' envelope errors. Cases the three tracks pin with only
-vocabulary differing are consolidated here as one test per track, sharing
-a parameterized helper; per-track policy (vocabularies, prompt bytes, arm
-rules) stays in test_retrieval.py / test_shape.py / test_pressure.py.
+"""Tests for the shared campaign plumbing in src/common.py:
+run_rep_batched's abort policy, validate_eval_agent's pre-spend gate,
+counts_gate, union_results, and the evidence commands' envelope errors.
+Cases the three tracks pin with only vocabulary differing are
+consolidated here as one test per track, sharing a parameterized helper;
+per-track policy (vocabularies, prompt bytes, arm rules) stays in
+test_retrieval.py / test_shape.py / test_pressure.py.
 Stdlib only; no harness commands are ever invoked (zero model spend).
 """
 
@@ -56,10 +56,9 @@ COUNTS_VOCABULARY = {
     },
 }
 
-# The evidence --track choice per consolidated track and its extra
-# argparse defaults.
-# arm/compare are the merged parser's defaults on every evidence call;
-# only shape's printer consumes compare, only shape/pressure consume arm.
+# The evidence --track choice per consolidated track, plus the merged
+# parser's arm/compare defaults on every evidence call (only shape's
+# printer consumes compare, only shape/pressure consume arm).
 EVIDENCE_TRACKS = {
     "retrieval": (
         "retrieval-test",

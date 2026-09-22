@@ -283,6 +283,7 @@ class EvalStrategy:
         self.timeout = timeout
 
     def agent_file(self, agents_dir: Path, base: str) -> Path:
+        """The harness-specific agent file path for an agent base name."""
         return agents_dir / f"{base}.{self.harness}.md"
 
     def install(
@@ -405,6 +406,8 @@ class EvalStrategy:
         model: str | None = None,
         effort: str | None = None,
     ) -> Verdict:
+        """One headless trigger evaluation: execute then classify.
+        Subclasses implement."""
         raise NotImplementedError
 
 
@@ -495,6 +498,8 @@ class OpencodeStrategy(EvalStrategy):
         model: str | None = None,
         effort: str | None = None,
     ) -> Verdict:
+        """execute under the trigger-evaluator agent, then classify; a
+        timeout yields the interrupted-run classification."""
         ev, timed_out = self.execute(
             workspace, self.agent_name, query, model, effort, skill=skill
         )
@@ -544,6 +549,8 @@ STRATEGIES: dict[str, type[EvalStrategy]] = {"opencode": OpencodeStrategy}
 
 
 def resolve_strategy(name: str) -> type[EvalStrategy]:
+    """The strategy class for a harness name; exits 1 on an unsupported
+    name."""
     cls = STRATEGIES.get(name)
     if cls is None:
         supported = ", ".join(sorted(STRATEGIES))

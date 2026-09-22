@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Tests for the pressure-track additions to evaluator.py: scenarios-file
-validation, prompt assembly (red scenario-only, green conventions
-injection), build_pressure_run_record void signals (empty answer, any tool
-call — including a 'list' call surfacing through the extended parse_stream
-capture — skill loads; timeout stays a boolean), cmd_pressure_suite with
-its contamination gate, pressure-scored-check (red-arm-required, arm/result
-consistency, counters validation, count gate, multi-results union),
-record --track pressure-test, cmd_pressure_meta (session resume JSON,
-pre-spend gates), and cmd_pressure_evidence coverage. Stdlib only; no
+"""Tests for the pressure track (src/tracks.py PressureTrack):
+scenarios-file validation, prompt assembly (red scenario-only, green
+conventions injection), build_pressure_run_record void signals (empty
+answer, any tool call — including a 'list' call surfacing through the
+extended parse_stream capture — skill loads; timeout stays a boolean),
+pre_spend_gates with its contamination gate, scored-check (red-arm-
+required, arm/result consistency, counters validation, count gate,
+multi-results union), record --track pressure-test, run_meta (session
+resume JSON, pre-spend gates), and evidence coverage. Stdlib only; no
 harness commands are ever invoked (zero model spend).
 """
 
@@ -283,7 +283,7 @@ class PressureRunRecordTests(unittest.TestCase):
 
 
 class PressureSuiteTests(unittest.TestCase):
-    """cmd_pressure_suite end-to-end with a fake strategy: red dispatches
+    """The pressure suite end-to-end with a fake strategy: red dispatches
     the bare scenario, green injects the exact skill-file bytes, arms are
     tagged on progress lines, and the results config records
     model/variant/arm/skill_file."""
@@ -409,7 +409,7 @@ class PressureSuiteTests(unittest.TestCase):
 
 
 class PressurePreSpendGateTests(unittest.TestCase):
-    """cmd_pressure_suite pre-spend validation: every violation exits 1
+    """PressureTrack.pre_spend_gates validation: every violation exits 1
     before any harness invocation (the blocking strategy raises if execute
     is ever reached)."""
 
@@ -498,10 +498,11 @@ class PressurePreSpendGateTests(unittest.TestCase):
 
 
 class PressureScoredCheckTests(unittest.TestCase):
-    """cmd_pressure_scored_check: multi-results union with dedupe, the
-    red-arm-required rule, arm/result consistency (no-failure and void
-    must have no green arm; bulletproof and unresolved must have one),
-    counters validation, and the record-step count gate."""
+    """The pressure scored-check (cmd_scored_check over PressureTrack):
+    multi-results union with dedupe, the red-arm-required rule,
+    arm/result consistency (no-failure and void must have no green arm;
+    bulletproof and unresolved must have one), counters validation, and
+    the record-step count gate."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -843,7 +844,7 @@ class PressureRecordTests(unittest.TestCase):
 
 
 class PressureMetaTests(unittest.TestCase):
-    """cmd_pressure_meta: resumes the given session (execute receives
+    """PressureTrack.run_meta: resumes the given session (execute receives
     session=), writes the JSON payload (answer_text, timeout,
     void_signals), fails pre-spend on an empty --session, and follows the
     house HarnessExecutionError policy (stderr, exit 1, no JSON)."""
@@ -965,7 +966,7 @@ class PressureMetaTests(unittest.TestCase):
 
 
 class PressureEvidenceTests(unittest.TestCase):
-    """cmd_pressure_evidence: prints the statement, pressures, and
+    """PressureTrack.print_evidence: prints the statement, pressures, and
     compliant_option per entry plus the full answer text, void signals,
     and session id per arm/rep; arm and entry filters; malformed-input
     rejections."""

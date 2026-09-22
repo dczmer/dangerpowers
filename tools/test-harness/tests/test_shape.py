@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Tests for the shape-track additions to evaluator.py: entries-file
+"""Tests for the shape track (src/tracks.py ShapeTrack): entries-file
 validation, arm byte-assembly exactness (v0 span removal, vN replacement),
-strict entry x arm serialization in cmd_shape_suite with per-arm prompt
-injection (never workspace byte-states), shape-scored-check (multi-results
+strict entry x arm serialization in run_entry with per-arm prompt
+injection (never workspace byte-states), scored-check (multi-results
 union, adoption and gate rules, count gate), record --track shape-test,
-and shape-evidence marker triage. Stdlib only; no harness commands are
-ever invoked (zero model spend).
+and evidence marker triage. Stdlib only; no harness commands are ever
+invoked (zero model spend).
 """
 
 import argparse
@@ -392,7 +392,7 @@ class ShapeRunRecordTests(unittest.TestCase):
 
 
 class ShapeSuiteTests(unittest.TestCase):
-    """cmd_shape_suite end-to-end with a fake strategy: entries x arms run
+    """The shape suite end-to-end with a fake strategy: entries x arms run
     strictly serialized (spend discipline — never the retrieval track's
     arm-parallel structure), every rep's prompt carries that arm's
     injected body assembled fresh from the snapshotted skill file, no
@@ -660,7 +660,7 @@ class mock_check_and_resolve:
 
 
 class ShapePreSpendGateTests(unittest.TestCase):
-    """cmd_shape_suite pre-spend validation: every violation exits 1 with
+    """ShapeTrack.pre_spend_gates validation: every violation exits 1 with
     an exact message before any harness invocation (the strategy factory
     raises if it is ever called after the gates — the assertions on
     SystemExit/return code prove the gate fired first)."""
@@ -834,9 +834,10 @@ class ShapePreSpendGateTests(unittest.TestCase):
 
 
 class ShapeScoredCheckTests(unittest.TestCase):
-    """cmd_shape_scored_check: multi-results union with dedupe, adoption
-    discipline (adopted_arm rules), the pattern restraint-gate rule, and
-    the record-step count gate."""
+    """The shape scored-check (cmd_scored_check over ShapeTrack):
+    multi-results union with dedupe, adoption discipline (adopted_arm
+    rules), the pattern restraint-gate rule, and the record-step count
+    gate."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1164,8 +1165,8 @@ class ShapeRecordTests(unittest.TestCase):
 
 
 class ShapeEvidenceTests(unittest.TestCase):
-    """cmd_shape_evidence: extraction with marker triage counts, arm and
-    entry filters, and rejection of malformed results."""
+    """ShapeTrack.print_evidence: extraction with marker triage counts,
+    arm and entry filters, and rejection of malformed results."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1504,7 +1505,7 @@ class ShapeInjectionTests(unittest.TestCase):
 
 
 class ShapeSuiteEndToEndTests(unittest.TestCase):
-    """cmd_shape_suite with a stubbed harness: injection lands in the
+    """The shape suite with a stubbed harness: injection lands in the
     dispatched prompt and the sterile workspace is never written."""
 
     def setUp(self):

@@ -30,6 +30,7 @@ MAX_WORKERS = 10
 def wilson_interval(
     passed: int, n: int, z: float = 1.96
 ) -> tuple[float, float]:
+    """The Wilson score interval (low, high) for passed/n at z."""
     p = passed / n
     denom = 1 + z * z / n
     center = (p + z * z / (2 * n)) / denom
@@ -38,7 +39,7 @@ def wilson_interval(
 
 
 class _Log:
-    """Campaign log handle; set by cmd_suite, None under `run`."""
+    """Campaign log handle; set by run_suite, None under `run`."""
 
     file: TextIO | None = None
 
@@ -63,11 +64,13 @@ def _session_suffix(e: HarnessExecutionError) -> str:
 
 
 def log_start(n: int, tag: str | None = None) -> None:
+    """The [rep n] started progress line, with optional arm tag."""
     prefix = f"[{tag}] " if tag else ""
     emit(f"{prefix}[rep {n:>3}] started")
 
 
 def log_complete(n: int, verdict: Verdict) -> None:
+    """The [rep n] completed line: outcome plus timeout/void detail."""
     line = f"[rep {n:>3}] completed: {verdict.outcome}"
     if verdict.timeout:
         line += " (timeout)"
@@ -181,6 +184,7 @@ def base_config(args: argparse.Namespace) -> dict:
 
 
 def write_results(out: Path, config: dict, entries: list[dict]) -> None:
+    """Write the {config, entries} results envelope JSON."""
     out.write_text(
         json.dumps({"config": config, "entries": entries}, indent=2) + "\n"
     )
