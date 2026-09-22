@@ -16,9 +16,8 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
 
 1. **Fact-check.**
    - Verify every claim using web search and other documents in the repository. A claim that matches the repository's documents can still be wrong — externally verifiable claims also need an external source.
-   - Cite a source for each important claim.
-   - List every source in a "References" section at the bottom of the post, and link each citation to it.
-2. **Fix spelling, grammar, and capitalization.** Edit the post in place, using MLA-style title casing for section headers. This is the only audit category applied directly; everything else goes in the report.
+   - Cite a source for each important claim, using the citation and linking convention below.
+2. **Fix spelling, grammar, and capitalization.** Edit the post in place. Use the Oxford comma in every list of three or more items (write "a, b, and c", never "a, b and c"), and use MLA-style title casing for section headers. This is the only audit category applied directly; everything else goes in the report.
 3. **Audit structure and ambiguity.** Flag structural problems and statements with ambiguous subjects or referents.
 4. **Propose illustrations and analogies** to explain complex concepts.
 5. **Propose examples** for important concepts. Each example proposal is a 'Bad / Good / Why' block: the bad version, the good version beside it, and a one-sentence caption under each naming why it fails or works.
@@ -31,6 +30,15 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
    Evaluate every occurrence of a repeated concept against all three criteria separately. Flag any repetition failing one of these.
 8. **Resolve `> EDITOR:` lines.** Any line starting with `> EDITOR:` is a direct request from the author. Resolve each one and remove or rewrite the marker line as appropriate.
 9. **Audit markdown formatting.** Flag any link not written as `[label](url)` — malformed link markup renders as raw text or a dead element in HTML. Flag any multi-line code block with lines longer than 80 characters — code blocks are not word-wrapped when rendered to HTML, so a long line forces an annoying horizontal scrollbar. The 80-character limit applies to code blocks only, not to blockquotes or other preformatted elements.
+
+## Citation and linking convention
+
+Follow the house style used in the `docs/writing-skills/part-*/README.md` files, exactly and consistently:
+
+- List every source in a `## References` section at the bottom of the post. Assign each source a letter key, in order of first citation, as a list entry of the form `- <a id="ref-a"></a>**[A]** [Source - Title](url)` (for example, `- <a id="ref-b"></a>**[B]** [Anthropic - Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)`).
+- Cite inline as `[A](#ref-a)` immediately after the claim it supports. Use descriptive link text when it reads more naturally, e.g. `[Anthropic's skill-authoring guide](#ref-a)` — the anchor target must always be the reference's `#ref-x` anchor.
+- Cite multiple sources grouped in one pair of parentheses, comma-separated, e.g. `([A](#ref-a), [C](#ref-c))`.
+- Never use bare URLs, footnote-style markers, or any other citation format; this convention is the only one used in the post.
 
 ## Audit report
 
@@ -49,8 +57,8 @@ Write a detailed report to the user covering steps 3-9 (and the fact-check findi
 
 ## Checklist
 
-- [ ] Every important claim fact-checked and cited, with a "References" section at the bottom of the post
-- [ ] Spelling, grammar, and capitalization fixed in place, with MLA-style title casing for section headers
+- [ ] Every important claim fact-checked and cited, with a "References" section at the bottom of the post following the citation and linking convention
+- [ ] Spelling, grammar, and capitalization fixed in place, with Oxford commas in all lists of three or more items and MLA-style title casing for section headers
 - [ ] Audit report uses numbered/lettered items for incremental reference
 - [ ] Every proposed fix includes an example or concrete suggestion
 - [ ] All locations described by text snippet, never line numbers
