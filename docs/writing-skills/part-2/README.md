@@ -348,7 +348,7 @@ That memorizes the test instead of learning the lesson. The next fresh query, "s
 
 After modifying the description, run the 10 eval reps again (be sure to reload the agent so it picks up the changes to the skill).
 
-Hopefully, your scores have improved. If you have a perfect 10/10 you might be able to call it there. Otherwise, you have to repeat the loop until you get a perfect score, you reach a rate you are happy with (at least <50%), or you run out of token budget.
+Hopefully, your scores have improved. If you have a perfect 10/10 you might be able to call it there. Otherwise, you have to repeat the loop until you get a perfect score, you reach a rate you are happy with (at least >50%), or you run out of token budget.
 
 It's important to keep track of each version of the description from every iteration, as well as how it scored, so that you can pick the best version at the end.
 

@@ -12,3 +12,4 @@ skills-workspace/**/campaign-*/*
 skills-workspace/**/retrieval-tests/queries-mini-*.json
 .agent/skills-workspace/**/retrieval-tests/queries-mini-*.json
 .tmp
+.direnv
