@@ -40,7 +40,8 @@ dangerpowers/
 │                            # (evaluator.py: CLI parsers, generic drivers,
 │                            # record, inventory; workspace-manager.sh; src/:
 │                            # strategies.py, common.py shared campaign primitives,
-│                            # tracks.py Track base + 4 track classes + registry;
+│                            # tracks/: one module per track (trigger/retrieval/
+│                            # shape/pressure) + track.py base class + registry
 │                            # tests/: per-module test files, discovery via
 │                            # `uv run python -m unittest discover -s tools/test-harness/tests -t tools/test-harness`)
 ├── docs/                      # documentation and deep-dives (index: docs/README.md)

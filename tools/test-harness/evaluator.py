@@ -10,7 +10,7 @@ scores, --score-from results, or --scored files); and inventory-check /
 inventory-mint / inventory-diff (discipline-rule inventories).
 
 Per-track campaign behavior lives behind the Track interface in
-src/tracks.py; shared campaign primitives (rep batching, evidence
+src/tracks/; shared campaign primitives (rep batching, evidence
 extraction, scored validation) live in src/common.py. Harness specifics
 live in the strategy registry in src/strategies.py; only opencode is
 implemented.
@@ -68,7 +68,7 @@ def run_suite(track: Track, args: argparse.Namespace) -> int:
     strategy_cls = resolve_strategy(args.harness)
     # The tracks call the preflight through this instance attribute at
     # their historical check_harness position inside pre_spend_gates;
-    # binding it here (rather than a tracks.py import) keeps the test
+    # binding it here (rather than a tracks import) keeps the test
     # suite's historical patch point, evaluator.check_harness, working.
     track._harness_preflight = check_harness
     entries = track.pre_spend_gates(args, strategy_cls)
