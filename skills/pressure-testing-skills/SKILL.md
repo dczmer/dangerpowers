@@ -245,7 +245,16 @@ convention as the other testing tracks.)
 11. **Report** (multi-rule format per Report format).
 12. `record --scope dir --scored $CAMP/scored.json` — completed full campaigns
     only; never aborted campaigns, never mini-campaigns, never calibration
-    pilots.
+    pilots. Gate it with `evaluator.py verify --track pressure-test
+    --manifest <root>/skills-workspace/<s>/pressure-tests/rules.json
+    --entries <root>/skills-workspace/<s>/pressure-tests/scenarios.json
+    --scored $CAMP/scored.json --results <each $CAMP results file, one flag
+    per file> --campaign-dir $CAMP --skill-path <skill dir>` — the
+    end-of-campaign consistency proof (BUGS.md B9): snapshots byte-identical
+    to the canonical files, manifest↔scenarios wiring, skill-body.txt == the
+    canonical SKILL.md with frontmatter stripped, results covering every
+    scenario, and the scored-check flow re-run, ending with the record
+    preflight (the exact counts record will write). Record only on exit 0.
 13. **Write-backs** to the source `SKILL.md` only on explicit user
     confirmation; afterwards run a confirmation mini-campaign of the edited
     rules (in the `confirm/` subdir of this campaign's dir — Campaign
@@ -638,7 +647,9 @@ on those paths — only a completed full campaign is recorded.
 - [ ] Report shows per-rule per-arm tables for every rule, verbatim
   rationalizations, counters, meta findings, index sections, the manifest
   line variant, and summary counts
-- [ ] `record --scope dir --scored $CAMP/scored.json` only after a completed full
-  campaign
+- [ ] `verify --track pressure-test` exits 0 (snapshots byte-identical,
+  manifest↔scenarios wiring, skill-body identity, results coverage,
+  scored↔results, record preflight); `record --scope dir --scored
+  $CAMP/scored.json` only after a completed full campaign
 - [ ] Write-backs only with explicit user confirmation, followed by a
   never-recorded confirmation mini-campaign; cleanup run

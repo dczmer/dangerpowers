@@ -57,9 +57,9 @@ S7. **scored.json judgment filling** — the skeleton pre-fills
    a pending gap: filling judgments IS the driver's scoring act. The
    skeleton already pre-fills everything mechanical. Permanent driver
    responsibility.)
-S8. **End-of-campaign verification** — byte-identity of snapshots vs
-   canonical files, manifest↔entries rule-id wiring, span uniqueness vs
-   skill-body.txt, scored↔manifest-record consistency.
+S8. (ADDRESSED WITH B9) **End-of-campaign verification** — byte-identity of snapshots vs
+canonical files, manifest↔entries rule-id wiring, span uniqueness vs
+skill-body.txt, scored↔manifest-record consistency.
 
 The pattern: the harness covers staging, gating, and recording (check,
 suite, scored-check, record), but the whole middle — fixture viability,
@@ -829,7 +829,7 @@ scope by design). Implementation plus amendments:
 
 Resolves "Test script gaps" item 6.
 
-## B9. No end-of-campaign verification command
+## B9. (RESOLVED) No end-of-campaign verification command
 
 Gap S8. Before `record`, the driver must verify: (1) campaign
 snapshots byte-identical to the canonical rules.json/entries.json;
@@ -850,3 +850,71 @@ wiring, spans) and should call or mirror scored-check rather than
 duplicate it. Track-agnostic where cheap: wiring/identity checks apply
 to shape and pressure; retrieval's manifest<->queries wiring is the
 same shape with facts.json.
+
+Implemented 2026-09-23 as `evaluator.py verify --track <t> --manifest
+<canonical rules.json/facts.json> --entries <canonical
+entries/queries/scenarios> --scored $CAMP/scored.json --results
+<f>... --campaign-dir $CAMP --skill-path <skill dir>`, with review
+amendments. Verification first confirmed every claim: no verify/doctor
+subcommand existed; snapshot byte-identity was checked nowhere
+(pre-spend gates check existence/non-emptiness only; hash_skill_dir
+fed record but compared to nothing); manifest<->entries wiring was
+checked nowhere (load_inventory validates the inventory alone; no call
+site loaded both files); span uniqueness existed (check_span_uniqueness,
+B7) but its companion skill-body.txt identity check did not; only
+scored<->results was covered (scored-check), and record never re-ran
+it. The four check groups, all always run (fail-batch — repair is
+batched, so a failing group never hides a later one):
+
+1. Snapshot byte-identity and placement: $CAMP/<basename> ==
+   --manifest/--entries byte-for-byte; $CAMP/<skill>/ ==
+   --skill-path via hash_skill_dir; --scored and every --results must
+   live in the campaign dir (a record must not draw on another
+   campaign's files). Mini-campaign subdirs (round-2/, confirm/) are
+   never consulted — only the named top-level snapshots.
+2. Wiring, bidirectional. Rule kind (shape/pressure): every entry's
+   'rule' id exists and that item's entries array names it; every id
+   an item names exists with a matching back-reference; no entry id
+   named by two items; a non-excluded item naming zero entries is an
+   error (an untested rule cannot be recorded). Fact kind (retrieval):
+   the N:M covering relation — every fact's entries exist and every
+   query is named by at least one fact (a query testing no documented
+   fact measures nothing). Both kinds: excluded ids never have
+   entries. Amendment over the suggestion: the shape loader never
+   required the 'rule' field (only pressure's did) — verify now fails
+   an entry missing it.
+3. skill-body.txt == --skill-path/SKILL.md with frontmatter stripped
+   (extract_frontmatter; the pipeline's output was never re-verified),
+   plus the shape span assertion via check_span_uniqueness — the B7
+   helper, called not re-implemented as this section mandated. Only
+   shape snapshots a stripped body; on other tracks the file is
+   verified when present, skipped when absent.
+4. scored<->results: the scored-check flow itself (cmd_scored_check
+   on a synthesized namespace — reused, not duplicated), plus
+   full-campaign coverage (results union ids == entries ids; a
+   mini-campaign is a subset and is never recorded), plus the record
+   preflight: sums_from_scored prints the exact counts
+   `record --scope dir` would write (nothing is written).
+
+Trigger is excluded by the parser choices (no inventory, no scored
+schema). Exit 1 with per-group error lines when any group fails; ok
+lines per check otherwise.
+
+Smoke-tested against both real 2026-09-22 campaigns. Retrieval: all
+groups pass (18 passes / 2 fails / 0 gaps / 0 voids preflight matches
+the recorded manifest). Shape: correctly exits 1 on exactly one group
+— campaign entries.json differs from canonical because B4 fix C
+amended the canonical markers post-campaign; everything else passes
+(3 adopted / 10 no-failure / 1 unresolved / 0 voids preflight matches
+the report). That is the drift verify exists to catch, and the correct
+semantics: verify gates record at record time, not retroactively; the
+2026-09-22 campaign was already recorded before the amendment.
+
+Skill docs: shape step 17 + checklist, retrieval step 13 + checklist,
+pressure step 12 + checklist now gate record on verify exit 0.
+Tests: VerifyTests and VerifyRetrievalTests in test_evaluator.py
+(happy paths, snapshot drift/missing, artifact placement, every wiring
+failure class, skill-body mismatch/missing, span drift, coverage
+gaps, scored inconsistency suppressing the preflight).
+
+Resolves "Test script gaps" item 8.

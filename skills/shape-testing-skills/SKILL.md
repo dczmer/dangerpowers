@@ -296,6 +296,18 @@ retrieval track.)
     fixture-mismatched reruns separate under `vN@<fixture-key>`.)
 16. Report (multi-rule format per Report format).
 17. After every completed FULL campaign (never aborted, never a mini-campaign):
+    gate with `evaluator.py verify --track shape-test --manifest
+    <root>/skills-workspace/<s>/shape-tests/rules.json --entries
+    <root>/skills-workspace/<s>/shape-tests/entries.json --scored
+    $CAMP/scored.json --results $CAMP/results-control.json --results
+    $CAMP/results-variants.json [--results $CAMP/results-restraint.json]
+    --campaign-dir $CAMP --skill-path <skill dir>` — the end-of-campaign
+    consistency proof (BUGS.md B9): snapshots byte-identical to the canonical
+    files, manifest↔entries wiring, skill-body.txt == the canonical SKILL.md
+    with frontmatter stripped, every section span unique, results covering
+    every entry, and the scored-check flow re-run, ending with the record
+    preflight (the exact counts record will write). All groups always run;
+    exit 1 names every failing group. Record only on exit 0:
     `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
     <root>/skills-workspace/<s>/manifest.json --scope dir --scored
     $CAMP/scored.json --campaign <name>` — the track counts come from the
@@ -568,5 +580,5 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Round 2 (if any) changed the FORM in a never-recorded mini-campaign; hard cap 2 rounds respected
 - [ ] scored.json skeleton emitted and the null judgment fields filled for every union results id; `scored-check --track shape-test` exits 0
 - [ ] Report shows per-rule per-arm tables, gate lines for pattern rules, no-failure/unresolved sections, summary counts, and the `artifacts:`/`manifest:` lines
-- [ ] `record --scope dir --scored $CAMP/scored.json` run only after a completed full campaign — never aborted, never a mini-campaign, never a calibration pilot
+- [ ] `verify --track shape-test` exits 0 (snapshots byte-identical, manifest↔entries wiring, skill-body/spans, scored↔results, record preflight); `record --scope dir --scored $CAMP/scored.json` run only after a completed full campaign — never aborted, never a mini-campaign, never a calibration pilot
 - [ ] Write-backs applied only with user confirmation, followed by a never-recorded confirmation mini-campaign; `cleanup --workspace $WS --prefix shape-test` run

@@ -199,7 +199,16 @@ scripts the agent cannot run.
     top-level `-n` dirs (`-n` is the nth FULL campaign that day, assigned
     by `campaign-init`).
 13. After every completed FULL campaign (pass or fail, never aborted,
-    never a mini-campaign): `evaluator.py record --skill <s> \
+    never a mini-campaign): gate with `evaluator.py verify --track
+    retrieval-test --manifest <root>/skills-workspace/<s>/retrieval-tests/facts.json
+    --entries <root>/skills-workspace/<s>/retrieval-tests/queries.json
+    --scored <campaign>/scored.json --results <campaign>/results.json
+    --campaign-dir <campaign> --skill-path <skill dir>` — the end-of-campaign
+    consistency proof (BUGS.md B9): snapshots byte-identical to the canonical
+    files, facts↔queries wiring, results covering every query, and the
+    scored-check flow re-run, ending with the record preflight (the exact
+    counts record will write). Record only on exit 0: `evaluator.py record
+    --skill <s> \
     --skill-path <skill dir> --manifest <root>/skills-workspace/<s>/manifest.json \
     --scope dir --scored <campaign>/scored.json --campaign <name>`
     `record` takes the track counts from the scored file; `--track` is
@@ -303,6 +312,6 @@ Score each entry with: result (pass/fail/gap/void); classification (findability|
 - [ ] Scoring evidence gathered with `evidence --track retrieval-test` (no ad-hoc JSON scripts); scored from `answer_text` only, bullet by bullet; voids via `void_signals`; every failure classified (gap / findability / clarity); control comparison → ablation flags; reps > 1 resolved by the worst-non-void rule
 - [ ] scored.json skeleton emitted and the null judgment fields filled for every results entry; `scored-check` exits 0
 - [ ] Report shows per-scenario results, summary counts, failure classifications, recommended doc fixes, and the `artifacts:`/`manifest:` lines
-- [ ] `record --scope dir` run only after a completed full campaign — never aborted, never a mini-campaign
+- [ ] `verify --track retrieval-test` exits 0 (snapshots byte-identical, facts↔queries wiring, results coverage, scored↔results, record preflight); `record --scope dir` run only after a completed full campaign — never aborted, never a mini-campaign
 - [ ] Doc edits applied only after the full pass completes and only with user confirmation; failed scenarios re-run afterwards as a never-recorded mini-campaign
 - [ ] `cleanup --workspace` run twice — skill-ws and control-ws — with `--prefix retrieval-test`

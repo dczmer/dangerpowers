@@ -852,6 +852,528 @@ class _ProbeStrategy:
         return Path(agents_dir) / f"{base}.opencode.md"
 
 
+class VerifyTests(unittest.TestCase):
+    """cmd_verify (BUGS.md B9): the end-of-campaign consistency proof
+    gating record. Snapshot byte-identity, manifest<->entries wiring,
+    skill-body/span checks, and the scored<->results group (the
+    scored-check flow reused, full-campaign coverage, record preflight).
+    All groups always run — a failing group never hides a later one."""
+
+    SECTION = "Always use CSS modules."
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        # Canonical files.
+        self.manifest = self.root / "rules.json"
+        self._write_manifest()
+        self.entries = self.root / "entries.json"
+        self._write_entries([self._shape_entry("css-modules")])
+        self.skill_dir = self.root / "demo-skill"
+        self.skill_dir.mkdir()
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\n" + self.SECTION + "\n"
+        )
+        # Campaign dir with byte-identical snapshots.
+        self.camp = self.root / "campaign-2026-09-23"
+        self.camp.mkdir()
+        self._snapshot()
+        self.results_control = self.camp / "results-control.json"
+        self.results_variants = self.camp / "results-variants.json"
+        self._write_shape_results()
+        self.scored = self.camp / "scored.json"
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "v1",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_manifest(self, items=None, excluded=None):
+        items = (
+            items
+            if items is not None
+            else [
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                }
+            ]
+        )
+        excluded = excluded if excluded is not None else []
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-23",
+                    "rules": items,
+                    "excluded": excluded,
+                }
+            )
+        )
+
+    def _shape_entry(self, eid, rule="R-styling-01", section=None):
+        return {
+            "id": eid,
+            "rule": rule,
+            "kind": "shaping",
+            "section": section if section is not None else self.SECTION,
+            "fixtures": {"application": f"Build a component for {eid}."},
+            "markers": {"inline_style": "style="},
+            "variants": {"v1": "Never use inline styles."},
+        }
+
+    def _write_entries(self, entries):
+        self.entries.write_text(json.dumps(entries))
+
+    def _snapshot(self):
+        (self.camp / "rules.json").write_bytes(self.manifest.read_bytes())
+        (self.camp / "entries.json").write_bytes(self.entries.read_bytes())
+        snap_skill = self.camp / "demo-skill"
+        snap_skill.mkdir(exist_ok=True)
+        (snap_skill / "SKILL.md").write_bytes(
+            (self.skill_dir / "SKILL.md").read_bytes()
+        )
+        (self.camp / "skill-body.txt").write_text(
+            "# Demo\n\n" + self.SECTION + "\n"
+        )
+
+    def _shape_results_entry(self, eid, arms):
+        return {
+            "id": eid,
+            "kind": "shaping",
+            "markers": {"inline_style": "style="},
+            "restraint_markers": None,
+            "arms": {a: {"runs": [{"answer_text": "ok"}]} for a in arms},
+        }
+
+    def _write_shape_results(self, ids=("css-modules",)):
+        self.results_control.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        self._shape_results_entry(eid, ["v0"]) for eid in ids
+                    ],
+                }
+            )
+        )
+        self.results_variants.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        self._shape_results_entry(eid, ["v1"]) for eid in ids
+                    ],
+                }
+            )
+        )
+
+    def _write_scored(self, entries):
+        self.scored.write_text(json.dumps({"entries": entries}))
+
+    def _run(self, **overrides):
+        ns = argparse.Namespace(
+            track="shape-test",
+            manifest=str(self.manifest),
+            entries=str(self.entries),
+            scored=str(self.scored),
+            results=[str(self.results_control), str(self.results_variants)],
+            campaign_dir=str(self.camp),
+            skill_path=str(self.skill_dir),
+        )
+        for k, v in overrides.items():
+            setattr(ns, k, v)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_verify(ns)
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_happy_path(self):
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("snapshot rules.json byte-identical", out)
+        self.assertIn("snapshot entries.json byte-identical", out)
+        self.assertIn("snapshot skill dir demo-skill/ matches", out)
+        self.assertIn("wiring: 1 entries wired to 1 rules", out)
+        self.assertIn("with frontmatter stripped", out)
+        self.assertIn("every section span unique", out)
+        self.assertIn("results cover all 1 entries", out)
+        self.assertIn("covers 1 entries", out)  # scored-check's own line
+        self.assertIn(
+            "record preflight (nothing written): record --scope dir "
+            "would write shape-test: 1 adopted / 0 no-failure / "
+            "0 unresolved / 0 voids",
+            out,
+        )
+        self.assertIn("verify: all checks passed", out)
+
+    def test_manifest_snapshot_drift_fails_but_later_groups_run(self):
+        (self.camp / "rules.json").write_text("{}")
+        rc, out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("differs from canonical", err)
+        # Fail-batch: the other groups still ran.
+        self.assertIn("wiring: 1 entries wired", out)
+        self.assertNotIn("verify: all checks passed", out)
+
+    def test_missing_snapshot_named(self):
+        (self.camp / "entries.json").unlink()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("snapshot missing:", err)
+        self.assertIn("entries.json", err)
+
+    def test_skill_dir_snapshot_drift(self):
+        (self.camp / "demo-skill" / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nedited\n"
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("snapshot skill dir", err)
+        self.assertIn("differs", err)
+
+    def test_scored_outside_campaign_dir_rejected(self):
+        other = self.root / "scored.json"
+        other.write_text(self.scored.read_text())
+        rc, _out, err = self._run(scored=str(other))
+        self.assertEqual(rc, 1)
+        self.assertIn("--scored must live in the campaign dir", err)
+
+    def test_results_outside_campaign_dir_rejected(self):
+        other = self.root / "results-control.json"
+        other.write_text(self.results_control.read_text())
+        rc, _out, err = self._run(results=[str(other)])
+        self.assertEqual(rc, 1)
+        self.assertIn("--results must live in the campaign dir", err)
+
+    def test_entry_naming_unknown_rule(self):
+        self._write_entries([self._shape_entry("css-modules", "R-nope-99")])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("names rule 'R-nope-99'", err)
+        self.assertIn("does not exist", err)
+
+    def test_rule_entries_not_naming_entry(self):
+        self._write_entries([self._shape_entry("renamed-entry")])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("do not name it", err)
+        self.assertIn("does not exist", err)  # stale forward reference
+
+    def test_excluded_id_with_entry_rejected(self):
+        self._write_manifest(
+            excluded=[
+                {
+                    "id": "css-modules",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "reason": "routed out",
+                }
+            ]
+        )
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("excluded id", err)
+
+    def test_item_with_no_entries_rejected(self):
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": [],
+                }
+            ]
+        )
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("names no entries", err)
+
+    def test_entry_named_by_two_items_rejected(self):
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                },
+                {
+                    "id": "R-styling-02",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "No inline styles.",
+                    "entries": ["css-modules"],
+                },
+            ]
+        )
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("named by multiple items", err)
+
+    def test_skill_body_mismatch(self):
+        (self.camp / "skill-body.txt").write_text(
+            "# Demo\n\nAlways use css modules.\n"
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("with its frontmatter stripped", err)
+
+    def test_span_drift_reported(self):
+        (self.camp / "skill-body.txt").write_text("# Demo\n\nno spans\n")
+        # Identity holds (the source edit is mirrored by hand here);
+        # the span assertion is what must fire.
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nno spans\n"
+        )
+        (self.camp / "demo-skill" / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nno spans\n"
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'css-modules'", err)
+        self.assertIn("occurs 0 times", err)
+
+    def test_missing_skill_body_is_an_error_on_shape(self):
+        (self.camp / "skill-body.txt").unlink()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("skill-body.txt", err)
+
+    def test_results_not_covering_every_entry_rejected(self):
+        second = self._shape_entry("no-nuance", rule="R-content-01")
+        self._write_entries([self._shape_entry("css-modules"), second])
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                },
+                {
+                    "id": "R-content-01",
+                    "section": "Content",
+                    "kind": "shaping",
+                    "statement": "No nuance clauses.",
+                    "entries": ["no-nuance"],
+                },
+            ]
+        )
+        self._snapshot()
+        # Results (and scored) cover only the first entry.
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entries with no results coverage", err)
+        self.assertIn("no-nuance", err)
+
+    def test_results_id_with_no_entry_rejected(self):
+        self._write_shape_results(ids=("css-modules", "ghost"))
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("results ids with no entry", err)
+        self.assertIn("ghost", err)
+
+    def test_scored_inconsistency_fails_group_4(self):
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "v9",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+        rc, out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("adopted_arm", err)
+        self.assertNotIn("record preflight", out)
+
+    def test_missing_campaign_dir(self):
+        rc, _out, err = self._run(campaign_dir=str(self.root / "nope"))
+        self.assertEqual(rc, 1)
+        self.assertIn("campaign dir not found", err)
+
+
+class VerifyRetrievalTests(unittest.TestCase):
+    """cmd_verify on the fact kind (retrieval): the N:M covering
+    relation — every fact's entries exist, every query is named by at
+    least one fact — and no skill-body requirement."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.manifest = self.root / "facts.json"
+        self._write_facts(["q1"])
+        self.queries = self.root / "queries.json"
+        self._write_queries(["q1"])
+        self.skill_dir = self.root / "demo-skill"
+        self.skill_dir.mkdir()
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nbody\n"
+        )
+        self.camp = self.root / "campaign-2026-09-23"
+        self.camp.mkdir()
+        self._snapshot()
+        self.results = self.camp / "results.json"
+        self._write_results(["q1"])
+        self.scored = self.camp / "scored.json"
+        self._write_scored(["q1"])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_facts(self, qids):
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-23",
+                    "facts": [
+                        {
+                            "id": "F-demo-01",
+                            "section": "Demo",
+                            "statement": "a documented fact",
+                            "entries": qids,
+                        }
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+
+    def _write_queries(self, qids):
+        self.queries.write_text(
+            json.dumps(
+                [
+                    {"id": q, "query": f"query {q}", "expect": ["bullet"]}
+                    for q in qids
+                ]
+            )
+        )
+
+    def _snapshot(self):
+        (self.camp / "facts.json").write_bytes(self.manifest.read_bytes())
+        (self.camp / "queries.json").write_bytes(self.queries.read_bytes())
+        snap_skill = self.camp / "demo-skill"
+        snap_skill.mkdir(exist_ok=True)
+        (snap_skill / "SKILL.md").write_bytes(
+            (self.skill_dir / "SKILL.md").read_bytes()
+        )
+
+    def _write_results(self, qids):
+        self.results.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        {
+                            "id": q,
+                            "query": f"query {q}",
+                            "expect": ["bullet"],
+                            "skill_arm": {"runs": [{"answer_text": "ok"}]},
+                            "control_arm": {"runs": [{"answer_text": "ok"}]},
+                        }
+                        for q in qids
+                    ],
+                }
+            )
+        )
+
+    def _write_scored(self, qids):
+        self.scored.write_text(
+            json.dumps(
+                {
+                    "entries": [
+                        {
+                            "id": q,
+                            "result": "pass",
+                            "classification": None,
+                            "control": "pass",
+                            "ablation_flag": True,
+                            "missed_bullets": None,
+                            "notes": None,
+                        }
+                        for q in qids
+                    ]
+                }
+            )
+        )
+
+    def _run(self, **overrides):
+        ns = argparse.Namespace(
+            track="retrieval-test",
+            manifest=str(self.manifest),
+            entries=str(self.queries),
+            scored=str(self.scored),
+            results=[str(self.results)],
+            campaign_dir=str(self.camp),
+            skill_path=str(self.skill_dir),
+        )
+        for k, v in overrides.items():
+            setattr(ns, k, v)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_verify(ns)
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_happy_path_without_skill_body(self):
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("snapshot facts.json byte-identical", out)
+        self.assertIn("wiring: 1 entries wired to 1 facts", out)
+        self.assertNotIn("section span", out)
+        self.assertIn(
+            "would write retrieval-test: 1 passes / 0 fails / 0 gaps / "
+            "0 voids",
+            out,
+        )
+        self.assertIn("verify: all checks passed", out)
+
+    def test_fact_naming_unknown_query(self):
+        self._write_facts(["q1", "ghost"])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("names entry 'ghost'", err)
+
+    def test_query_covered_by_no_fact(self):
+        self._write_queries(["q1", "orphan"])
+        self._write_results(["q1", "orphan"])
+        self._write_scored(["q1", "orphan"])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'orphan' is named by no fact", err)
+
+
 class UnifiedCliGateTests(unittest.TestCase):
     """The unified --track CLI (plan §3.3/§3.4): the _required gate's
     first-missing-flag contract, the per-track reps/timeout defaults

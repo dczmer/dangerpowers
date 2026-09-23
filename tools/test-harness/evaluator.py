@@ -6,7 +6,10 @@ trigger probing: one invocation = one query, N reps under the restricted
 `trigger-evaluator` agent); suite, evidence, scored-check, and meta (the
 unified --track campaign commands for trigger-test, retrieval-test,
 shape-test, and pressure-test); select (track-agnostic filtering of an
-entries/queries/scenarios file to a subset of ids); record (manifest
+entries/queries/scenarios file to a subset of ids); verify (the
+end-of-campaign consistency proof gating record: snapshot byte-identity,
+manifest<->entries wiring, skill-body/span checks, scored<->results
+consistency plus the record preflight); record (manifest
 recording from frontmatter scores, --score-from results, or --scored
 files); and inventory-check / inventory-mint / inventory-diff
 (discipline-rule inventories).
@@ -54,6 +57,8 @@ from src.tracks import (
     check_span_uniqueness,
     cmd_run,
     cmd_split,
+    load_pressure_scenarios,
+    load_retrieval_queries,
     load_shape_entries,
 )
 
@@ -652,6 +657,314 @@ def cmd_meta(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------
+# End-of-campaign verification (BUGS.md B9)
+
+# Per-track campaign-input loaders for verify: the schema validation the
+# suite ran pre-spend, re-run on the canonical files at record time.
+_VERIFY_LOADERS = {
+    "shape-test": load_shape_entries,
+    "pressure-test": load_pressure_scenarios,
+    "retrieval-test": load_retrieval_queries,
+}
+
+
+def _verify_snapshot_checks(
+    camp: Path,
+    skill_name: str,
+    canonical: list[Path],
+    skill_path: Path,
+    scored_path: Path,
+    results: list[str],
+) -> tuple[list[str], list[str]]:
+    """Check group 1: the campaign snapshots are byte-identical to the
+    canonical files (a recorded campaign measures the snapshotted bytes;
+    a silent post-campaign edit to either side invalidates the record),
+    and the scored/results artifacts live in the campaign dir (a record
+    must not draw on another campaign's files). Mini-campaign subdirs
+    (round-2/, confirm/) are never consulted — only the named top-level
+    snapshots. Returns (ok lines, errors)."""
+    oks: list[str] = []
+    errors: list[str] = []
+    for path in canonical:
+        snap = camp / path.name
+        if not snap.is_file():
+            errors.append(f"snapshot missing: {snap} (canonical {path})")
+        elif snap.read_bytes() != path.read_bytes():
+            errors.append(f"snapshot {snap} differs from canonical {path}")
+        else:
+            oks.append(f"snapshot {snap.name} byte-identical to {path}")
+    snap_skill = camp / skill_name
+    if not skill_path.is_dir():
+        errors.append(
+            f"--skill-path expects the skill directory: {skill_path}"
+        )
+    elif not snap_skill.is_dir():
+        errors.append(f"snapshot skill dir missing: {snap_skill}")
+    elif hash_skill_dir(snap_skill) != hash_skill_dir(skill_path):
+        errors.append(
+            f"snapshot skill dir {snap_skill} differs from {skill_path}"
+        )
+    else:
+        oks.append(
+            f"snapshot skill dir {snap_skill.name}/ matches {skill_path}"
+        )
+    camp_dir = camp.resolve()
+    if scored_path.resolve().parent != camp_dir:
+        errors.append(
+            f"--scored must live in the campaign dir {camp_dir}: "
+            f"{scored_path}"
+        )
+    for r in results:
+        if Path(r).resolve().parent != camp_dir:
+            errors.append(
+                f"--results must live in the campaign dir {camp_dir}: {r}"
+            )
+    return oks, errors
+
+
+def _verify_wiring_checks(
+    manifest_path: Path,
+    inv: dict,
+    kind: str,
+    entries_path: Path,
+    entries: list[dict],
+) -> tuple[list[str], list[str]]:
+    """Check group 2: manifest<->entries wiring, both directions. Rule
+    kind (shape/pressure): every entry's 'rule' id exists and that
+    item's entries array names the entry; every id an item names exists
+    with a matching back-reference; no entry id is named by two items;
+    no non-excluded item names zero entries (an untested rule cannot be
+    recorded). Fact kind (retrieval): the covering relation is N:M with
+    no back-reference field — every fact's entries exist and every query
+    is named by at least one fact (a query testing no documented fact
+    measures nothing). Both kinds: excluded ids never have entries.
+    Returns (ok lines, errors)."""
+    array = INVENTORY_ARRAYS[kind]
+    items = inv[array]
+    by_id = {item["id"]: item for item in items}
+    excluded_ids = {x["id"] for x in inv["excluded"]}
+    entry_ids = [e["id"] for e in entries]
+    entry_set = set(entry_ids)
+    errors: list[str] = []
+    listed_by: dict[str, list[str]] = {}
+    for item in items:
+        for eid in item["entries"]:
+            listed_by.setdefault(eid, []).append(item["id"])
+            if eid not in entry_set:
+                errors.append(
+                    f"{manifest_path}: item {item['id']} names entry "
+                    f"{eid!r}, which does not exist in {entries_path}"
+                )
+    for eid in sorted(excluded_ids & entry_set):
+        errors.append(
+            f"{entries_path}: entry {eid!r} is an excluded id in "
+            f"{manifest_path} (excluded ids never get entries)"
+        )
+    if kind == "rule":
+        for e in entries:
+            rid = e.get("rule")
+            if not isinstance(rid, str) or not rid:
+                errors.append(
+                    f"{entries_path}: entry {e['id']!r} missing 'rule' "
+                    "(non-empty string)"
+                )
+                continue
+            item = by_id.get(rid)
+            if item is None:
+                errors.append(
+                    f"{entries_path}: entry {e['id']!r} names rule "
+                    f"{rid!r}, which does not exist in {manifest_path}"
+                )
+            elif e["id"] not in item["entries"]:
+                errors.append(
+                    f"{entries_path}: entry {e['id']!r} names rule "
+                    f"{rid!r}, but that rule's entries do not name it"
+                )
+        for eid, owners in listed_by.items():
+            if len(owners) > 1:
+                errors.append(
+                    f"{manifest_path}: entry {eid!r} is named by "
+                    f"multiple items: {', '.join(owners)}"
+                )
+        for item in items:
+            if not item["entries"]:
+                errors.append(
+                    f"{manifest_path}: item {item['id']} names no "
+                    "entries — an untested rule cannot be recorded"
+                )
+    else:  # fact: N:M covering relation, no back-reference field
+        for eid in entry_ids:
+            if eid not in listed_by:
+                errors.append(
+                    f"{entries_path}: entry {eid!r} is named by no fact "
+                    f"in {manifest_path} (it tests no documented fact)"
+                )
+    if errors:
+        return [], errors
+    return [
+        f"wiring: {len(entries)} entries wired to "
+        f"{len(items)} {array}; {len(excluded_ids)} excluded ids absent"
+    ], []
+
+
+def _verify_skill_body_checks(
+    camp: Path, skill_path: Path, entries: list[dict], shape: bool
+) -> tuple[list[str], list[str]]:
+    """Check group 3: skill-body.txt is the canonical SKILL.md with its
+    frontmatter stripped (the exact injected bytes — the pipeline's
+    output is never otherwise re-verified), and — shape only — every
+    entry's section span occurs in it exactly once (the same
+    check_span_uniqueness assertion the pre-spend doc-drift gate and
+    the proposal-time check mode run). Only the shape track snapshots a
+    stripped body; on the other tracks the file is verified when present
+    and skipped when absent. Returns (ok lines, errors)."""
+    body_file = camp / "skill-body.txt"
+    if not body_file.is_file():
+        if shape:
+            return [], [f"snapshot missing: {body_file}"]
+        return [], []
+    body = body_file.read_text()
+    oks: list[str] = []
+    errors: list[str] = []
+    skill_md = skill_path / "SKILL.md"
+    if not skill_md.is_file():
+        errors.append(f"skill file not found: {skill_md}")
+    else:
+        src = skill_md.read_text()
+        fm = extract_frontmatter(src)
+        if fm is None:
+            errors.append(f"missing or unterminated frontmatter in {skill_md}")
+        elif src[len(fm) :] != body:
+            errors.append(
+                f"{body_file} does not match {skill_md} with its "
+                "frontmatter stripped"
+            )
+        else:
+            oks.append(
+                f"{body_file.name} matches {skill_md} with frontmatter "
+                "stripped"
+            )
+    if shape:
+        span_errors = check_span_uniqueness(entries, body)
+        errors.extend(span_errors)
+        if not span_errors:
+            oks.append(
+                f"{len(entries)} entries, every section span unique in "
+                f"{body_file.name}"
+            )
+    return oks, errors
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """The verify command (BUGS.md B9): the end-of-campaign consistency
+    proof that gates `record`. Four check groups, all always run — the
+    failures are repaired in batches, so a failing group never hides a
+    later one: (1) snapshot byte-identity and artifact placement; (2)
+    manifest<->entries wiring; (3) skill-body identity plus the shape
+    span assertion; (4) scored<->results consistency — the scored-check
+    flow itself, reused not duplicated — plus full-campaign coverage
+    (results union ids == entries ids; a mini-campaign is a subset and
+    is never recorded) and the record preflight (the exact counts
+    `record --scope dir` would write; nothing is written). Exit 1 when
+    any group failed."""
+    track = TRACKS[args.track]
+    camp = Path(args.campaign_dir)
+    if not camp.is_dir():
+        return _err(f"campaign dir not found: {camp}")
+    manifest_path = Path(args.manifest)
+    entries_path = Path(args.entries)
+    scored_path = Path(args.scored)
+    skill_path = Path(args.skill_path)
+    kind = track.inventory_kind
+    assert kind is not None  # the parser choices exclude trigger
+    inv = load_inventory(manifest_path, kind)  # exits 1 on violation
+    entries = _VERIFY_LOADERS[track.name](entries_path)  # exits 1
+
+    failed = 0
+
+    def report(oks: list[str], errors: list[str]) -> None:
+        nonlocal failed
+        if errors:
+            failed += 1
+            for e in errors:
+                print(f"error: {e}", file=sys.stderr)
+        else:
+            for line in oks:
+                print(f"ok: {line}")
+
+    report(
+        *_verify_snapshot_checks(
+            camp,
+            inv["skill"],
+            [manifest_path, entries_path],
+            skill_path,
+            scored_path,
+            args.results,
+        )
+    )
+    report(
+        *_verify_wiring_checks(manifest_path, inv, kind, entries_path, entries)
+    )
+    report(
+        *_verify_skill_body_checks(
+            camp, skill_path, entries, shape=track.name == "shape-test"
+        )
+    )
+
+    union = union_results(
+        args.results, track.results_noun, entry_hook=track.union_hook
+    )
+    if isinstance(union, str):
+        report([], [union])
+    else:
+        results_ids, _arms, _extras = union
+        entry_set = {e["id"] for e in entries}
+        missing = [e["id"] for e in entries if e["id"] not in results_ids]
+        extra = [r for r in results_ids if r not in entry_set]
+        cov_errors = []
+        if missing:
+            cov_errors.append(
+                "entries with no results coverage (a full campaign "
+                f"covers every entry): {', '.join(missing)}"
+            )
+        if extra:
+            cov_errors.append(
+                f"results ids with no entry in {entries_path}: "
+                f"{', '.join(extra)}"
+            )
+        report([f"results cover all {len(entries)} entries"], cov_errors)
+        scored_ns = argparse.Namespace(
+            track=track.name,
+            results=list(args.results),
+            scored=str(scored_path),
+            emit_skeleton=None,
+            **{d: None for d in _ALL_COUNT_DESTS},
+        )
+        if cmd_scored_check(scored_ns) != 0:
+            failed += 1
+        else:
+            sums = sums_from_scored(scored_path, track.name)
+            if isinstance(sums, str):
+                print(f"error: {sums}", file=sys.stderr)
+                failed += 1
+            else:
+                _resolved, counts = sums
+                detail = " / ".join(
+                    f"{counts[k]} {k}" for k in track.sum_keys.values()
+                )
+                print(
+                    "ok: record preflight (nothing written): record "
+                    f"--scope dir would write {track.name}: {detail}"
+                )
+
+    if failed:
+        print(f"verify: {failed} check group(s) failed", file=sys.stderr)
+        return 1
+    print(f"verify: all checks passed ({camp})")
+    return 0
+
+
+# --------------------------------------------------------------------------
 # Inventory tooling: rules.json / facts.json validation, id minting, diff
 
 # One implementation serving all three multi-rule tracks: kind "rule" is a
@@ -1069,6 +1382,37 @@ def main() -> int:
     meta.add_argument("--variant")
     meta.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
 
+    verify = sub.add_parser(
+        "verify",
+        help="end-of-campaign consistency proof gating record: snapshot "
+        "byte-identity, manifest<->entries wiring, skill-body/span "
+        "checks, and scored<->results consistency with the record "
+        "preflight (BUGS.md B9)",
+    )
+    verify.add_argument(
+        "--track",
+        required=True,
+        choices=[n for n, t in TRACKS.items() if t.supports_scored],
+    )
+    verify.add_argument(
+        "--manifest",
+        required=True,
+        help="canonical rules.json/facts.json inventory",
+    )
+    verify.add_argument(
+        "--entries",
+        required=True,
+        help="canonical entries/queries/scenarios file",
+    )
+    verify.add_argument("--scored", required=True)
+    verify.add_argument("--results", action="append", required=True)
+    verify.add_argument("--campaign-dir", required=True)
+    verify.add_argument(
+        "--skill-path",
+        required=True,
+        help="the canonical skill directory (snapshot comparison source)",
+    )
+
     inv = sub.add_parser(
         "inventory-check",
         help="validate a rules.json/facts.json "
@@ -1111,6 +1455,7 @@ def main() -> int:
         "select": cmd_select,
         "split": cmd_split,
         "record": cmd_record,
+        "verify": cmd_verify,
         "inventory-check": cmd_inventory_check,
         "inventory-mint": cmd_inventory_mint,
         "inventory-diff": cmd_inventory_diff,
