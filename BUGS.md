@@ -47,7 +47,7 @@ S5. **Hand-read assists** — extracting the flagged samples for reading
    judgment — "grep is triage, not verdict." B4 fixes A/B reduce the
    volume of reading; no harness plan should eliminate the reading
    itself. Permanent driver responsibility.)
-S6. **Campaign file generation** — `suite` consumes but never produces
+S6. (ADDRESSED WITH B8) **Campaign file generation** — `suite` consumes but never produces
    entries files: entries-failing.json, entries-restraint.json, and
    round-2 mini-campaign dirs (changed-form variants + snapshot copies)
    are all driver-built.
@@ -764,7 +764,7 @@ amendments:
   mechanics doc-drift bullet and the checklist span line both point at
   the command.
 
-## B8. Campaign-file generation is driver-side
+## B8. (RESOLVED) Campaign-file generation is driver-side
 
 Gap S6. `suite` consumes but never produces entries files. Every
 campaign the driver hand-builds: entries-failing.json (filter to
@@ -782,6 +782,52 @@ authoring driver-side (it is judgment, not filtering); the subcommand
 only filters and copies. Track-agnostic: entries-file schema is shared
 across shape/pressure, and retrieval's queries file can use the same
 mechanism.
+
+Implemented 2026-09-23 as suggested, plus review amendments.
+Verification first confirmed every claim: suite only reads entries
+(shape.py:684, load_shape_entries) and no subcommand produced an
+entries/queries/scenarios subset; campaign-2026-09-22 holds the three
+hand-built artifacts (entries-failing 4 ids, entries-restraint 1
+pattern id, round-2/entries.json 2 ids with changed-form variants plus
+the rules/skill-body/skill snapshot copies), the filtered files pure
+id-subsets of the campaign-time entries.json; `split` exists but is
+trigger-only stratified splitting, precedent in kind only. The
+"schema is shared" claim holds at the envelope level — a plain JSON
+list of objects with unique non-empty `id` (common.load_entries,
+common.py:418) — which is all a select-by-id needs; per-track field
+schemas differ (field_hook), and trigger queries carry no `id` (out of
+scope by design). Implementation plus amendments:
+
+- `evaluator.py select --entries in.json --ids a,b --out out.json`
+  (cmd_select, evaluator.py): envelope validation only via
+  common.load_entries with no per-track field hook, so one command
+  serves shape entries, pressure scenarios, and retrieval queries.
+- Amendment 1 (hardening): unknown `--ids` exit 1 naming them and write
+  nothing — a typo must not silently yield a too-small campaign file.
+- Amendment 2 (hardening): input document order is preserved rather
+  than `--ids` order, for diff-stability against frozen baselines;
+  empty `--ids` is rejected; output is indent=2 + trailing newline,
+  matching split's dump style.
+- Deliberately out of scope per the suggestion: round-2/confirm
+  snapshot copies stay driver-side `cp`; changed-form variant authoring
+  stays driver-side judgment.
+- Skill docs: shape step 12 builds entries-failing.json with select,
+  step 13's restraint gate now documents `--entries
+  entries-restraint.json` (matching the 2026-09-22 invocation, which
+  the step previously omitted) built by select, step 14 selects the
+  round-2 entries then hand-edits variants and re-runs the step-4
+  `check --entries --skill-file` on the edited file before spend;
+  the layout diagram names both select-filtered files. Retrieval
+  step 12 + the confirm bullet and pressure step 13 name select for
+  their confirm/ mini-campaign files.
+- Tests: SelectTests in test_evaluator.py — filter correctness, input
+  order preservation, verbatim entry carry, unknown-id error naming
+  the id with no output file, empty/duplicate --ids, non-list and
+  duplicate-id envelope rejections. Smoke-tested against the
+  writing-skills workspace entries.json: the campaign's 4-id
+  entries-failing selection reproduced exactly.
+
+Resolves "Test script gaps" item 6.
 
 ## B9. No end-of-campaign verification command
 

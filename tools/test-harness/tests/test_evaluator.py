@@ -744,6 +744,103 @@ class CheckSpanModeTests(unittest.TestCase):
         self.assertIn("skill file not found", out)
 
 
+class SelectTests(unittest.TestCase):
+    """cmd_select (BUGS.md B8): track-agnostic filtering of an
+    entries/queries/scenarios file to a subset of ids. Envelope
+    validation only, input document order preserved, unknown ids a
+    named error."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.entries = self.root / "entries.json"
+        self.out = self.root / "out.json"
+        self._write([("alpha", 1), ("beta", 2), ("gamma", 3)])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write(self, pairs):
+        self.entries.write_text(
+            json.dumps([{"id": eid, "n": n} for eid, n in pairs])
+        )
+
+    def _run(self, ids):
+        ns = argparse.Namespace(
+            entries=str(self.entries), ids=ids, out=str(self.out)
+        )
+        buf = io.StringIO()
+        with (
+            contextlib.redirect_stdout(buf),
+            contextlib.redirect_stderr(buf),
+        ):
+            rc = evaluator.cmd_select(ns)
+        return rc, buf.getvalue()
+
+    def _selected(self):
+        return json.loads(self.out.read_text())
+
+    def test_filters_to_named_ids(self):
+        rc, out = self._run("alpha,gamma")
+        self.assertEqual(rc, 0)
+        ids = [e["id"] for e in self._selected()]
+        self.assertEqual(ids, ["alpha", "gamma"])
+        self.assertIn("select: 2/3 entries ->", out)
+
+    def test_input_document_order_preserved(self):
+        rc, _ = self._run("gamma,alpha")
+        self.assertEqual(rc, 0)
+        ids = [e["id"] for e in self._selected()]
+        self.assertEqual(ids, ["alpha", "gamma"])
+
+    def test_entry_objects_carried_verbatim(self):
+        rc, _ = self._run("beta")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self._selected(), [{"id": "beta", "n": 2}])
+
+    def test_unknown_id_exits_1_naming_it(self):
+        rc, out = self._run("alpha,delta")
+        self.assertEqual(rc, 1)
+        self.assertIn("ids not found in", out)
+        self.assertIn("delta", out)
+        self.assertFalse(self.out.exists())
+
+    def test_empty_ids_rejected(self):
+        rc, out = self._run(" , ")
+        self.assertEqual(rc, 1)
+        self.assertIn("--ids must name at least one id", out)
+        self.assertFalse(self.out.exists())
+
+    def test_duplicate_id_in_ids_selects_once(self):
+        rc, _ = self._run("beta,beta")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["beta"])
+
+    def _run_envelope_error(self):
+        ns = argparse.Namespace(
+            entries=str(self.entries), ids="alpha", out=str(self.out)
+        )
+        err = io.StringIO()
+        with (
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.cmd_select(ns)
+        return cm.exception.code, err.getvalue()
+
+    def test_non_list_input_rejected(self):
+        self.entries.write_text('{"id": "alpha"}')
+        code, err = self._run_envelope_error()
+        self.assertEqual(code, 1)
+        self.assertIn("expected a JSON list", err)
+
+    def test_duplicate_id_in_input_rejected(self):
+        self._write([("alpha", 1), ("alpha", 2)])
+        code, err = self._run_envelope_error()
+        self.assertEqual(code, 1)
+        self.assertIn("duplicate id: alpha", err)
+
+
 class _ProbeStrategy:
     """Satisfies validate_eval_agent's agent_file probe in gate tests
     without any harness binary."""

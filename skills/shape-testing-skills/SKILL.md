@@ -257,7 +257,10 @@ retrieval track.)
     spend confirmation. The second spend confirmation must be an explicit approval
     that names the rules earning variant runs — if the user's reply does not
     enumerate them, stop and ask again before any variant rep dispatches.
-12. Write `$CAMP/entries-failing.json` (the filtered entries) and run `suite
+12. Build `$CAMP/entries-failing.json` with `evaluator.py select --entries
+    <entries> --ids <failing entry ids, comma-separated> --out
+    $CAMP/entries-failing.json` (pure filtering: input order preserved,
+    unknown ids a named error) and run `suite
     --track shape-test --arms v1,v2,v3 --entries $CAMP/entries-failing.json
     --out $CAMP/results-variants.json`
     (same other flags).
@@ -265,15 +268,18 @@ retrieval track.)
     --results $CAMP/results-variants.json` marker triage (pattern rules: add `--compare` and read
     the script's per-marker EXCEEDS/does-not-exceed verdicts instead of hand-comparing
     frequencies) → hand-read every flagged sample → convergence verdict per rule (see
-    Scoring). Pattern-rule winners: restraint gate —
+    Scoring).     Pattern-rule winners: restraint gate —
     `suite --track shape-test --arms <winner> --fixture-key
-    counter-example --out
-    $CAMP/results-restraint.json` (5 reps, scored against `restraint_markers`); a
+    counter-example --entries $CAMP/entries-restraint.json --out
+    $CAMP/results-restraint.json` (5 reps, scored against `restraint_markers`;
+    `entries-restraint.json` is the `select`-filtered winner entries); a
     variant that over-applies is disqualified — gate the next-best converging variant
     the same way. Run the gate only after the variants suite has fully exited; never
     concurrently with any other suite invocation (Serialization).
-14. Non-converging rules → round-2 mini-campaign (changed FORM, new filtered entries
-    file, in the `round-2/` subdir of this campaign's dir — Campaign layout;
+14. Non-converging rules → round-2 mini-campaign (changed FORM: `select` the
+    filtered entries into the `round-2/` subdir of this campaign's dir, then
+    hand-edit the changed-form variants and re-run the step-4 `check --entries
+    --skill-file` against the edited file before spend — Campaign layout;
     **never recorded**), cap 2 rounds → else `unresolved`,
     escalate to the user. Run it only after any other suite has fully exited; never
     concurrently with any other suite invocation (Serialization).
@@ -454,8 +460,9 @@ Campaign rules:
     ├── <skill>/                   # snapshot of the source skill dir
     ├── skill-body.txt             # the exact injected bytes (frontmatter stripped)
     ├── results-control.json/.log  # phase 1
-    ├── entries-failing.json       # filtered entries driving phase 2
+    ├── entries-failing.json       # select-filtered entries driving phase 2
     ├── results-variants.json/.log # phase 2
+    ├── entries-restraint.json     # select-filtered pattern-gate winners
     ├── results-restraint.json/.log  # pattern restraint gates (if any)
     ├── scored.json
     ├── report.md

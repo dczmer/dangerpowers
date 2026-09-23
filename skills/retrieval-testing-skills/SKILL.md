@@ -191,7 +191,9 @@ scripts the agent cannot run.
     the check.
 11. Report (existing format + `artifacts:`/`manifest:` lines).
 12. Confirmed doc fixes → mini-campaign re-run of failed entries only
-    (a `confirm/` subdir of this campaign's dir, filtered queries file) —
+    (a `confirm/` subdir of this campaign's dir, queries file filtered with
+    `evaluator.py select --entries <queries> --ids <failed entry ids> --out
+    $CAMP/confirm/queries.json`) —
     confirmation, never recorded. One campaign dir per full run;
     mini-campaigns live in subdirectories of that run's dir — never in
     top-level `-n` dirs (`-n` is the nth FULL campaign that day, assigned
@@ -223,7 +225,7 @@ Campaign rules:
 
 - Fix between campaigns, never mid-campaign: complete the full pass, then apply edits. Mid-campaign doc edits invalidate every later result.
 - Present recommended edits to the user and apply them only after confirmation.
-- After edits land, re-run ONLY the failed scenarios (with their controls) as a mini-campaign to confirm: a `confirm/` subdir of this campaign's dir, a filtered queries file holding just the re-run entries — and never recorded in the manifest.
+- After edits land, re-run ONLY the failed scenarios (with their controls) as a mini-campaign to confirm: a `confirm/` subdir of this campaign's dir, a queries file `select`-filtered to just the re-run entries — and never recorded in the manifest.
 - Keep queries verbatim across campaigns, `{RUN_DIR}` token included; editing a query invalidates comparison. If a query is bad — asks for nothing, depends on context the bare session lacks — prune it and say so in the report.
 - A scenario still failing after a doc fix gets one more doc revision. Still failing after that: surface it to the user — the fact likely needs restructuring, not rewording.
 

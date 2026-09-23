@@ -5,9 +5,11 @@ Subcommands: check (harness/model validation); run and split (single-query
 trigger probing: one invocation = one query, N reps under the restricted
 `trigger-evaluator` agent); suite, evidence, scored-check, and meta (the
 unified --track campaign commands for trigger-test, retrieval-test,
-shape-test, and pressure-test); record (manifest recording from frontmatter
-scores, --score-from results, or --scored files); and inventory-check /
-inventory-mint / inventory-diff (discipline-rule inventories).
+shape-test, and pressure-test); select (track-agnostic filtering of an
+entries/queries/scenarios file to a subset of ids); record (manifest
+recording from frontmatter scores, --score-from results, or --scored
+files); and inventory-check / inventory-mint / inventory-diff
+(discipline-rule inventories).
 
 Per-track campaign behavior lives behind the Track interface in
 src/tracks/; shared campaign primitives (rep batching, evidence
@@ -36,6 +38,7 @@ from src.common import (
     check_coverage,
     counts_gate,
     emit,
+    load_entries,
     load_scored_json,
     union_results,
 )
@@ -151,6 +154,32 @@ def cmd_check(args: argparse.Namespace) -> int:
         return _err("--harness is required without --entries/--skill-file")
     strategy_cls = resolve_strategy(args.harness)
     check_harness(args.harness, strategy_cls, args.model)
+    return 0
+
+
+def cmd_select(args: argparse.Namespace) -> int:
+    """The select command (BUGS.md B8): filter an entries/queries/
+    scenarios file to the entries --ids names, for the campaign subsets
+    (entries-failing, entries-restraint, round-2) the driver used to
+    hand-build. Pure filtering: envelope validation only (load_entries'
+    shared checks, no per-track field hook, so one command serves every
+    track whose file carries ids), input document order preserved for
+    diff-stability against frozen baselines, and unknown --ids are an
+    error naming them — a typo must not silently yield a too-small
+    file. Changed-form variant authoring stays driver-side."""
+    ids = [s for s in (t.strip() for t in args.ids.split(",")) if s]
+    if not ids:
+        return _err("--ids must name at least one id")
+    entries = load_entries(Path(args.entries), "entries", "entry")
+    have = {e["id"] for e in entries}
+    missing = list(dict.fromkeys(i for i in ids if i not in have))
+    if missing:
+        return _err(f"ids not found in {args.entries}: {', '.join(missing)}")
+    wanted = set(ids)
+    selected = [e for e in entries if e["id"] in wanted]
+    out = Path(args.out)
+    out.write_text(json.dumps(selected, indent=2) + "\n")
+    print(f"select: {len(selected)}/{len(entries)} entries -> {out}")
     return 0
 
 
@@ -920,6 +949,15 @@ def main() -> int:
     split.add_argument("--train-frac", type=float, default=0.6)
     split.add_argument("--seed", type=int)
 
+    select = sub.add_parser(
+        "select",
+        help="filter an entries/queries/scenarios file to a subset of "
+        "ids, preserving input document order (BUGS.md B8)",
+    )
+    select.add_argument("--entries", required=True)
+    select.add_argument("--ids", required=True)
+    select.add_argument("--out", required=True)
+
     suite = sub.add_parser("suite")
     suite.add_argument(
         "--track",
@@ -1070,6 +1108,7 @@ def main() -> int:
         return cmd_meta(args)
     handlers = {
         "check": cmd_check,
+        "select": cmd_select,
         "split": cmd_split,
         "record": cmd_record,
         "inventory-check": cmd_inventory_check,
