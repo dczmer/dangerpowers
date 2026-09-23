@@ -474,8 +474,9 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
 
 
 def cmd_evidence(args: argparse.Namespace) -> int:
-    """Generic evidence dispatcher: flag/track pairing gates, then the
-    track's printer."""
+    """Generic evidence dispatcher: flag/track pairing gates, the
+    --results file-count gate (shape merges N files; the other tracks
+    take exactly one), then the track's printer."""
     track = TRACKS[args.track]
     if args.arm is not None and track.name not in (
         "shape-test",
@@ -487,6 +488,19 @@ def cmd_evidence(args: argparse.Namespace) -> int:
         )
     if args.compare and track.name != "shape-test":
         return _err("--compare is only valid with --track shape-test")
+    results = (
+        args.results if isinstance(args.results, list) else [args.results]
+    )
+    if track.name != "shape-test":
+        if len(results) != 1:
+            return _err(
+                f"exactly one --results file is valid with "
+                f"--track {track.name}"
+            )
+        # single-file printers take the path as a plain string
+        args.results = results[0]
+    else:
+        args.results = results
     return track.print_evidence(args)
 
 
@@ -863,7 +877,7 @@ def main() -> int:
     evidence.add_argument(
         "--track", required=True, choices=[t.name for t in TRACKS.values()]
     )
-    evidence.add_argument("--results", required=True)
+    evidence.add_argument("--results", action="append", required=True)
     evidence.add_argument("--entry")
     # free-form: shape arms are v0/variant names, pressure's are
     # red/green; the tracks' printers validate (no argparse choices —

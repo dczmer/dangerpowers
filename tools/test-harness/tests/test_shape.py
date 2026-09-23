@@ -1230,7 +1230,7 @@ class ShapeEvidenceTests(unittest.TestCase):
     def _run(self, **overrides):
         args = argparse.Namespace(
             track="shape-test",
-            results=str(self.results),
+            results=[str(self.results)],
             entry=None,
             arm=None,
             compare=False,
@@ -1238,8 +1238,10 @@ class ShapeEvidenceTests(unittest.TestCase):
         for k, v in overrides.items():
             setattr(args, k, v)
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
             rc = evaluator.cmd_evidence(args)
+        self.last_err = err.getvalue()
         return rc, buf.getvalue()
 
     def test_prints_runs_with_marker_triage(self):
@@ -1399,13 +1401,178 @@ class ShapeEvidenceTests(unittest.TestCase):
         )
         rc, out = self._run(entry="a", compare=True)
         self.assertEqual(rc, 0)
-        self.assertIn("compare: entry a: no v0 control arm", out)
+        # the skip note goes to stderr so a scripted --compare pipeline
+        # cannot mistake the silence for a clean comparison
+        self.assertIn("compare: entry a: no v0 control arm", self.last_err)
         self.assertNotIn("compare m:", out)
+        self.assertNotIn("no v0 control arm", out)
 
     def test_compare_off_leaves_output_unchanged(self):
         rc, out = self._run()
         self.assertEqual(rc, 0)
         self.assertNotIn("compare", out)
+
+
+def _evidence_runs(*answers: str) -> dict:
+    return {
+        "runs": [
+            {
+                "answer_text": a,
+                "void_signals": [],
+                "session_id": f"s{i}",
+                "timeout": False,
+            }
+            for i, a in enumerate(answers)
+        ]
+    }
+
+
+def _evidence_entry(eid: str, arms: dict) -> dict:
+    return {
+        "id": eid,
+        "kind": "pattern",
+        "markers": {"m": "TODO"},
+        "restraint_markers": None,
+        "arms": arms,
+    }
+
+
+class ShapeEvidenceMergeTests(unittest.TestCase):
+    """evidence --results a b: multi-file merge for --compare across the
+    phase-1/phase-2 file split — entries keyed by id in first-appearance
+    order, same-fixture arms pooled, fixture-mismatched reruns suffixed,
+    config drift warned."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.control = self.root / "results-control.json"
+        self.variants = self.root / "results-variants.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, paths, **overrides):
+        args = argparse.Namespace(
+            track="shape-test",
+            results=[str(p) for p in paths],
+            entry=None,
+            arm=None,
+            compare=False,
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        self.last_err = err.getvalue()
+        return rc, buf.getvalue()
+
+    def test_union_control_and_variants_yields_compare_verdicts(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        results_file(
+            self.variants,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v1": _evidence_runs("TODO\nTODO"),
+                        "v2": _evidence_runs("line\nline"),
+                    },
+                )
+            ],
+        )
+        rc, out = self._run(
+            [self.control, self.variants], entry="a", compare=True
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("compare m: v1 1.0 vs v0 0.5 -> EXCEEDS", out)
+        self.assertIn("compare m: v2 0.0 vs v0 0.5 -> does-not-exceed", out)
+        self.assertEqual(out.count("compare m:"), 2)
+        self.assertIn(str(self.control), out)
+        self.assertIn(str(self.variants), out)
+
+    def test_same_fixture_duplicate_arm_concatenates_with_note(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v0": _evidence_runs("line\nline")})],
+        )
+        rc, out = self._run([self.control, self.variants], entry="a")
+        self.assertEqual(rc, 0)
+        # one pooled arm: rep numbering continues across the files
+        self.assertEqual(out.count("[ v0 ] rep"), 2)
+        self.assertIn("[ v0 ] rep   1", out)
+        self.assertIn("[ v0 ] rep   2", out)
+        self.assertIn("concatenated 1 runs", self.last_err)
+
+    def test_fixture_key_mismatch_disambiguates_and_skips_compare(self):
+        results_file(
+            self.control,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v0": _evidence_runs("TODO\nline"),
+                        "v2": _evidence_runs("TODO\nTODO"),
+                    },
+                )
+            ],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v2": _evidence_runs("line\nline")})],
+            fixture_key="counter-example",
+        )
+        rc, out = self._run(
+            [self.control, self.variants], entry="a", compare=True
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("[ v2 ] rep   1", out)
+        self.assertIn("[ v2@counter-example ] rep   1", out)
+        # only the application-fixture v2 is a compare candidate; the
+        # restraint rerun is evidence, never pooled, never compared
+        self.assertIn("compare m: v2 1.0 vs v0 0.5 -> EXCEEDS", out)
+        self.assertEqual(out.count("compare m:"), 1)
+        self.assertNotIn("v2@counter-example 0.0", out)
+
+    def test_config_drift_warns_naming_differing_keys(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO\nTODO")})],
+            model="m2",
+            timeout=300,
+        )
+        rc, out = self._run([self.control, self.variants], entry="a")
+        self.assertEqual(rc, 0)
+        self.assertIn("warning:", self.last_err)
+        self.assertIn("model", self.last_err)
+        self.assertIn("timeout", self.last_err)
+        # date always differs across files and is not drift
+        self.assertNotIn("date", self.last_err)
+
+    def test_merged_kind_mismatch_is_an_error(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        entry = _evidence_entry("a", {"v1": _evidence_runs("TODO")})
+        entry["kind"] = "shaping"
+        results_file(self.variants, [entry])
+        rc, _ = self._run([self.control, self.variants])
+        self.assertEqual(rc, 1)
+        self.assertIn("kind 'shaping' differs", self.last_err)
 
 
 class MarkerTriageTests(unittest.TestCase):

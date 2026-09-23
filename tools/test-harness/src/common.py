@@ -201,18 +201,33 @@ def load_results_json(path: Path, track: str) -> tuple[list[dict], str | None]:
     with an 'entries' list. Returns ([], exact error message) on
     failure — the caller prints it to stderr and returns 1, matching
     the evidence commands' historical exit style."""
+    entries, _, error = load_results_envelope(path, track)
+    return entries, error
+
+
+def load_results_envelope(
+    path: Path, track: str
+) -> tuple[list[dict], dict | None, str | None]:
+    """load_results_json plus the config block: returns (entries,
+    config, exact error message). config is None when the envelope
+    carries no object under 'config'."""
     if not path.exists():
-        return [], f"results file not found: {path}"
+        return [], None, f"results file not found: {path}"
     try:
         data = json.loads(path.read_text())
     except json.JSONDecodeError as e:
-        return [], f"invalid JSON in {path}: {e}"
+        return [], None, f"invalid JSON in {path}: {e}"
     if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
-        return [], (
-            f"{path}: not a {track}-suite results file "
-            f"(missing 'entries' list)"
+        return (
+            [],
+            None,
+            (
+                f"{path}: not a {track}-suite results file "
+                f"(missing 'entries' list)"
+            ),
         )
-    return data["entries"], None
+    config = data.get("config")
+    return data["entries"], config if isinstance(config, dict) else None, None
 
 
 def iter_evidence(

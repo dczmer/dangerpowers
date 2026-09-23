@@ -323,6 +323,26 @@ class FailuresTests(unittest.TestCase):
         rc, _ = self._run()
         self.assertEqual(rc, 1)
 
+    def test_multiple_results_files_rejected_via_cmd_evidence(self):
+        # evidence merges N --results files for shape only; every other
+        # track keeps the single-file printer behind the scored-check
+        # message
+        args = argparse.Namespace(
+            track="trigger-test",
+            results=[str(self.results), str(self.results)],
+            entry=None,
+            arm=None,
+            compare=False,
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            rc = evaluator.cmd_evidence(args)
+        self.assertEqual(rc, 1)
+        self.assertIn(
+            "exactly one --results file is valid with --track trigger-test",
+            buf.getvalue(),
+        )
+
 
 class HarnessWorkspaceMixin:
     """Temp workspace with a synced skill stub and a valid evaluator

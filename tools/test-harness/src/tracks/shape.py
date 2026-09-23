@@ -12,6 +12,7 @@ from src.common import (
     emit,
     iter_evidence,
     load_entries,
+    load_results_envelope,
     load_results_json,
     log_start,
     run_rep_batched,
@@ -344,21 +345,129 @@ def _print_shape_compare(eid: str, arms: dict, markers: dict) -> None:
     """--compare: per-marker property-frequency verdict of each candidate
     arm against the v0 control. The adoption rule hinges on the strict >
     on the normalized frequency: equal frequency means the rule is not
-    binding. A missing v0 control skips the comparison with a note —
-    there is nothing to beat, and comparing against an empty base would
-    manufacture EXCEEDS verdicts from no control evidence."""
+    binding. A missing v0 control skips the comparison with a note on
+    stderr — there is nothing to beat, and comparing against an empty
+    base would manufacture EXCEEDS verdicts from no control evidence.
+    Fixture-disambiguated rerun arms (v2@counter-example, see
+    _merge_shape_results) are visible in the evidence but are never
+    compare candidates: their runs answer a different fixture."""
     if "v0" not in arms:
-        print(f"compare: entry {eid}: no v0 control arm; comparison skipped")
+        print(
+            f"compare: entry {eid}: no v0 control arm; comparison skipped",
+            file=sys.stderr,
+        )
         return
     base = aggregate_counts(arms.get("v0"), markers)
     for arm in arms:
         if _is_v0_family(arm):
             continue  # v0-family arms are control evidence, not candidates
+        if "@" in arm:
+            continue  # fixture-disambiguated reruns are not candidates
         cand = aggregate_counts(arms[arm], markers)
         for name in markers:
             b, c = base.get(name, 0), cand.get(name, 0)
             verdict = "EXCEEDS" if c > b else "does-not-exceed"
             print(f"compare {name}: {arm} {c} vs v0 {b} -> {verdict}")
+
+
+# Config keys whose drift across merged results files makes the pooled
+# runs unattributable to one model selection; drift warns on stderr.
+_DRIFT_CONFIG_KEYS = ("model", "variant", "reps", "timeout")
+
+
+def _merge_shape_results(paths: list[Path]) -> tuple[list[dict], str | None]:
+    """Merge N shape results files into one entries list for evidence:
+    entries keyed by id in first-appearance order (union_results
+    semantics). An arm appearing in several files is pooled only when
+    the files' config.fixture_key values match — a restraint gate
+    reuses the winning arm's key under fixture_key counter-example, and
+    pooling it with the application-fixture runs would contaminate the
+    --compare property frequencies. Fixture-mismatched runs stay
+    visible under a suffixed display key (v2@counter-example). Run
+    concatenation and config drift on _DRIFT_CONFIG_KEYS note on
+    stderr. Returns (merged entries, exact error message).
+
+    Asymmetry, deliberate: scored-check's union (via _shape_union_hook)
+    has no fixture-key guard — it sums same-named arms unconditionally
+    and the driver narrows the skeleton by hand. The guard lives here
+    because evidence is where the frequency comparison happens; a
+    scored-check that also split restraint runs would change the
+    recorded marker_counts schema."""
+    order: list[str] = []
+    by_id: dict[str, dict] = {}
+    arm_fixtures: dict[tuple[str, str], object] = {}
+    base_config: dict | None = None
+    base_path: Path | None = None
+    for path in paths:
+        entries, config, error = load_results_envelope(path, "shape")
+        if error is not None:
+            return [], error
+        config = config if config is not None else {}
+        if base_config is None:
+            base_config, base_path = config, path
+        else:
+            drift = [
+                k
+                for k in _DRIFT_CONFIG_KEYS
+                if config.get(k) != base_config.get(k)
+            ]
+            if drift:
+                print(
+                    f"warning: {path}: config differs from {base_path} "
+                    f"on: {', '.join(drift)}",
+                    file=sys.stderr,
+                )
+        fixture_key = config.get("fixture_key")
+        for i, entry in enumerate(entries):
+            eid = entry.get("id") if isinstance(entry, dict) else None
+            if not isinstance(eid, str) or not eid:
+                return [], (
+                    f"{path}: results entry {i} missing 'id' "
+                    f"(non-empty string)"
+                )
+            arms = entry.get("arms") if isinstance(entry, dict) else None
+            if not isinstance(arms, dict):
+                return [], (
+                    f"{path}: entry {eid} is missing its 'arms' object"
+                )
+            if eid not in by_id:
+                order.append(eid)
+                merged = dict(entry)
+                merged["arms"] = {}
+                by_id[eid] = merged
+            merged = by_id[eid]
+            kind = entry.get("kind")
+            if kind != merged.get("kind"):
+                return [], (
+                    f"{path}: entry {eid}: kind {kind!r} differs from "
+                    f"earlier results file ({merged.get('kind')!r})"
+                )
+            for arm, arm_data in arms.items():
+                if not isinstance(arm_data, dict) or not isinstance(
+                    arm_data.get("runs"), list
+                ):
+                    return [], (
+                        f"{path}: entry {eid} arm {arm!r} is missing "
+                        f"its run list"
+                    )
+                key = (eid, arm)
+                if key not in arm_fixtures:
+                    arm_fixtures[key] = fixture_key
+                display = (
+                    arm
+                    if arm_fixtures[key] == fixture_key
+                    else f"{arm}@{fixture_key}"
+                )
+                if display in merged["arms"]:
+                    merged["arms"][display]["runs"].extend(arm_data["runs"])
+                    print(
+                        f"note: {path}: entry {eid} arm {display!r}: "
+                        f"concatenated {len(arm_data['runs'])} runs",
+                        file=sys.stderr,
+                    )
+                else:
+                    merged["arms"][display] = {"runs": list(arm_data["runs"])}
+    return [by_id[eid] for eid in order], None
 
 
 def _shape_union_hook(path: Path, e: dict, extras: dict) -> str | None:
@@ -600,18 +709,30 @@ class ShapeTrack(Track):
         return f"shape suite: {n} entries -> {out}"
 
     def print_evidence(self, args: argparse.Namespace) -> int:
-        """Print the per-run scoring evidence from a shape-suite results
+        """Print the per-run scoring evidence from shape-suite results
         JSON: per entry/arm/rep the answer text, void signals, session
         id, and marker triage counts (markers are carried in the results
         entries, so no entries-file re-read is needed). Extraction only —
-        the driver judges convergence across the reps by hand. Exit 0
-        with an entry count line; exit 1 only on a malformed file or
-        unknown --entry."""
-        path = Path(args.results)
-        data_entries, error = load_results_json(path, "shape")
+        the driver judges convergence across the reps by hand. With
+        several --results files the entries are merged by id
+        (_merge_shape_results: same-fixture arms pooled, fixture-
+        mismatched reruns suffixed), which is what puts the v0 control
+        within --compare's reach across the phase-1/phase-2 file split.
+        Exit 0 with an entry count line; exit 1 only on a malformed
+        file or unknown --entry."""
+        paths = (
+            args.results if isinstance(args.results, list) else [args.results]
+        )
+        paths = [Path(p) for p in paths]
+        if len(paths) == 1:
+            data_entries, error = load_results_json(paths[0], "shape")
+        else:
+            data_entries, error = _merge_shape_results(paths)
         if error is not None:
             print(f"error: {error}", file=sys.stderr)
             return 1
+        path = paths[0]
+        origin = ", ".join(str(p) for p in paths)
 
         n_printed = 0
         try:
@@ -689,7 +810,7 @@ class ShapeTrack(Track):
         if args.entry is not None and n_printed == 0:
             print(f"error: no entry with id: {args.entry}", file=sys.stderr)
             return 1
-        print(f"evidence: {n_printed} entries from {path}")
+        print(f"evidence: {n_printed} entries from {origin}")
         return 0
 
     def skeleton_entry(self, eid: str, extras: dict) -> dict:

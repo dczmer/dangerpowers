@@ -230,7 +230,8 @@ retrieval track.)
     --track shape-test --arms v1,v2,v3 --entries $CAMP/entries-failing.json
     --out $CAMP/results-variants.json`
     (same other flags).
-13. Score: `evidence --track shape-test` marker triage (pattern rules: add `--compare` and read
+13. Score: `evidence --track shape-test --results $CAMP/results-control.json
+    --results $CAMP/results-variants.json` marker triage (pattern rules: add `--compare` and read
     the script's per-marker EXCEEDS/does-not-exceed verdicts instead of hand-comparing
     frequencies) → hand-read every flagged sample → convergence verdict per rule (see
     Scoring). Pattern-rule winners: restraint gate —
@@ -249,7 +250,10 @@ retrieval track.)
     the results, judgment fields null; the driver narrows `marker_counts` by
     hand and fills the judgment fields, then re-runs with `--scored
     $CAMP/scored.json` to validate — the check gates `record`. An unfilled
-    skeleton fails the check.
+    skeleton fails the check. (The union pools same-named arms across files
+    unconditionally — a restraint rerun lands in its arm key's counts, which
+    is what the narrowing removes; `evidence --compare` instead keeps
+    fixture-mismatched reruns separate under `vN@<fixture-key>`.)
 16. Report (multi-rule format per Report format).
 17. After every completed FULL campaign (never aborted, never a mini-campaign):
     `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
@@ -319,17 +323,22 @@ Two rules govern every scoring decision:
 - Never adopt a prohibition arm: `adopted` may only name a recipe / structural arm —
   a suppressed token that migrates to a worse shape is displacement, not a fix.
 
-`evidence --track shape-test --results <file> [--entry <id>] [--arm vN]
+`evidence --track shape-test --results <file>... [--entry <id>] [--arm vN]
 [--compare]` prints per entry/arm/rep the
 answer text, void signals, session id, and marker triage counts (per-marker count of
-answer lines matching each grep token). With `--compare` it also prints, per candidate
+answer lines matching each grep token). Repeated `--results` merges the phase files by
+entry id so `--compare` can see the v0 control: arms whose `fixture_key` matches are
+pooled (with a stderr note); a fixture mismatch — e.g. a restraint rerun of v2 — stays
+separate under a suffixed display key (`v2@counter-example`), visible in the evidence
+but never a compare candidate, and model/variant/reps/timeout drift across files warns
+on stderr. With `--compare` it also prints, per candidate
 arm and marker, one line `compare <name>: <arm> <c> vs v0 <b> -> EXCEEDS|does-not-exceed`:
 the script compares each non-control arm's per-marker property frequency against the
 v0 control (frequency = matching answer lines / answer lines, pooled across the arm's
 runs; a candidate must strictly EXCEED the control, so a tie is does-not-exceed).
 Candidate arms are every arm outside the v0 control family (`v0`, `v0-rerun`, … — a
 control re-run is control evidence, never a candidate); a missing v0 arm prints a
-per-entry skip note and the exit stays 0. Read the script's verdict instead of
+per-entry skip note on stderr and the exit stays 0. Read the script's verdict instead of
 hand-comparing frequencies — a strict-`>` tie boundary decided by mental arithmetic
 is a coin flip. Triage only — the driver reads every flagged sample by hand and judges **convergence across the 5 reps**: when wording lands, all
 reps produce the same structure; five different structures across five reps means the
