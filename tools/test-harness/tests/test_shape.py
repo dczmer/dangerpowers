@@ -28,6 +28,7 @@ from src.tracks import (
     assemble_arm_body,
     build_shape_prompt,
     build_shape_run_record,
+    check_span_uniqueness,
     load_shape_entries,
     marker_triage_counts,
     verify_arm_bytes,
@@ -256,6 +257,37 @@ class ShapeEntriesTests(unittest.TestCase):
     def test_empty_variant_text_rejected(self):
         self._write([shaping_entry(variants={"v1": ""})])
         self._rejected()
+
+
+class SpanUniquenessTests(unittest.TestCase):
+    """check_span_uniqueness (BUGS.md B7): the shared section-span
+    assertion behind the pre-spend doc-drift gate and the proposal-time
+    check mode — empty when clean, one error per violating entry."""
+
+    BODY = "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_B + "\n"
+
+    def test_clean_returns_empty(self):
+        entries = [
+            shaping_entry(),
+            shaping_entry(eid="tests", section=SECTION_B),
+        ]
+        self.assertEqual(check_span_uniqueness(entries, self.BODY), [])
+
+    def test_every_violating_entry_reported(self):
+        # css-modules' span occurs twice, tests' span is absent: both
+        # must be named (the gate fails on the first; the check mode
+        # prints them all for batch repair at proposal time).
+        body = "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_A + "\n"
+        entries = [
+            shaping_entry(),
+            shaping_entry(eid="tests", section=SECTION_B),
+        ]
+        errors = check_span_uniqueness(entries, body)
+        self.assertEqual(len(errors), 2)
+        self.assertIn("entry 'css-modules'", errors[0])
+        self.assertIn("occurs 2 times", errors[0])
+        self.assertIn("entry 'tests'", errors[1])
+        self.assertIn("occurs 0 times", errors[1])
 
 
 class ArmAssemblyTests(unittest.TestCase):

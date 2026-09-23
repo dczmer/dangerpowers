@@ -623,6 +623,126 @@ class CheckCommandTests(unittest.TestCase):
             "opencode", strategies.OpencodeStrategy, None
         )
 
+    def test_harness_required_without_span_mode(self):
+        ns = argparse.Namespace(
+            harness=None, model=None, entries=None, skill_file=None
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            rc = evaluator.cmd_check(ns)
+        self.assertEqual(rc, 1)
+        self.assertIn("--harness is required", buf.getvalue())
+
+
+class CheckSpanModeTests(unittest.TestCase):
+    """cmd_check --entries/--skill-file (BUGS.md B7): the shape track's
+    proposal-time section-span check. Zero harness involvement — the
+    preflight mock must never be called in span mode."""
+
+    SECTION = "## Styling\n\nComponents use css modules, never inline"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.entries = self.root / "entries.json"
+        self.skill = self.root / "SKILL.md"
+        self._write_entries([("css-modules", self.SECTION)])
+        self.skill.write_text("# Demo\n\n" + self.SECTION + "\n")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_entries(self, pairs):
+        self.entries.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": eid,
+                        "kind": "shaping",
+                        "section": section,
+                        "fixtures": {
+                            "application": f"write a component for {eid}"
+                        },
+                        "markers": {"inline_style": "style="},
+                        "variants": {"v1": "Never use inline styles."},
+                    }
+                    for eid, section in pairs
+                ]
+            )
+        )
+
+    def _run(self, entries=True, skill_file=True):
+        ns = argparse.Namespace(
+            harness=None,
+            model=None,
+            entries=str(self.entries) if entries else None,
+            skill_file=str(self.skill) if skill_file else None,
+        )
+        buf = io.StringIO()
+        with mock.patch.object(evaluator, "check_harness") as check_mock:
+            with (
+                contextlib.redirect_stdout(buf),
+                contextlib.redirect_stderr(buf),
+            ):
+                rc = evaluator.cmd_check(ns)
+        return rc, check_mock, buf.getvalue()
+
+    def test_clean_exits_0_with_per_entry_report(self):
+        rc, check_mock, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "ok: entry 'css-modules': section span occurs exactly once", out
+        )
+        self.assertIn("every section span unique", out)
+        check_mock.assert_not_called()
+
+    def test_absent_span_exits_1_naming_entry(self):
+        self.skill.write_text("# Demo\n\nother text\n")
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'css-modules'", out)
+        self.assertIn("occurs 0 times", out)
+
+    def test_duplicated_span_exits_1(self):
+        self.skill.write_text(
+            "# Demo\n\n" + self.SECTION + "\n\n" + self.SECTION + "\n"
+        )
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("occurs 2 times", out)
+
+    def test_all_drifted_spans_reported(self):
+        other = "## Testing\n\nTests live next to the component"
+        self._write_entries([("css-modules", self.SECTION), ("tests", other)])
+        self.skill.write_text("# Demo\n\nno spans here\n")
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'css-modules'", out)
+        self.assertIn("entry 'tests'", out)
+
+    def test_frontmatter_stripped_before_matching(self):
+        self.skill.write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\n" + self.SECTION + "\n"
+        )
+        rc, _, _ = self._run()
+        self.assertEqual(rc, 0)
+
+    def test_entries_without_skill_file_rejected(self):
+        rc, _, out = self._run(skill_file=False)
+        self.assertEqual(rc, 1)
+        self.assertIn("must be given together", out)
+
+    def test_skill_file_without_entries_rejected(self):
+        rc, _, out = self._run(entries=False)
+        self.assertEqual(rc, 1)
+        self.assertIn("must be given together", out)
+
+    def test_missing_skill_file_rejected(self):
+        self.skill.unlink()
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("skill file not found", out)
+
 
 class _ProbeStrategy:
     """Satisfies validate_eval_agent's agent_file probe in gate tests

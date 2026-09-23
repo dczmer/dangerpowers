@@ -48,8 +48,10 @@ from src.strategies import (
 from src.tracks import (
     TRACKS,
     Track,
+    check_span_uniqueness,
     cmd_run,
     cmd_split,
+    load_shape_entries,
 )
 
 # --------------------------------------------------------------------------
@@ -109,7 +111,44 @@ def _suite_lock() -> Iterator[None]:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    """The check command: harness binary (+ model when given) preflight."""
+    """The check command: harness binary (+ model when given) preflight,
+    or — with --entries/--skill-file — the shape track's proposal-time
+    section-span check (BUGS.md B7): every entry's span must occur
+    verbatim exactly once in the skill body BEFORE the campaign dir,
+    snapshots, and proposal are built. Span mode never touches the
+    harness, so --harness is required only for the preflight form."""
+    entries_arg = getattr(args, "entries", None)
+    skill_file_arg = getattr(args, "skill_file", None)
+    if entries_arg is not None or skill_file_arg is not None:
+        if entries_arg is None or skill_file_arg is None:
+            return _err("--entries and --skill-file must be given together")
+        entries = load_shape_entries(Path(entries_arg))  # exits 1
+        skill_file = Path(skill_file_arg)
+        if not skill_file.is_file():
+            return _err(f"skill file not found: {skill_file}")
+        text = skill_file.read_text()
+        # Strip a frontmatter block when present, so the mode works on
+        # the canonical SKILL.md at proposal time as well as on an
+        # already-stripped skill-body.txt snapshot.
+        fm = extract_frontmatter(text)
+        body = text[len(fm) :] if fm is not None else text
+        errors = check_span_uniqueness(entries, body)
+        if errors:
+            for e in errors:
+                print(f"error: {e}", file=sys.stderr)
+            return 1
+        for entry in entries:
+            print(
+                f"ok: entry {entry['id']!r}: section span occurs "
+                f"exactly once"
+            )
+        print(
+            f"ok: {len(entries)} entries, every section span unique in "
+            f"{skill_file}"
+        )
+        return 0
+    if args.harness is None:
+        return _err("--harness is required without --entries/--skill-file")
     strategy_cls = resolve_strategy(args.harness)
     check_harness(args.harness, strategy_cls, args.model)
     return 0
@@ -848,11 +887,16 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     check = sub.add_parser("check")
-    check.add_argument("--harness", required=True)
+    # Not argparse-required: the --entries/--skill-file span-check mode
+    # (BUGS.md B7) never touches the harness. cmd_check enforces the
+    # pairing gates.
+    check.add_argument("--harness")
     check.add_argument(
         "--model",
         help="also validate the model against the harness's model list",
     )
+    check.add_argument("--entries")  # shape span-check mode
+    check.add_argument("--skill-file")  # shape span-check mode
 
     run = sub.add_parser("run")
     run.add_argument("--harness", required=True)

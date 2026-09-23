@@ -223,7 +223,13 @@ retrieval track.)
    30, pattern 40). User approves the proposal.
 4. Preflight (no spend): `python3 --version` (>= 3.10); `evaluator.py check
    --harness <h> [--model m]` (with `--model`, the check also validates the
-   model against the harness's model list).
+   model against the harness's model list); `evaluator.py check --entries
+   <entries.json> --skill-file <source SKILL.md>` — the proposal-time
+   section-span check (no harness involvement; the command strips the
+   frontmatter itself): every entry's span must occur verbatim exactly once
+   in the current skill body BEFORE the campaign is built. Exit 1 names
+   every drifted span — fix the entries or the spans now, or the suite's
+   doc-drift gate aborts after all setup work (steps 5-7).
 5. One sterile workspace: `workspace-manager.sh init --prefix shape-test` → WS
    (never synced; `sync`/`status` are not part of this track at all).
 6. `campaign-init --root <root>/skills-workspace/<s>/shape-tests` → CAMP.
@@ -303,7 +309,9 @@ validation; `--fixture-key` is `application` or `counter-example` and the keyed 
 exists on every selected entry; `--arms` parses to a subset of `{v0} ∪ variants`
 present on each entry; `--reps`/`--timeout` >= 1; out directory exists; every section
 span occurs verbatim exactly once in the snapshotted body (doc drift aborts before
-spend); and the **contamination gate** (a synced skill in the workspace fails with
+spend — the same assertion the proposal-time `check --entries/--skill-file` mode in
+step 4 runs against the current skill body before the campaign is built); and the
+**contamination gate** (a synced skill in the workspace fails with
 "recreate the workspace, never sync").
 
 Then, **strictly serially** per entry, per arm — never parallelize arms; the serial
@@ -540,7 +548,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Inputs collected: skill resolved name-or-path, source root derived, harness user-specified, model/variant/reps/timeout settled; rule inventory built fresh, every rule classified, manifest diffed; no shaping/pattern rules → stopped with routings reported
 - [ ] Every excluded rule recorded with a routing reason; frontmatter-convention rules never proposed as entries
 - [ ] Proposal cards in the fixed format, one per entry, with full fixture/variant texts and the cost formula; user approved
-- [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped); `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
+- [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped), verified at proposal time by `evaluator.py check --entries <entries.json> --skill-file <source SKILL.md>`; `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
 - [ ] Markers calibrated at proposal time against prior-campaign results (`evidence --matrix`): every wrong-shape marker fires on a known-bad sample, every right-shape/property marker silent on known-good; amended entries.json frozen with the fixtures for the campaign
 - [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` (with `--model` when a model is set) exit 0; ONE workspace initialized with `--prefix shape-test`
 - [ ] Workspace never synced (contamination gate clean); campaign dir created; entries.json, rules.json, the source skill dir, and skill-body.txt (via the documented pipeline — never hand-edited) snapshotted with the exact commands recorded

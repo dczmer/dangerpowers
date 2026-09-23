@@ -57,10 +57,30 @@ def _check_marker_tokens(
 def load_shape_entries(path: Path) -> list[dict]:
     """Read and strictly validate a shape entries file. Schema only: the
     verbatim section-span assertion against the snapshotted skill body
-    lives in ShapeTrack.pre_spend_gates, which owns the body bytes. On
-    any violation prints `error: <exact reason>` to stderr and exits 1
-    (pre-spend: zero harness runs happen before this returns)."""
+    lives in check_span_uniqueness, called by ShapeTrack.pre_spend_gates
+    (the body owner) and by evaluator's proposal-time `check --entries`
+    mode. On any violation prints `error: <exact reason>` to stderr and
+    exits 1 (pre-spend: zero harness runs happen before this returns)."""
     return load_entries(path, "entries", "entry", _check_shape_fields)
+
+
+def check_span_uniqueness(entries: list[dict], body: str) -> list[str]:
+    """The verbatim section-span assertion (BUGS.md B7): every entry's
+    section span must occur exactly once in the body bytes. Returns one
+    error string per violating entry, empty when clean — the pre-spend
+    doc-drift gate fails on the first, the proposal-time check mode
+    prints them all (drift is fixed in batches at proposal time)."""
+    errors = []
+    for entry in entries:
+        occurrences = body.count(entry["section"])
+        if occurrences != 1:
+            errors.append(
+                f"doc drift: section span of entry {entry['id']!r} "
+                f"occurs {occurrences} times in the skill body "
+                f"(expected exactly once); fix the entry or the "
+                f"snapshot"
+            )
+    return errors
 
 
 def _check_shape_fields(path: Path, i: int, entry: dict, eid: str) -> None:
@@ -681,15 +701,9 @@ class ShapeTrack(Track):
         # once in the snapshotted body (frontmatter already stripped by
         # the driver — spans overlapping frontmatter are never matched).
         # Aborts before spend.
-        for entry in entries:
-            occurrences = body.count(entry["section"])
-            if occurrences != 1:
-                _fail(
-                    f"doc drift: section span of entry {entry['id']!r} "
-                    f"occurs {occurrences} times in the skill body "
-                    f"(expected exactly once); fix the entry or the "
-                    f"snapshot"
-                )
+        errors = check_span_uniqueness(entries, body)
+        if errors:
+            _fail(errors[0])
 
         out = Path(args.out)
         if not out.parent.is_dir():

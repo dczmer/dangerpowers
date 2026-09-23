@@ -591,7 +591,7 @@ A stale lock after a crashed suite requires manual removal by design
 (the message names the path) — auto-reaping would risk breaking a
 live holder on PID reuse.
 
-## B6. Campaign layout misuses the -2 suffix; mini-campaigns belong inside the full-campaign dir
+## B6. (RESOLVED) Campaign layout misuses the -2 suffix; mini-campaigns belong inside the full-campaign dir
 
 Surface report (2026-09-22 campaign): "made two campaign log
 directories for the same run: 2026-09-22 and 2026-09-22-2."
@@ -699,7 +699,7 @@ full-campaign sequence.
 
 Suite: 429 tests pass; flake8/ruff/black/pyright clean.
 
-## B7. No pre-spend way to check section-span drift at proposal time
+## B7. (RESOLVED) No pre-spend way to check section-span drift at proposal time
 
 Gap S1. When reusing a previous campaign's fixtures, the driver must
 verify that every entry's `section` span still occurs verbatim exactly
@@ -723,6 +723,46 @@ nothing) or as a dedicated mode on `check` taking --entries and
 naming the first span that is missing or duplicated. This is the
 cheapest of the B-series fixes and removes a whole class of
 late-discovery aborts.
+
+Implemented 2026-09-23 as the dedicated `check` mode (the lighter of
+the two options — `suite --dry-run` was rejected: it still demands the
+full suite flag surface, the harness preflight, and an existing --out
+parent, all campaign artifacts the point is to not have yet).
+Verification first confirmed every claim: the only span-uniqueness
+checks were in the suite path (shape.py pre_spend_gates and
+assemble_arm_body); `check` preflighted harness/model only;
+campaign-init just makes the dir; the skill's workflow order
+(proposal → workspace → campaign dir → snapshots → suite) put the
+gate after all setup; pressure's --skill-file is an exists-check only,
+retrieval/trigger have no span concept. Implementation plus review
+amendments:
+
+- `evaluator.py check --entries <entries.json> --skill-file <file>`:
+  loads entries through load_shape_entries (schema validation included
+  — malformed reused fixtures surface here too), strips a frontmatter
+  block via extract_frontmatter when present (works on the canonical
+  SKILL.md at proposal time and on an already-stripped skill-body.txt),
+  exits 0 with a per-entry occurrence report, exits 1 naming EVERY
+  drifted span — the review amendment over "the first span", since
+  proposal-time drift is repaired in batches. --harness stays required
+  only for the preflight form ("--harness is required without
+  --entries/--skill-file"); the pairing gate rejects a lone --entries
+  or --skill-file.
+- Shared helper `check_span_uniqueness` (shape.py): the assertion now
+  lives in one place, called by the pre-spend doc-drift gate (fails on
+  the first error, message byte-identical) and by the check mode
+  (prints them all). B9's future verify command (its check #3 is the
+  same assertion) should call this helper rather than re-implement it.
+- Tests: helper unit tests (clean/absent/duplicated/all-reported) in
+  test_shape.py SpanUniquenessTests; cmd_check mode tests in
+  test_evaluator.py CheckSpanModeTests (clean report with no harness
+  preflight, absent/duplicated exit 1 naming entries, all drifted
+  spans reported, frontmatter stripping, pairing gate, missing skill
+  file, --harness-still-required without span mode).
+- Skill doc: shape SKILL.md step 4 runs the check at preflight against
+  the source SKILL.md and names the steps it saves (5-7); the suite
+  mechanics doc-drift bullet and the checklist span line both point at
+  the command.
 
 ## B8. Campaign-file generation is driver-side
 
