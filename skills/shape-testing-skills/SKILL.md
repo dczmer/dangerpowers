@@ -267,7 +267,8 @@ retrieval track.)
     the same way. Run the gate only after the variants suite has fully exited; never
     concurrently with any other suite invocation (Serialization).
 14. Non-converging rules → round-2 mini-campaign (changed FORM, new filtered entries
-    file, second campaign dir, **never recorded**), cap 2 rounds → else `unresolved`,
+    file, in the `round-2/` subdir of this campaign's dir — Campaign layout;
+    **never recorded**), cap 2 rounds → else `unresolved`,
     escalate to the user. Run it only after any other suite has fully exited; never
     concurrently with any other suite invocation (Serialization).
 15. `evaluator.py scored-check --track shape-test --results $CAMP/results-control.json
@@ -439,20 +440,28 @@ Campaign rules:
 <source-root>/skills-workspace/<skill>/shape-tests/
 ├── rules.json                     # inventory manifest (diff baseline)
 ├── entries.json                   # canonical entries
-├── campaign-YYYY-MM-DD[-n]/
-│   ├── entries.json  rules.json   # snapshots (plain cp, commands recorded)
-│   ├── <skill>/                   # snapshot of the source skill dir
-│   ├── skill-body.txt             # the exact injected bytes (frontmatter stripped)
-│   ├── results-control.json/.log  # phase 1
-│   ├── entries-failing.json       # filtered entries driving phase 2
-│   ├── results-variants.json/.log # phase 2
-│   ├── results-restraint.json/.log  # pattern restraint gates (if any)
-│   ├── scored.json
-│   └── report.md
-└── campaign-YYYY-MM-DD-2/         # mini-campaigns (round 2, confirmation):
-                                   # second campaign dir + filtered entries;
-                                   # never recorded
+└── campaign-YYYY-MM-DD[-n]/       # one dir per FULL campaign run;
+    │                              # -n = nth full campaign that day
+    ├── entries.json  rules.json   # snapshots (plain cp, commands recorded)
+    ├── <skill>/                   # snapshot of the source skill dir
+    ├── skill-body.txt             # the exact injected bytes (frontmatter stripped)
+    ├── results-control.json/.log  # phase 1
+    ├── entries-failing.json       # filtered entries driving phase 2
+    ├── results-variants.json/.log # phase 2
+    ├── results-restraint.json/.log  # pattern restraint gates (if any)
+    ├── scored.json
+    ├── report.md
+    ├── round-2/                   # mini-campaign: filtered entries +
+    │   └── ...                    # changed-form variants + results;
+    │                              # never recorded
+    └── confirm/                   # post-write-back confirmation
+        └── ...                    # mini-campaign; never recorded
 ```
+
+One campaign dir per full run; mini-campaigns (round 2, confirmation) live in
+subdirectories of that run's dir — never in top-level `-n` dirs. The `-n`
+suffix means the nth FULL campaign run that day (`campaign-init` assigns it);
+it is not a round counter and not a mini-campaign location.
 
 Campaign artifacts live in the persistent campaign dir under `skills-workspace/` —
 never inside the temp eval workspace. The campaign snapshot of the source skill dir

@@ -249,6 +249,25 @@ def iter_evidence(
         yield eid, entry
 
 
+def check_results_same_dir(paths: list[str]) -> str | None:
+    """Exact-dir equality guard for unioned results files: all paths
+    must resolve to the same parent directory, else an exact error
+    naming the differing dirs. Blocks cross-boundary pooling — e.g. a
+    mini-campaign subdir's results (campaign-X/round-2/) silently
+    summed with the full campaign's."""
+    dirs: list[str] = []
+    for p in paths:
+        d = str(Path(p).resolve().parent)
+        if d not in dirs:
+            dirs.append(d)
+    if len(dirs) > 1:
+        return (
+            "--results files must all be in the same directory; got "
+            + " vs ".join(dirs)
+        )
+    return None
+
+
 def union_results(
     paths: list[str],
     track: str,
@@ -258,8 +277,12 @@ def union_results(
     in N files is scored exactly once. Returns (ordered ids, id ->
     arm-key set, id -> hook-collected extras); entry_hook runs per
     entry occurrence and returns an exact error message on violation.
+    All paths must be in the same directory (check_results_same_dir).
     On any failure returns the error message (caller passes it to
     _err)."""
+    dir_error = check_results_same_dir(paths)
+    if dir_error is not None:
+        return dir_error
     results_ids: list[str] = []
     results_arms: dict[str, set[str]] = {}
     extras: dict[str, dict] = {}

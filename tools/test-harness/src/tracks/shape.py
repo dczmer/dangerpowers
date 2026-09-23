@@ -9,6 +9,7 @@ from src.common import (
     EvidenceError,
     _err,
     _fail,
+    check_results_same_dir,
     emit,
     iter_evidence,
     load_entries,
@@ -444,7 +445,10 @@ def _merge_shape_results(paths: list[Path]) -> tuple[list[dict], str | None]:
     --compare property frequencies. Fixture-mismatched runs stay
     visible under a suffixed display key (v2@counter-example). Run
     concatenation and config drift on _DRIFT_CONFIG_KEYS note on
-    stderr. Returns (merged entries, exact error message).
+    stderr. All paths must be in the same directory
+    (check_results_same_dir) — mini-campaign subdir results never
+    pool with the full campaign's. Returns (merged entries, exact
+    error message).
 
     Asymmetry, deliberate: scored-check's union (via _shape_union_hook)
     has no fixture-key guard — it sums same-named arms unconditionally
@@ -457,6 +461,9 @@ def _merge_shape_results(paths: list[Path]) -> tuple[list[dict], str | None]:
     arm_fixtures: dict[tuple[str, str], object] = {}
     base_config: dict | None = None
     base_path: Path | None = None
+    dir_error = check_results_same_dir([str(p) for p in paths])
+    if dir_error is not None:
+        return [], dir_error
     for path in paths:
         entries, config, error = load_results_envelope(path, "shape")
         if error is not None:

@@ -248,7 +248,8 @@ convention as the other testing tracks.)
     pilots.
 13. **Write-backs** to the source `SKILL.md` only on explicit user
     confirmation; afterwards run a confirmation mini-campaign of the edited
-    rules (second campaign dir, never recorded).
+    rules (in the `confirm/` subdir of this campaign's dir — Campaign
+    layout; never recorded).
 14. `cleanup --workspace $WS --prefix pressure-test`.
 
 Per-rule commands (from the repo root):
@@ -427,7 +428,8 @@ to the source `SKILL.md` only after the campaign ends and the user confirms
 <source-root>/skills-workspace/<skill>/pressure-tests/
 ├── rules.json                        # inventory manifest (diff baseline)
 ├── scenarios.json                    # canonical scenarios
-├── campaign-YYYY-MM-DD[-n]/
+└── campaign-YYYY-MM-DD[-n]/          # one dir per FULL campaign run;
+    │                                 # -n = nth full campaign that day
 │   ├── scenarios.json  rules.json    # snapshots (plain cp, commands recorded)
 │   ├── <skill>/                      # snapshot of the source skill dir
 │   ├── skill-body.txt                # the exact injected green-arm bytes
@@ -439,10 +441,15 @@ to the source `SKILL.md` only after the campaign ends and the user confirms
 │   ├── results-refactor-<rule>-r<N>.json/.log
 │   ├── meta-<rule>-r<round>-rep<n>.json
 │   ├── scored.json
-│   └── report.md
-└── campaign-YYYY-MM-DD-2/            # confirmation mini-campaign:
-                                      # never recorded
+│   ├── report.md
+│   └── confirm/                      # confirmation mini-campaign:
+│       └── ...                       # never recorded
 ```
+
+One campaign dir per full run; the confirmation mini-campaign lives in the
+`confirm/` subdirectory of that run's dir — never in a top-level `-n` dir.
+The `-n` suffix means the nth FULL campaign run that day (`campaign-init`
+assigns it); it is not a mini-campaign location.
 
 Campaign artifacts live in the persistent campaign dir under
 `skills-workspace/` — never inside the temp eval workspace.

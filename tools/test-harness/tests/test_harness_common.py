@@ -388,6 +388,23 @@ class UnionResultsTests(unittest.TestCase):
             "pressure", ["a", "n"], {"a": {"red", "green"}, "n": {"red"}}
         )
 
+    def test_union_cross_dir_rejected(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        paths = self._fixtures("shape", root)
+        subdir = root / "round-2"
+        subdir.mkdir()
+        moved = subdir / Path(paths[1]).name
+        Path(paths[1]).rename(moved)
+        out = union_results(
+            [paths[0], str(moved)], "shape", entry_hook=_shape_union_hook
+        )
+        self.assertIsInstance(out, str)
+        self.assertIn("same directory", out)
+        self.assertIn(str(root), out)
+        self.assertIn(str(subdir), out)
+
 
 class EvidenceEnvelopeTests(unittest.TestCase):
     """The evidence commands' shared envelope: a missing results file or
@@ -692,6 +709,25 @@ class SkeletonEmitTests(unittest.TestCase):
         )
         nested = campaign_dir / "results.json"
         nested.write_text(results.read_text())
+        out = self.root / "skel.json"
+        rc, _, stderr = self._run("retrieval", str(nested), emit=str(out))
+        self.assertEqual(rc, 0, stderr)
+        doc = json.loads(out.read_text())
+        self.assertEqual(doc["campaign"], "campaign-2099-01-01")
+        self.assertEqual(doc["skill"], "demo-skill")
+
+    def test_emit_skeleton_header_campaign_from_ancestor(self):
+        subdir = self.root / "campaign-2099-01-01" / "round-2"
+        subdir.mkdir(parents=True)
+        nested = subdir / "results.json"
+        nested.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [{"id": "a", "expect": []}],
+                }
+            )
+        )
         out = self.root / "skel.json"
         rc, _, stderr = self._run("retrieval", str(nested), emit=str(out))
         self.assertEqual(rc, 0, stderr)

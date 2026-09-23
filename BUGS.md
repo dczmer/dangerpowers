@@ -652,6 +652,53 @@ Fixes to apply:
 The never-recorded rule for mini-campaigns is unchanged; only their
 location moves.
 
+Implemented 2026-09-23. Verification first confirmed every claim: the
+shape layout section sanctioned top-level -2 for mini-campaigns
+(SKILL.md:452-454, plus step 14's "second campaign dir");
+campaign-2026-09-22-2 held only the round-2 mini-campaign (2 entries +
+results + snapshots); the .tmp 2026-09-14 series used -2 for round-2
+and -3 for confirmation; trigger SKILL.md:33 and campaign-init's
+auto-suffix already use -n for same-day FULL campaigns. Supporting
+evidence for the fix: with -2 occupied by the mini-campaign, a second
+full campaign that day would have been numbered -3, corrupting the
+full-campaign sequence.
+
+- Fix 1 (shape SKILL.md): Campaign layout rewritten — one
+  campaign-YYYY-MM-DD[-n]/ dir per FULL run (-n = nth full campaign
+  that day), mini-campaigns as round-2/ and confirm/ subdirs inside
+  it, the rule stated explicitly under the diagram; step 14 now names
+  the round-2/ subdir instead of "second campaign dir".
+- Fix 2 (repo state): campaign-2026-09-22-2/ moved to
+  campaign-2026-09-22/round-2/; the two report.md references updated
+  (references-one-level-deep row, flowchart-table-list-selection
+  block). A repo-wide grep confirmed no other references. The voided
+  first-attempt restraint files stay in the main dir as agreed.
+- Fix 3: nothing to change — the convention now matches trigger
+  SKILL.md:33 and campaign-init behavior.
+- Fix 4 (other skills): pressure SKILL.md layout section rewritten
+  the same way (confirm/ subdir) plus step 13 prose; retrieval
+  SKILL.md step 12 and the campaign-rules bullet now name the
+  confirm/ subdir and state the one-dir-per-full-run rule. Trigger
+  verified clean, untouched.
+- Fix 5 (harness hardening): check_results_same_dir in common.py —
+  exact-dir equality guard returning an exact error naming the
+  differing dirs; called from union_results (covers scored-check, all
+  tracks) and from evidence's _merge_shape_results. Legitimate
+  same-dir unions are unaffected. Tests: cross-dir union rejected
+  naming both dirs (test_harness_common.py), cross-dir evidence merge
+  rejected with the campaign vs round-2 dirs named
+  (test_shape.py ShapeEvidenceMergeTests).
+- Review amendment (skeleton header): _scored_skeleton_header now
+  walks up to the nearest campaign-* ancestor instead of looking only
+  at the immediate parent, so results under campaign-X/round-2/ still
+  attribute to campaign-X rather than the pilot placeholder; the
+  header remains driver context only (scored-check never validates
+  it). Test: nested round-2 results derive the ancestor campaign name
+  (test_harness_common.py); the existing direct-parent and
+  placeholder tests unchanged and passing.
+
+Suite: 429 tests pass; flake8/ruff/black/pyright clean.
+
 ## B7. No pre-spend way to check section-span drift at proposal time
 
 Gap S1. When reusing a previous campaign's fixtures, the driver must

@@ -1576,6 +1576,24 @@ class ShapeEvidenceMergeTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("kind 'shaping' differs", self.last_err)
 
+    def test_cross_dir_merge_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results-variants.json"
+        results_file(
+            mini,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        rc, _ = self._run([self.control, mini], entry="a")
+        self.assertEqual(rc, 1)
+        self.assertIn("same directory", self.last_err)
+        self.assertIn(str(self.root), self.last_err)
+        self.assertIn(str(subdir), self.last_err)
+
 
 class ShapeEvidenceMatrixTests(unittest.TestCase):
     """evidence --matrix: the compact marker x rep hit matrix — per-arm

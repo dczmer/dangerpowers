@@ -282,10 +282,12 @@ def _scored_skeleton_header(results_paths: list[str]) -> dict:
     """campaign/skill header for the retrieval and pressure skeletons.
     The scored-checks never validate the header, so these values are
     driver context only: 'skill' comes from the first results file's
-    config block, 'campaign' from that file's parent directory when it
-    is named campaign-*, else the 'pilot' placeholder."""
+    config block, 'campaign' from the nearest ancestor directory of
+    that file named campaign-* (so a mini-campaign subdir like
+    campaign-X/round-2/ still attributes to campaign-X), else the
+    'pilot' placeholder."""
     skill = "pilot"
-    parent = Path(results_paths[0]).resolve().parent.name
+    parent = Path(results_paths[0]).resolve().parent
     try:
         data = json.loads(Path(results_paths[0]).read_text())
     except (OSError, json.JSONDecodeError):
@@ -293,7 +295,11 @@ def _scored_skeleton_header(results_paths: list[str]) -> dict:
     config = data.get("config") if isinstance(data, dict) else None
     if isinstance(config, dict) and isinstance(config.get("skill"), str):
         skill = config["skill"] or "pilot"
-    campaign = parent if parent.startswith("campaign-") else "pilot"
+    campaign = "pilot"
+    for ancestor in (parent, *parent.parents):
+        if ancestor.name.startswith("campaign-"):
+            campaign = ancestor.name
+            break
     return {"campaign": campaign, "skill": skill}
 
 
