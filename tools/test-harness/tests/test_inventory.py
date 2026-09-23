@@ -253,6 +253,19 @@ class LoadInventoryTests(_TmpCase):
         inv = evaluator.load_inventory(path, "rule", allow_idless=True)
         self.assertNotIn("id", inv["rules"][0])
 
+    def test_excluded_requires_id_unless_idless_allowed(self):
+        entry = _excluded()
+        del entry["id"]
+        path = self.write_json(_rule_inv(excluded=[entry]))
+        stderr = self.fail_message(evaluator.load_inventory, path, "rule")
+        self.assertEqual(
+            stderr,
+            f"error: {path}: excluded entry 0 missing 'id' "
+            "(non-empty string)\n",
+        )
+        inv = evaluator.load_inventory(path, "rule", allow_idless=True)
+        self.assertNotIn("id", inv["excluded"][0])
+
     def test_excluded_requires_reason(self):
         entry = _excluded()
         del entry["reason"]
@@ -395,6 +408,78 @@ class InventoryMintCommandTests(_TmpCase):
             [item["id"] for item in minted["rules"]],
             ["R-overview-07", "R-overview-01"],
         )
+
+    def test_mint_assigns_ids_to_idless_excluded(self):
+        draft = _rule_inv(
+            items=[_rule_item()],
+            excluded=[_excluded(eid="", section="Overview")],
+        )
+        del draft["excluded"][0]["id"]
+        _, out = self._mint(draft)
+        minted = json.loads(out.read_text())
+        self.assertEqual(minted["excluded"][0]["id"], "R-overview-02")
+        self.assertEqual(list(minted["excluded"][0].keys())[0], "id")
+
+    def test_mint_never_collides_with_excluded_ids(self):
+        """The B1 repro: an id-less item plus excluded 'R-content-01' in
+        the same section used to mint the item 'R-content-01' — a
+        duplicate that only surfaced at the next command. The shared
+        per-section pool now skips the excluded number."""
+        draft = _rule_inv(
+            items=[_rule_item(eid="", section="Content")],
+            excluded=[_excluded(eid="R-content-01", section="Content")],
+        )
+        del draft["rules"][0]["id"]
+        _, out = self._mint(draft)
+        minted = json.loads(out.read_text())
+        self.assertEqual(minted["rules"][0]["id"], "R-content-02")
+        evaluator.load_inventory(out, "rule")  # no duplicate-id error
+
+    def test_mint_idless_item_and_excluded_share_section_pool(self):
+        draft = _rule_inv(
+            items=[_rule_item(eid="")],
+            excluded=[_excluded(eid="")],
+        )
+        del draft["rules"][0]["id"]
+        del draft["excluded"][0]["id"]
+        _, out = self._mint(draft)
+        minted = json.loads(out.read_text())
+        self.assertEqual(minted["rules"][0]["id"], "R-overview-01")
+        self.assertEqual(minted["excluded"][0]["id"], "R-overview-02")
+        evaluator.load_inventory(out, "rule")
+
+    def test_mint_fact_kind_excluded_without_kind_field(self):
+        draft = _fact_inv(
+            items=[_fact_item(eid="")],
+            excluded=[_excluded(eid="", kind=None)],
+        )
+        del draft["facts"][0]["id"]
+        del draft["excluded"][0]["id"]
+        _, out = self._mint(draft, name="facts.json", kind="fact")
+        minted = json.loads(out.read_text())
+        self.assertEqual(minted["facts"][0]["id"], "F-overview-01")
+        self.assertEqual(minted["excluded"][0]["id"], "F-overview-02")
+        self.assertNotIn("kind", minted["excluded"][0])
+        evaluator.load_inventory(out, "fact")
+
+    def test_remint_after_excluded_mint_is_byte_identical(self):
+        draft = _rule_inv(
+            items=[_rule_item(eid="")],
+            excluded=[_excluded(eid="")],
+        )
+        del draft["rules"][0]["id"]
+        del draft["excluded"][0]["id"]
+        path = self.write_json(draft)
+        first = self.dir / "first.json"
+        second = self.dir / "second.json"
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(
+                evaluator.cmd_inventory_mint(self._args(path, first)), 0
+            )
+            self.assertEqual(
+                evaluator.cmd_inventory_mint(self._args(first, second)), 0
+            )
+        self.assertEqual(first.read_bytes(), second.read_bytes())
 
     def test_remint_is_byte_identical(self):
         inv = _rule_inv(

@@ -539,8 +539,9 @@ def load_inventory(path: Path, kind: str, allow_idless: bool = False) -> dict:
     excluded list whose entries carry a routing reason. Item ids must be
     unique across the items and the excluded list. On any violation prints
     `error: <exact reason>` to stderr and exits 1. With allow_idless
-    (inventory-mint on a draft) items missing 'id' are accepted so ids can
-    be assigned; every other command requires ids on all items."""
+    (inventory-mint on a draft) items and excluded entries missing 'id'
+    are accepted so ids can be assigned; every other command requires ids
+    on all items and excluded entries."""
     array_name = INVENTORY_ARRAYS[kind]
     if not path.exists():
         _fail(f"inventory file not found: {path}")
@@ -581,12 +582,19 @@ def load_inventory(path: Path, kind: str, allow_idless: bool = False) -> dict:
             _fail(f"{path}: excluded entry {i} is not an object")
         if kind == "rule":
             _inventory_require_str(path, "excluded entry", i, entry, "kind")
-        eid = _inventory_require_str(path, "excluded entry", i, entry, "id")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            if not allow_idless:
+                _fail(
+                    f"{path}: excluded entry {i} missing 'id' "
+                    "(non-empty string)"
+                )
+        elif eid in seen:
+            _fail(f"{path}: duplicate id: {eid}")
+        else:
+            seen.add(eid)
         _inventory_require_str(path, "excluded entry", i, entry, "section")
         _inventory_require_str(path, "excluded entry", i, entry, "reason")
-        if eid in seen:
-            _fail(f"{path}: duplicate id: {eid}")
-        seen.add(eid)
     return data
 
 
@@ -666,11 +674,14 @@ def cmd_inventory_check(args: argparse.Namespace) -> int:
 
 
 def cmd_inventory_mint(args: argparse.Namespace) -> int:
-    """Assign ids to id-less items of a draft inventory. Ids are minted in
-    document order, numbered 01.. within each section, skipping numbers
-    already taken by existing ids in that section. Items that already have
-    an id pass through untouched, so re-running on an unchanged file is a
-    byte-identical no-op — the stability rule that makes inventory-diff
+    """Assign ids to id-less items and excluded entries of a draft
+    inventory. Ids are minted in document order (items first, then
+    excluded), numbered 01.. within each section from one shared
+    per-section pool, skipping numbers already taken by existing ids in
+    either list — so a minted item id can never collide with an excluded
+    id in the same section. Entries that already have an id pass through
+    untouched, so re-running on an unchanged file is a byte-identical
+    no-op — the stability rule that makes inventory-diff
     silent-mis-diff-proof."""
     path = Path(args.inventory)
     raw = path.read_text()
@@ -678,25 +689,27 @@ def cmd_inventory_mint(args: argparse.Namespace) -> int:
     array_name = INVENTORY_ARRAYS[args.kind]
     prefix = INVENTORY_KINDS[args.kind]
     items = inv[array_name]
+    excluded = inv["excluded"]
     used: dict[str, set[int]] = {}
-    for item in items:
-        eid = item.get("id")
+    for entry in (*items, *excluded):
+        eid = entry.get("id")
         if isinstance(eid, str) and eid:
             m = re.search(r"-(\d+)$", eid)
             if m:
-                used.setdefault(item["section"], set()).add(int(m.group(1)))
+                used.setdefault(entry["section"], set()).add(int(m.group(1)))
     minted = 0
-    for i, item in enumerate(items):
-        eid = item.get("id")
-        if isinstance(eid, str) and eid:
-            continue
-        section = item["section"]
-        n = 1
-        while n in used.setdefault(section, set()):
-            n += 1
-        used[section].add(n)
-        items[i] = {"id": mint_inventory_id(prefix, section, n), **item}
-        minted += 1
+    for seq in (items, excluded):
+        for i, entry in enumerate(seq):
+            eid = entry.get("id")
+            if isinstance(eid, str) and eid:
+                continue
+            section = entry["section"]
+            n = 1
+            while n in used.setdefault(section, set()):
+                n += 1
+            used[section].add(n)
+            seq[i] = {"id": mint_inventory_id(prefix, section, n), **entry}
+            minted += 1
     out = Path(args.out)
     if minted == 0:
         out.write_text(raw)
