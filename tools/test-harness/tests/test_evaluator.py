@@ -833,6 +833,7 @@ class UnifiedCliGateTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=True,
+            matrix=False,
         )
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
@@ -841,6 +842,24 @@ class UnifiedCliGateTests(unittest.TestCase):
         self.assertEqual(
             err.getvalue(),
             "error: --compare is only valid with --track shape-test\n",
+        )
+
+    def test_evidence_matrix_only_on_shape(self):
+        args = argparse.Namespace(
+            track="retrieval-test",
+            results="x.json",
+            entry=None,
+            arm=None,
+            compare=False,
+            matrix=True,
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        self.assertEqual(rc, 1)
+        self.assertEqual(
+            err.getvalue(),
+            "error: --matrix is only valid with --track shape-test\n",
         )
 
     def test_evidence_arm_only_on_shape_or_pressure(self):
@@ -852,6 +871,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                     entry=None,
                     arm="red",
                     compare=False,
+                    matrix=False,
                 )
                 err = io.StringIO()
                 with contextlib.redirect_stderr(err):

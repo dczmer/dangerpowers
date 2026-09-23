@@ -370,6 +370,65 @@ def _print_shape_compare(eid: str, arms: dict, markers: dict) -> None:
             print(f"compare {name}: {arm} {c} vs v0 {b} -> {verdict}")
 
 
+def _print_arm_matrix(
+    path: Path, eid: str, arm: str, runs: list, markers: dict
+) -> str | None:
+    """One arm's --matrix block: a summary line with rep, timeout, and
+    void-signal counts (per-signal breakdown), one line per rep with
+    each marker's hit count, and a totals line adding per-marker fired
+    rep counts — so a never-firing wrong-shape marker or an always-on
+    right-shape marker is visible without reading any answers. Returns
+    an exact error message on a malformed run, else None."""
+    timeouts = 0
+    voided = 0
+    signals: dict[str, int] = {}
+    totals = {name: 0 for name in markers}
+    fired = {name: 0 for name in markers}
+    rep_lines = []
+    for n, run in enumerate(runs, start=1):
+        if not isinstance(run, dict):
+            return (
+                f"{path}: entry {eid} arm {arm!r} run {n} " f"is not an object"
+            )
+        if run.get("timeout"):
+            timeouts += 1
+        sigs = run.get("void_signals") or []
+        if sigs:
+            voided += 1
+        for s in sigs:
+            signals[s] = signals.get(s, 0) + 1
+        answer = run.get("answer_text")
+        answer = answer if isinstance(answer, str) else ""
+        counts = marker_triage_counts(answer, markers)
+        for name, c in counts.items():
+            totals[name] += c
+            if c:
+                fired[name] += 1
+        rep_lines.append(
+            f"  rep {n:>3}: "
+            + ", ".join(f"{k}={v}" for k, v in counts.items())
+        )
+    detail = ""
+    if signals:
+        detail = " (" + ", ".join(f"{k}={v}" for k, v in signals.items()) + ")"
+    print(
+        f"[ {arm} ] reps={len(runs)}, timeouts={timeouts}, "
+        f"voids={voided}{detail}"
+    )
+    if not markers:
+        print("  (no markers recorded)")
+        return None
+    for line in rep_lines:
+        print(line)
+    print(
+        "  totals: "
+        + ", ".join(f"{k}={v}" for k, v in totals.items())
+        + " | fired: "
+        + ", ".join(f"{k} {fired[k]}/{len(runs)} reps" for k in markers)
+    )
+    return None
+
+
 # Config keys whose drift across merged results files makes the pooled
 # runs unattributable to one model selection; drift warns on stderr.
 _DRIFT_CONFIG_KEYS = ("model", "variant", "reps", "timeout")
@@ -719,8 +778,11 @@ class ShapeTrack(Track):
         (_merge_shape_results: same-fixture arms pooled, fixture-
         mismatched reruns suffixed), which is what puts the v0 control
         within --compare's reach across the phase-1/phase-2 file split.
-        Exit 0 with an entry count line; exit 1 only on a malformed
-        file or unknown --entry."""
+        --matrix replaces the per-rep answer dump with the compact
+        marker x rep hit matrix (per-arm void/timeout summary, per-rep
+        per-marker hit counts, per-marker fired rep counts) — the
+        proposal-time calibration view. Exit 0 with an entry count
+        line; exit 1 only on a malformed file or unknown --entry."""
         paths = (
             args.results if isinstance(args.results, list) else [args.results]
         )
@@ -765,6 +827,14 @@ class ShapeTrack(Track):
                             file=sys.stderr,
                         )
                         return 1
+                    if args.matrix:
+                        error = _print_arm_matrix(
+                            path, eid, arm, arm_data["runs"], markers
+                        )
+                        if error is not None:
+                            print(f"error: {error}", file=sys.stderr)
+                            return 1
+                        continue
                     for n, run in enumerate(arm_data["runs"], start=1):
                         if not isinstance(run, dict):
                             print(

@@ -62,12 +62,15 @@ COUNTS_VOCABULARY = {
 EVIDENCE_TRACKS = {
     "retrieval": (
         "retrieval-test",
-        {"entry": None, "arm": None, "compare": False},
+        {"entry": None, "arm": None, "compare": False, "matrix": False},
     ),
-    "shape": ("shape-test", {"entry": None, "arm": None, "compare": False}),
+    "shape": (
+        "shape-test",
+        {"entry": None, "arm": None, "compare": False, "matrix": False},
+    ),
     "pressure": (
         "pressure-test",
-        {"entry": None, "arm": None, "compare": False},
+        {"entry": None, "arm": None, "compare": False, "matrix": False},
     ),
 }
 

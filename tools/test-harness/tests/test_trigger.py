@@ -333,6 +333,7 @@ class FailuresTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):

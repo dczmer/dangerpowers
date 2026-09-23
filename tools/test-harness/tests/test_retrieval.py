@@ -865,6 +865,7 @@ class RetrievalEvidenceTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         for key, value in overrides.items():
             setattr(args, key, value)

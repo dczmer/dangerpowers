@@ -295,7 +295,7 @@ Implemented 2026-09-23, with review amendments:
   harness home for it yet (void classification is track-side, the
   driver is generic); recorded here as still-open.
 
-## B4. Marker gaps in shape-test triage
+## B4. (RESOLVED) Marker gaps in shape-test triage
 
 Investigated 2026-09-23 against writing-skills campaign 2026-09-22
 results; all four sub-gaps reproduced and measured.
@@ -429,6 +429,70 @@ results, apply the applicable C amendments to entries.json at proposal
 time (before snapshot), and freeze them with the fixtures for that
 campaign. Do not hand-edit markers between campaigns outside that
 proposal step.
+
+Implemented 2026-09-23 (independent verification first re-derived every
+measurement above from the campaign results — all confirmed, including
+v2's 22 vs v3's 11 pooled matrix-row hits and the 1/5 decline catch;
+one bonus finding: the old inline_matrix_row also omitted
+`deletecollection`, which appears as a first-cell verb in nearly every
+matrix answer, so it undercounted even unbackticked tables):
+
+- Fix B: `evidence --matrix` (shape-only, gated like --compare with the
+  exact message "error: --matrix is only valid with --track
+  shape-test"). Per entry/arm it prints a summary line (reps, timeouts,
+  voids with per-signal breakdown), one line per rep with each marker's
+  hit count, and a totals line with per-marker fired rep counts — the
+  fired counts are the review amendment over the original suggestion,
+  making "1/5 flagged" visible directly rather than derivable only
+  from pooled counts. Multi-file merge, --entry, and --arm compose
+  with it (shape.py _print_arm_matrix; smoke-tested against the real
+  campaign data: decline_explicit 0/5 and template_blanks 5/5 fired
+  reps on the control arm, exactly the two failure modes above).
+- Fix D: SKILL.md gained a Marker calibration subsection (fix A's
+  process, citing --matrix as the calibration command), a --matrix
+  paragraph in the Scoring evidence block, four gotchas (no file
+  scope/correct-shape-in-second-file, convention-notation tokens,
+  per-model phrasing drift with the restraint_markers lockstep rule,
+  heuristic markers are triage-only), and a calibration checklist line.
+- Fix A needs no harness change by design; it is now documented
+  process with --matrix as its instrument, which also closes the
+  per-arm void/timeout-summary remainder of gap S3.
+
+Amendments to fix C recorded for the next proposal (same freeze rules):
+
+- The `placeholder` marker in one-complete-example carries the same
+  bare `<[-_a-zA-Z0-9 ]+>` alternative as template_blanks — apply the
+  template_blanks amendment there too or the same false-positive class
+  survives on CLI-flag fixtures.
+- The noun-first name_gerund heuristic false-positives on compliant
+  verb-first names ending in a nominal suffix (e.g. `name: parse-tool`
+  trips the `tool` alternative). It is triage-only: never let it decide
+  a --compare EXCEEDS verdict without a hand-read (now a SKILL.md
+  gotcha).
+- All four C regexes were compile-checked and measured against the
+  real campaign answers: broadened decline_explicit catches 5/5 v2
+  declines plus control rep1; backtick-tolerant inline_matrix_row
+  fires on all previously invisible control rows; the strict
+  template_blanks drops to 0 false hits on v2.
+
+Deliberately not implemented: a per-marker file-scope schema extension
+(entries-side `scope` consumed by marker_triage_counts) remains an
+open option for gap 3b; the SKILL.md gotcha plus section-scoped
+hand-reads carry it for now, and changing marker semantics would
+complicate comparability with the frozen 2026-09-22 baseline.
+
+Fix C applied 2026-09-23 on user direction (ahead of the next campaign
+proposal the application note had scheduled it for): all six
+amendments — broadened decline_explicit + restraint_markers
+decline_language, backtick-tolerant inline_matrix_row with
+deletecollection, strict template_blanks, noun-first name_noun_first
+(triage-only per the gotcha), and the matching placeholder amendment —
+applied to skills-workspace/writing-skills/shape-tests/entries.json,
+verified as the only diffs against the frozen campaign-2026-09-22
+snapshot, all markers compile. The 2026-09-22 campaign's recorded
+verdicts are unaffected (its snapshot keeps the old markers); the
+calibration expectations in SKILL.md now apply to these amended
+markers at the next proposal.
 
 ## B5. Concurrent suites voided the restraint gate
 

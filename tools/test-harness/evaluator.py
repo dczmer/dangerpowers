@@ -489,6 +489,8 @@ def cmd_evidence(args: argparse.Namespace) -> int:
         )
     if args.compare and track.name != "shape-test":
         return _err("--compare is only valid with --track shape-test")
+    if args.matrix and track.name != "shape-test":
+        return _err("--matrix is only valid with --track shape-test")
     results = (
         args.results if isinstance(args.results, list) else [args.results]
     )
@@ -889,6 +891,7 @@ def main() -> int:
     # the old shape-evidence --arm took any arm name)
     evidence.add_argument("--arm")
     evidence.add_argument("--compare", action="store_true")
+    evidence.add_argument("--matrix", action="store_true")
 
     scored = sub.add_parser("scored-check")
     scored.add_argument(

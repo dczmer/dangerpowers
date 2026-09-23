@@ -148,6 +148,24 @@ scores clean and you have learned nothing.
 - Don't stack pressure into fixtures (deadlines, sunk cost, authority). The temptation
   here is structural.
 
+### Marker calibration
+
+Markers are line-regex triage, authored once per campaign — the harness gate is
+compile-only, so a marker that never fires on real failures (or fires on compliant
+output) ships silently. The verbatim-freeze list covers fixtures, variant texts, and
+section spans — NOT markers: amending them between campaigns is legitimate, but only
+at proposal time. After building the proposal and before snapshot/spend, run every
+marker against prior campaigns' results JSONs (or pilot reps):
+
+    evaluator.py evidence --track shape-test --results <prior-results.json>... --matrix
+
+`--matrix` prints, per entry/arm, the rep/timeout/void summary, each rep's per-marker
+hit counts, and per-marker fired rep counts. Require every wrong-shape marker to fire
+on at least one known-bad sample and every right-shape/property marker to stay silent
+on known-good samples; amend entries.json where they don't, then freeze the markers
+with the fixtures for the campaign. Never hand-edit markers mid-campaign or between
+campaigns outside this proposal step.
+
 ## Eval agent
 
 All arms run under one restricted agent, `agents/shape-evaluator.opencode.md`,
@@ -324,9 +342,14 @@ Two rules govern every scoring decision:
   a suppressed token that migrates to a worse shape is displacement, not a fix.
 
 `evidence --track shape-test --results <file>... [--entry <id>] [--arm vN]
-[--compare]` prints per entry/arm/rep the
+[--compare] [--matrix]` prints per entry/arm/rep the
 answer text, void signals, session id, and marker triage counts (per-marker count of
-answer lines matching each grep token). Repeated `--results` merges the phase files by
+answer lines matching each grep token). With `--matrix` the per-rep answer dump is
+replaced by the compact marker x rep hit matrix — per-arm rep/timeout/void counts
+(with a per-signal breakdown), per-rep per-marker hit counts, and per-marker fired
+rep counts — the triage-overview and proposal-time calibration view (see Marker
+calibration): a never-firing wrong-shape marker or an always-on right-shape marker
+shows up as `0/N` or `N/N` fired reps without reading any answers. Repeated `--results` merges the phase files by
 entry id so `--compare` can see the v0 control: arms whose `fixture_key` matches are
 pooled (with a stderr note); a fixture mismatch — e.g. a restraint rerun of v2 — stays
 separate under a suffixed display key (`v2@counter-example`), visible in the evidence
@@ -453,6 +476,25 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - Grep is triage, not verdict. A sample that writes `// don't use style={{}} here`
   trips the inline-style grep without being a violation — read every flagged match by
   hand.
+- Markers have no file scope: a line-regex fires across the whole answer, including a
+  companion `references/*.md` file where a table is the CORRECT shape. Pooled counts
+  conflate correct placement with wrongful inlining (2026-09-22: v2's 22 pooled
+  matrix-row hits vs v3's 11 inverted apparent severity; actual extraction 4/5 vs
+  3/5). Multi-file entries require section-scoped hand-reads.
+- Convention-notation tokens trip bare `<...>` marker alternatives: `--no-<name>` and
+  CLI usage syntax (`<subcommand>`, `<arg1>`) are complete worked examples, not
+  template blanks (~100% false-positive rate on CLI-flag fixtures, 2026-09-22). Gate
+  angle brackets behind strict template signals (`{{`, `REPLACE_ME`, `TODO`,
+  `PLACEHOLDER`, `<insert`, `YOUR_*`) or drop the alternative.
+- Per-model phrasing drift defeats narrow markers: a decline marker authored for
+  "violates" misses the converged "I am not producing… violate / prohibit / forbid /
+  precludes" (caught 1/5 declines, 2026-09-22). Author markers for the semantic act,
+  and apply the same broadening to `restraint_markers` — the restraint gate is only
+  as strong as its marker.
+- Heuristic markers are triage-only: a noun-first name heuristic (`-profiler`,
+  `-parser`, `-tool` suffixes) also flags compliant verb-first names ending in those
+  suffixes (`parse-tool`). Never let a heuristic marker decide a `--compare` EXCEEDS
+  verdict without a hand-read.
 - Multi-file artifacts need all expected files: a recipe demanding `Name.tsx` +
   `Name.module.css` fails a rep that returns only one block, even if the returned block
   looks right.
@@ -478,6 +520,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Every excluded rule recorded with a routing reason; frontmatter-convention rules never proposed as entries
 - [ ] Proposal cards in the fixed format, one per entry, with full fixture/variant texts and the cost formula; user approved
 - [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped); `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
+- [ ] Markers calibrated at proposal time against prior-campaign results (`evidence --matrix`): every wrong-shape marker fires on a known-bad sample, every right-shape/property marker silent on known-good; amended entries.json frozen with the fixtures for the campaign
 - [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` (with `--model` when a model is set) exit 0; ONE workspace initialized with `--prefix shape-test`
 - [ ] Workspace never synced (contamination gate clean); campaign dir created; entries.json, rules.json, the source skill dir, and skill-body.txt (via the documented pipeline — never hand-edited) snapshotted with the exact commands recorded
 - [ ] Spend confirmation #1 (rules × 5 control reps) before phase 1; `suite --track shape-test --arms v0` wrote results-control.json; only exit codes and JSON consumed

@@ -1234,6 +1234,7 @@ class ShapeEvidenceTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         for k, v in overrides.items():
             setattr(args, k, v)
@@ -1459,6 +1460,7 @@ class ShapeEvidenceMergeTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         for k, v in overrides.items():
             setattr(args, k, v)
@@ -1573,6 +1575,131 @@ class ShapeEvidenceMergeTests(unittest.TestCase):
         rc, _ = self._run([self.control, self.variants])
         self.assertEqual(rc, 1)
         self.assertIn("kind 'shaping' differs", self.last_err)
+
+
+class ShapeEvidenceMatrixTests(unittest.TestCase):
+    """evidence --matrix: the compact marker x rep hit matrix — per-arm
+    rep/timeout/void summary, per-rep per-marker hit counts, and
+    per-marker fired rep counts, so a never-firing wrong-shape marker
+    or an always-on right-shape marker is visible at a glance."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.results = self.root / "results.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, paths=None, **overrides):
+        paths = paths or [self.results]
+        args = argparse.Namespace(
+            track="shape-test",
+            results=[str(p) for p in paths],
+            entry=None,
+            arm=None,
+            compare=False,
+            matrix=True,
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        self.last_err = err.getvalue()
+        return rc, buf.getvalue()
+
+    @staticmethod
+    def _runs(*runs: dict) -> dict:
+        return {"runs": list(runs)}
+
+    @staticmethod
+    def _run_rec(answer, timeout=False, void_signals=None):
+        return {
+            "answer_text": answer,
+            "void_signals": void_signals or [],
+            "session_id": "s",
+            "timeout": timeout,
+        }
+
+    def test_matrix_summary_per_rep_counts_and_fired(self):
+        entry = _evidence_entry(
+            "a",
+            {
+                "v0": self._runs(
+                    self._run_rec("TODO\nTODO"),
+                    self._run_rec(
+                        "",
+                        timeout=True,
+                        void_signals=["empty-answer"],
+                    ),
+                    self._run_rec("plain"),
+                )
+            },
+        )
+        results_file(self.results, [entry])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "[ v0 ] reps=3, timeouts=1, voids=1 (empty-answer=1)", out
+        )
+        self.assertIn("rep   1: m=2", out)
+        self.assertIn("rep   2: m=0", out)
+        self.assertIn("rep   3: m=0", out)
+        # never-firing marker visible at a glance: 2 pooled hits but
+        # only 1 of 3 reps fired
+        self.assertIn("totals: m=2 | fired: m 1/3 reps", out)
+        # the matrix replaces the answer dump
+        self.assertNotIn("answer:", out)
+        self.assertNotIn("TODO", out)
+
+    def test_matrix_arm_filter_applies(self):
+        entry = _evidence_entry(
+            "a",
+            {
+                "v0": self._runs(self._run_rec("TODO")),
+                "v1": self._runs(self._run_rec("TODO\nTODO")),
+            },
+        )
+        results_file(self.results, [entry])
+        rc, out = self._run(arm="v1")
+        self.assertEqual(rc, 0)
+        self.assertNotIn("[ v0 ]", out)
+        self.assertIn("[ v1 ] reps=1, timeouts=0, voids=0", out)
+        self.assertIn("totals: m=2 | fired: m 1/1 reps", out)
+
+    def test_matrix_merges_multi_file_runs(self):
+        results_file(
+            self.results,
+            [_evidence_entry("a", {"v0": self._runs(self._run_rec("TODO"))})],
+        )
+        second = self.root / "results-2.json"
+        results_file(
+            second,
+            [_evidence_entry("a", {"v1": self._runs(self._run_rec("x"))})],
+        )
+        rc, out = self._run(paths=[self.results, second])
+        self.assertEqual(rc, 0)
+        self.assertIn("[ v0 ] reps=1", out)
+        self.assertIn("[ v1 ] reps=1", out)
+        self.assertIn("fired: m 1/1 reps", out)
+        self.assertIn("fired: m 0/1 reps", out)
+
+    def test_matrix_malformed_run_is_an_error(self):
+        entry = _evidence_entry("a", {"v0": {"runs": ["nope"]}})
+        results_file(self.results, [entry])
+        rc, _ = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("arm 'v0' run 1 is not an object", self.last_err)
+
+    def test_matrix_entry_without_markers_notes_it(self):
+        entry = _evidence_entry("a", {"v0": self._runs(self._run_rec("x"))})
+        del entry["markers"]
+        results_file(self.results, [entry])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("(no markers recorded)", out)
 
 
 class MarkerTriageTests(unittest.TestCase):

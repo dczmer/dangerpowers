@@ -1037,6 +1037,7 @@ class PressureEvidenceTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         for k, v in overrides.items():
             setattr(args, k, v)
