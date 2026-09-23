@@ -85,7 +85,7 @@ Collect all inputs before starting. Prompt the user for any that are missing.
 - **Model / variant** — optional passthroughs, and the only model-selection
   path (the agent pins nothing).
 - **Reps** — runs per arm; default 5. **Timeout** — per-run abort, seconds;
-  default 120.
+  default 300.
 
 ## Rule inventory
 
