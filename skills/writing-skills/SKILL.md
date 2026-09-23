@@ -1,6 +1,6 @@
 ---
 name: writing-skills
-description: Use when authoring, editing, or reviewing the definition file of a skill — creating a new skill, updating an existing one, or checking one against conventions before deployment. Covers frontmatter conventions and body structure for skill files. Trigger only when the request asks to change or review a skill's definition content; a request that operates on a skill without changing its definition — running or testing it, loading or invoking one by name, discovering which skills exist, picking a skill for a task, or asking what a skill does — is not for this skill.
+description: Use when a request touches the definition file of a skill — authoring a new skill, editing or improving an existing one, or reviewing one, however tersely the ask is phrased, against conventions before deployment. Covers frontmatter conventions and body structure for skill files. Trigger on any ask to change or review a skill's definition content; a request that operates on a skill without changing its definition — running or testing it, loading or invoking one by name, discovering which skills exist, picking a skill for a task, or asking what a skill does — is not for this skill.
 ---
 
 # Writing Skills
