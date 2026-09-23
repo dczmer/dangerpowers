@@ -30,13 +30,13 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 - Instruction specificity matches task fragility. Prescribe exact steps where the operation is irreversible, order-dependent, or has one correct form. State goals, constraints and end conditions everywhere else.
 - Does not contain no-op statements or commentary that is not relevant to the goals, constraints, or end conditions.
 - Use explicit instructions ("Always use X"), never passive phrasing ("X is recommended").
-- State constraints directly. No nuance or exemption clauses that scope a directive ("unless X", "except when Y") — fold the condition into the directive or leave it out.
+- State constraints directly. Never scope a directive with an exemption — any phrasing that carves out cases ("unless X", "except when Y", "excluding Z") — either fold the condition into the directive or leave it out. Example: "Always run the full migration suite before deploying, except when the deploy is just a config change" becomes "Always run the full migration suite before deploying."
 - Provide defaults, not menus. Name the one approach unconditionally. Give alternatives only as condition-scoped switches — each gated on the concrete condition that disqualifies the default ("use setuptools when the build compiles C extensions"). Never frame the choice as open: no neutral comparisons, no "pick whichever fits."
-- Pick one term per concept and use it everywhere.
+- Pick one term per concept and use it everywhere — if a draft calls the same directory "workspace root", "repo root", and "project directory", choose one term and replace every occurrence, including incidental ones: "Navigate to the repo root. Run the setup script from the repo root. The config file also lives in the repo root."
 - No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.
 - Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps.
 - Ends with a checklist or verification procedure so the agent can verify its work.
-- When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.
+- When a request asks for something the skill forbids — including an explicit user request for a forbidden description, section, or artifact: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full, itself following every rule in this skill. Both parts, always.
 
 ## Frontmatter
 

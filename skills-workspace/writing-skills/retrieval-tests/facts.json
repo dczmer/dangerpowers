@@ -1,6 +1,6 @@
 {
   "skill": "writing-skills",
-  "generated": "2026-09-22",
+  "generated": "2026-09-23",
   "facts": [
     {
       "id": "F-overview-01",
@@ -45,7 +45,7 @@
     {
       "id": "F-content-02",
       "section": "Content",
-      "statement": "keep the whole skill — SKILL.md plus every file the body loads — under 500 lines total; moving content to references/ to comply is a violation",
+      "statement": "keep the whole skill \u2014 SKILL.md plus every file the body loads \u2014 under 500 lines total; moving content to references/ to comply is a violation",
       "entries": [
         "skill-length-extraction"
       ]
@@ -61,7 +61,7 @@
     {
       "id": "F-content-04",
       "section": "Content",
-      "statement": "no unless/except exemption clauses; fold condition in or drop it",
+      "statement": "never scope a directive with an exemption in any phrasing (unless, except when, excluding); fold the condition in or drop it",
       "entries": [
         "no-exemption-clauses"
       ]
@@ -77,7 +77,7 @@
     {
       "id": "F-content-06",
       "section": "Content",
-      "statement": "pick one term per concept, use it everywhere",
+      "statement": "pick one term per concept, replacing every occurrence including incidental synonyms",
       "entries": [
         "one-term-per-concept"
       ]
@@ -117,7 +117,7 @@
     {
       "id": "F-content-11",
       "section": "Content",
-      "statement": "when a request asks for something the skill forbids, name the forbidden part in one sentence and produce the compliant artifact in full",
+      "statement": "when a request asks for something the skill forbids, even explicitly, name the forbidden part in one sentence and produce the compliant artifact in full, itself following every rule",
       "entries": [
         "forbidden-request-two-part"
       ]
@@ -125,7 +125,7 @@
     {
       "id": "F-discovery-01",
       "section": "Discovery",
-      "statement": "write description and overview in the vocabulary an agent reaches for mid-task — symptoms, error messages, tool names, synonyms — not internal conceptual names",
+      "statement": "write description and overview in the vocabulary an agent reaches for mid-task \u2014 symptoms, error messages, tool names, synonyms \u2014 not internal conceptual names",
       "entries": [
         "discovery-vocabulary"
       ]

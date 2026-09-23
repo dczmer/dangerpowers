@@ -5,5 +5,14 @@
     "checksum": "sha256:70dcce3b0954be33d8328761356b6da80fa1fdc14172e5dfbbf97b4a630d8a0c",
     "score": 0.7733018341376452,
     "campaign": "campaign-2026-09-23"
+  },
+  "retrieval-test": {
+    "date": "2026-09-23",
+    "checksum": "sha256:b46f88e7b83e343c7f700a60631e584768ee9b5b88b55a0e9d6edc6c2979b213",
+    "passes": 15,
+    "fails": 4,
+    "gaps": 0,
+    "voids": 1,
+    "campaign": "campaign-2026-09-23"
   }
 }
