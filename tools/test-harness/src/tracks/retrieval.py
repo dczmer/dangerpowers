@@ -20,7 +20,7 @@ from src.common import (
     run_rep_batched,
     validate_eval_agent,
 )
-from src.strategies import EvalStrategy, HarnessExecutionError
+from src.strategies import DEFAULT_TIMEOUT, EvalStrategy, HarnessExecutionError
 from src.tracks.track import Track, _required
 
 # Track constants: the retrieval track evaluates under
@@ -254,15 +254,16 @@ class RetrievalTrack(Track):
         → agent validation → --reps → --timeout → skill-ws sync check →
         control contamination → load queries → --out parent. Returns the
         validated entries, or an int rc with the exact error already
-        printed. The merged-parser flag requirement and the historical
-        1/120 reps/timeout defaults are applied here (Q7a)."""
+        printed. The merged-parser flag requirement, the historical
+        1-rep default, and the shared DEFAULT_TIMEOUT (300 s; BUGS.md
+        B3) are applied here (Q7a)."""
         _required(
             args, self, "skill_workspace", "control_workspace", "queries"
         )
         if args.reps is None:
             args.reps = 1
         if args.timeout is None:
-            args.timeout = 120
+            args.timeout = DEFAULT_TIMEOUT
         self._harness_preflight(args.harness, strategy_cls, args.model)
         skill_ws = Path(args.skill_workspace)
         control_ws = Path(args.control_workspace)

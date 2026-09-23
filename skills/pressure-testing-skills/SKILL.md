@@ -55,7 +55,7 @@ scripts only — never parse their prose stdout.
 - Model: the model that will consume the skill in production, at default
   temperature, via `--model`/`--variant` only — never pin model config in
   the eval agent file (the installer aborts pre-spend on pins).
-- Defaults: 5 reps per arm; 120 s per-run timeout.
+- Defaults: 5 reps per arm; 300 s per-run timeout.
 - Serial order: one rule at a time — RED → GREEN → meta → REFACTOR — with a
   spend confirmation before each arm and each refactor round. Only reps
   *within* one arm batch parallelize (identical prompt bytes, read-only).
@@ -253,7 +253,7 @@ evaluator.py suite --track pressure-test --harness <h> --skill <s> \
   --agents-dir <pressure-skill-dir>/agents --workspace $WS \
   --scenarios $CAMP/scenario-<rule>.json --arm red \
   --out $CAMP/results-red-<rule>.json [--model m] [--variant v] \
-  [--reps 5] [--timeout 120]
+  [--reps 5] [--timeout 300]
 
 # GREEN — original snapshotted body injected
 evaluator.py suite --track pressure-test ... --arm green \
@@ -265,7 +265,7 @@ evaluator.py meta --track pressure-test --harness <h> \
   --agents-dir <pressure-skill-dir>/agents --workspace $WS \
   --session <session-id> --question "<full meta question text>" \
   --out $CAMP/meta-<rule>-r<round>-rep<n>.json \
-  [--model m] [--variant v] [--timeout 120]
+  [--model m] [--variant v] [--timeout 300]
 
 # REFACTOR round N — counter body injected
 evaluator.py suite --track pressure-test ... --arm green \

@@ -224,7 +224,7 @@ Implemented 2026-09-23 as suggested, plus review amendments:
 - Skill doc: step 13 and the evidence paragraph show the multi-file
   invocation and merge semantics.
 
-## B3. Default timeout too low for local endpoints
+## B3. (RESOLVED) Default timeout too low for local endpoints
 
 Symptom: at the documented 120s default, shape campaigns against the
 local llama.cpp endpoint (llama.cpp/gemma-4-26B-A4B) drown in
@@ -261,6 +261,39 @@ the 120s failure mode is silent until scoring and wastes a full phase.
 Relationship to B5: complementary and independent — a higher timeout
 reduces per-rep latency sensitivity but is not a license for concurrent
 suites.
+
+Implemented 2026-09-23, with review amendments:
+
+- Shared constant `DEFAULT_TIMEOUT = 300` in src/strategies.py (the
+  module nothing else imports from below it, so no import cycle);
+  shape.py, pressure.py, retrieval.py pre_spend_gates and the meta
+  parser default all reference it. The suite parser comment now names
+  the split (300 shared; trigger 30) so the next reader doesn't
+  "restore" one value.
+- Trigger stays at 30s (short single-shot loads under a restricted
+  agent) with an inline comment saying so; `run` also stays at 30s —
+  same single-probe workload, not a long-form generation. Both were
+  blanket-bumped in the suggested fix; review kept them per workload.
+- The dormant `EvalStrategy.__init__(timeout=30)` fallback default was
+  a sixth location the investigation missed; aligned to
+  DEFAULT_TIMEOUT. All call sites pass timeout explicitly, so behavior
+  is unchanged.
+- Doc updates the fix didn't enumerate: shape SKILL.md defaults line,
+  Timeout input line, step-9 example, and the timeout gotcha (now
+  records the old 120s failure and points at the B5 concurrency check
+  BEFORE raising --timeout further); pressure SKILL.md defaults line
+  and both [--timeout 120] examples. Trigger SKILL.md's 30s stays.
+- Verification recount of the calibration file: 54/70 runs carry both
+  the timeout flag and an empty answer at 120s (the report's 53/70
+  stands as the recorded figure; the off-by-one is noted here, not
+  silently corrected), 0/70 at 300s.
+- Tests: the three default-assertion tuples in test_evaluator.py
+  (retrieval 1/300, shape 5/300, pressure 5/300); trigger's (3, 30)
+  unchanged. Explicit timeout=120 pass-through assertions in
+  test_shape.py/test_pressure.py unchanged by design.
+- The optional >20%-voids calibration hint was NOT implemented — no
+  harness home for it yet (void classification is track-side, the
+  driver is generic); recorded here as still-open.
 
 ## B4. Marker gaps in shape-test triage
 

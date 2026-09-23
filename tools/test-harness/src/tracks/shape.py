@@ -18,7 +18,7 @@ from src.common import (
     run_rep_batched,
     validate_eval_agent,
 )
-from src.strategies import EvalStrategy
+from src.strategies import DEFAULT_TIMEOUT, EvalStrategy
 from src.tracks.retrieval import SOURCES_RE
 from src.tracks.track import Track, _required
 
@@ -554,13 +554,14 @@ class ShapeTrack(Track):
         non-empty → --fixture-key → --arms → load entries → per-entry
         arm/variant + fixture gates → doc-drift gate → --out parent →
         contamination. Returns the validated entries, or an int rc with the
-        exact error already printed. The merged-parser flag requirement and
-        the historical 5/120 reps/timeout defaults are applied here (Q7a)."""
+        exact error already printed. The merged-parser flag requirement,
+        the historical 5-reps default, and the shared DEFAULT_TIMEOUT
+        (300 s; BUGS.md B3) are applied here (Q7a)."""
         _required(args, self, "workspace", "entries", "skill_file", "arms")
         if args.reps is None:
             args.reps = 5
         if args.timeout is None:
-            args.timeout = 120
+            args.timeout = DEFAULT_TIMEOUT
         self._harness_preflight(args.harness, strategy_cls, args.model)
         ws = Path(args.workspace)
         agents_dir = Path(args.agents_dir)

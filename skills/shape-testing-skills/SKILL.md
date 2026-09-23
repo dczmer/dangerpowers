@@ -47,7 +47,7 @@ Consume exit codes and JSON from those scripts only — never parse their prose 
 - Model: run the model that will consume the skill in production, at default
   temperature, via the campaign `--model`/`--variant` flags — never pin model config
   in the eval agent file.
-- Defaults: 5 reps per entry per arm; 120 s per-run timeout.
+- Defaults: 5 reps per entry per arm; 300 s per-run timeout.
 - Phases: phase 1 runs 5 control reps for ALL rules (never skipped); phase 2 runs
   variants (5 reps each) only for rules whose control exhibited the failure, after a
   second spend confirmation. A generic continuation message ("keep going", "proceed",
@@ -87,7 +87,7 @@ Collect all inputs before starting. Prompt the user for any that are missing.
   the campaign instead. Run with the model that will consume the skill in
   production, at default temperature.
 - **Reps** — runs per entry per arm; default 5.
-- **Timeout** — per-run abort, in seconds; default 120.
+- **Timeout** — per-run abort, in seconds; default 300.
 
 Run with the model that will consume the skill in production, at default temperature.
 Re-check adopted phrasings on model upgrades via the ablation track (rules whose control
@@ -217,7 +217,7 @@ retrieval track.)
    ```
 8. **Spend confirmation #1**: rules × 5 control reps — phase 1 covers ALL rules
    and is never skipped.
-9. `evaluator.py suite --track shape-test --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 120]`
+9. `evaluator.py suite --track shape-test --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 300]`
 10. Score controls via `evidence --track shape-test`. Rules whose control never exhibits the failure
     → `no-failure` + ablation flag; **stop those rules, author nothing**.
 11. **Spend confirmation #2**: failing rules × variants × 5 reps — only rules
@@ -461,9 +461,12 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
   re-run that arm before scoring it. There is no "not loaded" void: the conventions
   are in the prompt by construction, so a run can never fail for load reasons.
 - Timeout voids are not always agent defects: concurrent reps share one endpoint, so
-  per-rep latency rises with parallelism — on a slow local server the default 120 s can
-  abort clean runs mid-answer (observed in calibration: 2 empty-answer voids at 120 s,
-  0 at 300 s). Raise `--timeout` before pressure-testing the agent body.
+  per-rep latency rises with parallelism — on a slow local server even the 300 s
+  default can abort clean runs mid-answer (the old 120 s default drowned campaigns:
+  53/70 empty-answer voids at 120 s, 0/70 at 300 s, 2026-09-22). Before raising
+  `--timeout` further, check that no other suite is running concurrently (two suite
+  processes multiply latency beyond what any per-rep timeout absorbs) — then raise
+  `--timeout` before pressure-testing the agent body.
 - Every run in a results file carries its headless `session_id` (shown by
   `evidence --track shape-test`), and harness-abort error lines end with `[session <id>]` when the
   harness emitted one before failing — include it when reporting an abort so the failed

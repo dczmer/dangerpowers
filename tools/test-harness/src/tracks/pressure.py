@@ -18,7 +18,7 @@ from src.common import (
     run_rep_batched,
     validate_eval_agent,
 )
-from src.strategies import EvalStrategy, HarnessExecutionError
+from src.strategies import DEFAULT_TIMEOUT, EvalStrategy, HarnessExecutionError
 from src.tracks.track import Track, _required
 
 # Track constants: the pressure track runs one arm per invocation and
@@ -251,13 +251,14 @@ class PressureTrack(Track):
         → agent validation → --arm validity → green/red --skill-file
         rules → load scenarios → --reps → --timeout → --out parent →
         contamination. Returns the validated entries, or an int rc with the
-        exact error already printed. The merged-parser flag requirement and
-        the historical 5/120 reps/timeout defaults are applied here (Q7a)."""
+        exact error already printed. The merged-parser flag requirement,
+        the historical 5-reps default, and the shared DEFAULT_TIMEOUT
+        (300 s; BUGS.md B3) are applied here (Q7a)."""
         _required(args, self, "workspace", "scenarios", "arm")
         if args.reps is None:
             args.reps = 5
         if args.timeout is None:
-            args.timeout = 120
+            args.timeout = DEFAULT_TIMEOUT
         ws = Path(args.workspace)
         agents_dir = Path(args.agents_dir)
         scenarios_path = Path(args.scenarios)

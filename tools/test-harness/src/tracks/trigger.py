@@ -370,6 +370,8 @@ class TriggerTrack(Track):
         if args.reps is None:
             args.reps = 3
         if args.timeout is None:
+            # Deliberately not DEFAULT_TIMEOUT (300 s): trigger queries
+            # are short single-shot loads under a restricted agent.
             args.timeout = 30
         workspace = Path(args.workspace)
         stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"

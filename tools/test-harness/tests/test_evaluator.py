@@ -689,7 +689,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                 reps=None,
                 timeout=None,
             ),
-            (1, 120),
+            (1, 300),
         )
 
     def test_shape_default_reps_timeout(self):
@@ -731,7 +731,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                 reps=None,
                 timeout=None,
             ),
-            (5, 120),
+            (5, 300),
         )
 
     def test_pressure_default_reps_timeout(self):
@@ -768,7 +768,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                 reps=None,
                 timeout=None,
             ),
-            (5, 120),
+            (5, 300),
         )
 
     def _scored_args(self, track_name, results, **counts):

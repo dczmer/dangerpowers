@@ -37,6 +37,7 @@ from src.common import (
     union_results,
 )
 from src.strategies import (
+    DEFAULT_TIMEOUT,
     _fail,
     check_harness,
     resolve_strategy,
@@ -797,6 +798,8 @@ def main() -> int:
     run.add_argument("--model")
     run.add_argument("--variant")
     run.add_argument("--reps", type=int, default=3)
+    # run's 30 s matches the trigger track: a single short trigger-style
+    # probe, not a long-form generation (contrast DEFAULT_TIMEOUT).
     run.add_argument("--timeout", type=int, default=30)
 
     split = sub.add_parser("split")
@@ -817,10 +820,12 @@ def main() -> int:
     suite.add_argument("--out", required=True)
     suite.add_argument("--model")
     suite.add_argument("--variant")
-    # No parser defaults: each track applies its historical default as
-    # the first lines of pre_spend_gates. A parser default would make
+    # No parser defaults: each track applies its own default as the
+    # first lines of pre_spend_gates. A parser default would make
     # args.reps/args.timeout never-None and flatten all four tracks to
-    # one default.
+    # one default. The split today: shape/pressure/retrieval share
+    # DEFAULT_TIMEOUT (300 s, src/strategies.py); trigger keeps 30 s —
+    # do not "restore" a single value here.
     suite.add_argument("--reps", type=int)
     suite.add_argument("--timeout", type=int)
     # per-track flags (Q7a: historical names kept); required status is
@@ -911,7 +916,7 @@ def main() -> int:
     meta.add_argument("--out", required=True)
     meta.add_argument("--model")
     meta.add_argument("--variant")
-    meta.add_argument("--timeout", type=int, default=120)
+    meta.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
 
     inv = sub.add_parser(
         "inventory-check",

@@ -34,7 +34,7 @@ dangerpowers/
 │       ├── references/        # reference docs (some skills)
 │       └── agents/            # supporting agent configs/schemas (some skills)
 ├── skills-workspace/          # per-skill test artifacts (e.g. trigger-tests/queries.json);
-                               # trigger-test campaign dirs (campaign-YYYY-MM-DD[-N]/) are persistent and committed
+                               # campaign dirs (campaign-YYYY-MM-DD[-N]/) are untracked — never commit them
 ├── tools/test-harness/      # shared headless eval-harness scripts for the
 │                            # trigger/retrieval/shape/pressure testing skills
 │                            # (evaluator.py: CLI parsers, generic drivers,
