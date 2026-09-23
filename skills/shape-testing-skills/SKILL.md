@@ -65,7 +65,14 @@ Consume exit codes and JSON from those scripts only — never parse their prose 
   rule, 3 variants each, all gated → `3×(5+15) + (5+15+10) = 90`.
 - Serialization: one entry, one arm at a time — never parallelize arms; only reps
   within one arm batch parallelize. Arms differ only in prompt bytes (injection, not
-  byte-states); the serial order is spend discipline.
+  byte-states); the serial order is spend discipline. One suite process at a time,
+  for the whole campaign: never run two suite invocations concurrently (a restraint
+  gate alongside a round-2 mini-campaign, or any two suites against the same
+  endpoint). Each suite already batches up to 10 reps; concurrent suites multiply
+  per-rep latency into empty-answer timeout voids that misattribute as agent
+  defects. Check the previous suite exited before launching the next — the
+  harness enforces this mechanically: `suite` holds a machine-wide lockfile and
+  a second invocation aborts pre-spend naming the lock.
 - Fix between campaigns, never mid-campaign; fixtures, variant texts, and section
   spans stay verbatim across campaigns.
 - Record only after a completed FULL campaign (`--scope dir --scored
@@ -257,10 +264,12 @@ retrieval track.)
     counter-example --out
     $CAMP/results-restraint.json` (5 reps, scored against `restraint_markers`); a
     variant that over-applies is disqualified — gate the next-best converging variant
-    the same way.
+    the same way. Run the gate only after the variants suite has fully exited; never
+    concurrently with any other suite invocation (Serialization).
 14. Non-converging rules → round-2 mini-campaign (changed FORM, new filtered entries
     file, second campaign dir, **never recorded**), cap 2 rounds → else `unresolved`,
-    escalate to the user.
+    escalate to the user. Run it only after any other suite has fully exited; never
+    concurrently with any other suite invocation (Serialization).
 15. `evaluator.py scored-check --track shape-test --results $CAMP/results-control.json
     --results $CAMP/results-variants.json [--results $CAMP/results-restraint.json]
     --emit-skeleton $CAMP/scored.json` emits the skeleton from the results union —
@@ -508,7 +517,10 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
   53/70 empty-answer voids at 120 s, 0/70 at 300 s, 2026-09-22). Before raising
   `--timeout` further, check that no other suite is running concurrently (two suite
   processes multiply latency beyond what any per-rep timeout absorbs) — then raise
-  `--timeout` before pressure-testing the agent body.
+  `--timeout` before pressure-testing the agent body. Observed 2026-09-22: a
+  restraint gate dispatched concurrently with a round-2 mini-campaign voided 4/5
+  gate reps at 300 s; re-run serially, 5/5 clean — "serially" includes across
+  processes, so check the previous suite exited before launching the next.
 - Every run in a results file carries its headless `session_id` (shown by
   `evidence --track shape-test`), and harness-abort error lines end with `[session <id>]` when the
   harness emitted one before failing — include it when reporting an abort so the failed
@@ -528,6 +540,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Spend confirmation #2 (failing rules × variants × 5 reps) before phase 2; `suite --track shape-test --arms v1,v2,v3 --entries $CAMP/entries-failing.json` wrote results-variants.json
 - [ ] Every flagged marker sample hand-read; convergence judged across the 5 reps, not by marker averages; prohibition arms never adopted; ties to the shorter phrasing
 - [ ] Pattern-rule winners gated: 5 reps on `counter-example` with `--fixture-key counter-example`, scored against `restraint_markers`; over-applying variants disqualified and the next-best gated
+- [ ] Every suite invocation ran one at a time; the restraint gate and round-2 never overlapped with each other or any other suite
 - [ ] Round 2 (if any) changed the FORM in a never-recorded mini-campaign; hard cap 2 rounds respected
 - [ ] scored.json skeleton emitted and the null judgment fields filled for every union results id; `scored-check --track shape-test` exits 0
 - [ ] Report shows per-rule per-arm tables, gate lines for pattern rules, no-failure/unresolved sections, summary counts, and the `artifacts:`/`manifest:` lines

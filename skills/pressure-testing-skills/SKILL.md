@@ -59,6 +59,12 @@ scripts only — never parse their prose stdout.
 - Serial order: one rule at a time — RED → GREEN → meta → REFACTOR — with a
   spend confirmation before each arm and each refactor round. Only reps
   *within* one arm batch parallelize (identical prompt bytes, read-only).
+  One suite process at a time, for the whole campaign: concurrent suites
+  against the same endpoint multiply per-rep latency into empty-answer
+  timeout voids that misattribute as agent defects (shape campaign
+  2026-09-22: 4/5 gate reps voided concurrently, 5/5 clean serially).
+  `suite` enforces this with a machine-wide lockfile — a second
+  invocation aborts pre-spend naming the lock.
 - Cost per rule: `5 + 5 per failing baseline + 5×rounds per refactor (cap 3)
   + 1 meta per violating rep`; per-rule hard cap 25 runs + meta resumes.
 - Verdicts: `bulletproof` / `no-failure` / `unresolved` / `void`.
@@ -605,7 +611,8 @@ on those paths — only a completed full campaign is recorded.
   pipeline — never hand-edited) with exact commands recorded
 - [ ] Rules run strictly serially; spend confirmations before each RED, each
   GREEN (only after a violating baseline), each REFACTOR round; per-rule cap
-  25 runs + meta resumes
+  25 runs + meta resumes; one suite process at a time — no second suite
+  launched while another is running (lockfile enforces)
 - [ ] RED ran 5 reps per rule with nothing injected; every answer read by
   hand; no-failure rules stopped with nothing authored and flagged as the
   ablation review

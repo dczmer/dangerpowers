@@ -148,6 +148,7 @@ The `suspect queries` block appears only when failure analysis flagged any. Ther
 - An opencode "agent not found / falling back to default agent" warning on stderr → the tooling raises `HarnessExecutionError`: the suite aborts and no JSON is written (a run under the wrong agent is contamination, not data). Treat as a campaign abort.
 - `split` / query-file validation failure → stop before spend, surface the message.
 - `suite` exit 1 (harness execution failure, e.g. provider 429) → abort the campaign: surface the stderr error, keep the workspace; print its path and the campaign dir path (campaign artifacts persist by design), apply nothing. No retries.
+- `suite` exit 1 naming the suite lockfile ("another suite is already running") → not a campaign abort: another suite (any track) is in flight against the shared endpoint. Wait for it to exit and re-run; if no suite is running, remove the stale lock at the named path.
 - Suite totals with 0 scored runs (all void) → broken conditions: abort as above (a campaign of timeouts measures nothing). Applies to train rounds and the validate pass alike, and is checked before the zero-failures early exit; the sanity check is the only exception (all-void = inconclusive).
 - Sanity inconclusive (all void) → reported as inconclusive; not a pass, not a restart; the user decides.
 

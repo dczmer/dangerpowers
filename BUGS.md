@@ -494,7 +494,7 @@ verdicts are unaffected (its snapshot keeps the old markers); the
 calibration expectations in SKILL.md now apply to these amended
 markers at the next proposal.
 
-## B5. Concurrent suites voided the restraint gate
+## B5. (RESOLVED) Concurrent suites voided the restraint gate
 
 Observed 2026-09-22 (writing-skills shape campaign, driver error).
 The restraint gate (suite --arms v2 --fixture-key counter-example, 5
@@ -518,7 +518,7 @@ a reason to raise --timeout — which pointed at the wrong lever (see B3:
 no per-rep timeout absorbs 2x concurrency on a saturated endpoint).
 
 Agreed fix (2026-09-23): harden skills/shape-testing-skills/SKILL.md —
-no harness change. Four edits:
+no harness change. Five edits:
 
 1. Quick reference, Serialization bullet — extend from
    arms-within-a-suite to suites-within-a-campaign: never run two
@@ -548,6 +548,48 @@ Relationship to B3: complementary and independent. B3 (default timeout
 300s) reduces per-rep latency sensitivity; it is not a license for
 concurrent suites. Do not conflate the two fixes — a future agent
 applying B3 must not read it as permission to parallelize suites.
+
+Implemented 2026-09-23. Verification first re-derived every claim:
+4/5 timeout+empty at 300s in results-restraint-timeoutvoids.json vs
+0/5 in the serial re-run (MAX_WORKERS=10 per suite, common.py:27, so
+two suites ≈ 20 concurrent requests); the campaign report discloses
+the driver error; serialization discipline covered only within-suite
+(Quick ref, suite mechanics) and the harness had no cross-process
+lock. The B3 implementation had already landed the gotcha's "check
+that no other suite is running concurrently" sentence; the remaining
+edits plus two review amendments:
+
+- Shape SKILL.md: all five edits applied — Serialization bullet
+  extended to suites-within-a-campaign; steps 13/14 carry the "only
+  after the previous suite fully exited" sentence; the timeout gotcha
+  records the observed instance (4/5 concurrent, 5/5 serial) and the
+  "serially includes across processes" note; the checklist gates on
+  one-suite-at-a-time.
+- Amendment 1 (harness hardening, superseding the "no harness change"
+  agreement): doc-only discipline is what failed — the gotcha existed
+  and the driver parallelized anyway. `run_suite` now holds a
+  machine-wide lockfile (evaluator.py _suite_lock; atomic O_EXCL
+  acquire after the pre-spend gates, released on every exit path
+  including mid-campaign abort). A second suite exits 1 pre-spend
+  naming the lock and its holder; a crashed suite leaves a stale lock
+  the message names for manual removal. EVALUATOR_SUITE_LOCK
+  overrides the path (test isolation; genuinely separate endpoints
+  can opt out per-driver). Tests: held-lock abort before spend
+  (foreign lock untouched, no results file), acquire/release,
+  release-on-exception, nested-acquire exit 1 (test_evaluator.py
+  SuiteLockTests; tests/__init__.py isolates the lock per test
+  process).
+- Amendment 2 (the recorded scope follow-up): pressure and retrieval
+  SKILL.md hardened with the same rule — pressure Quick ref Serial
+  order bullet + checklist line; retrieval workflow step 8 +
+  checklist line. Both name the lockfile enforcement.
+
+Residual: the lock serializes per machine/user, not per endpoint —
+two suites against genuinely separate endpoints are over-blocked
+(the conservative reading; EVALUATOR_SUITE_LOCK is the escape hatch).
+A stale lock after a crashed suite requires manual removal by design
+(the message names the path) — auto-reaping would risk breaking a
+live holder on PID reuse.
 
 ## B6. Campaign layout misuses the -2 suffix; mini-campaigns belong inside the full-campaign dir
 

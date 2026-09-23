@@ -12,6 +12,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,110 @@ from src.common import _score_counts
 from src.tracks import TRACKS
 
 SKILL = "writing-skills"
+
+
+class SuiteLockTests(unittest.TestCase):
+    """The cross-process suite lock (BUGS.md B5): run_suite holds one
+    machine-wide lock so two concurrent suite processes can't multiply
+    per-rep latency into misattributable empty-answer timeout voids.
+    Zero harness runs: the trigger track's empty-queries path reaches
+    the lock with no spend."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.lock = self.root / "suite.lock"
+        self.env_patcher = mock.patch.dict(
+            os.environ, {"EVALUATOR_SUITE_LOCK": str(self.lock)}
+        )
+        self.env_patcher.start()
+        self.workspace = self.root / "ws"
+        stub = self.workspace / ".agents" / "skills" / SKILL / "SKILL.md"
+        stub.parent.mkdir(parents=True)
+        stub.write_text(f"---\nname: {SKILL}\n---\n")
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "trigger-evaluator.opencode.md").write_text(
+            "---\nname: trigger-evaluator\n---\n# Agent\n"
+        )
+        self.queries = self.root / "queries.json"
+        self.queries.write_text("[]")
+        self.out = self.root / "results.json"
+
+    def tearDown(self):
+        self.env_patcher.stop()
+        if evaluator._Log.file is not None:
+            evaluator._Log.file.close()
+            evaluator._Log.file = None
+        self.tmp.cleanup()
+
+    def _run_empty_suite(self) -> int:
+        args = argparse.Namespace(
+            harness="opencode",
+            skill=SKILL,
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.workspace),
+            queries=str(self.queries),
+            out=str(self.out),
+            model=None,
+            variant=None,
+            reps=3,
+            timeout=30,
+        )
+        with (
+            mock.patch.object(
+                strategies.shutil, "which", return_value="/usr/bin/opencode"
+            ),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            return evaluator.run_suite(TRACKS["trigger-test"], args)
+
+    def test_held_lock_aborts_before_spend(self):
+        self.lock.write_text("pid 99999 since 2026-09-22T00:00:00+00:00")
+        err = io.StringIO()
+        with (
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            self._run_empty_suite()
+        self.assertEqual(cm.exception.code, 1)
+        msg = err.getvalue()
+        self.assertIn(
+            "error: another suite is already running (pid 99999", msg
+        )
+        self.assertIn(str(self.lock), msg)
+        # No results file, and the foreign lock is left untouched.
+        self.assertFalse(self.out.exists())
+        self.assertEqual(
+            self.lock.read_text(),
+            "pid 99999 since 2026-09-22T00:00:00+00:00",
+        )
+
+    def test_lock_acquired_and_released(self):
+        rc = self._run_empty_suite()
+        self.assertEqual(rc, 0)
+        self.assertFalse(self.lock.exists())
+
+    def test_lock_released_on_exception(self):
+        with self.assertRaises(RuntimeError):
+            with evaluator._suite_lock():
+                self.assertTrue(self.lock.exists())
+                self.assertIn(f"pid {os.getpid()}", self.lock.read_text())
+                raise RuntimeError("boom")
+        self.assertFalse(self.lock.exists())
+
+    def test_nested_acquire_exits_1(self):
+        with evaluator._suite_lock():
+            err = io.StringIO()
+            with (
+                contextlib.redirect_stderr(err),
+                self.assertRaises(SystemExit) as cm,
+            ):
+                with evaluator._suite_lock():
+                    pass
+            self.assertEqual(cm.exception.code, 1)
+            self.assertIn("another suite is already running", err.getvalue())
+        self.assertFalse(self.lock.exists())
 
 
 class RecordTests(unittest.TestCase):

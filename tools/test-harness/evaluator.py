@@ -17,12 +17,15 @@ implemented.
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Iterator
 
 from src.common import (
     _err,
@@ -48,6 +51,61 @@ from src.tracks import (
     cmd_run,
     cmd_split,
 )
+
+# --------------------------------------------------------------------------
+# Cross-process suite serialization (BUGS.md B5)
+
+
+def _suite_lock_path() -> Path:
+    """The cross-process suite lock path. EVALUATOR_SUITE_LOCK overrides
+    it (test isolation; two drivers against genuinely separate endpoints
+    can point at different paths). The default serializes every suite
+    for this user — the conservative reading of the skills' "one suite
+    process at a time" rule, since the harness never sees the endpoint
+    URL (model/provider selection lives in the user's harness config)."""
+    override = os.environ.get("EVALUATOR_SUITE_LOCK")
+    if override:
+        return Path(override)
+    state = os.environ.get(
+        "XDG_STATE_HOME", str(Path.home() / ".local" / "state")
+    )
+    return Path(state) / "opencode-test-harness" / "suite.lock"
+
+
+@contextlib.contextmanager
+def _suite_lock() -> Iterator[None]:
+    """Hold the cross-process suite lock for one suite invocation.
+    Atomic O_EXCL acquire; a held lock exits 1 with an exact message
+    before any spend, since concurrent suites multiply per-rep latency
+    into empty-answer timeout voids that misattribute as agent defects.
+    A crashed suite leaves a stale lock — the message names it for
+    manual removal."""
+    path = _suite_lock_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            holder = path.read_text().strip()
+        except OSError:
+            holder = ""
+        _fail(
+            "another suite is already running"
+            + (f" ({holder})" if holder else "")
+            + "; concurrent suites multiply per-rep latency into "
+            "empty-answer timeout voids that misattribute as agent "
+            "defects (BUGS.md B5). Wait for it to exit; if no suite is "
+            f"running, remove the stale lock: {path}"
+        )
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(
+                f"pid {os.getpid()} since "
+                f"{datetime.now(UTC).isoformat(timespec='seconds')}"
+            )
+        yield
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -75,35 +133,37 @@ def run_suite(track: Track, args: argparse.Namespace) -> int:
     entries = track.pre_spend_gates(args, strategy_cls)
     if isinstance(entries, int):
         return entries
-    out = Path(args.out)
-    # The log mirror opens BEFORE the zero_results_on_empty branch: this
-    # preserves the historical trigger behavior (the old cmd_suite opened
-    # _Log.file at evaluator.py 496, before the empty-query return at 519)
-    # — an empty trigger campaign still creates/truncates the .log and the
-    # "note: empty query file" line is mirrored into it. It also prevents
-    # the note from mirroring into a stale _Log.file handle in long-lived
-    # processes (the test suite runs many campaigns in one process).
-    _Log.file = out.with_suffix(".log").open("w")
-    if not entries and track.zero_results_on_empty:
-        track.write_empty(args)
+    with _suite_lock():
+        out = Path(args.out)
+        # The log mirror opens BEFORE the zero_results_on_empty branch:
+        # this preserves the historical trigger behavior (the old
+        # cmd_suite opened _Log.file at evaluator.py 496, before the
+        # empty-query return at 519) — an empty trigger campaign still
+        # creates/truncates the .log and the "note: empty query file"
+        # line is mirrored into it. It also prevents the note from
+        # mirroring into a stale _Log.file handle in long-lived
+        # processes (the test suite runs many campaigns in one process).
+        _Log.file = out.with_suffix(".log").open("w")
+        if not entries and track.zero_results_on_empty:
+            track.write_empty(args)
+            return 0
+        strategy = strategy_cls(timeout=args.timeout)
+        track.install_agents(strategy, args)
+        for line in track.banner(args, len(entries)):
+            emit(line)
+        results: list[dict] = []
+        for entry in entries:
+            record = track.run_entry(strategy, entry, args)
+            if isinstance(record, int):
+                return record  # mid-campaign abort (retrieval arm failure)
+            results.append(record)
+        config = base_config(args)
+        config.update(track.extra_config(args))
+        out.write_text(
+            json.dumps(track.finalize(config, results), indent=2) + "\n"
+        )
+        emit(track.done_line(len(entries), out))
         return 0
-    strategy = strategy_cls(timeout=args.timeout)
-    track.install_agents(strategy, args)
-    for line in track.banner(args, len(entries)):
-        emit(line)
-    results: list[dict] = []
-    for entry in entries:
-        record = track.run_entry(strategy, entry, args)
-        if isinstance(record, int):
-            return record  # mid-campaign abort (retrieval arm failure)
-        results.append(record)
-    config = base_config(args)
-    config.update(track.extra_config(args))
-    out.write_text(
-        json.dumps(track.finalize(config, results), indent=2) + "\n"
-    )
-    emit(track.done_line(len(entries), out))
-    return 0
 
 
 def score_from_results(results_path: Path) -> float | str:

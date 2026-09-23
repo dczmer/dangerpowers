@@ -167,7 +167,11 @@ scripts the agent cannot run.
    per entry — the skill and control arm as its two workers); every
    progress line is arm-tagged — `[ skill ]` for the skill arm,
    `[control]` for the control arm — so interleaved output stays
-   attributable.
+   attributable. One suite process at a time, for the whole campaign:
+   concurrent suites against the same endpoint multiply per-rep latency
+   into empty-answer timeout voids that misattribute as agent defects;
+   `suite` enforces this with a machine-wide lockfile — a second
+   invocation aborts pre-spend naming the lock.
 9. `evaluator.py evidence --track retrieval-test --results <campaign>/results.json \
    [--entry <id>]` → score from the presented evidence; never hand-roll
    JSON walks against results.json. A scenario passes only if every
@@ -290,7 +294,7 @@ Score each entry with: result (pass/fail/gap/void); classification (findability|
 - [ ] Skill synced `--full` into the skill workspace and verified with `status --full`; control workspace contains no skill bytes
 - [ ] Campaign dir created under the retrieval-tests root; queries.json, facts.json, and the verified synced skill dir snapshotted into it with the exact commands recorded
 - [ ] Planned spend (entries × 2 arms × reps) confirmed by the user before the first eval run
-- [ ] `suite --track retrieval-test` invoked with both workspaces and the agents dir; arms ran in parallel with arm-tagged progress lines; results.json written; only exit codes and JSON consumed
+- [ ] `suite --track retrieval-test` invoked with both workspaces and the agents dir; arms ran in parallel with arm-tagged progress lines; results.json written; only exit codes and JSON consumed; one suite process at a time — no second suite launched while another is running (lockfile enforces)
 - [ ] Scoring evidence gathered with `evidence --track retrieval-test` (no ad-hoc JSON scripts); scored from `answer_text` only, bullet by bullet; voids via `void_signals`; every failure classified (gap / findability / clarity); control comparison → ablation flags; reps > 1 resolved by the worst-non-void rule
 - [ ] scored.json skeleton emitted and the null judgment fields filled for every results entry; `scored-check` exits 0
 - [ ] Report shows per-scenario results, summary counts, failure classifications, recommended doc fixes, and the `artifacts:`/`manifest:` lines
