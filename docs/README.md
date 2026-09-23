@@ -1,10 +1,6 @@
 # Docs Index
 
-AI-native development introduces more problems than some people seem to realize. Mistakes and bad design spiral out of control at a staggering pace and the only one who can fix it is the AI. But the bigger and more complicated your project gets, the more duplication and cruft that accrue over time. This leads to every subsequent task or refactoring taking exponentially longer and requiring more tokens to complete (expensive), as it needs to do more and more work to try to keep things consistent at the surface level.
-
-This tells me that AI is not ready to replace engineers (despite what Anthropic says). Instead, it means we need to learn an entirely new discipline - in addition to everything you already needed to learn to be an engineer. In other words, you need to earn an entirely new CS degree, and that starts by learning the fundamentals.
-
-But what are the fundamentals of AI-native development? The high-level list I'm starting from:
+I'm a major proponent of learning things "the hard way" - starting from the fundamentals and learning how and why things work, then building on that until I can do something useful. But what are the fundamentals of AI-native development? The high-level list I'm starting from:
 
 1. Extending model capabilities (through skills and custom tools/harness)
 2. Understanding attention, and how it can fail

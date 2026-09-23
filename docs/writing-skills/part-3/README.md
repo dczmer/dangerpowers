@@ -2,6 +2,8 @@
 
 Dissecting superpowers' "bulletproof" system to see how it works, and creating an objectively worse implementation of my own.
 
+This is part 3 of "Writing Skills Deep Dive", continuing from [Writing Skills Deep Dive - Part 2: Trigger Testing](../part-2/README.md).
+
 ## TLDR: Read This Part, If Nothing Else!
 
 > You need to test your skills! If you are doing long-horizon tasks or deploying agents to production systems, then you _really_ need to test your skills, and test them often.
@@ -19,7 +21,7 @@ A skill is a collection of facts, requirements, and operation rules for the agen
 
 The rest of this document is a deep-dive into how to test and improve skills by addressing each of these different types of rules with their own test campaigns, and a little commentary about building my own implementation.
 
-> **A note on cost:** every test campaign below is token-intensive, and each one warns about its specific cost profile where it appears. Also, campaigns can run off digging for context or making random changes — run on a clean git branch so you can reset if needed.
+> **A note on cost:** every test campaign below is token-intensive, and each one warns about its specific cost profile where it appears. Also, campaigns can run off digging for context or making random changes - run on a clean git branch so you can reset if needed.
 
 ## Testing Skills and Rule Types
 
@@ -100,9 +102,9 @@ The agent has correctly loaded the skill, it wants to comply, there is no incent
 
 To construct a retrieval test, record a file of test queries, very much like we did with trigger testing, and map each query to three expected post-conditions:
 
-1. **Retrieval** — the agent must find the documented fact. The correct answer requires that exact fact, so a pass proves the fact was actually retrieved.
-2. **Application** — the agent must combine the retrieved fact with the task (multi-step). This catches "found it, used it wrong."
-3. **Gap Probe** — the query exercises one of the top-N real use cases for the reference. If the doc doesn't cover it, that's a doc gap finding, not an agent failure — log it as content to add.
+1. **Retrieval** - the agent must find the documented fact. The correct answer requires that exact fact, so a pass proves the fact was actually retrieved.
+2. **Application** - the agent must combine the retrieved fact with the task (multi-step). This catches "found it, used it wrong."
+3. **Gap Probe** - the query exercises one of the top-N real use cases for the reference. If the doc doesn't cover it, that's a doc gap finding, not an agent failure - log it as content to add.
 
 Given a fact like:
 
@@ -127,9 +129,9 @@ Each entry tests one documented fact:
 ]
 ```
 
-- `id` — unique id for each rule
-- `query` — a realistic task for the agent to complete
-- `expect` — a scenario passes only if every expectation in the list is met by the returned answer.
+- `id` - unique id for each rule
+- `query` - a realistic task for the agent to complete
+- `expect` - a scenario passes only if every expectation in the list is met by the returned answer.
 
 ```mermaid
 flowchart LR
@@ -142,10 +144,13 @@ flowchart LR
     FAIL -->|No| ADOPT[Adopt]
     FAIL -->|Yes| EVAL[Evaluate]
     EVAL --> EDIT[Rewrite/Add Info]
-    EDIT --> Q
+    EDIT --> SKILL
 ```
 
-<br />
+Process:
+1. Run the query without the rule (control group). If the control doesn't fail, skip this rule.
+2. Run the query with the rule in place and evaluate the results.
+3. If the query fails with the rule in place, rewrite it according to the table of observed failure categories below, and try again.
 
 Run the evals, along with a no-skill control group, all at 5x reps per arm in a fresh subagent for each test. Instruct the agent to list the "sources" that were consulted while processing the request. Identify failure categories according to the following table:
 
@@ -182,7 +187,7 @@ Note that the custom agent file started out as a copy+paste of the subagent prom
 
 ## Shaping Skills
 
-> You can't reason your way to the right phrasing — you have to measure it.
+> You can't reason your way to the right phrasing - you have to measure it.
 
 Shaping rules dictate how the final product should be "shaped": React components use CSS modules, Bash scripts should start with '/usr/bin/env' shebang, comments should be short and concise, etc. Things that you want to be invariant in the output, but are not guaranteed if you just leave it up to the AI.
 
@@ -251,13 +256,13 @@ Match the fix to the observed failure. The form that fixes one failure type back
 | Observed Result | Right Form | Never |
 |---|---|---|
 | Control never exhibits the failure | Author nothing; flag an existing rule for ablation re-check | Hardening a phantom "just in case" |
-| Prohibition suppresses the token but the failure migrates (inline styles banned → `useState` hover hacks) | Positive recipe: state what the output IS — its parts, in order | Stacking more prohibitions |
+| Prohibition suppresses the token but the failure migrates (inline styles banned → `useState` hover hacks) | Positive recipe: state what the output IS - its parts, in order | Stacking more prohibitions |
 | A required element is omitted from an artifact the agent already produces | Structural REQUIRED field or slot in the template it fills in | Prose reminders near the template |
 | Behavior should depend on a condition | Conditional keyed to an observable predicate ("if the brief exists, reference it") | Unconditional rule + exemption clauses |
 | Reps disagree on the shape (noisy) | Change the form, not more words | Appending nuance clauses ("…unless it matters") |
-| Two variants tie on every metric | Adopt the shorter phrasing — skills reload constantly, prose length is a real cost | Merging the two |
+| Two variants tie on every metric | Adopt the shorter phrasing - skills reload constantly, prose length is a real cost | Merging the two |
 
-Failure migration is whack-a-mole: ban the token and the same instinct pops up somewhere else. From an actual V1 (prohibition) arm run — inline styles banned, so the agent invented this instead:
+Failure migration is like whack-a-mole: ban the token and the same instinct pops up somewhere else. From an actual V1 (prohibition) arm run - inline styles banned, so the agent invented this instead:
 
 ```tsx
 const [hover, setHover] = useState(false);
@@ -272,7 +277,7 @@ The prohibition suppressed the `style` prop, not the behavior. The V2 recipe arm
 
 ### Example
 
-> WARNING: Shape campaigns are the most expensive of the three — each iteration runs several reps against multiple variants, even though only one rule is tested at a time.
+> WARNING: Shape campaigns are the most expensive of the three - each iteration runs several reps against multiple variants, even though only one rule is tested at a time.
 
 Here is a simplified shape testing skill: [shape-testing-skills example](./examples/skills/shape-testing-skills/SKILL.md). It uses subagents to run the evals, with the same no-workspace-isolation caveat as the retrieval example above.
 
@@ -386,10 +391,11 @@ flowchart LR
 
 Process:
 1. Present a fresh agent with a hypothetical situation, give them a multiple-choice question, record their answer along with _exact_ reasoning.
-2. When the skill is loaded into context, the agent should make the choice that aligns with the rules from the skill file.
-3. The scenarios contain at least 3 sources of "pressure" that can cause the AI to rationalize answers that do not conform to the rules in the skill.
-4. Use superpowers' "bulletproof" system to plug the loopholes.
-5. Repeat for every discipline rule in the skill.
+2. Start with a control group - run the query without the skill. If the control passes, nothing to bulletproof.
+3. When the skill is loaded into context, the agent should make the choice that aligns with the rules from the skill file.
+4. The scenarios contain at least 3 sources of "pressure" that can cause the AI to rationalize answers that do not conform to the rules in the skill.
+5. Use superpowers' "bulletproof" system to plug the loopholes.
+6. Repeat for every discipline rule in the skill.
 
 ### Bulletproofing
 
@@ -469,8 +475,8 @@ These give the agent a hard signal to abort and start over, following the correc
 
 | | |
 |---|---|
-| **Bad** | Agent thinks "I already manually tested it" — and keeps going. |
-| **Good** | Agent thinks "I already manually tested it," recognizes it verbatim from the Red Flags list, and stops: "That's a red flag — delete the code, start over with TDD." |
+| **Bad** | Agent thinks "I already manually tested it" - and keeps going. |
+| **Good** | Agent thinks "I already manually tested it," recognizes it verbatim from the Red Flags list, and stops: "That's a red flag - delete the code, start over with TDD." |
 
 *Bad fails because no self-check fires and the rationalization passes unnoticed. Good works because the verbatim match turns an abstract rule into a hard interrupt.*
 
@@ -510,11 +516,11 @@ Always load the full SKILL.md file into context before answering.
 
 One counterpoint worth noting: the [agentskills.io skill-evaluation guide](#ref-c) suggests that reasoning-based instructions ("Do X because Y tends to cause Z") work better than rigid directives ("ALWAYS do X, NEVER do Y"), because models follow instructions more reliably when they understand the purpose. The conventions above lean hard on imperative, absolute wording.
 
-I don't buy the conflict. The "why" is already in there — it lives in the rationalization tables, where every rebuttal is a reason stapled to a hard rule. Still, the point stands: an Iron Law with no stated reason is just a brittle directive. If you can't explain why a rule exists, an agent under pressure will invent a reason it doesn't apply.
+I don't buy the conflict. The "why" is already in there - it lives in the rationalization tables, where every rebuttal is a reason stapled to a hard rule. Still, the point stands: an Iron Law with no stated reason is just a brittle directive. If you can't explain why a rule exists, an agent under pressure will invent a reason it doesn't apply.
 
 ### Example
 
-> WARNING: Pressure campaigns are the cheapest of the three, but still multiply fast — one scenario per discipline rule, across both arms.
+> WARNING: Pressure campaigns are the cheapest of the three, but still multiply fast - one scenario per discipline rule, across both arms.
 
 Following the precedent of the previous test types, here is a simplified, illustrative skill that runs a pressure test against a single rule for a target skill:
 
@@ -540,17 +546,17 @@ I used the same workspace isolation techniques from the other test types, once a
 
 While writing this document, I compared my version of the process against the agentskills.io guide on evaluating skill output quality ([C](#ref-c)), and it surfaced a list of things their guide does that mine doesn't. I'm recording them here partly as an honest accounting, and partly as a to-do list for the next iteration.
 
-**Cost/benefit quantification.** I warned that campaigns are token-intensive, but never measure what the testing buys. The guide records tokens and duration per run and does an explicit delta analysis — "a skill that triples token usage for a 2-point improvement might not be worth it."
+**Cost/benefit quantification.** I warned that campaigns are token-intensive, but never measure what the testing buys. The guide records tokens and duration per run and does an explicit delta analysis - "a skill that triples token usage for a 2-point improvement might not be worth it."
 
 **Assertions as a first-class artifact.** The guide separates human-readable `expected_output` from machine-checkable `assertions`. It also grades harder than I do: assertions can be too brittle or too vague, and a PASS requires quoted evidence, no benefit of the doubt.
 
-**Variance as a diagnostic signal.** High variance across runs means a flaky eval or ambiguous skill instructions — and the fix for the latter is examples and specificity, not more words. Noise is a signal about the skill, not just the test.
+**Variance as a diagnostic signal.** High variance across runs means a flaky eval or ambiguous skill instructions - and the fix for the latter is examples and specificity, not more words. Noise is a signal about the skill, not just the test.
 
-**Pattern analysis of the test suite itself.** The guide applies ablation logic to the assertions as well as the rules. Have assertions that always pass in both arms? Remove them — they inflate the pass rate. Always fail in both arms? That's a broken test, not a broken skill. A pass rate is only meaningful if the suite itself is clean.
+**Pattern analysis of the test suite itself.** The guide applies ablation logic to the assertions as well as the rules. Have assertions that always pass in both arms? Remove them - they inflate the pass rate. Always fail in both arms? That's a broken test, not a broken skill. A pass rate is only meaningful if the suite itself is clean.
 
-**Blind comparison instead of the length heuristic.** When two variants tie, my rule is "adopt the shorter phrasing" — a proxy, not a measurement. The guide's answer is a blind LLM-judge comparison: show both outputs to a judge without revealing which version produced which.
+**Blind comparison instead of the length heuristic.** When two variants tie, my rule is "adopt the shorter phrasing" - a proxy, not a measurement. The guide's answer is a blind LLM-judge comparison: show both outputs to a judge without revealing which version produced which.
 
-**A human review loop.** My campaigns are fully automated end to end. The guide keeps a `feedback.json` next to the evals — empty feedback means the eval passed. Automated grading catches the failures you anticipated; a human catches the ones you didn't.
+**A human review loop.** My campaigns are fully automated end to end. The guide keeps a `feedback.json` next to the evals - empty feedback means the eval passed. Automated grading catches the failures you anticipated; a human catches the ones you didn't.
 
 **Concrete eval workspace conventions.** The guide is more operational about where things live: an `evals/evals.json` schema, `iteration-N/` directories so you can diff campaigns, and a rule to read the full transcript of any eval that runs 3x slower than the others. Mine leave traces all over the workspace. I'm sloppy.
 
@@ -570,6 +576,8 @@ TLBIRIA (Too Long, But I Read It All):
 ## Next
 
 I think I need to make a part 4 to talk about third-party solutions and services, how I plan to unify and rebuild these test harnesses (again), discuss ablation and retirement, and my case against auto-invoking skills.
+
+This might also be the time to look into things like LangChain, DSPy, and GEPA instead of implementing my own bulletproofing suite.
 
 ## References
 
