@@ -17,7 +17,7 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 - It's a procedure or workflow, not a standalone fact
 
 **Don't create for:**
-- One-off solutions
+- One-off solutions — including incident-specific remediation: a fix for one particular outage or incident is a one-off solution no matter how procedural it looks, and it belongs in a runbook or the team wiki, not a skill. Never recast a single event's fix as a "procedure or workflow" to fit the create-when criteria: "procedure or workflow" there means a reusable technique, not one event's remediation.
 - Standard practices well-documented elsewhere
 - Durable facts needed in every session (those go in AGENTS.md)
 - Mechanical constraints enforceable with code or validation — automate those; save documentation for judgment calls
