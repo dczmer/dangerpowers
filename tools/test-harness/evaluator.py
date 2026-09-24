@@ -460,7 +460,10 @@ def cmd_record(args: argparse.Namespace) -> int:
     the scored.json result sums and the track is detected from the file
     (an explicit --track is checked against the detection); the counts
     flags are rejected (`counts flags are replaced by --scored`) and
-    --scored is required with --scope dir."""
+    --scored is required with --scope dir. Without --date, a --campaign
+    value named like a campaign dir (campaign-YYYY-MM-DD[-N]) supplies
+    the entry's date, so a close-out after local midnight still agrees
+    with the dir campaign-init named."""
     skill_path = Path(args.skill_path)
     scope = getattr(args, "scope", "frontmatter")
 
@@ -526,6 +529,12 @@ def cmd_record(args: argparse.Namespace) -> int:
 
     if args.campaign is not None:
         entry["campaign"] = args.campaign
+        if args.date is None:
+            m = re.fullmatch(
+                r"campaign-(\d{4}-\d{2}-\d{2})(-\d+)?", args.campaign
+            )
+            if m:
+                entry["date"] = m.group(1)
 
     manifest = Path(args.manifest)
     data: dict = {}

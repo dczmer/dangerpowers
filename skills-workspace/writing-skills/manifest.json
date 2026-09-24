@@ -16,7 +16,7 @@
     "campaign": "campaign-2026-09-23"
   },
   "shape-test": {
-    "date": "2026-09-24",
+    "date": "2026-09-23",
     "checksum": "sha256:8c93de2516efc5497bf486c2d82552ec02527d3002b7f22faa736e921cf894db",
     "adopted": 8,
     "no-failure": 6,
@@ -25,7 +25,7 @@
     "campaign": "campaign-2026-09-23"
   },
   "pressure-test": {
-    "date": "2026-09-24",
+    "date": "2026-09-23",
     "checksum": "sha256:4aeb1474d213b9cf55964bd3399e39b40261ef9d1f137f23e059e501ab0f277c",
     "bulletproof": 5,
     "no-failure": 4,

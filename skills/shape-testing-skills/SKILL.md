@@ -331,7 +331,9 @@ retrieval track.)
     `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
     <root>/skills-workspace/<s>/manifest.json --scope dir --scored
     $CAMP/scored.json --campaign <name>` — the track counts come from the
-    scored file; `--track` is optional (auto-detected).
+    scored file; `--track` is optional (auto-detected). The manifest `date`
+    is taken from the `--campaign` dir name, so a close-out after local
+    midnight needs no `--date`.
 18. Write-backs to the source `SKILL.md` only on explicit user confirmation; afterwards
     re-run the adopted rule's entry as a confirmation mini-campaign (second campaign
     dir, never recorded).

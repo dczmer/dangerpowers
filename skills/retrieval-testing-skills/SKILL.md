@@ -220,7 +220,8 @@ scripts the agent cannot run.
     --scope dir --scored <campaign>/scored.json --campaign <name>`
     `record` takes the track counts from the scored file; `--track` is
     optional — auto-detected from the discriminating signals in the scored
-    header.
+    header. The manifest `date` is taken from the `--campaign` dir name,
+    so a close-out after local midnight needs no `--date`.
 14. `cleanup --workspace <ws> --prefix retrieval-test` — twice.
 
 (`<retrieval-skill-dir>` = this skill's own resolved absolute path, same

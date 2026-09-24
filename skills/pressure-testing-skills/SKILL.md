@@ -266,7 +266,9 @@ convention as the other testing tracks.)
     counts come from the scored file. `--manifest` is the per-skill aggregate
     manifest, NOT the `rules.json` inventory (that path is only verify's
     `--manifest` argument); record overwrites only the `pressure-test` key
-    and preserves every other key.
+    and preserves every other key. The manifest `date` is taken from the
+    `--campaign` dir name, so a close-out after local midnight needs no
+    `--date`.
 13. **Write-backs** to the source `SKILL.md` only on explicit user
     confirmation; afterwards run a confirmation mini-campaign of the edited
     rules (in the `confirm/` subdir of this campaign's dir — Campaign
@@ -546,7 +548,8 @@ Manifest record (`evaluator.py record --skill <s> --skill-path <skill dir>
 pressure-test --scored $CAMP/scored.json --campaign <campaign dir name>`):
 writes a `pressure-test` key — `date`, `checksum` (`sha256:` of the skill
 dir), `bulletproof`, `no-failure`, `unresolved`, `voids`, optional `campaign`
-— with the counts taken from the scored file. The manifest target is the
+— with the counts taken from the scored file and the `date` from the
+`--campaign` dir name. The manifest target is the
 per-skill aggregate `skills-workspace/<s>/manifest.json`, never the
 `rules.json` inventory — record overwrites only its own track's key and
 preserves every other key.

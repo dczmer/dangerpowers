@@ -237,18 +237,41 @@ class RecordTests(unittest.TestCase):
         entry = json.loads(self.manifest.read_text())["trigger-test"]
         self.assertNotIn("campaign", entry)
 
-    def test_date_defaults_to_local_today(self):
-        # record stamps the LOCAL date, matching campaign-init's
-        # `date +%F` dir stamp — an evening campaign's manifest must
-        # agree with its campaign dir name (issue #55).
+    def test_date_derived_from_campaign_dir_name(self):
+        # Without --date, a --campaign named like a campaign dir
+        # supplies the entry date, so a close-out after local midnight
+        # still agrees with the dir campaign-init named (issue #60).
         rc = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["date"], "2026-09-02")
+
+    def test_date_derived_from_suffixed_campaign_dir(self):
+        rc = self._record(campaign="campaign-2026-09-02-3")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["date"], "2026-09-02")
+
+    def test_date_defaults_to_local_today(self):
+        # Without --date or a dir-named --campaign, record stamps the
+        # LOCAL date, matching campaign-init's `date +%F` dir stamp
+        # (issue #55).
+        rc = self._record(campaign=None)
         self.assertEqual(rc, 0)
         entry = json.loads(self.manifest.read_text())["trigger-test"]
         self.assertEqual(
             entry["date"], datetime.now(UTC).astimezone().date().isoformat()
         )
 
-    def test_date_flag_overrides_today(self):
+    def test_non_dir_campaign_falls_back_to_local_today(self):
+        rc = self._record(campaign="pilot")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(
+            entry["date"], datetime.now(UTC).astimezone().date().isoformat()
+        )
+
+    def test_date_flag_overrides_campaign_date(self):
         rc = self._record(date="2026-01-01")
         self.assertEqual(rc, 0)
         entry = json.loads(self.manifest.read_text())["trigger-test"]
@@ -345,6 +368,14 @@ class RecordScoredTests(unittest.TestCase):
             entry["checksum"], evaluator.hash_skill_dir(self.skill_dir)
         )
         self.assertNotIn("deprecated", err)
+
+    def test_scored_date_derived_from_campaign_dir_name(self):
+        # Dir scope takes the campaign-derived date too (issue #60).
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record(date=None)
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["date"], "2026-09-14")
 
     def test_dir_scope_preserves_existing_manifest_keys(self):
         self.manifest.write_text(
