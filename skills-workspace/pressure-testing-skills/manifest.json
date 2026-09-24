@@ -1,0 +1,12 @@
+{
+  "skill": "pressure-testing-skills",
+  "retrieval-test": {
+    "date": "2026-09-24",
+    "checksum": "sha256:4c11105fdb6b21bb91aa3910b3fe16e23c9044f85f9d28fc11afcee3821ef52e",
+    "passes": 12,
+    "fails": 3,
+    "gaps": 0,
+    "voids": 0,
+    "campaign": "campaign-2026-09-24"
+  }
+}
