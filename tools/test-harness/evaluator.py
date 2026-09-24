@@ -186,17 +186,28 @@ def cmd_select(args: argparse.Namespace) -> int:
     track whose file carries ids), input document order preserved for
     diff-stability against frozen baselines, and unknown --ids are an
     error naming them — a typo must not silently yield a too-small
-    file. Changed-form variant authoring stays driver-side."""
+    file. Changed-form variant authoring stays driver-side.
+
+    Matching is a union over entry ids and, when an entry carries a
+    `rule` field (pressure scenarios), rule ids (issue #56): the
+    confirmation mini-campaign workflow names edited rules, and
+    selecting by rule id naturally picks up every scenario of that
+    rule. A token matching both an entry id and another entry's rule
+    selects both entries; no special-casing."""
     ids = [s for s in (t.strip() for t in args.ids.split(",")) if s]
     if not ids:
         return _err("--ids must name at least one id")
     entries = load_entries(Path(args.entries), "entries", "entry")
-    have = {e["id"] for e in entries}
+    have = {e["id"] for e in entries} | {
+        e["rule"] for e in entries if "rule" in e
+    }
     missing = list(dict.fromkeys(i for i in ids if i not in have))
     if missing:
         return _err(f"ids not found in {args.entries}: {', '.join(missing)}")
     wanted = set(ids)
-    selected = [e for e in entries if e["id"] in wanted]
+    selected = [
+        e for e in entries if e["id"] in wanted or e.get("rule") in wanted
+    ]
     out = Path(args.out)
     rc = _write_out(out, json.dumps(selected, indent=2) + "\n")
     if rc is not None:

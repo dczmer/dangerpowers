@@ -783,6 +783,9 @@ class SelectTests(unittest.TestCase):
             json.dumps([{"id": eid, "n": n} for eid, n in pairs])
         )
 
+    def _write_dicts(self, dicts):
+        self.entries.write_text(json.dumps(dicts))
+
     def _run(self, ids):
         ns = argparse.Namespace(
             entries=str(self.entries), ids=ids, out=str(self.out)
@@ -833,6 +836,60 @@ class SelectTests(unittest.TestCase):
         rc, _ = self._run("beta,beta")
         self.assertEqual(rc, 0)
         self.assertEqual([e["id"] for e in self._selected()], ["beta"])
+
+    def _write_scenarios(self):
+        # Pressure scenarios shape (issue #56): entry id plus a rule
+        # field naming the rule the scenario tests; two entries may
+        # share one rule.
+        self._write_dicts(
+            [
+                {"id": "s-one", "rule": "R-a", "n": 1},
+                {"id": "s-two", "rule": "R-b", "n": 2},
+                {"id": "s-three", "rule": "R-b", "n": 3},
+            ]
+        )
+
+    def test_rule_id_selects_matching_entry(self):
+        self._write_scenarios()
+        rc, _ = self._run("R-a")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["s-one"])
+
+    def test_rule_id_selects_every_entry_of_that_rule(self):
+        self._write_scenarios()
+        rc, _ = self._run("R-b")
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            [e["id"] for e in self._selected()], ["s-two", "s-three"]
+        )
+
+    def test_entry_and_rule_ids_mix_in_one_ids_list(self):
+        self._write_scenarios()
+        rc, _ = self._run("s-one,R-b")
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            [e["id"] for e in self._selected()],
+            ["s-one", "s-two", "s-three"],
+        )
+
+    def test_token_matching_id_and_rule_selects_each_once(self):
+        self._write_dicts(
+            [
+                {"id": "s-one", "rule": "R-a", "n": 1},
+                {"id": "R-a", "rule": "R-b", "n": 2},
+            ]
+        )
+        rc, _ = self._run("R-a")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["s-one", "R-a"])
+
+    def test_unknown_rule_id_exits_1_naming_it(self):
+        self._write_scenarios()
+        rc, out = self._run("R-a,R-z")
+        self.assertEqual(rc, 1)
+        self.assertIn("ids not found in", out)
+        self.assertIn("R-z", out)
+        self.assertFalse(self.out.exists())
 
     def test_missing_output_parent_dirs_created(self):
         # Issue #54: --out naming a not-yet-existing mini-campaign

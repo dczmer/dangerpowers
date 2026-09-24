@@ -263,8 +263,8 @@ convention as the other testing tracks.)
     confirmation; afterwards run a confirmation mini-campaign of the edited
     rules (in the `confirm/` subdir of this campaign's dir — Campaign
     layout; scenarios file filtered with `evaluator.py select --entries
-    <scenarios> --ids <edited rule ids> --out $CAMP/confirm/scenarios.json`;
-    never recorded).
+    <scenarios> --ids <edited rules' ids (rule or entry ids accepted)> --out
+    $CAMP/confirm/scenarios.json`; never recorded).
 14. `cleanup --workspace $WS --prefix pressure-test`.
 
 Per-rule commands (from the repo root):
