@@ -232,7 +232,7 @@ retrieval track.)
    doc-drift gate aborts after all setup work (steps 5-7).
 5. One sterile workspace: `workspace-manager.sh init --prefix shape-test` → WS
    (never synced; `sync`/`status` are not part of this track at all).
-6. `campaign-init --root <root>/skills-workspace/<s>/shape-tests` → CAMP.
+6. `workspace-manager.sh campaign-init --root <root>/skills-workspace/<s>/shape-tests` → CAMP.
 7. Snapshot into the campaign dir (plain cp, record the exact commands):
    `entries.json`, `rules.json`, and the source skill dir — plus `skill-body.txt`,
    the snapshotted `SKILL.md` with its frontmatter block stripped (the exact
