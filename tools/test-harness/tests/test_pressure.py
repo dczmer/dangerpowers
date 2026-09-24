@@ -216,8 +216,8 @@ class PressureRunRecordTests(unittest.TestCase):
     'list' call surfacing through the extended parse_stream capture);
     timeout stays a boolean, never a void signal."""
 
-    def _record(self, ev, arm="red"):
-        return build_pressure_run_record(ev, "prompt", False, arm)
+    def _record(self, ev, arm="red", rep=1):
+        return build_pressure_run_record(ev, "prompt", False, arm, rep)
 
     def test_record_fields(self):
         ev = EventStream(
@@ -277,9 +277,14 @@ class PressureRunRecordTests(unittest.TestCase):
 
     def test_timeout_is_a_boolean_not_a_void_signal(self):
         ev = EventStream(answer_parts=["complete answer"])
-        rec = build_pressure_run_record(ev, "prompt", True, "red")
+        rec = build_pressure_run_record(ev, "prompt", True, "red", 3)
         self.assertTrue(rec["timeout"])
         self.assertEqual(rec["void_signals"], [])
+
+    def test_rep_recorded(self):
+        ev = EventStream(answer_parts=["answer"])
+        rec = build_pressure_run_record(ev, "prompt", False, "green", 4)
+        self.assertEqual(rec["rep"], 4)
 
 
 class PressureSuiteTests(unittest.TestCase):

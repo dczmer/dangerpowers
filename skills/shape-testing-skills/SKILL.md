@@ -131,7 +131,11 @@ The inventory is a `rules.json` file:
   are recorded — there is no other manifest — and every excluded rule carries its
   routing reason in `reason`
 - Rule ids are section-anchored: `R-<section-slug>-<nn>`, numbered within their
-  section so doc edits never renumber other sections. Ids are minted by the
+  section so doc edits never renumber other sections. The numbering rule is
+  **items first, then excluded**, from one shared per-section pool that skips
+  numbers already taken by existing ids in either list — so a newly-excluded
+  rule that is its section's second bullet may still receive `-03` if two items
+  precede it in the pool. Ids are minted by the
   script, not assigned by hand: draft the inventory id-less, then run
   `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.
   Re-minting an unchanged file is a byte-identical no-op.
@@ -282,7 +286,12 @@ retrieval track.)
     --skill-file` against the edited file before spend — Campaign layout;
     **never recorded**), cap 2 rounds → else `unresolved`,
     escalate to the user. Run it only after any other suite has fully exited; never
-    concurrently with any other suite invocation (Serialization).
+    concurrently with any other suite invocation (Serialization). Round-2 arms
+    compare against the main campaign's control via the labeled merge:
+    `evidence --track shape-test --results $CAMP/results-control.json --label main
+    --results $CAMP/round-2/results.json --label round-2 [--compare]` — unlabeled
+    cross-directory merges are rejected, and `round-2:v1` never pools with the
+    main campaign's `v1`.
 15. `evaluator.py scored-check --track shape-test --results $CAMP/results-control.json
     --results $CAMP/results-variants.json [--results $CAMP/results-restraint.json]
     --emit-skeleton $CAMP/scored.json` emits the skeleton from the results union —
@@ -294,6 +303,11 @@ retrieval track.)
     unconditionally — a restraint rerun lands in its arm key's counts, which
     is what the narrowing removes; `evidence --compare` instead keeps
     fixture-mismatched reruns separate under `vN@<fixture-key>`.)
+    Cross-directory merges (e.g. `round-2/results.json`) are rejected
+    unless every `--results` carries a `--label`, which namespaces each
+    file's arms as `<label>:<arm>` (`round-2:v1`) so same-named arms from
+    different rounds never pool; a round-2-adopted arm is recorded in
+    scored.json under its namespaced key.
 16. Report (multi-rule format per Report format).
 17. After every completed FULL campaign (never aborted, never a mini-campaign):
     gate with `evaluator.py verify --track shape-test --manifest
@@ -307,7 +321,13 @@ retrieval track.)
     with frontmatter stripped, every section span unique, results covering
     every entry, and the scored-check flow re-run, ending with the record
     preflight (the exact counts record will write). All groups always run;
-    exit 1 names every failing group. Record only on exit 0:
+    exit 1 names every failing group. When scored.json asserts a round-2-adopted
+    arm, add the round-2 results to the proof: `--results
+    $CAMP/round-2/results.json` with one `--label` per `--results` (e.g.
+    `--label main` for each top-level file, `--label round-2` for the round-2
+    file) — labeled files may live in a direct subdirectory of the campaign
+    dir, and their arms key as `<label>:<arm>`, which is what scored.json's
+    `adopted_arm` names. Record only on exit 0:
     `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
     <root>/skills-workspace/<s>/manifest.json --scope dir --scored
     $CAMP/scored.json --campaign <name>` — the track counts come from the
@@ -315,6 +335,17 @@ retrieval track.)
 18. Write-backs to the source `SKILL.md` only on explicit user confirmation; afterwards
     re-run the adopted rule's entry as a confirmation mini-campaign (second campaign
     dir, never recorded).
+
+    **Post-write-back canonical drift is expected.** The canonical
+    `shape-tests/entries.json` is deliberately NOT updated when a write-back lands:
+    its section spans are the campaign's snapshot anchors, and rewriting them
+    between campaigns would break snapshot identity with the recorded campaign.
+    Consequence: between the write-back and the next campaign, the proposal-time
+    `check --entries <entries.json> --skill-file <source SKILL.md>` (step 4)
+    fails doc-drift on every edited span. That failure is the re-anchor signal,
+    not a bug: the next campaign's inventory/proposal step re-anchors by copying
+    the edited rule's new span verbatim into `entries.json` before anything else
+    proceeds. Never hand-patch spans to silence the check outside that step.
 19. `cleanup --workspace $WS --prefix shape-test`.
 
 ## suite mechanics
@@ -351,7 +382,9 @@ keeps attribution and spend clean):
    state to restore, on completion or abort.
 
 Results JSON: entries keyed by arm (`entry.arms = {"v0": {"runs": [...]}, …}`), each run
-carrying `arm`, `answer_text`, `tool_calls`, `void_signals`, `timeout`, `session_id`,
+carrying `arm`, `rep` (the stable 1-based rep number — evidence views print it
+verbatim; legacy results without it fall back to positional numbering),
+`answer_text`, `tool_calls`, `void_signals`, `timeout`, `session_id`,
 and the full run record, plus a `config` block (`skill`, `harness`, `model`, `variant`,
 `reps`, `timeout`, `date`, entries-file path, `skill_file`, `arms`, `fixture_key`) so
 every run is attributable to the exact model selection that produced it. The entry's
@@ -397,7 +430,13 @@ v0 control (frequency = matching answer lines / answer lines, pooled across the 
 runs; a candidate must strictly EXCEED the control, so a tie is does-not-exceed).
 Candidate arms are every arm outside the v0 control family (`v0`, `v0-rerun`, … — a
 control re-run is control evidence, never a candidate); a missing v0 arm prints a
-per-entry skip note on stderr and the exit stays 0. Read the script's verdict instead of
+per-entry skip note on stderr and the exit stays 0. Merging across directories (a
+`round-2/` mini-campaign's `results.json` alongside the phase files) requires one
+`--label` per `--results` — the guard rejects unlabeled cross-directory merges;
+labeled files' arms display as `<label>:<arm>`, never pool across labels, and a
+labeled candidate compares against its own label's v0 arm when present, else the
+entry's only v0 control (a round-2 file carries none — the main file's control is
+the baseline). Read the script's verdict instead of
 hand-comparing frequencies — a strict-`>` tie boundary decided by mental arithmetic
 is a coin flip. Triage only — the driver reads every flagged sample by hand and judges **convergence across the 5 reps**: when wording lands, all
 reps produce the same structure; five different structures across five reps means the
@@ -453,7 +492,10 @@ Campaign rules:
   makes drift abort pre-spend anyway).
 - Present recommended edits to the user and apply them only after confirmation.
 - Keep fixtures, variant texts, and section spans verbatim within and across campaigns;
-  editing any of them invalidates comparison.
+  editing any of them invalidates comparison. The one sanctioned exception: after a
+  confirmed write-back, the next campaign's proposal step re-anchors the edited
+  rule's section span in `entries.json` (see step 18 — until then the span check
+  fails doc-drift, by design).
 - A nuance clause appended to a winning recipe degrades it — express a real exception
   as its own conditional on an observable predicate, and test that as a new variant.
 - Exemption clauses do not scope ("this limit doesn't apply to code blocks" still

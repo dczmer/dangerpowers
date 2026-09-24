@@ -1,8 +1,10 @@
 """Unit tests for workspace-manager.sh, driven via subprocess in temp dirs."""
 
+import re
 import subprocess
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "workspace-manager.sh"
@@ -90,6 +92,60 @@ class CleanupPrefixTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 1)
             self.assertIn("refusing to remove path outside", proc.stderr)
             self.assertTrue(Path(tmp).exists())
+
+
+class CampaignInitTests(unittest.TestCase):
+    """campaign-init stamps its dir with the LOCAL date (`date +%F`) —
+    evaluator.py record/base_config stamp local dates too, so an evening
+    campaign's manifest and results agree with its campaign dir name."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name) / "shape-tests"
+        self.root.mkdir()
+
+    def test_dir_name_uses_local_date(self):
+        proc = run_wm("campaign-init", "--root", str(self.root))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        camp = Path(proc.stdout.strip())
+        local_today = datetime.now(UTC).astimezone().date().isoformat()
+        self.assertEqual(camp.name, f"campaign-{local_today}")
+        self.assertTrue(camp.is_dir())
+
+    def test_same_day_rerun_suffixes(self):
+        first = run_wm("campaign-init", "--root", str(self.root))
+        second = run_wm("campaign-init", "--root", str(self.root))
+        third = run_wm("campaign-init", "--root", str(self.root))
+        for proc in (first, second, third):
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+        local_today = datetime.now(UTC).astimezone().date().isoformat()
+        names = [Path(p.stdout.strip()).name for p in (first, second, third)]
+        self.assertEqual(
+            names,
+            [
+                f"campaign-{local_today}",
+                f"campaign-{local_today}-2",
+                f"campaign-{local_today}-3",
+            ],
+        )
+
+    def test_requires_root(self):
+        proc = run_wm("campaign-init")
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("--root DIR is required", proc.stderr)
+
+    def test_datestamp_matches_date_f(self):
+        proc = run_wm("campaign-init", "--root", str(self.root))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        name = Path(proc.stdout.strip()).name
+        m = re.fullmatch(r"campaign-(\d{4}-\d{2}-\d{2})(-\d+)?", name)
+        self.assertIsNotNone(m, f"unexpected dir name: {name}")
+        assert m is not None  # narrowing for the type checker
+        stamp = subprocess.run(
+            ["date", "+%F"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        self.assertEqual(m.group(1), stamp)
 
 
 class FullSyncStatusTests(unittest.TestCase):

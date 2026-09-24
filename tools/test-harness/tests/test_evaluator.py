@@ -16,6 +16,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest import mock
 
@@ -235,6 +236,23 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         entry = json.loads(self.manifest.read_text())["trigger-test"]
         self.assertNotIn("campaign", entry)
+
+    def test_date_defaults_to_local_today(self):
+        # record stamps the LOCAL date, matching campaign-init's
+        # `date +%F` dir stamp — an evening campaign's manifest must
+        # agree with its campaign dir name (issue #55).
+        rc = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(
+            entry["date"], datetime.now(UTC).astimezone().date().isoformat()
+        )
+
+    def test_date_flag_overrides_today(self):
+        rc = self._record(date="2026-01-01")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["date"], "2026-01-01")
 
     def test_score_out_of_range(self):
         self.assertEqual(self._record(score=1.5), 1)
@@ -1081,6 +1099,94 @@ class VerifyTests(unittest.TestCase):
         rc, _out, err = self._run(results=[str(other)])
         self.assertEqual(rc, 1)
         self.assertIn("--results must live in the campaign dir", err)
+
+    def _write_round2(self):
+        sub = self.camp / "round-2"
+        sub.mkdir()
+        results = sub / "results.json"
+        results.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        self._shape_results_entry("css-modules", ["v1"])
+                    ],
+                }
+            )
+        )
+        return results
+
+    def test_results_in_subdir_rejected_without_labels(self):
+        round2 = self._write_round2()
+        rc, _out, err = self._run(
+            results=[
+                str(self.results_control),
+                str(self.results_variants),
+                str(round2),
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--results must live in the campaign dir", err)
+        self.assertIn("same directory", err)
+
+    def test_labeled_round2_results_prove_round2_adopted_arm(self):
+        # Issue #55: a round-2-adopted arm's results join the proof via
+        # --label; scored.json names the namespaced arm.
+        round2 = self._write_round2()
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "round-2:v1",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+        rc, out, err = self._run(
+            results=[
+                str(self.results_control),
+                str(self.results_variants),
+                str(round2),
+            ],
+            label=["main", "main", "round-2"],
+        )
+        self.assertEqual(rc, 1)  # duplicate labels
+        self.assertIn("--label values must be unique", err)
+        rc, out, err = self._run(
+            results=[
+                str(self.results_control),
+                str(self.results_variants),
+                str(round2),
+            ],
+            label=["control", "variants", "round-2"],
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertIn("verify: all checks passed", out)
+
+    def test_round2_arm_not_in_unlabeled_results_fails(self):
+        # The inverse: scored.json asserting a round-2 arm without the
+        # labeled round-2 results in the union fails the proof.
+        self._write_round2()
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "round-2:v1",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("not an arm present", err)
 
     def test_entry_naming_unknown_rule(self):
         self._write_entries([self._shape_entry("css-modules", "R-nope-99")])

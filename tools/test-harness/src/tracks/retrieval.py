@@ -17,6 +17,7 @@ from src.common import (
     load_entries,
     load_results_json,
     log_start,
+    rep_label,
     run_rep_batched,
     validate_eval_agent,
 )
@@ -125,6 +126,7 @@ def build_run_record(
     ws_root: Path,
     arm: str,
     skill: str,
+    rep: int,
 ) -> dict:
     """One retrieval run's record: answer, sources block, void signals,
     and tool-call targets relative to the workspace root."""
@@ -147,6 +149,7 @@ def build_run_record(
             signals.append("read-outside-workspace")
             break
     return {
+        "rep": rep,
         "query_dispatched": query_dispatched,
         "answer_text": answer,
         "sources_consulted": m.group("block").strip() if m else None,
@@ -192,7 +195,7 @@ def run_records_batch(
             skill=skill,
         )
         record = build_run_record(
-            ev, dispatched, timed_out, arm_ws, arm, args.skill
+            ev, dispatched, timed_out, arm_ws, arm, args.skill, n
         )
         line = f"[{tag}] [rep {n:>3}] completed"
         if timed_out:
@@ -422,7 +425,8 @@ class RetrievalTrack(Track):
                         timeout = "timeout" if run.get("timeout") else "ok"
                         session = run.get("session_id") or "no-session"
                         print(
-                            f"[{ARM_TAGS[arm_key]}] rep {n:>3} "
+                            f"[{ARM_TAGS[arm_key]}] rep "
+                            f"{rep_label(run, n):>3} "
                             f"({session}, {timeout})"
                         )
                         answer = run.get("answer_text") or "(empty answer)"

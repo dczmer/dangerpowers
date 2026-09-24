@@ -326,6 +326,7 @@ class RunRecordTests(unittest.TestCase):
             ws_root=self.ws,
             arm=arm,
             skill=skill,
+            rep=1,
         )
         defaults.update(kwargs)
         return build_run_record(ev, **defaults)
@@ -352,6 +353,11 @@ class RunRecordTests(unittest.TestCase):
         ev = EventStream(completed_load=True)
         rec = self._record(ev, arm="skill_arm")
         self.assertIn("empty-answer", rec["void_signals"])
+
+    def test_rep_recorded(self):
+        ev = EventStream(answer_parts=["answer"], completed_load=True)
+        rec = self._record(ev, rep=3)
+        self.assertEqual(rec["rep"], 3)
 
     def test_sources_block_extraction(self):
         ev = EventStream(

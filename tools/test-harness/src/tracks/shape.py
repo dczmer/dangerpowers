@@ -12,10 +12,12 @@ from src.common import (
     check_results_same_dir,
     emit,
     iter_evidence,
+    label_arm,
     load_entries,
     load_results_envelope,
     load_results_json,
     log_start,
+    rep_label,
     run_rep_batched,
     validate_eval_agent,
 )
@@ -250,6 +252,7 @@ def build_shape_run_record(
     timed_out: bool,
     ws_root: Path,
     arm: str,
+    rep: int,
 ) -> dict:
     """The shape-track run record: build_run_record adapted, not reused,
     because that builder keys its signals on the retrieval arm names.
@@ -276,6 +279,7 @@ def build_shape_run_record(
             break
     return {
         "arm": arm,
+        "rep": rep,
         "query_dispatched": query_dispatched,
         "answer_text": answer,
         "sources_consulted": m.group("block").strip() if m else None,
@@ -310,7 +314,7 @@ def run_shape_rep_batch(
             args.model,
             args.variant,
         )
-        record = build_shape_run_record(ev, prompt, timed_out, ws, arm)
+        record = build_shape_run_record(ev, prompt, timed_out, ws, arm, n)
         line = f"[{tag}] [rep {n:>3}] completed"
         if timed_out:
             line += " (timeout)"
@@ -333,10 +337,24 @@ def marker_triage_counts(answer: str, markers: dict) -> dict:
     return counts
 
 
+def _base_arm(arm: str) -> str:
+    """Strip a --label namespace prefix ('round-2:v1' -> 'v1',
+    'round-2:v2@counter-example' -> 'v2@counter-example'); unlabeled
+    arms pass through."""
+    return arm.rpartition(":")[2] if ":" in arm else arm
+
+
+def _arm_label(arm: str) -> str | None:
+    """The --label namespace prefix of an arm key, None when unlabeled."""
+    return arm.rpartition(":")[0] if ":" in arm else None
+
+
 def _is_v0_family(arm: object) -> bool:
     """v0 control arms, including disclosed control re-run keys (e.g.
-    v0-rerun): control evidence, never candidates."""
-    return isinstance(arm, str) and (arm == "v0" or arm.startswith("v0-"))
+    v0-rerun) and labeled forms (main:v0): control evidence, never
+    candidates."""
+    base = _base_arm(arm) if isinstance(arm, str) else arm
+    return isinstance(base, str) and (base == "v0" or base.startswith("v0-"))
 
 
 def aggregate_counts(arm_data: dict | None, markers: dict) -> dict:
@@ -371,24 +389,49 @@ def _print_shape_compare(eid: str, arms: dict, markers: dict) -> None:
     base would manufacture EXCEEDS verdicts from no control evidence.
     Fixture-disambiguated rerun arms (v2@counter-example, see
     _merge_shape_results) are visible in the evidence but are never
-    compare candidates: their runs answer a different fixture."""
-    if "v0" not in arms:
+    compare candidates: their runs answer a different fixture. With
+    --label-namespaced arms the baseline is the same label's v0-family
+    arm when one exists, else the entry's only v0-family arm (a round-2
+    file carries no control; the main file's v0 is the baseline)."""
+    controls = [a for a in arms if _is_v0_family(a)]
+    if not controls:
         print(
             f"compare: entry {eid}: no v0 control arm; comparison skipped",
             file=sys.stderr,
         )
         return
-    base = aggregate_counts(arms.get("v0"), markers)
+
+    def baseline_for(arm: str) -> str | None:
+        label = _arm_label(arm)
+        pool = controls
+        if label is not None:
+            same = [c for c in controls if _arm_label(c) == label]
+            if same:
+                pool = same
+        for c in pool:
+            if _base_arm(c) == "v0":
+                return c
+        return pool[0] if len(pool) == 1 else None
+
     for arm in arms:
         if _is_v0_family(arm):
             continue  # v0-family arms are control evidence, not candidates
-        if "@" in arm:
+        if "@" in _base_arm(arm):
             continue  # fixture-disambiguated reruns are not candidates
+        baseline = baseline_for(arm)
+        if baseline is None:
+            print(
+                f"compare: entry {eid}: arm {arm!r}: no unambiguous v0 "
+                "control; comparison skipped",
+                file=sys.stderr,
+            )
+            continue
+        base = aggregate_counts(arms.get(baseline), markers)
         cand = aggregate_counts(arms[arm], markers)
         for name in markers:
             b, c = base.get(name, 0), cand.get(name, 0)
             verdict = "EXCEEDS" if c > b else "does-not-exceed"
-            print(f"compare {name}: {arm} {c} vs v0 {b} -> {verdict}")
+            print(f"compare {name}: {arm} {c} vs {baseline} {b} -> {verdict}")
 
 
 def _print_arm_matrix(
@@ -426,7 +469,7 @@ def _print_arm_matrix(
             if c:
                 fired[name] += 1
         rep_lines.append(
-            f"  rep {n:>3}: "
+            f"  rep {rep_label(run, n):>3}: "
             + ", ".join(f"{k}={v}" for k, v in counts.items())
         )
     detail = ""
@@ -455,7 +498,9 @@ def _print_arm_matrix(
 _DRIFT_CONFIG_KEYS = ("model", "variant", "reps", "timeout")
 
 
-def _merge_shape_results(paths: list[Path]) -> tuple[list[dict], str | None]:
+def _merge_shape_results(
+    paths: list[Path], labels: list[str] | None = None
+) -> tuple[list[dict], str | None]:
     """Merge N shape results files into one entries list for evidence:
     entries keyed by id in first-appearance order (union_results
     semantics). An arm appearing in several files is pooled only when
@@ -466,25 +511,29 @@ def _merge_shape_results(paths: list[Path]) -> tuple[list[dict], str | None]:
     visible under a suffixed display key (v2@counter-example). Run
     concatenation and config drift on _DRIFT_CONFIG_KEYS note on
     stderr. All paths must be in the same directory
-    (check_results_same_dir) — mini-campaign subdir results never
-    pool with the full campaign's. Returns (merged entries, exact
-    error message).
+    (check_results_same_dir) unless labels are given — one --label per
+    path (check_results_labels), which waives the guard and namespaces
+    every arm key '<label>:<arm>' so a mini-campaign subdir's arms
+    (round-2 v1) never pool with the full campaign's same-named arms.
+    Returns (merged entries, exact error message).
 
     Asymmetry, deliberate: scored-check's union (via _shape_union_hook)
     has no fixture-key guard — it sums same-named arms unconditionally
-    and the driver narrows the skeleton by hand. The guard lives here
-    because evidence is where the frequency comparison happens; a
-    scored-check that also split restraint runs would change the
-    recorded marker_counts schema."""
+    (within one label) and the driver narrows the skeleton by hand. The
+    guard lives here because evidence is where the frequency comparison
+    happens; a scored-check that also split restraint runs would change
+    the recorded marker_counts schema."""
     order: list[str] = []
     by_id: dict[str, dict] = {}
     arm_fixtures: dict[tuple[str, str], object] = {}
     base_config: dict | None = None
     base_path: Path | None = None
-    dir_error = check_results_same_dir([str(p) for p in paths])
-    if dir_error is not None:
-        return [], dir_error
-    for path in paths:
+    if labels is None:
+        dir_error = check_results_same_dir([str(p) for p in paths])
+        if dir_error is not None:
+            return [], dir_error
+    for fi, path in enumerate(paths):
+        label = labels[fi] if labels else None
         entries, config, error = load_results_envelope(path, "shape")
         if error is not None:
             return [], error
@@ -536,13 +585,14 @@ def _merge_shape_results(paths: list[Path]) -> tuple[list[dict], str | None]:
                         f"{path}: entry {eid} arm {arm!r} is missing "
                         f"its run list"
                     )
-                key = (eid, arm)
+                display_base = label_arm(label, arm)
+                key = (eid, display_base)
                 if key not in arm_fixtures:
                     arm_fixtures[key] = fixture_key
                 display = (
-                    arm
+                    display_base
                     if arm_fixtures[key] == fixture_key
-                    else f"{arm}@{fixture_key}"
+                    else f"{display_base}@{fixture_key}"
                 )
                 if display in merged["arms"]:
                     merged["arms"][display]["runs"].extend(arm_data["runs"])
@@ -808,10 +858,11 @@ class ShapeTrack(Track):
             args.results if isinstance(args.results, list) else [args.results]
         )
         paths = [Path(p) for p in paths]
+        labels = getattr(args, "labels", None)
         if len(paths) == 1:
             data_entries, error = load_results_json(paths[0], "shape")
         else:
-            data_entries, error = _merge_shape_results(paths)
+            data_entries, error = _merge_shape_results(paths, labels)
         if error is not None:
             print(f"error: {error}", file=sys.stderr)
             return 1
@@ -866,7 +917,10 @@ class ShapeTrack(Track):
                             return 1
                         timeout = "timeout" if run.get("timeout") else "ok"
                         session = run.get("session_id") or "no-session"
-                        print(f"[ {arm} ] rep {n:>3} ({session}, {timeout})")
+                        print(
+                            f"[ {arm} ] rep {rep_label(run, n):>3} "
+                            f"({session}, {timeout})"
+                        )
                         answer = run.get("answer_text")
                         answer = answer if isinstance(answer, str) else ""
                         if answer:

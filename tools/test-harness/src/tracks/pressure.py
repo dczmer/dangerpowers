@@ -15,6 +15,7 @@ from src.common import (
     load_entries,
     load_results_json,
     log_start,
+    rep_label,
     run_rep_batched,
     validate_eval_agent,
 )
@@ -144,12 +145,14 @@ def build_pressure_run_record(
     prompt: str,
     timed_out: bool,
     arm: str,
+    rep: int,
 ) -> dict:
     """The pressure-track run record. Unlike the retrieval/shape builders
     it takes no ws_root: nothing is ever synced or written on this track,
     so no outside-workspace read is possible."""
     return {
         "arm": arm,
+        "rep": rep,
         "query_dispatched": prompt,
         "answer_text": "".join(ev.answer_parts),
         "tool_calls": ev.tool_calls,
@@ -184,7 +187,7 @@ def run_pressure_rep_batch(
             args.model,
             args.variant,
         )
-        record = build_pressure_run_record(ev, prompt, timed_out, arm)
+        record = build_pressure_run_record(ev, prompt, timed_out, arm, n)
         line = f"[{tag}] [rep {n:>3}] completed"
         if timed_out:
             line += " (timeout)"
@@ -210,6 +213,15 @@ def _pressure_union_hook(path: Path, e: dict, extras: dict) -> str | None:
         a for a in arms if isinstance(a, str) and a
     )
     return None
+
+
+def _base_arm_keys(arms) -> set[str]:
+    """Strip --label namespace prefixes from union arm keys
+    ('confirm:red' -> 'red'); unlabeled keys pass through."""
+    return {
+        a.rpartition(":")[2] if isinstance(a, str) and ":" in a else a
+        for a in arms
+    }
 
 
 class PressureTrack(Track):
@@ -429,7 +441,10 @@ class PressureTrack(Track):
                         timeout = "timeout" if run.get("timeout") else "ok"
                         session = run.get("session_id") or "no-session"
                         tag = PRESSURE_ARM_TAGS.get(arm, f" {arm} ")
-                        print(f"[{tag}] rep {n:>3} ({session}, {timeout})")
+                        print(
+                            f"[{tag}] rep {rep_label(run, n):>3} "
+                            f"({session}, {timeout})"
+                        )
                         answer = run.get("answer_text")
                         answer = answer if isinstance(answer, str) else ""
                         if answer:
@@ -456,7 +471,7 @@ class PressureTrack(Track):
     def skeleton_entry(self, eid: str, extras: dict) -> dict:
         """One scored.json skeleton entry: the verdict_constraint hint
         derived from the red/green arm union (judgment fields null)."""
-        arms = extras["arms"].get(eid, set())
+        arms = _base_arm_keys(extras["arms"].get(eid, set()))
         if "red" not in arms:
             # No red arm means the entry can never pass the scored check
             # (RED always runs first); nothing to constrain.
@@ -485,6 +500,7 @@ class PressureTrack(Track):
         set, and counters/notes types. Returns _err(...) on violation,
         None when the entry passes."""
         eid = entry["id"]
+        arms = _base_arm_keys(arms)
         result = entry.get("result")
         if result not in PRESSURE_RESULTS:
             return _err(

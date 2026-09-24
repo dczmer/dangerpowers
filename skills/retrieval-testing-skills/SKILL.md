@@ -152,7 +152,7 @@ scripts the agent cannot run.
 3. `sync --skill <s> --source <root> --workspace <skill-ws> --full`
    (the control workspace is NEVER synced).
 4. `status --skill <s> --source <root> --workspace <skill-ws> --full`.
-5. `campaign-init --root <root>/skills-workspace/<s>/retrieval-tests`.
+5. `workspace-manager.sh campaign-init --root <root>/skills-workspace/<s>/retrieval-tests`.
 6. Snapshot into the campaign dir (plain cp, record the exact commands):
    `queries.json`, `facts.json`, and the verified synced skill dir — the
    exact bytes being measured.

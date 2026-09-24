@@ -380,12 +380,18 @@ class ShapeRunRecordTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def _record(self, ev, arm="v0"):
-        return build_shape_run_record(ev, "the prompt", False, self.ws, arm)
+    def _record(self, ev, arm="v0", rep=1):
+        return build_shape_run_record(
+            ev, "the prompt", False, self.ws, arm, rep
+        )
 
     def test_arm_key_recorded(self):
         rec = self._record(EventStream(answer_parts=["a"]), arm="v2")
         self.assertEqual(rec["arm"], "v2")
+
+    def test_rep_recorded(self):
+        rec = self._record(EventStream(answer_parts=["a"]), rep=5)
+        self.assertEqual(rec["rep"], 5)
 
     def test_skill_load_attempt_signals_on_every_arm(self):
         ev = EventStream(
@@ -417,7 +423,7 @@ class ShapeRunRecordTests(unittest.TestCase):
         self.assertTrue(rec["timeout"] is False)
         ev_timeout = EventStream(answer_parts=["complete answer"])
         rec = build_shape_run_record(
-            ev_timeout, "the prompt", True, self.ws, "v0"
+            ev_timeout, "the prompt", True, self.ws, "v0", 1
         )
         self.assertTrue(rec["timeout"])
         self.assertEqual(rec["void_signals"], [])
@@ -951,6 +957,46 @@ class ShapeScoredCheckTests(unittest.TestCase):
             ),
             1,
         )
+
+    def test_cross_dir_union_rejected_without_labels(self):
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        moved = subdir / "results.json"
+        Path(self.results[1]).rename(moved)
+        rc = self._check(
+            [
+                self._entry("a", result="adopted", adopted_arm="v2"),
+                self._entry("p"),
+            ],
+            results=[self.results[0], str(moved)],
+        )
+        self.assertEqual(rc, 1)
+
+    def test_labeled_cross_dir_union_adopts_namespaced_arm(self):
+        # Issue #55: round-2 results join the scored-check union via
+        # --label; scored.json names the namespaced adopted arm.
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        moved = subdir / "results.json"
+        Path(self.results[1]).rename(moved)
+        rc = self._check(
+            [
+                self._entry("a", result="adopted", adopted_arm="round-2:v1"),
+                self._entry("p"),
+            ],
+            results=[self.results[0], str(moved)],
+            label=["main", "round-2"],
+        )
+        self.assertEqual(rc, 0)
+
+    def test_label_rejected_on_single_results_track(self):
+        rc = self._check(
+            [self._entry("a", result="adopted", adopted_arm="v2")],
+            track="retrieval-test",
+            results=[self.results[0]],
+            label=["x"],
+        )
+        self.assertEqual(rc, 1)
 
     def test_unknown_id_rejected(self):
         self.assertEqual(
@@ -1623,8 +1669,143 @@ class ShapeEvidenceMergeTests(unittest.TestCase):
         rc, _ = self._run([self.control, mini], entry="a")
         self.assertEqual(rc, 1)
         self.assertIn("same directory", self.last_err)
+        self.assertIn("--label", self.last_err)
         self.assertIn(str(self.root), self.last_err)
         self.assertIn(str(subdir), self.last_err)
+
+    def test_labeled_cross_dir_merge_namespaces_arms(self):
+        # The sanctioned round-2 merge (issue #55): --label waives the
+        # same-dir guard and namespaces every arm, so round-2's v1 never
+        # pools with the main campaign's v1.
+        results_file(
+            self.control,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v0": _evidence_runs("TODO\nline"),
+                        "v1": _evidence_runs("TODO"),
+                    },
+                )
+            ],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results.json"
+        results_file(
+            mini,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO\nTODO")})],
+        )
+        rc, out = self._run(
+            [self.control, mini], entry="a", label=["main", "round-2"]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("[ main:v0 ] rep   1", out)
+        self.assertIn("[ main:v1 ] rep   1", out)
+        self.assertIn("[ round-2:v1 ] rep   1", out)
+        self.assertNotIn("concatenated", self.last_err)
+
+    def test_labeled_compare_uses_same_entry_control_baseline(self):
+        # A round-2 file carries no control; the main file's labeled v0
+        # is the compare baseline.
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results.json"
+        results_file(
+            mini,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO\nTODO")})],
+        )
+        rc, out = self._run(
+            [self.control, mini],
+            entry="a",
+            compare=True,
+            label=["main", "round-2"],
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "compare m: round-2:v1 1.0 vs main:v0 0.5 -> EXCEEDS", out
+        )
+        self.assertEqual(out.count("compare m:"), 1)
+
+    def test_labeled_same_label_control_preferred(self):
+        # When the candidate's own label has a v0 arm, it beats the
+        # other label's control as the baseline.
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results.json"
+        results_file(
+            mini,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v0": _evidence_runs("line"),
+                        "v1": _evidence_runs("TODO\nTODO"),
+                    },
+                )
+            ],
+        )
+        rc, out = self._run(
+            [self.control, mini],
+            entry="a",
+            compare=True,
+            label=["main", "round-2"],
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "compare m: round-2:v1 1.0 vs round-2:v0 0.0 -> EXCEEDS", out
+        )
+
+    def test_label_count_mismatch_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        rc, _ = self._run([self.control, self.variants], label=["main"])
+        self.assertEqual(rc, 1)
+        self.assertIn("exactly once per --results file", self.last_err)
+
+    def test_label_grammar_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        for bad in ("has:colon", "has@at", ""):
+            with self.subTest(label=bad):
+                rc, _ = self._run(
+                    [self.control, self.variants], label=["main", bad]
+                )
+                self.assertEqual(rc, 1)
+                self.assertIn("invalid --label", self.last_err)
+
+    def test_duplicate_labels_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        rc, _ = self._run([self.control, self.variants], label=["x", "x"])
+        self.assertEqual(rc, 1)
+        self.assertIn("--label values must be unique", self.last_err)
 
 
 class ShapeEvidenceMatrixTests(unittest.TestCase):
@@ -1736,6 +1917,24 @@ class ShapeEvidenceMatrixTests(unittest.TestCase):
         self.assertIn("fired: m 1/1 reps", out)
         self.assertIn("fired: m 0/1 reps", out)
 
+    def test_matrix_uses_persisted_rep_labels(self):
+        # Persisted 'rep' fields win over list position (issue #55):
+        # out-of-order runs keep their stable numbers.
+        entry = _evidence_entry(
+            "a",
+            {
+                "v0": self._runs(
+                    {**self._run_rec("TODO"), "rep": 2},
+                    {**self._run_rec("TODO"), "rep": 1},
+                )
+            },
+        )
+        results_file(self.results, [entry])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        rep_lines = [ln for ln in out.splitlines() if ln.startswith("  rep ")]
+        self.assertEqual(rep_lines, ["  rep   2: m=1", "  rep   1: m=1"])
+
     def test_matrix_malformed_run_is_an_error(self):
         entry = _evidence_entry("a", {"v0": {"runs": ["nope"]}})
         results_file(self.results, [entry])
@@ -1837,13 +2036,13 @@ class ShapeInjectionTests(unittest.TestCase):
                 text_event("the artifact"),
             ]
         )
-        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0", 1)
         self.assertIn("skill-load-attempted", record["void_signals"])
         self.assertNotIn("empty-answer", record["void_signals"])
 
     def test_clean_run_has_no_signals(self):
         ev = self._ev([text_event("the artifact")])
-        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0", 1)
         self.assertEqual(record["void_signals"], [])
         self.assertNotIn("skill_load_completed", record)
 

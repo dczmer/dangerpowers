@@ -115,7 +115,11 @@ The inventory is a `rules.json` file:
 - `excluded` — array of `{id, section, kind, reason}` — there is no other
   manifest, and every excluded rule carries its routing reason in `reason`
 - Rule ids are section-anchored: `R-<section-slug>-<nn>`, numbered within
-  their section so doc edits never renumber other sections. Ids are minted by
+  their section so doc edits never renumber other sections. The numbering rule
+  is **items first, then excluded**, from one shared per-section pool that
+  skips numbers already taken by existing ids in either list — so a
+  newly-excluded rule that is its section's second bullet may still receive
+  `-03` if two items precede it in the pool. Ids are minted by
   the script, not assigned by hand: draft the inventory id-less, then run
   `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.
   Re-minting an unchanged file is a byte-identical no-op, which is what makes
@@ -215,8 +219,8 @@ convention as the other testing tracks.)
    check --harness <h> [--model m]` (with `--model`, the check also
    validates the model against the harness's model list).
 5. **One sterile workspace**: `workspace-manager.sh init --prefix
-   pressure-test` → WS (never synced); `campaign-init --root
-   <root>/skills-workspace/<s>/pressure-tests` → CAMP; snapshot
+    pressure-test` → WS (never synced); `workspace-manager.sh campaign-init
+    --root <root>/skills-workspace/<s>/pressure-tests` → CAMP; snapshot
    `scenarios.json`, `rules.json`, the source skill dir, and `skill-body.txt`
    (record the exact commands).
 6. **Per rule, strictly serial** — spend confirmation, then RED (5 reps,
@@ -324,7 +328,9 @@ Results JSON: a `config` block (`skill`, `harness`, `model`, `variant`,
 `reps`, `timeout`, `date`, scenarios-file path, `arm`, `skill_file` absent
 for red) and `entries`, each carrying `id`, `statement`, `pressures`,
 `compliant_option`, and `arms` keyed by arm name, each arm `{"runs": [...]}`.
-Run records carry `arm`, `query_dispatched`, `answer_text`, `tool_calls`,
+Run records carry `arm`, `rep` (the stable 1-based rep number — evidence
+views print it verbatim; legacy results without it fall back to positional
+numbering), `query_dispatched`, `answer_text`, `tool_calls`,
 `reasoning`, `session_id`, `timeout`, `parseable_events`, `void_signals` —
 every run is attributable to the exact model selection that produced it.
 

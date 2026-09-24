@@ -39,6 +39,7 @@ from src.common import (
     _scored_target_gate,
     base_config,
     check_coverage,
+    check_results_labels,
     counts_gate,
     emit,
     load_entries,
@@ -478,7 +479,8 @@ def cmd_record(args: argparse.Namespace) -> int:
             return _err(f"missing or unterminated frontmatter in {skill_path}")
         checksum = "sha256:" + hashlib.sha256(frontmatter.encode()).hexdigest()
         entry = {
-            "date": args.date or datetime.now(UTC).date().isoformat(),
+            "date": args.date
+            or datetime.now(UTC).astimezone().date().isoformat(),
             "checksum": checksum,
             "score": args.score,
         }
@@ -502,7 +504,8 @@ def cmd_record(args: argparse.Namespace) -> int:
             return _err(track_sums)
         track, sums = track_sums
         entry = {
-            "date": args.date or datetime.now(UTC).date().isoformat(),
+            "date": args.date
+            or datetime.now(UTC).astimezone().date().isoformat(),
             "checksum": checksum,
             **sums,
         }
@@ -574,6 +577,15 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
         return _err(
             f"exactly one --results file is valid with --track {track.name}"
         )
+    labels = getattr(args, "label", None)
+    if labels and not track.multi_results:
+        return _err(
+            f"--label is only valid with a multi-results track "
+            f"(not --track {track.name})"
+        )
+    label_error = check_results_labels(args.results, labels)
+    if label_error is not None:
+        return _err(label_error)
     foreign = [
         n
         for n in _ALL_COUNT_DESTS
@@ -587,7 +599,10 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
             f"(not --track {track.name})"
         )
     union = union_results(
-        args.results, track.results_noun, entry_hook=track.union_hook
+        args.results,
+        track.results_noun,
+        entry_hook=track.union_hook,
+        labels=getattr(args, "label", None),
     )
     if isinstance(union, str):
         return _err(union)
@@ -651,6 +666,13 @@ def cmd_evidence(args: argparse.Namespace) -> int:
     results = (
         args.results if isinstance(args.results, list) else [args.results]
     )
+    labels = getattr(args, "label", None)
+    if labels and track.name != "shape-test":
+        return _err("--label is only valid with --track shape-test")
+    label_error = check_results_labels(results, labels)
+    if label_error is not None:
+        return _err(label_error)
+    args.labels = labels
     if track.name != "shape-test":
         if len(results) != 1:
             return _err(
@@ -693,14 +715,17 @@ def _verify_snapshot_checks(
     skill_path: Path,
     scored_path: Path,
     results: list[str],
+    labels: list[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Check group 1: the campaign snapshots are byte-identical to the
     canonical files (a recorded campaign measures the snapshotted bytes;
     a silent post-campaign edit to either side invalidates the record),
     and the scored/results artifacts live in the campaign dir (a record
     must not draw on another campaign's files). Mini-campaign subdirs
-    (round-2/, confirm/) are never consulted — only the named top-level
-    snapshots. Returns (ok lines, errors)."""
+    (round-2/, confirm/) are consulted only through a --label: a labeled
+    --results file may live in a direct subdirectory of the campaign
+    dir, so round-2-adopted arms are visible to the proof. Returns
+    (ok lines, errors)."""
     oks: list[str] = []
     errors: list[str] = []
     for path in canonical:
@@ -733,10 +758,14 @@ def _verify_snapshot_checks(
             f"{scored_path}"
         )
     for r in results:
-        if Path(r).resolve().parent != camp_dir:
-            errors.append(
-                f"--results must live in the campaign dir {camp_dir}: {r}"
-            )
+        parent = Path(r).resolve().parent
+        if parent == camp_dir:
+            continue
+        if labels is not None and parent.parent == camp_dir:
+            continue  # labeled mini-campaign subdir (round-2/, confirm/)
+        errors.append(
+            f"--results must live in the campaign dir {camp_dir}: {r}"
+        )
     return oks, errors
 
 
@@ -889,6 +918,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
     camp = Path(args.campaign_dir)
     if not camp.is_dir():
         return _err(f"campaign dir not found: {camp}")
+    labels = getattr(args, "label", None)
+    label_error = check_results_labels(args.results, labels)
+    if label_error is not None:
+        return _err(label_error)
     manifest_path = Path(args.manifest)
     entries_path = Path(args.entries)
     scored_path = Path(args.scored)
@@ -918,6 +951,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             skill_path,
             scored_path,
             args.results,
+            labels,
         )
     )
     report(
@@ -930,7 +964,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
     )
 
     union = union_results(
-        args.results, track.results_noun, entry_hook=track.union_hook
+        args.results,
+        track.results_noun,
+        entry_hook=track.union_hook,
+        labels=getattr(args, "label", None),
     )
     if isinstance(union, str):
         report([], [union])
@@ -956,6 +993,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             results=list(args.results),
             scored=str(scored_path),
             emit_skeleton=None,
+            label=labels,
             **{d: None for d in _ALL_COUNT_DESTS},
         )
         if cmd_scored_check(scored_ns) != 0:
@@ -1376,6 +1414,14 @@ def main() -> int:
     evidence.add_argument("--arm")
     evidence.add_argument("--compare", action="store_true")
     evidence.add_argument("--matrix", action="store_true")
+    evidence.add_argument(
+        "--label",
+        action="append",
+        help="namespace for one --results file (repeatable, one per "
+        "--results, positionally paired); required to merge files "
+        "across directories — arms display as <label>:<arm> and never "
+        "pool across labels",
+    )
 
     scored = sub.add_parser("scored-check")
     scored.add_argument(
@@ -1384,6 +1430,14 @@ def main() -> int:
         choices=[n for n, t in TRACKS.items() if t.supports_scored],
     )
     scored.add_argument("--results", action="append", required=True)
+    scored.add_argument(
+        "--label",
+        action="append",
+        help="namespace for one --results file (repeatable, one per "
+        "--results, positionally paired); required to union files "
+        "across directories — arms key as <label>:<arm> and never "
+        "pool across labels",
+    )
     scored.add_argument("--scored")
     scored.add_argument("--emit-skeleton")
     for dest in _ALL_COUNT_DESTS:
@@ -1429,6 +1483,14 @@ def main() -> int:
     )
     verify.add_argument("--scored", required=True)
     verify.add_argument("--results", action="append", required=True)
+    verify.add_argument(
+        "--label",
+        action="append",
+        help="namespace for one --results file (repeatable, one per "
+        "--results, positionally paired); a labeled file may live in "
+        "a direct subdirectory of --campaign-dir (round-2/, confirm/) "
+        "and its arms key as <label>:<arm>",
+    )
     verify.add_argument("--campaign-dir", required=True)
     verify.add_argument(
         "--skill-path",
