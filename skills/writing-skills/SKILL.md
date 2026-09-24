@@ -24,17 +24,17 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 
 ## Content
 
-- Written as directives, not essays.
+- Write every rule in the body as an imperative directive starting with a verb ('Run migrations off-peak'). Context and rationale belong in one Overview sentence or a Gotchas bullet, never in the steps.
 - Lean and short: the whole skill — `SKILL.md` plus every file the body loads — must stay under 500 lines total. This is a hard limit, not a guideline.
 - Moving content into `references/` (or any companion file) to get under the limit is a violation, not a way to comply: any content a reader must open to use the skill counts toward the limit. No exceptions — a reviewer calling the file "dense, not bloated" does not raise the limit, and a release deadline does not suspend it.
 - Instruction specificity matches task fragility. Prescribe exact steps where the operation is irreversible, order-dependent, or has one correct form. State goals, constraints and end conditions everywhere else.
 - Does not contain no-op statements or commentary that is not relevant to the goals, constraints, or end conditions.
 - Use explicit instructions ("Always use X"), never passive phrasing ("X is recommended").
 - State constraints directly. Never scope a directive with an exemption — any phrasing that carves out cases ("unless X", "except when Y", "excluding Z") — either fold the condition into the directive or leave it out. Example: "Always run the full migration suite before deploying, except when the deploy is just a config change" becomes "Always run the full migration suite before deploying."
-- Provide defaults, not menus. Name the one approach unconditionally. Give alternatives only as condition-scoped switches — each gated on the concrete condition that disqualifies the default ("use setuptools when the build compiles C extensions"). Never frame the choice as open: no neutral comparisons, no "pick whichever fits."
+- Name the one default approach unconditionally. Any alternative appears only as 'use <alt> when <concrete condition that disqualifies the default>'.
 - Pick one term per concept and use it everywhere — if a draft calls the same directory "workspace root", "repo root", and "project directory", choose one term and replace every occurrence, including incidental ones: "Navigate to the repo root. Run the setup script from the repo root. The config file also lives in the repo root."
 - No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.
-- Every skill includes a `## Gotchas` section listing the setup details a sensible guess gets wrong: surprising defaults, silent failure modes, ordering traps.
+- A skill without a Gotchas section is incomplete.
 - Ends with a checklist or verification procedure so the agent can verify its work.
 - When a request asks for something the skill forbids — including an explicit user request for a forbidden description, section, or artifact: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full, itself following every rule in this skill. Both parts, always.
 
@@ -43,11 +43,7 @@ A skill is a reusable reference guide for a proven technique, pattern, or tool �
 - Open every SKILL.md with a YAML frontmatter block delimited by `---`, carrying the two required fields `name` and `description`, before any body content.
 
 - Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`.
-- `description`: third person about the skill, never first or second person ("I can help you..."). Exactly two parts, in order, ≤1024 chars:
-  1. An imperative trigger clause — "Use when..." plus the concrete triggering conditions and symptoms. Weave trigger terms into prose; never a `Keywords:`-style label or a bare list of quoted phrases.
-  2. One coverage clause naming the domain or technique the skill covers.
-  No procedure steps: a sequence of things the workflow does is not a coverage clause. The body owns the HOW; the description exists only so the agent can match user intent.
-  Keep it concise. Move exhaustive anti-pattern enumerations into the body; keep only the most discriminating trigger or symptom in the description.
+- Write the description as exactly two clauses: 'Use when…' with the concrete triggering conditions, then one 'Covers…' clause naming the domain. The HOW stays in the body.
 
 ```yaml
 # Bad: summarizes workflow
@@ -85,11 +81,11 @@ skills/
     scripts/              # Reusable tools
 ```
 
-- SKILL.md carries the workflow and one short illustrative snippet. Bulk reference data (matrices, catalogs, long lists) lives in `references/<topic>.md`, linked once from SKILL.md. Small tables may stay inline.
+- A skill's deliverable is a set of files: SKILL.md carries the workflow and one short snippet; any matrix, catalog, or long list is its own file under `references/`, linked once from SKILL.md.
 - Use scripts for fully deterministic processes. Scripts handle their own error cases instead of failing back to the agent. No magic constants — justify every number in the script.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
 - Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.
-- A procedure with branches or early exits MUST be a ```mermaid flowchart TD block: one node per step, one diamond per branch, one terminal node per early exit. Reference data MUST be a markdown table. Numbered lists are only for strictly linear steps.
+- A procedure that branches or exits early includes a decision diagram: a fenced code block tagged `mermaid` containing `flowchart TD`, with one node per step, one diamond per branch, and one terminal node per early exit.
 - When editing an existing skill, read it fully first.
 - Don't assume a skill that works on a large model works on a small one; spell out instructions a frontier model could follow implicitly.
 

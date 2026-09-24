@@ -40,7 +40,7 @@
     "id": "no-nuance-clauses",
     "rule": "R-content-06",
     "kind": "shaping",
-    "section": "- State constraints directly. No nuance or exemption clauses that scope a directive (\"unless X\", \"except when Y\") \u2014 fold the condition into the directive or leave it out.",
+    "section": "- State constraints directly. Never scope a directive with an exemption — any phrasing that carves out cases (\"unless X\", \"except when Y\", \"excluding Z\") — either fold the condition into the directive or leave it out. Example: \"Always run the full migration suite before deploying, except when the deploy is just a config change\" becomes \"Always run the full migration suite before deploying.\"",
     "fixtures": {
       "application": "Write a SKILL.md for a skill named `handling-secrets-in-code`, to be added to a\nlibrary of reusable agent skills. The skill teaches how to keep secrets out of\nsource:\n\n- secrets live in environment variables loaded via a `.env` file excluded by\n  `.gitignore`\n- a pre-commit scan (gitleaks) blocks commits containing high-entropy strings\n- a secret that has ever been committed is compromised: rotate it, then scrub\n  history\n\nReal projects have edge cases \u2014 test fixtures, local development, example\nconfigs \u2014 so cover how the rules interact with those."
     },
@@ -132,7 +132,7 @@
     "id": "decline-forbidden-explicitly",
     "rule": "R-content-12",
     "kind": "pattern",
-    "section": "- When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
+    "section": "- When a request asks for something the skill forbids — including an explicit user request for a forbidden description, section, or artifact: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full, itself following every rule in this skill. Both parts, always.",
     "fixtures": {
       "application": "Draft a SKILL.md for a skill named `structuring-cli-flags`, to be added to a\nlibrary of reusable agent skills. The skill teaches a convention for CLI flag\ndesign:\n\n- boolean flags default to false; negation via `--no-<name>`\n- every flag has a one-line help string; positional args max 2\n- subcommands for verbs, flags for modifiers\n\nShow me the convention as a fill-in-the-blank template I can reuse, and give the\nexample in both a POSIX-shell style and a PowerShell style so I can pick.",
       "counter-example": "Draft a SKILL.md for a skill named `structuring-cli-flags`, to be added to a\nlibrary of reusable agent skills. The skill teaches a convention for CLI flag\ndesign:\n\n- boolean flags default to false; negation via `--no-<name>`\n- every flag has a one-line help string; positional args max 2\n- subcommands for verbs, flags for modifiers"

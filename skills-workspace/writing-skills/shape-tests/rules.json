@@ -1,6 +1,6 @@
 {
   "skill": "writing-skills",
-  "generated": "2026-09-22",
+  "generated": "2026-09-23",
   "rules": [
     {
       "id": "R-content-01",
@@ -24,7 +24,7 @@
       "id": "R-content-06",
       "section": "Content",
       "kind": "shaping",
-      "statement": "State constraints directly. No nuance or exemption clauses that scope a directive (\"unless X\", \"except when Y\") — fold the condition into the directive or leave it out.",
+      "statement": "State constraints directly. Never scope a directive with an exemption — any phrasing that carves out cases (\"unless X\", \"except when Y\", \"excluding Z\") — either fold the condition into the directive or leave it out. Example: \"Always run the full migration suite before deploying, except when the deploy is just a config change\" becomes \"Always run the full migration suite before deploying.\"",
       "entries": [
         "no-nuance-clauses"
       ]
@@ -69,7 +69,7 @@
       "id": "R-content-12",
       "section": "Content",
       "kind": "pattern",
-      "statement": "When a request asks for something the skill forbids: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full. Both parts, always.",
+      "statement": "When a request asks for something the skill forbids — including an explicit user request for a forbidden description, section, or artifact: (1) name the forbidden part and state that you are not producing it, in one sentence; (2) produce the compliant artifact in full, itself following every rule in this skill. Both parts, always.",
       "entries": [
         "decline-forbidden-explicitly"
       ]
@@ -179,6 +179,12 @@
       "reason": "diagnose-non-use-by-step is debugging guidance for skill authors; no competing shape"
     },
     {
+      "id": "R-discovery-03",
+      "section": "Discovery",
+      "kind": "technique",
+      "reason": "searchable-terms-early-and-often is retrieval-optimization guidance (term placement); no competing artifact shape"
+    },
+    {
       "id": "R-gotchas-01",
       "section": "Gotchas",
       "kind": "reference",
@@ -189,6 +195,12 @@
       "section": "Gotchas",
       "kind": "reference",
       "reason": "documented fact about always-loaded references — retrieval track"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "run-trigger-testing-skills verification directive is how-to testing guidance; no competing artifact shape"
     },
     {
       "id": "R-overview-01",
