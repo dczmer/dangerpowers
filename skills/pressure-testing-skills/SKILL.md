@@ -247,7 +247,7 @@ convention as the other testing tracks.)
     validate — the check gates `record`. An unfilled skeleton fails the
     check.
 11. **Report** (multi-rule format per Report format).
-12. `record --scope dir --scored $CAMP/scored.json` — completed full campaigns
+12. **Manifest record** — completed full campaigns
     only; never aborted campaigns, never mini-campaigns, never calibration
     pilots. Gate it with `evaluator.py verify --track pressure-test
     --manifest <root>/skills-workspace/<s>/pressure-tests/rules.json
@@ -258,7 +258,15 @@ convention as the other testing tracks.)
     to the canonical files, manifest↔scenarios wiring, skill-body.txt == the
     canonical SKILL.md with frontmatter stripped, results covering every
     scenario, and the scored-check flow re-run, ending with the record
-    preflight (the exact counts record will write). Record only on exit 0.
+    preflight (the exact counts record will write). Record only on exit 0:
+    `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
+    <root>/skills-workspace/<s>/manifest.json --scope dir --track
+    pressure-test --scored $CAMP/scored.json --campaign <campaign dir name>`
+    — `--skill`, `--skill-path`, and `--manifest` are required; the track
+    counts come from the scored file. `--manifest` is the per-skill aggregate
+    manifest, NOT the `rules.json` inventory (that path is only verify's
+    `--manifest` argument); record overwrites only the `pressure-test` key
+    and preserves every other key.
 13. **Write-backs** to the source `SKILL.md` only on explicit user
     confirmation; afterwards run a confirmation mini-campaign of the edited
     rules (in the `confirm/` subdir of this campaign's dir — Campaign
@@ -531,10 +539,15 @@ compliant option B):
 ]
 ```
 
-Manifest record (`record --scope dir --scored $CAMP/scored.json`): writes a
-`pressure-test` key — `date`, `checksum` (`sha256:` of the skill dir),
-`bulletproof`, `no-failure`, `unresolved`, `voids`, optional `campaign` —
-with the counts taken from the scored file.
+Manifest record (`evaluator.py record --skill <s> --skill-path <skill dir>
+--manifest <root>/skills-workspace/<s>/manifest.json --scope dir --track
+pressure-test --scored $CAMP/scored.json --campaign <campaign dir name>`):
+writes a `pressure-test` key — `date`, `checksum` (`sha256:` of the skill
+dir), `bulletproof`, `no-failure`, `unresolved`, `voids`, optional `campaign`
+— with the counts taken from the scored file. The manifest target is the
+per-skill aggregate `skills-workspace/<s>/manifest.json`, never the
+`rules.json` inventory — record overwrites only its own track's key and
+preserves every other key.
 
 ## Report format
 
@@ -622,6 +635,10 @@ on those paths — only a completed full campaign is recorded.
   answer in any prompt or scenario framing.
 - Mini-campaigns (confirmation runs) and calibration pilots are never
   recorded.
+- `record --manifest` takes the per-skill aggregate
+  `skills-workspace/<s>/manifest.json` — never `rules.json`. The inventory
+  path is only `verify`'s `--manifest` argument; pointing record at it
+  silently writes the `pressure-test` key into the inventory file.
 
 ## Checklist
 
@@ -663,7 +680,9 @@ on those paths — only a completed full campaign is recorded.
   line variant, and summary counts
 - [ ] `verify --track pressure-test` exits 0 (snapshots byte-identical,
   manifest↔scenarios wiring, skill-body identity, results coverage,
-  scored↔results, record preflight); `record --scope dir --scored
-  $CAMP/scored.json` only after a completed full campaign
+  scored↔results, record preflight); full `record` invocation (per step 12:
+  `--skill`/`--skill-path`/`--manifest <root>/skills-workspace/<s>/manifest.json`
+  required, `--scope dir --track pressure-test --scored $CAMP/scored.json`)
+  run only after a completed full campaign
 - [ ] Write-backs only with explicit user confirmation, followed by a
   never-recorded confirmation mini-campaign; cleanup run
