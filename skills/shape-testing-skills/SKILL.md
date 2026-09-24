@@ -490,6 +490,14 @@ subdirectories of that run's dir — never in top-level `-n` dirs. The `-n`
 suffix means the nth FULL campaign run that day (`campaign-init` assigns it);
 it is not a round counter and not a mini-campaign location.
 
+Within any mini-campaign round dir (`round-2/`, `confirm/round<N>/`), the
+counted results file is always named `results.json`. If a run is redone for
+any reason, rename the superseded file to `results-superseded.json` (then
+`results-superseded-2.json`, …) before re-running — a round dir never holds
+two plausibly-counted results files, and which file counts never rests on
+report prose alone. `select` creates the round subdir when its `--out` names
+it.
+
 Campaign artifacts live in the persistent campaign dir under `skills-workspace/` —
 never inside the temp eval workspace. The campaign snapshot of the source skill dir
 and of `skill-body.txt` (the exact injected bytes) is taken at setup — the recorded

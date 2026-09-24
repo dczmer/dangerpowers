@@ -462,6 +462,14 @@ One campaign dir per full run; the confirmation mini-campaign lives in the
 The `-n` suffix means the nth FULL campaign run that day (`campaign-init`
 assigns it); it is not a mini-campaign location.
 
+Within `confirm/`, the counted results file keeps the per-rule name
+(`results-red-<rule>.json`, etc.). If a run is redone for any reason, rename
+the superseded file with a `-superseded` suffix
+(`results-red-<rule>-superseded.json`, then `-superseded-2`, …) before
+re-running — the directory never holds two plausibly-counted results files,
+and which file counts never rests on report prose alone. `select` creates
+the `confirm/` subdir when its `--out` names it.
+
 Campaign artifacts live in the persistent campaign dir under
 `skills-workspace/` — never inside the temp eval workspace.
 

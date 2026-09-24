@@ -816,6 +816,28 @@ class SelectTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual([e["id"] for e in self._selected()], ["beta"])
 
+    def test_missing_output_parent_dirs_created(self):
+        # Issue #54: --out naming a not-yet-existing mini-campaign
+        # subdir (confirm/, round-2/) is the canonical usage; the
+        # command creates the parents rather than crashing.
+        self.out = self.root / "confirm" / "round1" / "queries.json"
+        rc, out = self._run("alpha")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["alpha"])
+        self.assertIn("select: 1/3 entries ->", out)
+
+    def test_unwritable_output_fails_cleanly(self):
+        # A --out whose parent path is a FILE: mkdir cannot succeed,
+        # so the failure surfaces as a clean `error:` line (rc 1),
+        # never a raw traceback.
+        blocker = self.root / "blocker"
+        blocker.write_text("x")
+        self.out = blocker / "sub" / "out.json"
+        rc, out = self._run("alpha")
+        self.assertEqual(rc, 1)
+        self.assertIn("error: could not write", out)
+        self.assertNotIn("Traceback", out)
+
     def _run_envelope_error(self):
         ns = argparse.Namespace(
             entries=str(self.entries), ids="alpha", out=str(self.out)

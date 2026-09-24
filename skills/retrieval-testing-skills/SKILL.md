@@ -190,11 +190,18 @@ scripts the agent cannot run.
     validates it — the check gates `record`. An unfilled skeleton fails
     the check.
 11. Report (existing format + `artifacts:`/`manifest:` lines).
-12. Confirmed doc fixes → mini-campaign re-run of failed entries only
-    (a `confirm/` subdir of this campaign's dir, queries file filtered with
-    `evaluator.py select --entries <queries> --ids <failed entry ids> --out
-    $CAMP/confirm/queries.json`) —
-    confirmation, never recorded. One campaign dir per full run;
+12. Confirmed doc fixes → mini-campaign re-run of failed entries only —
+    confirmation, never recorded, never passed to `verify`/`record`.
+    Layout: `confirm/round<N>/queries.json` (filtered with
+    `evaluator.py select --entries <queries> --ids <failed entry ids>
+    --out $CAMP/confirm/round<N>/queries.json` — `select` creates the
+    round subdir) and `confirm/round<N>/results.json` (the suite
+    `--out`). The counted results file is ALWAYS named `results.json`:
+    if a run is redone for any reason, rename the superseded file to
+    `results-superseded.json` (then `results-superseded-2.json`, …)
+    before re-running — a round dir never holds two plausibly-counted
+    results files, and which file counts never rests on report prose
+    alone. One campaign dir per full run;
     mini-campaigns live in subdirectories of that run's dir — never in
     top-level `-n` dirs (`-n` is the nth FULL campaign that day, assigned
     by `campaign-init`).
@@ -234,7 +241,7 @@ Campaign rules:
 
 - Fix between campaigns, never mid-campaign: complete the full pass, then apply edits. Mid-campaign doc edits invalidate every later result.
 - Present recommended edits to the user and apply them only after confirmation.
-- After edits land, re-run ONLY the failed scenarios (with their controls) as a mini-campaign to confirm: a `confirm/` subdir of this campaign's dir, a queries file `select`-filtered to just the re-run entries — and never recorded in the manifest.
+- After edits land, re-run ONLY the failed scenarios (with their controls) as a mini-campaign to confirm: a `confirm/round<N>/` subdir of this campaign's dir, a queries file `select`-filtered to just the re-run entries — and never recorded in the manifest. The counted results file is always `results.json`; superseded attempts are renamed `results-superseded.json` before re-running (see Workflow step 12).
 - Keep queries verbatim across campaigns, `{RUN_DIR}` token included; editing a query invalidates comparison. If a query is bad — asks for nothing, depends on context the bare session lacks — prune it and say so in the report.
 - A scenario still failing after a doc fix gets one more doc revision. Still failing after that: surface it to the user — the fact likely needs restructuring, not rewording.
 

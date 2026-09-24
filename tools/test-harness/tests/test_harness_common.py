@@ -695,6 +695,25 @@ class SkeletonEmitTests(unittest.TestCase):
             self.assertIsNone(entry["counters"])
             self.assertIsNone(entry["notes"])
 
+    def test_emit_skeleton_creates_missing_output_parent_dirs(self):
+        # Issue #54: --emit-skeleton naming not-yet-existing subdirs
+        # works (the record convention), never a raw FileNotFoundError.
+        results = self._results("retrieval")
+        out = self.root / "nested" / "dir" / "skeleton.json"
+        rc, _, stderr = self._run("retrieval", results, emit=str(out))
+        self.assertEqual(rc, 0, stderr)
+        self.assertTrue(out.is_file())
+
+    def test_emit_skeleton_unwritable_output_fails_cleanly(self):
+        results = self._results("retrieval")
+        blocker = self.root / "blocker"
+        blocker.write_text("x")
+        out = blocker / "sub" / "skeleton.json"
+        rc, _, stderr = self._run("retrieval", results, emit=str(out))
+        self.assertEqual(rc, 1)
+        self.assertIn("error: could not write", stderr)
+        self.assertNotIn("Traceback", stderr)
+
     def test_emit_skeleton_header_campaign_derived(self):
         campaign_dir = self.root / "campaign-2099-01-01"
         campaign_dir.mkdir()

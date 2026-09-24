@@ -515,6 +515,29 @@ class InventoryMintCommandTests(_TmpCase):
         self.assertEqual(rc, 0)
         self.assertEqual(out.read_text(), raw)
 
+    def test_mint_creates_missing_output_parent_dirs(self):
+        # Issue #54: --out naming not-yet-existing subdirs works (the
+        # record convention), instead of crashing FileNotFoundError.
+        path = self.write_json(_rule_inv())
+        out = self.dir / "nested" / "dir" / "minted.json"
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = evaluator.cmd_inventory_mint(self._args(path, out))
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.is_file())
+
+    def test_mint_unwritable_output_fails_cleanly(self):
+        blocker = self.dir / "blocker"
+        blocker.write_text("x")
+        out = blocker / "sub" / "out.json"
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            rc = evaluator.cmd_inventory_mint(
+                self._args(self.write_json(_rule_inv()), out)
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("error: could not write", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
 
 class InventoryDiffTests(unittest.TestCase):
     """inventory_diff: the four buckets, the resurrect case, and the
@@ -720,6 +743,33 @@ class InventoryDiffCommandTests(_TmpCase):
         self.assertEqual(diff["new"], [])
         self.assertEqual(diff["deleted"], [])
         self.assertEqual(diff["excluded"], [])
+
+    def test_diff_creates_missing_output_parent_dirs(self):
+        # Issue #54: --out naming not-yet-existing subdirs works (the
+        # record convention), instead of crashing FileNotFoundError.
+        old_path = self.write_json(_rule_inv(), name="old.json")
+        new_path = self.write_json(_rule_inv(), name="new.json")
+        out = self.dir / "nested" / "dir" / "diff.json"
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = evaluator.cmd_inventory_diff(
+                self._args(old_path, new_path, out=out)
+            )
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.is_file())
+
+    def test_diff_unwritable_output_fails_cleanly(self):
+        old_path = self.write_json(_rule_inv(), name="old.json")
+        new_path = self.write_json(_rule_inv(), name="new.json")
+        blocker = self.dir / "blocker"
+        blocker.write_text("x")
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            rc = evaluator.cmd_inventory_diff(
+                self._args(old_path, new_path, out=blocker / "sub" / "d.json")
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("error: could not write", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
 
 if __name__ == "__main__":

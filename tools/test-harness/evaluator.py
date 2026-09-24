@@ -162,6 +162,20 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _write_out(out: Path, text: str) -> int | None:
+    """Write text to an --out path, creating missing parent dirs (the
+    record convention: --out naming a not-yet-existing mini-campaign
+    subdir like confirm/ or round-2/ is the canonical usage — issue
+    #54). OSError surfaces as a clean `error:` line and exit 1, never a
+    raw traceback. Returns the _err rc on failure, None on success."""
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text)
+    except OSError as e:
+        return _err(f"could not write {out}: {e}")
+    return None
+
+
 def cmd_select(args: argparse.Namespace) -> int:
     """The select command (BUGS.md B8): filter an entries/queries/
     scenarios file to the entries --ids names, for the campaign subsets
@@ -183,7 +197,9 @@ def cmd_select(args: argparse.Namespace) -> int:
     wanted = set(ids)
     selected = [e for e in entries if e["id"] in wanted]
     out = Path(args.out)
-    out.write_text(json.dumps(selected, indent=2) + "\n")
+    rc = _write_out(out, json.dumps(selected, indent=2) + "\n")
+    if rc is not None:
+        return rc
     print(f"select: {len(selected)}/{len(entries)} entries -> {out}")
     return 0
 
@@ -587,7 +603,9 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
         entries = [track.skeleton_entry(eid, extras) for eid in results_ids]
         doc = dict(header) if header else {}
         doc["entries"] = entries
-        out_path.write_text(json.dumps(doc, indent=2) + "\n")
+        rc = _write_out(out_path, json.dumps(doc, indent=2) + "\n")
+        if rc is not None:
+            return rc
         print(f"wrote skeleton: {out_path} ({len(results_ids)} entries)")
         return 0
 
@@ -1176,9 +1194,12 @@ def cmd_inventory_mint(args: argparse.Namespace) -> int:
             minted += 1
     out = Path(args.out)
     if minted == 0:
-        out.write_text(raw)
+        payload = raw
     else:
-        out.write_text(json.dumps(inv, indent=2, ensure_ascii=False) + "\n")
+        payload = json.dumps(inv, indent=2, ensure_ascii=False) + "\n"
+    rc = _write_out(out, payload)
+    if rc is not None:
+        return rc
     emit(f"{out}: minted {minted} id(s)")
     return 0
 
@@ -1217,7 +1238,9 @@ def cmd_inventory_diff(args: argparse.Namespace) -> int:
             )
     payload = json.dumps(diff, indent=2, ensure_ascii=False) + "\n"
     if args.out:
-        Path(args.out).write_text(payload)
+        rc = _write_out(Path(args.out), payload)
+        if rc is not None:
+            return rc
     else:
         sys.stdout.write(payload)
     return 0
