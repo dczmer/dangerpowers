@@ -166,6 +166,23 @@ class PressureScenariosTests(unittest.TestCase):
         self._write([scenario_entry(compliant_option="")])
         self._rejected()
 
+    def test_unknown_key_rejected(self):
+        entry = scenario_entry()
+        entry["title"] = "Friday deploy"
+        self._write([entry])
+        self._rejected()
+
+    def test_unknown_keys_error_names_them(self):
+        entry = scenario_entry()
+        entry["options"] = ["A", "B", "C"]
+        entry["expected"] = "A"
+        self._write([entry])
+        with self.assertRaises(SystemExit) as cm:
+            with redirect_stderr(io.StringIO()) as err:
+                self._load()
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("unknown keys: expected, options", err.getvalue())
+
 
 class PressurePromptTests(unittest.TestCase):
     """build_pressure_prompt: red is scenario-only (no conventions block,

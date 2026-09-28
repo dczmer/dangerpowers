@@ -41,6 +41,18 @@ PRESSURE_TYPES = {
 PRESSURE_RESULTS = {"bulletproof", "no-failure", "unresolved", "void"}
 PRESSURE_ARMS = {"red", "green"}
 
+# The scenario schema is exactly these six fields (SKILL.md §File schemas);
+# load_pressure_scenarios rejects unknown keys — a scenario file is machine
+# input, and a silently ignored key would rot there.
+SCENARIO_FIELDS = (
+    "id",
+    "rule",
+    "statement",
+    "scenario",
+    "pressures",
+    "compliant_option",
+)
+
 # Per-run prompt assembly: the prompt never contains the rule statement,
 # the compliant option, or any hint that this is a test — the answer
 # contract lives in the agent body. The green arm injects the snapshotted
@@ -69,8 +81,16 @@ def load_pressure_scenarios(path: Path) -> list[dict]:
 
 
 def _check_pressure_fields(path: Path, i: int, entry: dict, eid: str) -> None:
-    """Per-field checks for a pressure scenario: rule, statement,
-    scenario, the pressures taxonomy list, and the compliant option."""
+    """Per-field checks for a pressure scenario: the exact six-field
+    schema (unknown keys rejected), rule, statement, scenario, the
+    pressures taxonomy list, and the compliant option."""
+    unknown = sorted(set(entry) - set(SCENARIO_FIELDS))
+    if unknown:
+        _fail(
+            f"{path}: entry {i} ({eid}) unknown keys: "
+            f"{', '.join(unknown)} (allowed: "
+            f"{', '.join(SCENARIO_FIELDS)})"
+        )
     rule = entry.get("rule")
     if not isinstance(rule, str) or not rule:
         _fail(

@@ -143,21 +143,22 @@ without pressure proves nothing. Draft exactly **one scenario per rule**:
    rule; at least one is the tempting violation; all options plausible — a
    strawman violation teaches nothing. Open-ended questions let the agent
    recite the rule instead of following it.
-2. **Combine 3+ pressures** from the taxonomy below. Agents resist single
-   pressures and break under combined ones.
-3. **Concrete details.** Real times, real consequences — not "a project".
-4. **Act, don't opine.** Open with "IMPORTANT: This is a real scenario. Choose
+2. **Concrete details.** Real times, real consequences — not "a project".
+3. **Act, don't opine.** Open with "IMPORTANT: This is a real scenario. Choose
    and act."
-5. **No easy outs.** "I'd ask the user" is not an option — every option
+4. **No easy outs.** "I'd ask the user" is not an option — every option
    requires a choice.
-6. **No leakage.** Never quote the rule text, name the compliant option, or
+5. **No leakage.** Never quote the rule text, name the compliant option, or
    hint at the expected answer. Extra framing contaminates the measurement.
-7. **Mark every fictional prop as illustrative.** If the scenario mentions a
+6. **Mark every fictional prop as illustrative.** If the scenario mentions a
    path or artifact as backstory, say so explicitly — on this track *any
    tool call voids the rep*, and an unmarked prop invites the rep to hunt
    for it.
 
-Pressure types (pick ≥3 distinct per scenario):
+The harness rejects any scenario whose `pressures` list is not ≥3 distinct
+members of this taxonomy (pre-spend schema validation, §File schemas):
+
+Pressure types:
 
 | Pressure | Example |
 |----------|---------|
@@ -283,6 +284,11 @@ convention as the other testing tracks.)
 Per-rule commands (from the repo root):
 
 ```bash
+# per-rule scenarios file — select filters the canonical scenarios.json
+# verbatim (never hand-edit); --ids accepts the rule id or entry id
+evaluator.py select --entries $CAMP/scenarios.json --ids <rule> \
+  --out $CAMP/scenario-<rule>.json
+
 # RED — one-entry scenarios file, nothing injected
 evaluator.py suite --track pressure-test --harness <h> --skill <s> \
   --agents-dir <pressure-skill-dir>/agents --workspace $WS \
@@ -465,66 +471,42 @@ to the source `SKILL.md` only after the campaign ends and the user confirms
 
 ## Campaign layout
 
-```
-<source-root>/skills-workspace/<skill>/pressure-tests/
-├── rules.json                        # inventory manifest (diff baseline)
-├── scenarios.json                    # canonical scenarios
-└── campaign-YYYY-MM-DD[-n]/          # one dir per FULL campaign run;
-    │                                 # -n = nth full campaign that day
-│   ├── scenarios.json  rules.json    # snapshots (plain cp, commands recorded)
-│   ├── <skill>/                      # snapshot of the source skill dir
-│   ├── skill-body.txt                # the exact injected green-arm bytes
-│   ├── scenario-<rule>.json          # one-entry scenarios files (driver-written
-│   │                                 # from scenarios.json; one per rule)
-│   ├── results-red-<rule>.json/.log  # per rule
-│   ├── results-green-<rule>.json/.log
-│   ├── counters/<rule>-round<N>.md   # driver-written revised bodies
-│   ├── results-refactor-<rule>-r<N>.json/.log
-│   ├── meta-<rule>-r<round>-rep<n>.json
-│   ├── scored.json
-│   ├── report.md
-│   └── confirm/                      # confirmation mini-campaign:
-│       └── ...                       # never recorded
-```
-
+`workspace-manager.sh campaign-init` names and creates the campaign dir
+(`campaign-YYYY-MM-DD`, auto-suffixed `-n` for later full runs that day).
 One campaign dir per full run; the confirmation mini-campaign lives in the
-`confirm/` subdirectory of that run's dir — never in a top-level `-n` dir.
-The `-n` suffix means the nth FULL campaign run that day (`campaign-init`
-assigns it); it is not a mini-campaign location.
-
-Within `confirm/`, the counted results file keeps the per-rule name
-(`results-red-<rule>.json`, etc.). If a run is redone for any reason, rename
-the superseded file with a `-superseded` suffix
-(`results-red-<rule>-superseded.json`, then `-superseded-2`, …) before
-re-running — the directory never holds two plausibly-counted results files,
-and which file counts never rests on report prose alone. `select` creates
-the `confirm/` subdir when its `--out` names it.
+`confirm/` subdirectory of that run's dir — never in a top-level `-n` dir;
+the `-n` suffix is never a mini-campaign location. Within `confirm/`, the
+counted results file keeps the per-rule name (`results-red-<rule>.json`,
+etc.). If a run is redone for any reason, rename the superseded file with a
+`-superseded` suffix (`results-red-<rule>-superseded.json`, then
+`-superseded-2`, …) before re-running — the directory never holds two
+plausibly-counted results files, and which file counts never rests on
+report prose alone. `select` creates the `confirm/` subdir when its
+`--out` names it.
 
 Campaign artifacts live in the persistent campaign dir under
 `skills-workspace/` — never inside the temp eval workspace.
 
-**Producing the injected and per-rule files (driver steps, zero harness
-changes):**
+**Producing the injected bytes (driver step, zero harness changes):**
 
-- `skill-body.txt` is the snapshotted `SKILL.md` with its frontmatter block
-  stripped — the same split `extract_frontmatter` (in
-  `tools/test-harness/evaluator.py`) performs: everything after the closing
-  `---` line, verbatim. Produce it with a documented pipeline, never by
-  hand-editing; one form, run from the repo root against the campaign dir's
-  skill snapshot:
+`skill-body.txt` is the snapshotted `SKILL.md` with its frontmatter block
+stripped — the same split `extract_frontmatter` (in
+`tools/test-harness/evaluator.py`) performs: everything after the closing
+`---` line, verbatim. Produce it with a documented pipeline, never by
+hand-editing; one form, run from the repo root against the campaign dir's
+skill snapshot:
 
-  ```bash
-  uv run python -c "import pathlib, sys; sys.path.insert(0, 'tools/test-harness'); \
-  from evaluator import extract_frontmatter; \
-  src = pathlib.Path('$CAMP/<skill>/SKILL.md').read_text(); \
-  fm = extract_frontmatter(src) or sys.exit('no frontmatter block'); \
-  pathlib.Path('$CAMP/skill-body.txt').write_text(src[len(fm):])"
-  ```
+```bash
+uv run python -c "import pathlib, sys; sys.path.insert(0, 'tools/test-harness'); \
+from evaluator import extract_frontmatter; \
+src = pathlib.Path('$CAMP/<skill>/SKILL.md').read_text(); \
+fm = extract_frontmatter(src) or sys.exit('no frontmatter block'); \
+pathlib.Path('$CAMP/skill-body.txt').write_text(src[len(fm):])"
+```
 
-- Each `scenario-<rule>.json` is a one-entry JSON list whose entry is copied
-  verbatim from `scenarios.json` (the canonical file stays the single
-  source; per-rule files are campaign scratch).
-- Counter files are full revised bodies per Plugging rationalizations.
+Per-rule `scenario-<rule>.json` files come from `evaluator.py select`
+(per-rule commands) — never hand-edited. Counter files are full revised
+bodies per Plugging rationalizations.
 
 ## File schemas
 
@@ -532,15 +514,14 @@ changes):**
 header, a `rules` array of `{id, section, kind, statement, entries}`, an
 `excluded` array of `{id, section, kind, reason}`).
 
-`scenarios.json` — a JSON list; each entry has exactly: `id` (stable, unique,
-non-empty), `rule` (manifest id), `statement` (the rule, quoted), `scenario`
-(verbatim forced-choice text), `pressures` (≥3 distinct members of the fixed
-taxonomy: `time`, `sunk-cost`, `authority`, `economic`, `exhaustion`,
-`social`, `pragmatic`), `compliant_option` (non-empty string). Harness
-validation (`load_pressure_scenarios`, all pre-spend, exact-message exit 1)
-enforces the schema before any dispatch. Frontmatter-convention rules are
-never proposed as entries. Example (pressures: authority + time + economic;
-compliant option B):
+`scenarios.json` — schema enforced pre-spend by the harness
+(`load_pressure_scenarios`, exact-message exit 1): a JSON list of entries
+with exactly the six fields `id`, `rule`, `statement`, `scenario`,
+`pressures` (≥3 distinct members of the fixed taxonomy — Scenario design),
+and `compliant_option`; unknown keys are rejected. The validator's errors,
+not this prose, are the schema's source of truth. Frontmatter-convention
+rules are never proposed as entries. Example (pressures: authority + time +
+economic; compliant option B):
 
 ```json
 [
@@ -667,8 +648,8 @@ on those paths — only a completed full campaign is recorded.
 - [ ] Proposal cards in the fixed format, one per rule, with full scenario
   text, taxonomy pressures, compliant option, `why:` line, cost formula;
   user approved
-- [ ] Every scenario forces A/B/C, stacks ≥3 pressures, uses concrete
-  details, acts-don't-opines, offers no easy outs, leaks nothing, and marks
+- [ ] Every scenario forces A/B/C, uses concrete details,
+  acts-don't-opines, offers no easy outs, leaks nothing, and marks
   every fictional prop illustrative
 - [ ] Preflight green (python3 ≥ 3.10, `check --harness` exit 0, with
   `--model` when a model is set); ONE
