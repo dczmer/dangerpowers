@@ -61,8 +61,7 @@ scripts only — never parse their prose stdout.
   *within* one arm batch parallelize (identical prompt bytes, read-only).
   One suite process at a time, for the whole campaign: concurrent suites
   against the same endpoint multiply per-rep latency into empty-answer
-  timeout voids that misattribute as agent defects (shape campaign
-  2026-09-22: 4/5 gate reps voided concurrently, 5/5 clean serially).
+  timeout voids that misattribute as agent defects.
   `suite` enforces this with a machine-wide lockfile — a second
   invocation aborts pre-spend naming the lock.
 - Cost per rule: `5 + 5 per failing baseline + 5×rounds per refactor (cap 3)
