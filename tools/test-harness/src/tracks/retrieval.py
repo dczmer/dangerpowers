@@ -16,6 +16,7 @@ from src.common import (
     iter_evidence,
     load_entries,
     load_results_json,
+    load_status_map,
     log_start,
     rep_label,
     run_rep_batched,
@@ -249,6 +250,10 @@ class RetrievalTrack(Track):
     # (same pattern as TriggerTrack).
     _i: int = 0
     _n: int = 0
+    # pre_spend_gates stash for run_entry: entry-id -> inventory status
+    # (ablation/removed entries run control-only). Empty without
+    # --manifest (every entry behaves as status none).
+    _status_map: dict[str, str] = {}
 
     def pre_spend_gates(
         self, args: argparse.Namespace, strategy_cls: type[EvalStrategy]
@@ -292,6 +297,13 @@ class RetrievalTrack(Track):
                 "never sync"
             )
         entries = load_retrieval_queries(queries_path)  # exits 1 on error
+        # --manifest: query-id -> status from the facts inventory. A
+        # query maps to a status ONLY when every fact naming it carries
+        # the SAME status (the N:M rule); mixed or partially normal
+        # coverage runs both arms as today.
+        self._status_map = load_status_map(
+            getattr(args, "manifest", None), self.inventory_kind
+        )
         out = Path(args.out)
         if not out.parent.is_dir():
             _fail(f"output directory does not exist: {out.parent}")
@@ -342,6 +354,27 @@ class RetrievalTrack(Track):
             "query": entry["query"],
             "expect": entry["expect"],
         }
+        if entry["id"] in self._status_map:
+            # Ablation/regression: the control arm only, sequentially.
+            # Control pass/fail is a driver judgment from evidence, not
+            # mechanically decidable mid-suite, so the skill arm is a
+            # driver-run follow-up suite when the control FAILED (a
+            # select-filtered file without --manifest, same campaign
+            # dir; the results merge by id). A removed fact's skill arm
+            # never runs.
+            record["control_arm"] = {
+                "runs": run_records_batch(
+                    strategy,
+                    entry,
+                    "control_arm",
+                    control_ws,
+                    RETRIEVAL_CONTROL_AGENT,
+                    args,
+                )
+            }
+            self._i += 1
+            emit(f"[{self._i}/{self._n}] {entry['id']}")
+            return record
         with ThreadPoolExecutor(max_workers=2) as pool:
             futures = {
                 pool.submit(
@@ -382,7 +415,10 @@ class RetrievalTrack(Track):
         """Print the per-run scoring evidence from a retrieval-suite
         results JSON: per entry, the expect rubric and, for every
         arm/rep, the answer text, sources consulted, void signals, and
-        tool-call targets. The trigger track's `failures` equivalent:
+        tool-call targets. Entries with only one arm (control-only
+        ablation/removed records) print what exists; a present but
+        malformed arm list is still an error. The trigger track's
+        `failures` equivalent:
         extraction only, so the driver scores from presented evidence
         instead of hand-rolling JSON walks. Exit 0 with an entry count
         line; exit 1 only on a malformed file."""
@@ -395,14 +431,26 @@ class RetrievalTrack(Track):
         n_printed = 0
         try:
             for eid, entry in iter_evidence(data_entries, path, args.entry):
-                skill_arm = entry.get("skill_arm")
-                control_arm = entry.get("control_arm")
-                if (
-                    not isinstance(skill_arm, dict)
-                    or not isinstance(skill_arm.get("runs"), list)
-                    or not isinstance(control_arm, dict)
-                    or not isinstance(control_arm.get("runs"), list)
-                ):
+                # Control-only records (ablation/removed entries) carry
+                # no skill_arm; print whatever arms exist. A present but
+                # malformed arm is still an error, and an entry with no
+                # arms at all is too.
+                arms = []
+                for arm_key in ("skill_arm", "control_arm"):
+                    arm = entry.get(arm_key)
+                    if arm is None:
+                        continue
+                    if not isinstance(arm, dict) or not isinstance(
+                        arm.get("runs"), list
+                    ):
+                        print(
+                            f"error: {path}: entry {eid} is missing arm "
+                            f"run lists",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    arms.append((arm_key, arm))
+                if not arms:
                     print(
                         f"error: {path}: entry {eid} is missing arm run "
                         f"lists",
@@ -417,10 +465,7 @@ class RetrievalTrack(Track):
                 for b in expect:
                     print(f"  - {b}")
                 print()
-                for arm_key, arm in (
-                    ("skill_arm", skill_arm),
-                    ("control_arm", control_arm),
-                ):
+                for arm_key, arm in arms:
                     for n, run in enumerate(arm["runs"], start=1):
                         timeout = "timeout" if run.get("timeout") else "ok"
                         session = run.get("session_id") or "no-session"

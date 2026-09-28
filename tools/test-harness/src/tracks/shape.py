@@ -16,6 +16,7 @@ from src.common import (
     load_entries,
     load_results_envelope,
     load_results_json,
+    load_status_map,
     log_start,
     rep_label,
     run_rep_batched,
@@ -66,16 +67,28 @@ def load_shape_entries(path: Path) -> list[dict]:
     return load_entries(path, "entries", "entry", _check_shape_fields)
 
 
-def check_span_uniqueness(entries: list[dict], body: str) -> list[str]:
+def check_span_uniqueness(
+    entries: list[dict], body: str, removed: set[str] | None = None
+) -> list[str]:
     """The verbatim section-span assertion (BUGS.md B7): every entry's
-    section span must occur exactly once in the body bytes. Returns one
-    error string per violating entry, empty when clean — the pre-spend
-    doc-drift gate fails on the first, the proposal-time check mode
-    prints them all (drift is fixed in batches at proposal time)."""
+    section span must occur exactly once in the body bytes — except a
+    REMOVED entry (regression coverage for an already-deleted rule),
+    whose span must occur ZERO times. Returns one error string per
+    violating entry, empty when clean — the pre-spend doc-drift gate
+    fails on the first, the proposal-time check mode prints them all
+    (drift is fixed in batches at proposal time)."""
+    removed = removed or set()
     errors = []
     for entry in entries:
         occurrences = body.count(entry["section"])
-        if occurrences != 1:
+        if entry["id"] in removed:
+            if occurrences != 0:
+                errors.append(
+                    f"doc drift: section span of removed entry "
+                    f"{entry['id']!r} occurs {occurrences} times in the "
+                    f"skill body (expected zero — the rule was removed)"
+                )
+        elif occurrences != 1:
             errors.append(
                 f"doc drift: section span of entry {entry['id']!r} "
                 f"occurs {occurrences} times in the skill body "
@@ -206,12 +219,19 @@ def build_shape_prompt(body: str, fixture: str) -> str:
     return SHAPE_PROMPT_TEMPLATE.format(body=body, fixture=fixture)
 
 
-def assemble_arm_body(body: str, entry: dict, arm: str) -> str:
+def assemble_arm_body(
+    body: str, entry: dict, arm: str, removed: bool = False
+) -> str:
     """One arm's body bytes. v0 (control) removes the rule's section span
     together with exactly one following blank line; vN replaces the span
     with the variant text. The caller asserts the span occurs verbatim
     exactly once in body before calling (pre-spend doc-drift gate), so a
-    violated invariant here is a harness bug, not doc drift."""
+    violated invariant here is a harness bug, not doc drift. A REMOVED
+    entry's span is already deleted from the doc: its v0 arm IS the
+    unchanged body and no span lookup happens (variant arms are never
+    assembled for removed/ablation entries)."""
+    if removed and arm == "v0":
+        return body
     section = entry["section"]
     idx = body.find(section)
     end = idx + len(section)
@@ -230,9 +250,15 @@ def assemble_arm_body(body: str, entry: dict, arm: str) -> str:
     return body[:idx] + entry["variants"][arm] + body[end:]
 
 
-def verify_arm_bytes(new_body: str, entry: dict, arm: str) -> None:
+def verify_arm_bytes(
+    new_body: str, entry: dict, arm: str, removed: bool = False
+) -> None:
     """Post-assembly sanity check, run before any dispatch: the v0 arm
-    must have lost the span, a variant arm must carry its text."""
+    must have lost the span, a variant arm must carry its text. A
+    REMOVED entry's v0 arm is the unchanged body — the span is gone
+    trivially, so the assertion is skipped."""
+    if removed and arm == "v0":
+        return
     if arm == "v0":
         if entry["section"] in new_body:
             raise ValueError(
@@ -678,9 +704,12 @@ class ShapeTrack(Track):
     _i: int = 0
     _n: int = 0
     # pre_spend_gates stashes for run_entry/banner/extra_config: the
-    # snapshotted skill body and the parsed --arms list.
+    # snapshotted skill body and the parsed --arms list. _status_map is
+    # the --manifest entry-id -> inventory status map (ablation/removed
+    # entries run v0 only); empty without --manifest.
     _body: str = ""
     _arms: list[str] = []
+    _status_map: dict[str, str] = {}
 
     def pre_spend_gates(
         self, args: argparse.Namespace, strategy_cls: type[EvalStrategy]
@@ -732,6 +761,11 @@ class ShapeTrack(Track):
             )
 
         entries = load_shape_entries(entries_path)  # exits 1 on violation
+        # --manifest: entry-id -> status from the rules inventory
+        # (ablation/removed entries run the v0 control only).
+        self._status_map = load_status_map(
+            getattr(args, "manifest", None), self.inventory_kind
+        )
         for entry in entries:
             for arm in arms:
                 if arm != "v0" and arm not in entry["variants"]:
@@ -749,9 +783,19 @@ class ShapeTrack(Track):
 
         # Doc-drift gate: every section span must appear verbatim exactly
         # once in the snapshotted body (frontmatter already stripped by
-        # the driver — spans overlapping frontmatter are never matched).
+        # the driver — spans overlapping frontmatter are never matched),
+        # except REMOVED entries, whose span must be GONE (the rule text
+        # was deleted; the entry persists as regression coverage).
         # Aborts before spend.
-        errors = check_span_uniqueness(entries, body)
+        errors = check_span_uniqueness(
+            entries,
+            body,
+            {
+                eid
+                for eid, status in self._status_map.items()
+                if status == "removed"
+            },
+        )
         if errors:
             _fail(errors[0])
 
@@ -807,10 +851,26 @@ class ShapeTrack(Track):
             "restraint_markers": entry.get("restraint_markers"),
             "arms": {},
         }
-        for arm in self._arms:
+        # Ablation/removed entries run the v0 control only, whatever
+        # --arms says (v0 IS the control; for a removed entry the body
+        # is unchanged, so v0 measures the current body). Variant phases
+        # never run for them.
+        status = self._status_map.get(entry["id"])
+        arms = self._arms
+        if status is not None:
+            if arms != ["v0"]:
+                emit(
+                    f"note: entry {entry['id']} is {status}; "
+                    "running v0 only"
+                )
+            arms = ["v0"]
+        removed = status == "removed"
+        for arm in arms:
             try:
-                arm_body = assemble_arm_body(self._body, entry, arm)
-                verify_arm_bytes(arm_body, entry, arm)
+                arm_body = assemble_arm_body(
+                    self._body, entry, arm, removed=removed
+                )
+                verify_arm_bytes(arm_body, entry, arm, removed=removed)
             except ValueError as e:
                 _fail(str(e))
             prompt = build_shape_prompt(

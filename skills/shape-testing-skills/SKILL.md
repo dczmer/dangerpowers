@@ -50,7 +50,9 @@ Consume exit codes and JSON from those scripts only — never parse their prose 
 - Defaults: 5 reps per entry per arm; 300 s per-run timeout.
 - Phases: phase 1 runs 5 control reps for ALL rules (never skipped); phase 2 runs
   variants (5 reps each) only for rules whose control exhibited the failure, after a
-  second spend confirmation. A generic continuation message ("keep going", "proceed",
+  second spend confirmation. Entries whose rules carry an ablation/removed
+  status (suite `--manifest`) run the control only and never earn variant
+  runs. A generic continuation message ("keep going", "proceed",
   "sounds good", a thumbs-up) is **NOT** a second spend confirmation. The second
   spend confirmation must be an explicit approval that names the rules earning
   variant runs — if the user's reply does not enumerate them, stop and ask again
@@ -75,8 +77,9 @@ Consume exit codes and JSON from those scripts only — never parse their prose 
   a second invocation aborts pre-spend naming the lock.
 - Fix between campaigns, never mid-campaign; fixtures, variant texts, and section
   spans stay verbatim across campaigns.
-- Record only after a completed FULL campaign (`--scope dir --scored
-  $CAMP/scored.json`); cleanup uses `--prefix shape-test`.
+- Close out only after a completed FULL campaign, in the order score →
+  inventory-update → verify → record (mini-campaigns never touch streaks);
+  cleanup uses `--prefix shape-test`.
 
 ## Inputs
 
@@ -126,7 +129,12 @@ excluded rule gets a routing reason in the manifest.
 The inventory is a `rules.json` file:
 
 - `skill`, `generated` (date)
-- `rules` — array of `{id, section, kind, statement, entries}`
+- `rules` — array of `{id, section, kind, statement, entries}`, optionally
+  carrying `status` (`"ablation"` or `"removed"`) plus `ablation_streak`
+  (int >= 0, required exactly when `status` is present): `"ablation"` marks a
+  removal candidate under measurement; `"removed"` means the rule text is
+  already deleted from the source SKILL.md and the item and its entries
+  persist purely as regression coverage.
 - `excluded` — array of `{id, section, kind, reason}`: this is where excluded rules
   are recorded — there is no other manifest — and every excluded rule carries its
   routing reason in `reason`
@@ -136,9 +144,15 @@ The inventory is a `rules.json` file:
   numbers already taken by existing ids in either list — so a newly-excluded
   rule that is its section's second bullet may still receive `-03` if two items
   precede it in the pool. Ids are minted by the
-  script, not assigned by hand: draft the inventory id-less, then run
-  `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.
-  Re-minting an unchanged file is a byte-identical no-op.
+   script, not assigned by hand: draft the inventory id-less, then run
+   `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.
+   Re-minting an unchanged file is a byte-identical no-op. Regenerate against
+   the previous canonical inventory with `--carry <old canonical>`: surviving
+   ids keep their status/ablation_streak pair; an old item with status
+   `removed` whose id is absent from the draft is re-appended verbatim (a
+   removed rule is gone from the doc, so the fresh draft never contains it);
+   dropped ablation or status-less items are NOT re-appended — the normal
+   `deleted` diff bucket covers them.
 
 Every entry is a JSON object with exactly these keys: `id` (stable, never reused), `rule` (manifest id), `kind` (`shaping` or `pattern`), `section` (the rule's verbatim span from the skill body), `fixtures` (`application` always; `counter-example` exactly when kind is `pattern`), `markers` (non-empty dict of grep tokens for wrong and right shapes), `restraint_markers` (exactly when kind is `pattern`, forbidden otherwise), `variants` (1-3 entries keyed `v1`..`v3`; the v0 control is implicit and never stored).
 
@@ -207,7 +221,9 @@ rules whose control exhibits the failure earn a variant run, after a second spen
 confirmation — healthy rules get no variant spend at all. Pattern-rule
 winners then run the restraint gate against the counter-example fixture before they can
 be adopted; non-converging rules get one round-2 mini-campaign on a changed form (cap 2
-rounds), then `unresolved`. This preserves the micro-test's "control arm is the
+rounds), then `unresolved`. Entries whose rules carry an ablation/removed
+status run the phase-1 control only — phase 2 never dispatches variants for
+them, even when their control failed. This preserves the micro-test's "control arm is the
 stopping signal" rule across many rules without burning variant spend on rules whose
 failure does not reproduce.
 
@@ -228,10 +244,13 @@ retrieval track.)
 4. Preflight (no spend): `python3 --version` (>= 3.10); `evaluator.py check
    --harness <h> [--model m]` (with `--model`, the check also validates the
    model against the harness's model list); `evaluator.py check --entries
-   <entries.json> --skill-file <source SKILL.md>` — the proposal-time
+   <entries.json> --skill-file <source SKILL.md> [--manifest <canonical
+   rules.json>]` — the proposal-time
    section-span check (no harness involvement; the command strips the
-   frontmatter itself): every entry's span must occur verbatim exactly once
-   in the current skill body BEFORE the campaign is built. Exit 1 names
+   frontmatter itself): a normal or ablation entry's span must occur
+   verbatim exactly once in the current skill body BEFORE the campaign is
+   built, and a removed entry's span must occur zero times (the rule text
+   is already deleted; `--manifest` supplies the statuses). Exit 1 names
    every drifted span — fix the entries or the spans now, or the suite's
    doc-drift gate aborts after all setup work (steps 5-7).
 5. One sterile workspace: `workspace-manager.sh init --prefix shape-test` → WS
@@ -251,12 +270,17 @@ retrieval track.)
    pathlib.Path('$CAMP/skill-body.txt').write_text(src[len(fm):])"
    ```
 8. **Spend confirmation #1**: rules × 5 control reps — phase 1 covers ALL rules
-   and is never skipped.
-9. `evaluator.py suite --track shape-test --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 300]`
+   and is never skipped. Name the ablation/removed entries (they run
+   control-only, whatever `--arms` says) and the resulting reduced run count.
+9. `evaluator.py suite --track shape-test --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --manifest <canonical rules.json> --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 300]` — with `--manifest`, an entry whose rule carries a status runs the v0 control only (v0 IS the control; for a removed entry the assembled body is unchanged, the span already gone): the suite emits `note: entry <id> is ablation/removed; running v0 only` and the results record carries only the v0 arm.
 10. Score controls via `evidence --track shape-test`. Rules whose control never exhibits the failure
     → `no-failure` + ablation flag; **stop those rules, author nothing**.
 11. **Spend confirmation #2**: failing rules × variants × 5 reps — only rules
-    whose control exhibited the failure earn variant runs. A generic continuation
+    whose control exhibited the failure earn variant runs. Ablation/removed
+    entries never earn variant runs, even when their v0 failed: for an
+    ablation entry a v0 failure means back to normal testing (close-out
+    clears its status), so its variants run next campaign, not this one. A
+    generic continuation
     message ("keep going", "proceed", "sounds good", a thumbs-up) is **NOT** a second
     spend confirmation. The second spend confirmation must be an explicit approval
     that names the rules earning variant runs — if the user's reply does not
@@ -309,7 +333,25 @@ retrieval track.)
     different rounds never pool; a round-2-adopted arm is recorded in
     scored.json under its namespaced key.
 16. Report (multi-rule format per Report format).
-17. After every completed FULL campaign (never aborted, never a mini-campaign):
+17. After every completed FULL campaign (never aborted, never a mini-campaign —
+    mini-campaigns never touch streaks), close out in the order score →
+    inventory-update → verify → record. First apply the scored control
+    outcomes to the inventory (deterministic — never hand-edit streaks to
+    reflect a campaign result):
+    `uv run python tools/test-harness/evaluator.py inventory-update
+    --manifest <root>/skills-workspace/<s>/shape-tests/rules.json --kind rule
+    --scored $CAMP/scored.json --out
+    <root>/skills-workspace/<s>/shape-tests/rules.json` — per rule, keyed
+    through its entries' scored results: ANY control-fail fails the rule,
+    else ANY pass passes it, else (all void / no scored rows) the rule is
+    untouched. A control pass auto-marks a status-less rule
+    `status: "ablation"`, `ablation_streak: 0`, or increments an existing
+    streak; a control fail on an ablation rule clears status and streak
+    entirely (the rule proved load-bearing — back to normal testing; a
+    `load-bearing:` line is printed); a control fail on a removed rule
+    resets the streak to 0 and prints `regression failure: <id> — control
+    failed; the deletion may have been wrong`. A void control run neither
+    increments nor resets. Then
     gate with `evaluator.py verify --track shape-test --manifest
     <root>/skills-workspace/<s>/shape-tests/rules.json --entries
     <root>/skills-workspace/<s>/shape-tests/entries.json --scored
@@ -318,7 +360,9 @@ retrieval track.)
     --campaign-dir $CAMP --skill-path <skill dir>` — the end-of-campaign
     consistency proof (BUGS.md B9): snapshots byte-identical to the canonical
     files, manifest↔entries wiring, skill-body.txt == the canonical SKILL.md
-    with frontmatter stripped, every section span unique, results covering
+    with frontmatter stripped, every section span unique (a removed entry's
+    span absent — verify reads the statuses from its own `--manifest`
+    inventory), results covering
     every entry, and the scored-check flow re-run, ending with the record
     preflight (the exact counts record will write). All groups always run;
     exit 1 names every failing group. When scored.json asserts a round-2-adopted
@@ -330,8 +374,15 @@ retrieval track.)
     `adopted_arm` names. Record only on exit 0:
     `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
     <root>/skills-workspace/<s>/manifest.json --scope dir --scored
-    $CAMP/scored.json --campaign <name>` — the track counts come from the
-    scored file; `--track` is optional (auto-detected). The manifest `date`
+    $CAMP/scored.json --results $CAMP/results-control.json [--results
+    $CAMP/results-variants.json] [--results $CAMP/results-restraint.json]
+    --inventory <root>/skills-workspace/<s>/shape-tests/rules.json
+    --campaign <name>` — the track counts come from the
+    scored file; `--track` is optional (auto-detected). Model and variant
+    derive from the `--results` files' config blocks (one `--results` per
+    results file) alongside a cumulative deduped `models` list; the
+    `ablations` count derives from `--inventory` (the number of items
+    carrying a status). The manifest `date`
     is taken from the `--campaign` dir name, so a close-out after local
     midnight needs no `--date`.
 18. Write-backs to the source `SKILL.md` only on explicit user confirmation; afterwards
@@ -359,7 +410,10 @@ no `model`/`variant`/`temperature`/`top_p` pins; `--skill-file` exists and is no
 validation; `--fixture-key` is `application` or `counter-example` and the keyed fixture
 exists on every selected entry; `--arms` parses to a subset of `{v0} ∪ variants`
 present on each entry; `--reps`/`--timeout` >= 1; out directory exists; every section
-span occurs verbatim exactly once in the snapshotted body (doc drift aborts before
+span occurs verbatim exactly once in the snapshotted body — a removed entry's
+span occurs zero times (`--manifest` supplies the statuses), failing with
+"doc drift: section span of removed entry <id> occurs N times in the skill
+body (expected zero — the rule was removed)" (doc drift aborts before
 spend — the same assertion the proposal-time `check --entries/--skill-file` mode in
 step 4 runs against the current skill body before the campaign is built); and the
 **contamination gate** (a synced skill in the workspace fails with
@@ -372,7 +426,11 @@ keeps attribution and spend clean):
 
 1. Assemble the arm body from the snapshot: v0 = the rule's section span removed
    together with exactly one following blank line; vN = the span replaced by the
-   variant text. The assembly is verified before dispatch (`verify_arm_bytes`).
+   variant text. For a removed entry v0 is the body unchanged (the span is
+   already gone). An entry whose rule carries a status (suite `--manifest`)
+   runs the v0 control only, whatever `--arms` says; its results record
+   carries only the v0 arm. The assembly is verified before dispatch
+   (`verify_arm_bytes`).
 2. Inject: the per-run prompt is `Project conventions:` + the assembled arm body +
    `Task:` + the bare fixture text — never rule text, markers, or expected shape.
    Injection, not byte-states: each rep's prompt is assembled fresh from the
@@ -467,10 +525,15 @@ flow misses:
 - **Over-application.** The lens gets forced onto situations that do not call for it.
   This failure only exists *with* the guidance loaded, so counter-example fixtures need
   no control arm. Before adopting any variant, run the **restraint gate**: 5 reps
-  against the entry's `counter-example` fixture (`--fixture-key counter-example`),
-  scored against `restraint_markers`. A variant that over-applies is disqualified; gate
-  the next-best converging variant the same way. Budget +5 samples per gated variant,
-  cap +10.
+   against the entry's `counter-example` fixture (`--fixture-key counter-example`),
+   scored against `restraint_markers`. A variant that over-applies is disqualified; gate
+   the next-best converging variant the same way. Budget +5 samples per gated variant,
+   cap +10.
+
+The scored `result` doubles as the control outcome the inventory close-out
+consumes (step 17): `no-failure` = control passed (the failure was NOT
+exhibited without the rule); `adopted`/`unresolved` = control failed;
+`void` = void.
 
 ## Improving the skill definition
 
@@ -503,6 +566,19 @@ Campaign rules:
 - Exemption clauses do not scope ("this limit doesn't apply to code blocks" still
   suppresses code blocks). If part of the output must be exempt, restructure so the
   rule cannot reach it.
+
+## Removal procedure
+
+At 3 consecutive control passes (the documented threshold — policy, never
+mechanically enforced), remove a rule only with user confirmation:
+
+1. Delete the rule text from the source `SKILL.md`.
+2. Hand-edit the inventory item to `status: "removed"` and keep its
+   `ablation_streak` — the streak continues, it is NOT reset.
+3. Keep the entry: its span is now absent from the body, which is exactly
+   what the span check expects of a removed entry (zero occurrences). The
+   entry's variants stay stored but never run — a removed entry runs the v0
+   control only, as regression coverage.
 
 ## Campaign layout
 
@@ -548,9 +624,9 @@ and of `skill-body.txt` (the exact injected bytes) is taken at setup — the rec
 checksum reflects the unmodified source, with per-arm variant text pinned by the
 snapshotted `entries.json`.
 
-Every pre-campaign plan is one self-contained card per planned entry, in this order: a heading line `## N. <entry-id> (<kind>)`; a `covers:` line naming the manifest rule id; a `fixture:` section with the full fixture text; a `markers:` list; a `variants:` list naming each arm and its full text; a `why:` line. After the cards, three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the cards.
+Every pre-campaign plan is one self-contained card per planned entry, in this order: a heading line `## N. <entry-id> (<kind>)`; a `covers:` line naming the manifest rule id; a `fixture:` section with the full fixture text; a `markers:` list; a `variants:` list naming each arm and its full text; a `why:` line. A statused entry's card also shows its status and ablation_streak; removed entries stay in the proposal labeled regression coverage — never propose pruning them. After the cards, three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the cards.
 
-Every campaign report opens with four lines — `shape test: <skill> — <date>`, `entries:`, `artifacts:`, `manifest:` — then one block per rule — **every** rule, including no-failure, unresolved, and void rules, gets its own `## <entry-id> (<kind>) — <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, a `write-back:` line; then `no-failure (ablation review):` and `unresolved:` sections — indexes listing those same rules, never substitutes for the per-rule blocks — where applicable; and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line.
+Every campaign report opens with four lines — `shape test: <skill> — <date>`, `entries:`, `artifacts:`, `manifest:` — then one block per rule — **every** rule, including no-failure, unresolved, and void rules, gets its own `## <entry-id> (<kind>) — <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, a `write-back:` line — each block annotated with the entry's inventory status and ablation_streak; then `no-failure (ablation review):` and `unresolved:` sections — indexes listing those same rules, never substitutes for the per-rule blocks — where applicable; a `regression failures:` section quoting inventory-update's `regression failure:` lines verbatim (a control failure on a removed rule means the deletion may have been wrong — consider restoring); an `ablation candidates:` list with streaks and the threshold note: 3 consecutive control passes → recommend removal (the human flips status to `removed` and deletes the rule text — see Removal procedure; the threshold is documented policy, never mechanically enforced); and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line.
 
 scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern`, matching the results), `result` (one of `adopted`, `no-failure`, `unresolved`, `void`), `adopted_arm` (exactly when result is adopted; a non-v0 arm present in that entry's results), `restraint_gate` (`pass`/`fail`, exactly when kind is pattern and result is adopted; `null` otherwise), optional `marker_counts` and `notes`. Every entry id in the results is covered exactly once — a missing, duplicate, or unknown id fails `scored-check --track shape-test`. Example:
 
@@ -619,18 +695,19 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
 - [ ] Inputs collected: skill resolved name-or-path, source root derived, harness user-specified, model/variant/reps/timeout settled; rule inventory built fresh, every rule classified, manifest diffed; no shaping/pattern rules → stopped with routings reported
 - [ ] Every excluded rule recorded with a routing reason; frontmatter-convention rules never proposed as entries
 - [ ] Proposal cards in the fixed format, one per entry, with full fixture/variant texts and the cost formula; user approved
-- [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped), verified at proposal time by `evaluator.py check --entries <entries.json> --skill-file <source SKILL.md>`; `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
+- [ ] Every `section` span copied verbatim and appearing exactly once in the body (frontmatter stripped) — zero occurrences for removed entries — verified at proposal time by `evaluator.py check --entries <entries.json> --skill-file <source SKILL.md> --manifest <rules.json>`; `fixtures.application` on every entry; `counter-example` + `restraint_markers` exactly on pattern entries
 - [ ] Markers calibrated at proposal time against prior-campaign results (`evidence --matrix`): every wrong-shape marker fires on a known-bad sample, every right-shape/property marker silent on known-good; amended entries.json frozen with the fixtures for the campaign
 - [ ] Preflight green: python3 >= 3.10, `evaluator.py check --harness` (with `--model` when a model is set) exit 0; ONE workspace initialized with `--prefix shape-test`
 - [ ] Workspace never synced (contamination gate clean); campaign dir created; entries.json, rules.json, the source skill dir, and skill-body.txt (via the documented pipeline — never hand-edited) snapshotted with the exact commands recorded
-- [ ] Spend confirmation #1 (rules × 5 control reps) before phase 1; `suite --track shape-test --arms v0` wrote results-control.json; only exit codes and JSON consumed
+- [ ] Spend confirmation #1 (rules × 5 control reps) before phase 1, naming the control-only (ablation/removed) entries and the reduced run count; `suite --track shape-test --arms v0 --manifest <rules.json>` wrote results-control.json; only exit codes and JSON consumed
 - [ ] Controls scored via `evidence --track shape-test`; no-failure rules stopped with nothing authored and flagged for ablation review
-- [ ] Spend confirmation #2 (failing rules × variants × 5 reps) before phase 2; `suite --track shape-test --arms v1,v2,v3 --entries $CAMP/entries-failing.json` wrote results-variants.json
+- [ ] Spend confirmation #2 (failing rules × variants × 5 reps) before phase 2, ablation/removed entries excluded from variant runs even when their control failed; `suite --track shape-test --arms v1,v2,v3 --entries $CAMP/entries-failing.json` wrote results-variants.json
 - [ ] Every flagged marker sample hand-read; convergence judged across the 5 reps, not by marker averages; prohibition arms never adopted; ties to the shorter phrasing
 - [ ] Pattern-rule winners gated: 5 reps on `counter-example` with `--fixture-key counter-example`, scored against `restraint_markers`; over-applying variants disqualified and the next-best gated
 - [ ] Every suite invocation ran one at a time; the restraint gate and round-2 never overlapped with each other or any other suite
 - [ ] Round 2 (if any) changed the FORM in a never-recorded mini-campaign; hard cap 2 rounds respected
 - [ ] scored.json skeleton emitted and the null judgment fields filled for every union results id; `scored-check --track shape-test` exits 0
-- [ ] Report shows per-rule per-arm tables, gate lines for pattern rules, no-failure/unresolved sections, summary counts, and the `artifacts:`/`manifest:` lines
-- [ ] `verify --track shape-test` exits 0 (snapshots byte-identical, manifest↔entries wiring, skill-body/spans, scored↔results, record preflight); `record --scope dir --scored $CAMP/scored.json` run only after a completed full campaign — never aborted, never a mini-campaign, never a calibration pilot
+- [ ] Report shows per-rule per-arm tables, gate lines for pattern rules, per-entry status/streak annotations, no-failure/unresolved/regression-failures/ablation-candidates sections, summary counts, and the `artifacts:`/`manifest:` lines
+- [ ] Close-out order honored (full campaign only): `inventory-update` applied the scored control outcomes to rules.json (mini-campaigns never touch streaks); `verify --track shape-test` exits 0 (snapshots byte-identical, manifest↔entries wiring, skill-body/spans with removed entries at zero occurrences, scored↔results, record preflight); `record --scope dir --scored $CAMP/scored.json --results <file>... --inventory <rules.json>` run only after a completed full campaign — never aborted, never a mini-campaign, never a calibration pilot
+- [ ] Removals happened only at 3 consecutive control passes with user confirmation: rule text deleted from the source SKILL.md, the inventory item hand-flipped to `removed` with its streak kept, the entry kept as regression coverage
 - [ ] Write-backs applied only with user confirmation, followed by a never-recorded confirmation mini-campaign; `cleanup --workspace $WS --prefix shape-test` run

@@ -71,7 +71,8 @@ scripts only — never parse their prose stdout.
   invocation must repeat the original run's `--model`/`--variant` (check
   before invoking; documented, not mechanically enforceable).
 - Verdicts: `bulletproof` / `no-failure` / `unresolved` / `void`.
-  `no-failure` *is* the ablation flag — there is no separate ablation field.
+  `no-failure` = the control passed (the baseline complied);
+  `inventory-update` turns it into an `ablation` status on the rule.
 - A rep passes only if it chose `compliant_option` **and** cited a section.
 - Record only after a completed FULL campaign (`--scope dir --scored
   $CAMP/scored.json`); cleanup uses `--prefix pressure-test`.
@@ -114,7 +115,12 @@ The inventory is a `rules.json` file:
 
 - `skill`, `generated` (date)
 - `rules` — array of `{id, section, kind, statement, entries}`; `kind` is
-  `discipline` for every in-scope rule; `entries` lists its scenario ids
+  `discipline` for every in-scope rule; `entries` lists its scenario ids.
+  An item may also carry `status` plus `ablation_streak` (int ≥ 0, present
+  exactly when `status` is): `ablation` = a removal candidate under
+  measurement; `removed` = the rule text is already deleted from the source
+  SKILL.md and the item plus its scenarios persist purely as regression
+  coverage
 - `excluded` — array of `{id, section, kind, reason}` — there is no other
   manifest, and every excluded rule carries its routing reason in `reason`
 - Rule ids are section-anchored: `R-<section-slug>-<nn>`, numbered within
@@ -124,15 +130,22 @@ The inventory is a `rules.json` file:
   newly-excluded rule that is its section's second bullet may still receive
   `-03` if two items precede it in the pool. Ids are minted by
   the script, not assigned by hand: draft the inventory id-less, then run
-  `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.
-  Re-minting an unchanged file is a byte-identical no-op, which is what makes
-  the diff below trustworthy.
+   `evaluator.py inventory-mint --inventory <draft> --kind rule --carry
+   <old canonical> --out <canonical>` (drop `--carry` on the first mint).
+   Carry keeps the `status`/`ablation_streak` of surviving ids, re-appends
+   old `removed` items absent from the draft verbatim (a removed rule is
+   gone from the doc, so the fresh draft never contains it), and never
+   re-appends dropped `ablation`/status-less items (the `deleted` diff
+   bucket covers them). Re-minting an unchanged file is a byte-identical
+   no-op, which is what makes the diff below trustworthy.
 
 Diff a rebuilt inventory against the existing `rules.json` with
 `evaluator.py inventory-diff --old <old> --new <new> --kind rule` and read its
 JSON (new / changed / deleted / excluded): the script diffs, you propose — a
 new discipline rule → propose a scenario; a changed rule statement → flag for
-re-test; a deleted rule → propose pruning its scenario.
+re-test; a deleted rule → propose pruning its scenario. Keep `removed`
+entries in the proposal (labeled regression coverage); never propose pruning
+them.
 
 ## Scenario design
 
@@ -176,7 +189,9 @@ Present the pre-campaign plan as one self-contained card per rule: a heading
 line `## N. <entry-id> (<rule-id>)`; a `covers:` line naming the manifest
 rule id; a `scenario:` section with the full scenario text; a `pressures:`
 list naming the taxonomy members used; the `compliant option:`; a `why:` line
-explaining what violation the scenario forces into the open. After the cards,
+explaining what violation the scenario forces into the open. Show a statused
+rule's `status` and `ablation_streak` on its card; label a `removed` rule's
+card regression coverage. After the cards,
 three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes
 or wraps the cards.
 
@@ -228,11 +243,14 @@ convention as the other testing tracks.)
    `scenarios.json`, `rules.json`, the source skill dir, and `skill-body.txt`
    (record the exact commands).
 6. **Per rule, strictly serial** — spend confirmation, then RED (5 reps,
-   scenario only, nothing injected) → `evidence --track pressure-test` → read every
-   answer. Baseline complies → `no-failure` + ablation flag; author nothing;
+   scenario only, nothing injected; pass `--manifest <canonical
+   rules.json>`) → `evidence --track pressure-test` → read every
+   answer. Baseline complies → `no-failure`; author nothing;
    next rule.
-7. Baseline violates → spend confirmation → **GREEN** (5 reps,
-   `skill-body.txt` injected) → evidence: a rep passes only if it chose
+7. Baseline violates → spend confirmation (name the control-only
+   scenarios — `ablation`/`removed`, which green skips — and the reduced
+   run count) → **GREEN** (5 reps, `skill-body.txt` injected,
+   `--manifest <canonical rules.json>`) → evidence: a rep passes only if it chose
    `compliant_option` AND cited a section; record every violating rep's
    rationalization **verbatim** — the exact words are what you counter.
 8. **Meta-test** every violating green/refactor rep via `meta --track pressure-test`;
@@ -250,8 +268,22 @@ convention as the other testing tracks.)
     (see Scoring), then re-runs with `--scored $CAMP/scored.json` to
     validate — the check gates `record`. An unfilled skeleton fails the
     check.
-11. **Report** (multi-rule format per Report format).
-12. **Manifest record** — completed full campaigns
+11. **inventory-update** — full campaigns only; mini-campaigns (confirm/,
+    round-2/) never touch streaks. `evaluator.py inventory-update
+    --manifest <canonical rules.json> --kind rule --scored
+    $CAMP/scored.json --out <canonical rules.json>`. Deterministic, per
+    rule keyed through its scenarios' scored results: ANY control-fail
+    fails the rule, elif ANY pass passes it, else (all void / no scored
+    rows) untouched. A control pass on a status-less rule auto-marks it
+    `status: "ablation"`, `ablation_streak: 0`; on a statused rule it
+    increments the streak. A control fail on an `ablation` rule clears
+    `status`+`ablation_streak` (the rule proved load-bearing — back to
+    normal testing; a `load-bearing:` line is printed); on a `removed`
+    rule it resets the streak to 0 and prints `regression failure: <id> —
+    control failed; the deletion may have been wrong`. A void control run
+    neither increments nor resets.
+12. **Report** (multi-rule format per Report format).
+13. **Manifest record** — completed full campaigns
     only; never aborted campaigns, never mini-campaigns, never calibration
     pilots. Gate it with `evaluator.py verify --track pressure-test
     --manifest <root>/skills-workspace/<s>/pressure-tests/rules.json
@@ -265,21 +297,26 @@ convention as the other testing tracks.)
     preflight (the exact counts record will write). Record only on exit 0:
     `evaluator.py record --skill <s> --skill-path <skill dir> --manifest
     <root>/skills-workspace/<s>/manifest.json --scope dir --track
-    pressure-test --scored $CAMP/scored.json --campaign <campaign dir name>`
+    pressure-test --scored $CAMP/scored.json --campaign <campaign dir name>
+    --results <each $CAMP results file, one flag per file> --inventory
+    <root>/skills-workspace/<s>/pressure-tests/rules.json>`
     — `--skill`, `--skill-path`, and `--manifest` are required; the track
-    counts come from the scored file. `--manifest` is the per-skill aggregate
+    counts come from the scored file; the entry's model/variant derive
+    from the results config blocks (plus a cumulative deduped `models`
+    list) and its `ablations` count from `--inventory` (the number of
+    items carrying a status). `--manifest` is the per-skill aggregate
     manifest, NOT the `rules.json` inventory (that path is only verify's
     `--manifest` argument); record overwrites only the `pressure-test` key
     and preserves every other key. The manifest `date` is taken from the
     `--campaign` dir name, so a close-out after local midnight needs no
     `--date`.
-13. **Write-backs** to the source `SKILL.md` only on explicit user
+14. **Write-backs** to the source `SKILL.md` only on explicit user
     confirmation; afterwards run a confirmation mini-campaign of the edited
     rules (in the `confirm/` subdir of this campaign's dir — Campaign
     layout; scenarios file filtered with `evaluator.py select --entries
     <scenarios> --ids <edited rules' ids (rule or entry ids accepted)> --out
     $CAMP/confirm/scenarios.json`; never recorded).
-14. `cleanup --workspace $WS --prefix pressure-test`.
+15. `cleanup --workspace $WS --prefix pressure-test`.
 
 Per-rule commands (from the repo root):
 
@@ -293,12 +330,14 @@ evaluator.py select --entries $CAMP/scenarios.json --ids <rule> \
 evaluator.py suite --track pressure-test --harness <h> --skill <s> \
   --agents-dir <pressure-skill-dir>/agents --workspace $WS \
   --scenarios $CAMP/scenario-<rule>.json --arm red \
+  --manifest <root>/skills-workspace/<s>/pressure-tests/rules.json \
   --out $CAMP/results-red-<rule>.json [--model m] [--variant v] \
   [--reps 5] [--timeout 300]
 
 # GREEN — original snapshotted body injected
 evaluator.py suite --track pressure-test ... --arm green \
   --skill-file $CAMP/skill-body.txt \
+  --manifest <root>/skills-workspace/<s>/pressure-tests/rules.json \
   --out $CAMP/results-green-<rule>.json
 
 # meta — one invocation per violating rep, full question text supplied
@@ -311,6 +350,7 @@ evaluator.py meta --track pressure-test --harness <h> \
 # REFACTOR round N — counter body injected
 evaluator.py suite --track pressure-test ... --arm green \
   --skill-file $CAMP/counters/<rule>-round<N>.md \
+  --manifest <root>/skills-workspace/<s>/pressure-tests/rules.json \
   --out $CAMP/results-refactor-<rule>-r<N>.json
 ```
 
@@ -336,6 +376,13 @@ that this is a test):
 
 The answer contract lives in the agent body and is constant across arms.
 Never let the eval agent know this is a test.
+
+`--manifest <canonical rules.json>` ties the run to the inventory: red (the
+control) runs every scenario normally; green skips each `ablation`/`removed`
+entry, recording `note: entry <id> is ablation/removed; green arm skipped`
+in that entry's record with no arm key — a record with no arms at all still
+writes a valid results envelope. The harness adds only the skip; the
+green-only-on-a-violating-baseline decision stays a workflow rule.
 
 Execution: a smoke rep first (a harness failure aborts before further
 spend), then parallel batches of at most 10 workers with arm-tagged progress
@@ -373,13 +420,15 @@ fresh campaign never collides with a previous one.
 per entry the statement, pressures, and compliant option, and per arm/rep the
 full answer text, void signals, and session id. **It never extracts the
 choice letter** — the driver reads every answer and judges choice + citation
-by hand; grep is triage, not verdict. Verdicts per rule:
+by hand; grep is triage, not verdict. Score the control outcome:
+`no-failure` = the control passed (the baseline complied — nothing else
+ran); `bulletproof`/`unresolved` = the control failed (the baseline
+violated, green ran); `void` = void. Verdicts per rule:
 
 - `bulletproof` — green passes, or a refactor round converges (all reps
   compliant and citing).
 - `no-failure` — the red baseline complied; the rule costs prose for
-  nothing. This verdict *is* the ablation flag (`no-failure` ⟺ ablation
-  flag deterministically); re-check on model upgrades.
+  nothing. Re-check on model upgrades.
 - `unresolved` — still violating after 3 refactor rounds; escalate.
 - `void` — no measurable baseline (every red rep voided). A harness/agent
   problem, never a rule finding; escalate (pressure-test the agent body,
@@ -467,7 +516,7 @@ nothing else. Always run RED before writing any counter: counters written
 before a failing baseline document what you *think* needs preventing, not
 what actually fails. Test counters by injecting the revised text; write back
 to the source `SKILL.md` only after the campaign ends and the user confirms
-(step 13).
+(step 14).
 
 ## Campaign layout
 
@@ -538,9 +587,14 @@ economic; compliant option B):
 
 Manifest record (`evaluator.py record --skill <s> --skill-path <skill dir>
 --manifest <root>/skills-workspace/<s>/manifest.json --scope dir --track
-pressure-test --scored $CAMP/scored.json --campaign <campaign dir name>`):
+pressure-test --scored $CAMP/scored.json --campaign <campaign dir name>
+--results <each results file, one flag per file> --inventory <canonical
+rules.json>`):
 writes a `pressure-test` key — `date`, `checksum` (`sha256:` of the skill
-dir), `bulletproof`, `no-failure`, `unresolved`, `voids`, optional `campaign`
+dir), `bulletproof`, `no-failure`, `unresolved`, `voids`, optional `campaign`,
+`model`/`variant` plus a cumulative deduped `models` list (derived from the
+results config blocks), and `ablations` (the number of `--inventory` items
+carrying a status)
 — with the counts taken from the scored file and the `date` from the
 `--campaign` dir name. The manifest target is the
 per-skill aggregate `skills-workspace/<s>/manifest.json`, never the
@@ -556,10 +610,18 @@ no-failure, unresolved, and void rules, gets its own `## <entry-id>
 (<rule-id>) — <verdict>` heading, a table with one row per arm (arm name,
 reps, compliant count, cited count, notes), a `rationalizations (verbatim)
 and counters:` list where applicable, a `meta:` line where applicable, and a
-`write-back:` line; then `no-failure (ablation review):` and `unresolved:`
+`write-back:` line — annotate every rule block with the rule's `status` and
+`ablation_streak`; then `no-failure (ablation review):`, `unresolved:`,
+`regression failures:`, and `ablation candidates:`
 sections — indexes listing those same rules, never substitutes for the
 per-rule blocks — where applicable; and a final `summary: B bulletproof / N
-no-failure / U unresolved / V void (<total> rules)` line.
+no-failure / U unresolved / V void (<total> rules)` line. The
+`regression failures:` section quotes inventory-update's regression-failure
+lines (a control failure on a removed rule means the deletion may have been
+wrong — consider restoring); `ablation candidates:` lists each statused
+rule with its streak and the threshold note: 3 consecutive control passes →
+recommend removal (human flips status to removed and deletes the rule
+text) — documented policy, never mechanically enforced.
 
 ```text
 pressure test: strict-tdd — 2026-09-18
@@ -577,6 +639,7 @@ rationalizations (verbatim) and counters:
 meta: round-0 violators said the conventions "should have stated the
 no-exceptions cases explicitly" → counter adopted from their wording
 write-back: add the counters to <skill>/SKILL.md [awaiting user confirmation]
+status: ablation (streak 0)
 
 no-failure (ablation review):
 <rule-id> — baseline complied 5/5; re-check next campaign.
@@ -585,11 +648,30 @@ unresolved:
 <rule-id> — still violating after 3 refactor rounds; escalate
 (restructure or enforce mechanically instead of prose).
 
+regression failures:
+regression failure: <rule-id> — control failed; the deletion may have
+been wrong
+
+ablation candidates:
+<rule-id> — streak 1/3; 3 consecutive control passes → recommend removal
+(human flips status to removed and deletes the rule text)
+
 summary: 3 bulletproof / 1 no-failure / 0 unresolved / 0 void (4 rules)
 ```
 
 `manifest:` reads `not recorded (aborted)` or `not recorded (mini-campaign)`
 on those paths — only a completed full campaign is recorded.
+
+## Removal procedure
+
+At 3 consecutive control passes on an `ablation` rule, propose removal and
+act only with user confirmation:
+
+1. Delete the rule text from the source `SKILL.md`.
+2. Hand-edit the inventory item to `status: "removed"` — the streak
+   continues, never reset.
+3. Keep the scenario: it is now regression coverage, and the red baseline
+   keeps running.
 
 ## Gotchas
 
@@ -607,9 +689,8 @@ on those paths — only a completed full campaign is recorded.
 - `void` is a harness/agent problem — never a rule finding. Every red rep
   voiding means no measurable baseline; escalate (pressure-test the agent
   body, raise `--timeout` on slow endpoints, re-run) instead of scoring.
-- `no-failure` ⟺ ablation flag: there is no separate ablation field, and
-  `no-failure` entries must have no green arm in the results union — running
-  GREEN "just to see" after a compliant baseline breaks
+- `no-failure` entries must have no green arm in the results union —
+  running GREEN "just to see" after a compliant baseline breaks
   `scored-check --track pressure-test`.
 - Meta output is report evidence only — it never gates `scored.json`.
 - Counters are full revised bodies, never fragments; a refactor round must
@@ -673,14 +754,22 @@ on those paths — only a completed full campaign is recorded.
 - [ ] Mid-campaign arm re-runs (if any) disclosed in the report
 - [ ] scored.json skeleton emitted and the null judgment fields filled;
   covers every union results id; `scored-check --track pressure-test` exits 0
-- [ ] Report shows per-rule per-arm tables for every rule, verbatim
-  rationalizations, counters, meta findings, index sections, the manifest
-  line variant, and summary counts
+- [ ] `inventory-update` run after scoring on a full campaign (never on a
+  mini-campaign); statuses and streaks carried into the report
+- [ ] Report shows per-rule per-arm tables for every rule, status/streak
+  annotations, verbatim rationalizations, counters, meta findings, index
+  sections (including regression failures and ablation candidates), the
+  manifest line variant, and summary counts
 - [ ] `verify --track pressure-test` exits 0 (snapshots byte-identical,
   manifest↔scenarios wiring, skill-body identity, results coverage,
-  scored↔results, record preflight); full `record` invocation (per step 12:
+  scored↔results, record preflight); full `record` invocation (per step 13:
   `--skill`/`--skill-path`/`--manifest <root>/skills-workspace/<s>/manifest.json`
-  required, `--scope dir --track pressure-test --scored $CAMP/scored.json`)
+  required, `--scope dir --track pressure-test --scored $CAMP/scored.json
+  --results <one flag per results file> --inventory <canonical
+  rules.json>`)
   run only after a completed full campaign
+- [ ] Removal procedure at the 3-pass threshold: user confirmed, rule text
+  deleted from the source SKILL.md, item flipped to `removed` with the
+  streak kept, scenario kept as regression coverage
 - [ ] Write-backs only with explicit user confirmation, followed by a
   never-recorded confirmation mini-campaign; cleanup run

@@ -149,6 +149,8 @@ class RecordTests(unittest.TestCase):
             skill_path=str(self.skill_md),
             manifest=str(self.manifest),
             score=0.81,
+            model=None,
+            variant=None,
             campaign="campaign-2026-09-02",
             date=None,
         )
@@ -162,9 +164,23 @@ class RecordTests(unittest.TestCase):
         data = json.loads(self.manifest.read_text())
         self.assertEqual(data["skill"], "test-skill")
         entry = data["trigger-test"]
-        self.assertEqual(set(entry), {"date", "checksum", "score", "campaign"})
+        self.assertEqual(
+            set(entry),
+            {
+                "date",
+                "checksum",
+                "score",
+                "campaign",
+                "model",
+                "variant",
+                "models",
+            },
+        )
         self.assertEqual(entry["score"], 0.81)
         self.assertEqual(entry["campaign"], "campaign-2026-09-02")
+        self.assertIsNone(entry["model"])
+        self.assertIsNone(entry["variant"])
+        self.assertEqual(entry["models"], [])
 
     def test_checksum_is_frontmatter_sha256(self):
         self._record()
@@ -281,14 +297,32 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(self._record(score=1.5), 1)
         self.assertFalse(self.manifest.exists())
 
+    def test_model_variant_passthrough_flags(self):
+        # Trigger records carry the attribution fields too: --model and
+        # --variant are the frontmatter-scope passthroughs.
+        rc = self._record(model="m1", variant="v9")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["model"], "m1")
+        self.assertEqual(entry["variant"], "v9")
+        self.assertEqual(entry["models"], ["m1"])
+
+    def test_models_accumulate_across_records(self):
+        self.assertEqual(self._record(model="m1"), 0)
+        self.assertEqual(self._record(model="m2"), 0)
+        self.assertEqual(self._record(model="m1"), 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["models"], ["m1", "m2"])
+
 
 class RecordScoredTests(unittest.TestCase):
     """record --scope dir --scored: the manifest counts come from the
     scored.json result sums (one source of truth), the track is detected
     from discriminating signals and never guessed, an explicit --track is
-    checked against the detection, --ablations passes through verbatim,
-    and the counts flags are rejected (`counts flags are replaced by
-    --scored`)."""
+    checked against the detection, model/variant derive from the
+    --results files' config blocks, `ablations` derives from
+    --inventory, and the counts flags are rejected (`counts flags are
+    replaced by --scored`)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -324,7 +358,10 @@ class RecordScoredTests(unittest.TestCase):
             bulletproof=None,
             no_failure=None,
             unresolved=None,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign="campaign-2026-09-14",
             date="2026-09-14",
         )
@@ -404,6 +441,9 @@ class RecordScoredTests(unittest.TestCase):
                 "gaps",
                 "voids",
                 "campaign",
+                "model",
+                "variant",
+                "models",
             },
         )
         self.assertEqual(entry["date"], "2026-09-14")
@@ -514,13 +554,141 @@ class RecordScoredTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("not in the retrieval-test vocabulary", err)
 
-    def test_ablations_passthrough_on_scored_path(self):
+    def _write_results(self, name, model="m1", variant=None):
+        path = self.root / name
+        path.write_text(
+            json.dumps(
+                {
+                    "config": {
+                        "skill": "test-skill",
+                        "model": model,
+                        "variant": variant,
+                    },
+                    "entries": [],
+                }
+            )
+        )
+        return str(path)
+
+    def test_model_variant_derived_from_results_config(self):
         self._write_scored([self._retrieval_entry("a", "pass")])
-        rc, _out, _err = self._record(ablations="arm-rerun-of-v2")
+        results = self._write_results("results.json", model="m1", variant="v9")
+        rc, _out, _err = self._record(results=[results])
         self.assertEqual(rc, 0)
         entry = json.loads(self.manifest.read_text())["retrieval-test"]
-        self.assertEqual(entry["ablations"], "arm-rerun-of-v2")
-        self.assertEqual(entry["passes"], 1)
+        self.assertEqual(entry["model"], "m1")
+        self.assertEqual(entry["variant"], "v9")
+        self.assertEqual(entry["models"], ["m1"])
+
+    def test_no_results_leaves_model_variant_null(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertIsNone(entry["model"])
+        self.assertIsNone(entry["variant"])
+        self.assertEqual(entry["models"], [])
+
+    def test_results_drift_warns_and_first_wins(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        first = self._write_results("r1.json", model="m1")
+        second = self._write_results("r2.json", model="m2")
+        rc, _out, err = self._record(results=[first, second])
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            f"warning: {second}: config differs on model/variant", err
+        )
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["model"], "m1")
+
+    def test_models_accumulate_and_dedupe_across_records(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        first = self._write_results("r1.json", model="m1")
+        second = self._write_results("r2.json", model="m2")
+        self.assertEqual(self._record(results=[first])[0], 0)
+        self.assertEqual(self._record(results=[second])[0], 0)
+        self.assertEqual(self._record(results=[first])[0], 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["model"], "m1")
+        self.assertEqual(entry["models"], ["m1", "m2"])
+
+    def test_ablations_count_derived_from_inventory(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        inventory = self.root / "facts.json"
+        inventory.write_text(
+            json.dumps(
+                {
+                    "skill": "test-skill",
+                    "generated": "2026-09-14",
+                    "facts": [
+                        {
+                            "id": "F-a-01",
+                            "section": "A",
+                            "statement": "s1",
+                            "entries": ["a"],
+                            "status": "ablation",
+                            "ablation_streak": 2,
+                        },
+                        {
+                            "id": "F-a-02",
+                            "section": "A",
+                            "statement": "s2",
+                            "entries": ["a"],
+                        },
+                        {
+                            "id": "F-b-01",
+                            "section": "B",
+                            "statement": "s3",
+                            "entries": ["b"],
+                            "status": "removed",
+                            "ablation_streak": 4,
+                        },
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+        rc, _out, _err = self._record(inventory=str(inventory))
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["ablations"], 2)
+
+    def test_no_inventory_omits_ablations_key(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertNotIn("ablations", entry)
+
+    def test_results_rejected_on_frontmatter_scope(self):
+        rc, _out, err = self._record(
+            scope="frontmatter",
+            skill_path=str(self.skill_dir / "SKILL.md"),
+            scored=None,
+            score=0.5,
+            results=[self._write_results("r.json")],
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--results is only valid with --scope dir", err)
+        self.assertFalse(self.manifest.exists())
+
+    def test_inventory_rejected_on_frontmatter_scope(self):
+        rc, _out, err = self._record(
+            scope="frontmatter",
+            skill_path=str(self.skill_dir / "SKILL.md"),
+            scored=None,
+            score=0.5,
+            inventory=str(self.root / "facts.json"),
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--inventory is only valid with --scope dir", err)
+
+    def test_model_rejected_on_dir_scope(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, err = self._record(model="m1")
+        self.assertEqual(rc, 1)
+        self.assertIn("--model is only valid with --scope frontmatter", err)
+        self.assertFalse(self.manifest.exists())
 
     def test_counts_flags_without_scored_rejected(self):
         # The counts flags stay parseable but can no longer record:
@@ -574,7 +742,10 @@ class RecordScoreFromTests(unittest.TestCase):
             bulletproof=None,
             no_failure=None,
             unresolved=None,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign="campaign-2026-09-02",
             date=None,
         )
@@ -720,12 +891,13 @@ class CheckSpanModeTests(unittest.TestCase):
             )
         )
 
-    def _run(self, entries=True, skill_file=True):
+    def _run(self, entries=True, skill_file=True, manifest=None):
         ns = argparse.Namespace(
             harness=None,
             model=None,
             entries=str(self.entries) if entries else None,
             skill_file=str(self.skill) if skill_file else None,
+            manifest=str(manifest) if manifest else None,
         )
         buf = io.StringIO()
         with mock.patch.object(evaluator, "check_harness") as check_mock:
@@ -791,6 +963,54 @@ class CheckSpanModeTests(unittest.TestCase):
         rc, _, out = self._run()
         self.assertEqual(rc, 1)
         self.assertIn("skill file not found", out)
+
+    def _write_manifest(self, status="removed"):
+        manifest = self.root / "rules.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-23",
+                    "rules": [
+                        {
+                            "id": "R-styling-01",
+                            "section": "Styling",
+                            "kind": "shaping",
+                            "statement": "Use CSS modules.",
+                            "entries": ["css-modules"],
+                            "status": status,
+                            "ablation_streak": 3,
+                        }
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+        return manifest
+
+    def test_removed_entry_span_absent_passes(self):
+        # A removed entry's span is ALREADY deleted from the doc: the
+        # zero-occurrence expectation replaces exactly-once.
+        manifest = self._write_manifest()
+        self.skill.write_text("# Demo\n\nno spans here\n")
+        rc, _, out = self._run(manifest=manifest)
+        self.assertEqual(rc, 0)
+        self.assertIn("every section span unique", out)
+
+    def test_removed_entry_span_present_fails_with_removed_message(self):
+        manifest = self._write_manifest()
+        rc, _, out = self._run(manifest=manifest)
+        self.assertEqual(rc, 1)
+        self.assertIn("removed entry 'css-modules'", out)
+        self.assertIn("expected zero — the rule was removed", out)
+
+    def test_ablation_entry_still_expects_exactly_once(self):
+        manifest = self._write_manifest(status="ablation")
+        self.skill.write_text("# Demo\n\nno spans here\n")
+        rc, _, out = self._run(manifest=manifest)
+        self.assertEqual(rc, 1)
+        self.assertIn("occurs 0 times", out)
+        self.assertIn("expected exactly once", out)
 
 
 class SelectTests(unittest.TestCase):
@@ -1372,6 +1592,42 @@ class VerifyTests(unittest.TestCase):
         self.assertIn("entry 'css-modules'", err)
         self.assertIn("occurs 0 times", err)
 
+    def _mark_removed(self):
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                    "status": "removed",
+                    "ablation_streak": 3,
+                }
+            ]
+        )
+
+    def test_removed_entry_span_absent_passes(self):
+        # The rule text was deleted from the doc: the removed entry's
+        # span must occur ZERO times in the snapshotted body.
+        self._mark_removed()
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n"
+        )
+        self._snapshot()
+        (self.camp / "skill-body.txt").write_text("# Demo\n")
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("verify: all checks passed", out)
+
+    def test_removed_entry_span_present_fails_with_removed_message(self):
+        self._mark_removed()
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("removed entry 'css-modules'", err)
+        self.assertIn("expected zero — the rule was removed", err)
+
     def test_missing_skill_body_is_an_error_on_shape(self):
         (self.camp / "skill-body.txt").unlink()
         rc, _out, err = self._run()
@@ -1942,6 +2198,35 @@ class UnifiedCliGateTests(unittest.TestCase):
                     "error: --arm is only valid with --track shape-test "
                     "or --track pressure-test\n",
                 )
+
+    def test_record_rejects_retired_ablations_flag(self):
+        # The freeform --ablations flag is retired: the manifest entry's
+        # ablations count is derived from --inventory instead.
+        argv = [
+            "evaluator.py",
+            "record",
+            "--skill",
+            "s",
+            "--skill-path",
+            "p",
+            "--manifest",
+            "m",
+            "--scope",
+            "dir",
+            "--scored",
+            "s.json",
+            "--ablations",
+            "3",
+        ]
+        err = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("--ablations", err.getvalue())
 
     def test_meta_rejects_non_meta_track_with_exit_2(self):
         # supports_meta tracks are the argparse choices, so a non-meta

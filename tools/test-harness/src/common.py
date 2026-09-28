@@ -485,6 +485,54 @@ def counts_gate(
     return None
 
 
+def load_status_map(
+    path: Path | str | None, kind: str | None
+) -> dict[str, str]:
+    """entry-id -> status, built from an inventory's items: each item's
+    `entries` list votes its entry ids toward the item's status. An
+    entry maps to a status ONLY when every item naming it carries the
+    SAME status (the retrieval N:M rule: mixed-status or partially
+    normal coverage means all arms run — rule-kind wiring is 1:1, so
+    the same vote logic degenerates to a plain lookup there). Items
+    without status contribute a None vote. Empty map when path is None
+    (no --manifest: every entry behaves as status none). Light parse —
+    the full schema validation lives in evaluator.load_inventory."""
+    if path is None or kind is None:
+        return {}
+    path = Path(path)
+    if not path.exists():
+        _fail(f"inventory file not found: {path}")
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        _fail(f"invalid JSON in {path}: {e}")
+    array = "rules" if kind == "rule" else "facts"
+    items = data.get(array) if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        _fail(f"{path}: missing '{array}' list")
+    votes: dict[str, set[str | None]] = {}
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            _fail(f"{path}: item {i} is not an object")
+        status = item.get("status")
+        if status is not None and status not in ("ablation", "removed"):
+            _fail(
+                f"{path}: item {i} status must be 'ablation' or "
+                f"'removed', got {status!r}"
+            )
+        entries = item.get("entries")
+        if not isinstance(entries, list):
+            _fail(f"{path}: item {i} missing 'entries' (list)")
+        for eid in entries:
+            if isinstance(eid, str) and eid:
+                votes.setdefault(eid, set()).add(status)
+    return {
+        eid: only
+        for eid, ss in votes.items()
+        if len(ss) == 1 and (only := next(iter(ss))) is not None
+    }
+
+
 def load_entries(
     path: Path,
     file_noun: str,

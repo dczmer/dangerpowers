@@ -23,14 +23,17 @@ def _rule_item(
     kind="discipline",
     statement="statement one",
     entries=None,
+    **extra,
 ):
-    return {
+    item = {
         "id": eid,
         "section": section,
         "kind": kind,
         "statement": statement,
         "entries": ["entry-a"] if entries is None else entries,
     }
+    item.update(extra)
+    return item
 
 
 def _fact_item(
@@ -38,13 +41,16 @@ def _fact_item(
     section="Overview",
     statement="statement one",
     entries=None,
+    **extra,
 ):
-    return {
+    item = {
         "id": eid,
         "section": section,
         "statement": statement,
         "entries": ["entry-a"] if entries is None else entries,
     }
+    item.update(extra)
+    return item
 
 
 def _excluded(
@@ -295,6 +301,70 @@ class LoadInventoryTests(_TmpCase):
             stderr, f"error: {path}: duplicate id: R-overview-01\n"
         )
 
+    def test_status_and_streak_accepted(self):
+        item = _rule_item(status="ablation", ablation_streak=2)
+        path = self.write_json(_rule_inv(items=[item]))
+        inv = evaluator.load_inventory(path, "rule")
+        self.assertEqual(inv["rules"][0]["status"], "ablation")
+        self.assertEqual(inv["rules"][0]["ablation_streak"], 2)
+
+    def test_removed_status_accepted_on_excluded(self):
+        entry = {
+            **_excluded(),
+            "status": "removed",
+            "ablation_streak": 0,
+        }
+        path = self.write_json(_rule_inv(excluded=[entry]))
+        evaluator.load_inventory(path, "rule")
+
+    def test_status_outside_vocabulary_rejected(self):
+        item = _rule_item(status="archived", ablation_streak=1)
+        path = self.write_json(_rule_inv(items=[item]))
+        stderr = self.fail_message(evaluator.load_inventory, path, "rule")
+        self.assertEqual(
+            stderr,
+            f"error: {path}: item 0 (R-overview-01) status must be "
+            "'ablation' or 'removed', got 'archived'\n",
+        )
+
+    def test_status_without_streak_rejected(self):
+        item = _rule_item(status="ablation")
+        path = self.write_json(_rule_inv(items=[item]))
+        stderr = self.fail_message(evaluator.load_inventory, path, "rule")
+        self.assertEqual(
+            stderr,
+            f"error: {path}: item 0 (R-overview-01) ablation_streak must "
+            "be an int >= 0 when status is present, got None\n",
+        )
+
+    def test_bool_streak_rejected(self):
+        item = _rule_item(status="removed", ablation_streak=True)
+        path = self.write_json(_rule_inv(items=[item]))
+        stderr = self.fail_message(evaluator.load_inventory, path, "rule")
+        self.assertIn("ablation_streak must be an int >= 0", stderr)
+
+    def test_negative_streak_rejected(self):
+        item = _rule_item(status="ablation", ablation_streak=-1)
+        path = self.write_json(_rule_inv(items=[item]))
+        stderr = self.fail_message(evaluator.load_inventory, path, "rule")
+        self.assertIn("ablation_streak must be an int >= 0", stderr)
+
+    def test_streak_without_status_rejected(self):
+        item = _rule_item(ablation_streak=0)
+        path = self.write_json(_rule_inv(items=[item]))
+        stderr = self.fail_message(evaluator.load_inventory, path, "rule")
+        self.assertEqual(
+            stderr,
+            f"error: {path}: item 0 (R-overview-01) has ablation_streak "
+            "but no status\n",
+        )
+
+    def test_fact_item_status_validated(self):
+        item = _fact_item(status="ablation")  # no streak
+        path = self.write_json(_fact_inv(items=[item]), name="facts.json")
+        stderr = self.fail_message(evaluator.load_inventory, path, "fact")
+        self.assertIn("ablation_streak must be an int >= 0", stderr)
+
 
 class InventoryCheckCommandTests(_TmpCase):
     """cmd_inventory_check: validates and reports id stats on stdout."""
@@ -338,14 +408,21 @@ class InventoryMintCommandTests(_TmpCase):
     """cmd_inventory_mint: document-order per-section numbering, byte-
     identical re-mint stability."""
 
-    def _args(self, path, out, kind="rule"):
-        return argparse.Namespace(inventory=str(path), kind=kind, out=str(out))
+    def _args(self, path, out, kind="rule", carry=None):
+        return argparse.Namespace(
+            inventory=str(path),
+            kind=kind,
+            out=str(out),
+            carry=None if carry is None else str(carry),
+        )
 
-    def _mint(self, data, name="draft.json", kind="rule"):
+    def _mint(self, data, name="draft.json", kind="rule", carry=None):
         path = self.write_json(data, name=name)
         out = self.dir / "minted.json"
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            rc = evaluator.cmd_inventory_mint(self._args(path, out, kind))
+            rc = evaluator.cmd_inventory_mint(
+                self._args(path, out, kind, carry=carry)
+            )
         self.assertEqual(rc, 0)
         return path, out
 
@@ -539,6 +616,101 @@ class InventoryMintCommandTests(_TmpCase):
         self.assertNotIn("Traceback", stderr.getvalue())
 
 
+class InventoryMintCarryTests(_TmpCase):
+    """inventory-mint --carry: status/ablation_streak carry forward onto
+    surviving ids; old items whose status is 'removed' are re-appended
+    verbatim (their rule text is already deleted from the doc, so the
+    fresh draft never contains them); dropped ablation/status-less items
+    stay dropped."""
+
+    def _mint(self, draft, old, name="draft.json", kind="rule"):
+        path = self.write_json(draft, name=name)
+        old_path = self.write_json(old, name="old.json")
+        out = self.dir / "minted.json"
+        stdout = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+            rc = evaluator.cmd_inventory_mint(
+                argparse.Namespace(
+                    inventory=str(path),
+                    kind=kind,
+                    out=str(out),
+                    carry=str(old_path),
+                )
+            )
+        self.assertEqual(rc, 0)
+        return path, out, stdout.getvalue()
+
+    def test_surviving_id_keeps_status(self):
+        draft = _rule_inv(items=[_rule_item()])
+        old = _rule_inv(
+            items=[_rule_item(status="ablation", ablation_streak=1)]
+        )
+        _, out, _ = self._mint(draft, old)
+        (item,) = json.loads(out.read_text())["rules"]
+        self.assertEqual(item["status"], "ablation")
+        self.assertEqual(item["ablation_streak"], 1)
+
+    def test_removed_item_absent_from_draft_is_reappended(self):
+        removed = _rule_item(
+            eid="R-gone-01",
+            section="Gone",
+            status="removed",
+            ablation_streak=3,
+        )
+        draft = _rule_inv(items=[_rule_item()])
+        old = _rule_inv(items=[_rule_item(), removed])
+        _, out, _ = self._mint(draft, old)
+        items = json.loads(out.read_text())["rules"]
+        self.assertEqual(
+            [i["id"] for i in items], ["R-overview-01", "R-gone-01"]
+        )
+        self.assertEqual(items[1], removed)
+
+    def test_dropped_ablation_item_is_not_reappended(self):
+        ablation = _rule_item(
+            eid="R-gone-01",
+            section="Gone",
+            status="ablation",
+            ablation_streak=1,
+        )
+        draft = _rule_inv(items=[_rule_item()])
+        old = _rule_inv(items=[_rule_item(), ablation])
+        _, out, _ = self._mint(draft, old)
+        items = json.loads(out.read_text())["rules"]
+        self.assertEqual([i["id"] for i in items], ["R-overview-01"])
+
+    def test_carry_noop_is_byte_identical(self):
+        # No mints and no carries: the raw input bytes pass through.
+        inv = _rule_inv(items=[_rule_item()])
+        raw = json.dumps(inv, indent=2) + "\n"
+        path = self.dir / "canonical.json"
+        path.write_text(raw)
+        old_path = self.write_json(_rule_inv(), name="old.json")
+        out = self.dir / "out.json"
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = evaluator.cmd_inventory_mint(
+                argparse.Namespace(
+                    inventory=str(path),
+                    kind="rule",
+                    out=str(out),
+                    carry=str(old_path),
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.read_bytes(), raw.encode())
+
+    def test_carry_fact_kind(self):
+        draft = _fact_inv(items=[_fact_item()])
+        old = _fact_inv(
+            items=[_fact_item(status="removed", ablation_streak=5)]
+        )
+        path, out, _ = self._mint(draft, old, name="facts.json", kind="fact")
+        self.assertTrue(path.exists())
+        (item,) = json.loads(out.read_text())["facts"]
+        self.assertEqual(item["status"], "removed")
+        self.assertEqual(item["ablation_streak"], 5)
+
+
 class InventoryDiffTests(unittest.TestCase):
     """inventory_diff: the four buckets, the resurrect case, and the
     deleted-vs-excluded distinction. Pure function, no I/O."""
@@ -623,6 +795,18 @@ class InventoryDiffTests(unittest.TestCase):
         diff = evaluator.inventory_diff(old, new)
         self.assertEqual(len(diff["changed"]), 1)
         self.assertEqual(diff["changed"][0]["fields"], ["statement"])
+
+    def test_status_and_streak_are_silent_metadata(self):
+        # status/ablation_streak never join the changed-fields
+        # comparison: close-out bookkeeping must not surface as drift.
+        old = _rule_inv(items=[_rule_item()])
+        new = _rule_inv(
+            items=[_rule_item(status="ablation", ablation_streak=2)]
+        )
+        diff = evaluator.inventory_diff(old, new)
+        self.assertEqual(
+            diff, {"new": [], "changed": [], "deleted": [], "excluded": []}
+        )
 
 
 class InventoryDiffCommandTests(_TmpCase):
@@ -770,6 +954,169 @@ class InventoryDiffCommandTests(_TmpCase):
         self.assertEqual(rc, 1)
         self.assertIn("error: could not write", stderr.getvalue())
         self.assertNotIn("Traceback", stderr.getvalue())
+
+
+class InventoryUpdateTests(_TmpCase):
+    """cmd_inventory_update: the deterministic close-out. A control pass
+    auto-marks a status-less item (ablation, streak 0) or increments an
+    existing streak; a control fail clears an ablation item entirely
+    (load-bearing — back to normal testing) or resets a removed item's
+    streak with a regression-failure line; voids and uncovered items
+    are untouched."""
+
+    def _run(self, inv, scored_entries, kind="rule"):
+        path = self.write_json(inv)
+        scored = self.write_json({"entries": scored_entries}, name="s.json")
+        out = self.dir / "out.json"
+        stdout = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+            rc = evaluator.cmd_inventory_update(
+                argparse.Namespace(
+                    manifest=str(path),
+                    kind=kind,
+                    scored=str(scored),
+                    out=str(out),
+                )
+            )
+        self.assertEqual(rc, 0)
+        return json.loads(out.read_text()), stdout.getvalue()
+
+    def test_control_pass_auto_marks_statusless_item(self):
+        inv = _rule_inv(items=[_rule_item()])
+        updated, out = self._run(
+            inv, [{"id": "entry-a", "result": "no-failure"}]
+        )
+        (item,) = updated["rules"]
+        self.assertEqual(item["status"], "ablation")
+        self.assertEqual(item["ablation_streak"], 0)
+        self.assertIn(
+            "inventory-update: 1 auto-marked, 0 streaks incremented, "
+            "0 streaks reset, 0 regression failures",
+            out,
+        )
+
+    def test_control_pass_increments_existing_streak(self):
+        inv = _rule_inv(
+            items=[_rule_item(status="ablation", ablation_streak=2)]
+        )
+        updated, out = self._run(
+            inv, [{"id": "entry-a", "result": "no-failure"}]
+        )
+        (item,) = updated["rules"]
+        self.assertEqual(item["status"], "ablation")
+        self.assertEqual(item["ablation_streak"], 3)
+        self.assertIn("1 streaks incremented", out)
+
+    def test_control_fail_clears_ablation_item(self):
+        inv = _rule_inv(
+            items=[_rule_item(status="ablation", ablation_streak=2)]
+        )
+        updated, out = self._run(inv, [{"id": "entry-a", "result": "adopted"}])
+        (item,) = updated["rules"]
+        self.assertNotIn("status", item)
+        self.assertNotIn("ablation_streak", item)
+        self.assertIn(
+            "load-bearing: R-overview-01 — control failed; status "
+            "cleared (back to normal testing)",
+            out,
+        )
+        self.assertIn("1 streaks reset", out)
+
+    def test_control_fail_on_removed_resets_and_reports(self):
+        inv = _rule_inv(
+            items=[_rule_item(status="removed", ablation_streak=4)]
+        )
+        updated, out = self._run(
+            inv, [{"id": "entry-a", "result": "bulletproof"}]
+        )
+        (item,) = updated["rules"]
+        self.assertEqual(item["status"], "removed")
+        self.assertEqual(item["ablation_streak"], 0)
+        self.assertIn(
+            "regression failure: R-overview-01 — control failed; "
+            "the deletion may have been wrong",
+            out,
+        )
+        self.assertIn("1 regression failures", out)
+
+    def test_void_control_leaves_streak_untouched(self):
+        inv = _rule_inv(
+            items=[_rule_item(status="ablation", ablation_streak=2)]
+        )
+        updated, out = self._run(inv, [{"id": "entry-a", "result": "void"}])
+        (item,) = updated["rules"]
+        self.assertEqual(item["ablation_streak"], 2)
+        self.assertIn(
+            "inventory-update: 0 auto-marked, 0 streaks incremented, "
+            "0 streaks reset, 0 regression failures",
+            out,
+        )
+
+    def test_item_without_scored_entries_untouched(self):
+        inv = _rule_inv(
+            items=[_rule_item(status="ablation", ablation_streak=1)]
+        )
+        updated, _out = self._run(inv, [])
+        (item,) = updated["rules"]
+        self.assertEqual(item["ablation_streak"], 1)
+
+    def test_any_fail_beats_any_pass(self):
+        inv = _rule_inv(items=[_rule_item(entries=["e1", "e2"])])
+        updated, out = self._run(
+            inv,
+            [
+                {"id": "e1", "result": "no-failure"},
+                {"id": "e2", "result": "adopted"},
+            ],
+        )
+        (item,) = updated["rules"]
+        self.assertNotIn("status", item)
+
+    def test_fact_kind_reads_the_control_field(self):
+        inv = _fact_inv(
+            items=[_fact_item(status="ablation", ablation_streak=1)]
+        )
+        updated, _out = self._run(
+            inv, [{"id": "entry-a", "control": "pass"}], kind="fact"
+        )
+        (item,) = updated["facts"]
+        self.assertEqual(item["ablation_streak"], 2)
+
+    def test_fact_kind_control_fail_clears_ablation(self):
+        inv = _fact_inv(
+            items=[_fact_item(status="ablation", ablation_streak=1)]
+        )
+        updated, out = self._run(
+            inv, [{"id": "entry-a", "control": "fail"}], kind="fact"
+        )
+        (item,) = updated["facts"]
+        self.assertNotIn("status", item)
+        self.assertIn("load-bearing: F-overview-01", out)
+
+    def test_fact_kind_control_void_untouched(self):
+        inv = _fact_inv(
+            items=[_fact_item(status="ablation", ablation_streak=1)]
+        )
+        updated, _out = self._run(
+            inv, [{"id": "entry-a", "control": "void"}], kind="fact"
+        )
+        (item,) = updated["facts"]
+        self.assertEqual(item["ablation_streak"], 1)
+
+    def test_scored_file_missing_is_a_clean_error(self):
+        path = self.write_json(_rule_inv())
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            rc = evaluator.cmd_inventory_update(
+                argparse.Namespace(
+                    manifest=str(path),
+                    kind="rule",
+                    scored=str(self.dir / "nope.json"),
+                    out=str(self.dir / "out.json"),
+                )
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("error: scored file not found:", stderr.getvalue())
 
 
 if __name__ == "__main__":

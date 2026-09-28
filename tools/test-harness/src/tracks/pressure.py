@@ -14,6 +14,7 @@ from src.common import (
     iter_evidence,
     load_entries,
     load_results_json,
+    load_status_map,
     log_start,
     rep_label,
     run_rep_batched,
@@ -274,7 +275,11 @@ class PressureTrack(Track):
     _n: int = 0
     # pre_spend_gates stashes for run_entry (the ONE allowed per-run
     # instance state): the green arm's skill body bytes, None on red.
+    # _status_map is the --manifest entry-id -> inventory status map
+    # (ablation/removed scenarios run the red control only); empty
+    # without --manifest.
     _skill_text: str | None = None
+    _status_map: dict[str, str] = {}
 
     def pre_spend_gates(
         self, args: argparse.Namespace, strategy_cls: type[EvalStrategy]
@@ -319,6 +324,11 @@ class PressureTrack(Track):
                 _fail(f"skill file is empty: {skill_file}")
 
         entries = load_pressure_scenarios(scenarios_path)  # exits 1 on error
+        # --manifest: entry-id -> status from the rules inventory
+        # (ablation/removed scenarios run the red control only).
+        self._status_map = load_status_map(
+            getattr(args, "manifest", None), self.inventory_kind
+        )
         if args.reps < 1:
             _fail("--reps must be >= 1")
         if args.timeout < 1:
@@ -365,26 +375,35 @@ class PressureTrack(Track):
     ) -> dict | int:
         """One entry's single arm: reps of the arm's prompt bytes. The
         workspace is never synced and never written; arms differ only in
-        prompt bytes."""
+        prompt bytes. An ablation/removed scenario runs the red control
+        only: a green run is skipped (the arm key is omitted from the
+        record) with a note — the conditional "green only if red failed"
+        stays a workflow rule, so this track needs no in-suite
+        conditionality, only the skip."""
         record = {
             "id": entry["id"],
             "statement": entry["statement"],
             "pressures": entry["pressures"],
             "compliant_option": entry["compliant_option"],
-            "arms": {
-                args.arm: {
-                    "runs": run_pressure_rep_batch(
-                        strategy,
-                        entry,
-                        args.arm,
-                        Path(args.workspace),
-                        PRESSURE_EVALUATOR_AGENT,
-                        args,
-                        self._skill_text,
-                    )
-                }
-            },
+            "arms": {},
         }
+        status = self._status_map.get(entry["id"])
+        if status is not None and args.arm == "green":
+            emit(
+                f"note: entry {entry['id']} is {status}; " "green arm skipped"
+            )
+        else:
+            record["arms"][args.arm] = {
+                "runs": run_pressure_rep_batch(
+                    strategy,
+                    entry,
+                    args.arm,
+                    Path(args.workspace),
+                    PRESSURE_EVALUATOR_AGENT,
+                    args,
+                    self._skill_text,
+                )
+            }
         self._i += 1
         emit(f"[{self._i}/{self._n}] {entry['id']}")
         return record
