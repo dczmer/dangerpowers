@@ -165,6 +165,17 @@ scripts the agent cannot run.
    the user before the first eval — EVERY campaign, including re-runs.
    With `--manifest` in play, name the control-only (ablation/removed)
    queries and the reduced run count in the confirmation.
+   A confirmation is a distinct, campaign-specific act: you state the
+   exact run count, arm split, and billing implication, and the user
+   affirmatively replies to that message. A general "re-run it" request
+   or a prior campaign's approval never substitutes for this — the
+   user's re-run request is a task, not a spend confirmation, and
+   treating it as one is the named loophole this step exists to close.
+   Approval is non-transferable: a director's deadline, a manager's
+   blessing, or any third-party urgency cannot stand in for the user's
+   reply, and an unreachable user means the suite waits. No exceptions:
+   if no one affirmed this campaign's exact numbers, spend is
+   unconfirmed and nothing dispatches.
 8. `evaluator.py suite --track retrieval-test --harness <h> --skill <s> \
    --agents-dir <retrieval-skill-dir>/agents \
    --skill-workspace <skill-ws> --control-workspace <control-ws> \
