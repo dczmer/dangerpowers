@@ -246,7 +246,7 @@ scripts the agent cannot run.
     --entries <root>/skills-workspace/<s>/retrieval-tests/queries.json
     --scored <campaign>/scored.json --results <campaign>/results.json
     --campaign-dir <campaign> --skill-path <skill dir>` — the end-of-campaign
-    consistency proof (BUGS.md B9): snapshots byte-identical to the canonical
+    consistency proof: snapshots byte-identical to the canonical
     files, facts↔queries wiring, results covering every query, and the
     scored-check flow re-run, ending with the record preflight (the exact
     counts record will write). Record only on exit 0: `evaluator.py record

@@ -358,7 +358,7 @@ retrieval track.)
     $CAMP/scored.json --results $CAMP/results-control.json --results
     $CAMP/results-variants.json [--results $CAMP/results-restraint.json]
     --campaign-dir $CAMP --skill-path <skill dir>` — the end-of-campaign
-    consistency proof (BUGS.md B9): snapshots byte-identical to the canonical
+    consistency proof: snapshots byte-identical to the canonical
     files, manifest↔entries wiring, skill-body.txt == the canonical SKILL.md
     with frontmatter stripped, every section span unique (a removed entry's
     span absent — verify reads the statuses from its own `--manifest`

@@ -290,7 +290,7 @@ convention as the other testing tracks.)
     --entries <root>/skills-workspace/<s>/pressure-tests/scenarios.json
     --scored $CAMP/scored.json --results <each $CAMP results file, one flag
     per file> --campaign-dir $CAMP --skill-path <skill dir>` — the
-    end-of-campaign consistency proof (BUGS.md B9): snapshots byte-identical
+    end-of-campaign consistency proof: snapshots byte-identical
     to the canonical files, manifest↔scenarios wiring, skill-body.txt == the
     canonical SKILL.md with frontmatter stripped, results covering every
     scenario, and the scored-check flow re-run, ending with the record
