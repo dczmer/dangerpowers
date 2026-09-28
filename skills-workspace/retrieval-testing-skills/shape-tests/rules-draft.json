@@ -1,0 +1,236 @@
+{
+  "skill": "retrieval-testing-skills",
+  "generated": "2026-09-28",
+  "rules": [
+    {
+      "section": "Facts manifest",
+      "kind": "shaping",
+      "statement": "facts.json holds fact id, home section, statement, covering entries, and exclusions with reasons - nothing else; never duplicate query text or expectations into the manifest",
+      "entries": ["facts-manifest-schema"]
+    },
+    {
+      "section": "Query file format",
+      "kind": "shaping",
+      "statement": "Each entry tests one fact cluster and carries id, query, expect rubric, and (iff {RUN_DIR} is used) fixtures - schema fixed by the worked example",
+      "entries": ["query-file-schema"]
+    },
+    {
+      "section": "Query file format",
+      "kind": "pattern",
+      "statement": "The query asks for the task; only the rubric names the expected behavior",
+      "entries": ["query-rubric-separation"]
+    },
+    {
+      "section": "Improving the skill definition",
+      "kind": "pattern",
+      "statement": "Fix failures by editing the doc - never by adding behavioral rules, prohibitions, or read-me-first discipline clauses; a reference failure means the information architecture failed",
+      "entries": ["doc-fix-not-rule"]
+    },
+    {
+      "section": "Proposal format",
+      "kind": "shaping",
+      "statement": "Proposal is one card per entry with exactly these lines in order (## N. <entry-id>, covers:, facts:, query:, expect:, why:), closed by coverage:/excluded:/cost:/fixtures: lines",
+      "entries": ["proposal-card-format"]
+    },
+    {
+      "section": "Report format",
+      "kind": "shaping",
+      "statement": "Report is a fixed layout: retrieval test: <skill> - <date> header, queries:/artifacts:/manifest: lines, id/result/control table with status annotations, summary: N pass / M fail / G gap / V void, then failures:/gaps:/ablation flags:/regression failures: sections, closing with an ablation-candidates list",
+      "entries": ["report-fixed-layout"]
+    },
+    {
+      "section": "scored-check",
+      "kind": "shaping",
+      "statement": "scored.json carries campaign, skill, and per-entry result/classification/control/ablation_flag/missed_bullets/notes; classification iff fail, missed_bullets required for fail and gap and absent otherwise, ablation_flag = (control == pass), every results id accounted exactly once",
+      "entries": ["scored-json-schema"]
+    },
+    {
+      "section": "Gotchas",
+      "kind": "shaping",
+      "statement": "Never name the section or file holding the fact in a query - a query with a section hint tests following directions, not retrieval",
+      "entries": ["no-section-hints"]
+    }
+  ],
+  "excluded": [
+    {
+      "section": "Inputs",
+      "kind": "discipline",
+      "reason": "harness is user-specified with no default - a compliance-cost rule the agent rationalizes away under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Inputs",
+      "kind": "discipline",
+      "reason": "eval agents pin no model/variant/temperature - compliance under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Inputs",
+      "kind": "reference",
+      "reason": "reps default 1 and timeout default 300 are documented defaults, not artifact-shaping rules"
+    },
+    {
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "source-root derivation and default queries/facts paths are resolution mechanics, not output shape"
+    },
+    {
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "one-run-per-scenario and force-load-by-instruction are process mechanics of the harness, not rules for a produced artifact"
+    },
+    {
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "scope routing (trigger-testing questions, empty fact inventory) routes work to other tracks; no artifact shape at stake"
+    },
+    {
+      "section": "Fact inventory",
+      "kind": "technique",
+      "reason": "the seven fact tests (directive/threshold/taxonomy/...) are inventory-building method, not output shape"
+    },
+    {
+      "section": "Fact inventory",
+      "kind": "technique",
+      "reason": "drop rationales, dedupe, cluster, derive queries from failure modes are inventory-building method"
+    },
+    {
+      "section": "Fact inventory",
+      "kind": "reference",
+      "reason": "frontmatter-convention guidance is always out of scope on the shape track; no anchor span in the body"
+    },
+    {
+      "section": "Facts manifest",
+      "kind": "technique",
+      "reason": "inventory-mint id minting and --carry carry-forward are procedural mechanics enforced by the script"
+    },
+    {
+      "section": "Facts manifest",
+      "kind": "technique",
+      "reason": "diff-driven workflow (new/changed/deleted/removed fact handling) is campaign process, not artifact shape"
+    },
+    {
+      "section": "Facts manifest",
+      "kind": "reference",
+      "reason": "status/ablation semantics are manifest bookkeeping definitions, not shaping rules"
+    },
+    {
+      "section": "Query file format",
+      "kind": "technique",
+      "reason": "id stability / never-reuse is identifier hygiene enforced by minting, not artifact shape"
+    },
+    {
+      "section": "Query file format",
+      "kind": "technique",
+      "reason": "{RUN_DIR} token and fixtures list pairing is enforced by the harness pre-spend gate"
+    },
+    {
+      "section": "Fixtures",
+      "kind": "technique",
+      "reason": "inline-default, canonical fixtures/ dir, and per-run staging are harness staging mechanics"
+    },
+    {
+      "section": "Fixtures",
+      "kind": "discipline",
+      "reason": "task text stays verbatim across campaigns - a compliance-cost verbatim freeze under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Eval agents",
+      "kind": "reference",
+      "reason": "two-agent permission sets and {{SKILL_NAME}} substitution are install-time mechanics enforced by the installer"
+    },
+    {
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "preflight, two workspaces, sync/status, campaign-init, and snapshot steps are campaign mechanics"
+    },
+    {
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "control workspace is NEVER synced - compliance under temptation; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "planned-spend confirmation every campaign - compliance under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "one suite process at a time (lockfile) - compliance under deadline pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "evidence scoring mechanics (every bullet, worst-non-void for reps > 1) are scoring method, not artifact shape"
+    },
+    {
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "confirm mini-campaign layout and results-superseded renaming are directory conventions enforced by the driver"
+    },
+    {
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "close-out order score -> inventory-update -> verify -> record is campaign process"
+    },
+    {
+      "section": "Improving the skill definition",
+      "kind": "technique",
+      "reason": "the classification-fix table (gap/findability/clarity/ablation rows) prescribes doc-edit strategy, not artifact form"
+    },
+    {
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "fix between campaigns, never mid-campaign - compliance under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "apply recommended edits only with user confirmation - compliance under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "keep queries verbatim within and across campaigns - compliance-cost verbatim freeze; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Removal procedure",
+      "kind": "technique",
+      "reason": "3-consecutive-passes threshold and the 3-step removal are process policy, not artifact shape"
+    },
+    {
+      "section": "Proposal format",
+      "kind": "technique",
+      "reason": "fact-id minting and stability across campaigns are procedural mechanics enforced by inventory-mint"
+    },
+    {
+      "section": "scored-check",
+      "kind": "technique",
+      "reason": "offline scoring via the scored-check skeleton/validate flow is driver process, not artifact shape"
+    },
+    {
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never put rubric text in a run prompt - compliance under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never let the eval agent know it is a test - compliance under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "score from answer_text only - compliance under pressure; pressure-testing track, not shaping"
+    },
+    {
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "campaign artifacts live in the persistent campaign dir, never the temp workspaces - harness directory mechanics"
+    },
+    {
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "control pass is a flag not a verdict; missing skill-load is void not fail - scoring semantics, not artifact shape"
+    }
+  ]
+}

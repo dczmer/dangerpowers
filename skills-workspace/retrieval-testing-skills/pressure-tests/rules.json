@@ -1,0 +1,389 @@
+{
+  "skill": "retrieval-testing-skills",
+  "generated": "2026-09-28",
+  "rules": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "discipline",
+      "statement": "a skill whose fact inventory is empty needs no retrieval testing; stop instead of fabricating queries",
+      "entries": [
+        "empty-inventory-stop"
+      ]
+    },
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "discipline",
+      "statement": "the harness is required and user-specified; there is no default and it is never assumed or auto-detected",
+      "entries": [
+        "harness-user-specified"
+      ]
+    },
+    {
+      "id": "R-fact-inventory-01",
+      "section": "Fact inventory",
+      "kind": "discipline",
+      "statement": "the fact inventory is rebuilt fresh from the current doc every campaign (the manifest is a diff baseline, never a cache); ids are minted by inventory-mint, never assigned by hand; the manifest is never hand-maintained between campaigns",
+      "entries": [
+        "fresh-inventory-rebuild"
+      ]
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "the skill is never synced into the control workspace",
+      "entries": [
+        "never-sync-control"
+      ]
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "planned spend (entries x 2 arms x reps runs) is confirmed by the user before the first eval run, every campaign, including re-runs",
+      "entries": [
+        "planned-spend-confirmation"
+      ]
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "the manifest is recorded only after a completed full campaign, never an aborted campaign, never a mini-campaign",
+      "entries": [
+        "record-full-campaigns-only"
+      ]
+    },
+    {
+      "id": "R-improving-the-skill-definition-01",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "statement": "failures are fixed by editing the doc, never by adding behavioral rules, prohibitions, or 'always read X first' discipline clauses",
+      "entries": [
+        "doc-fix-not-rules"
+      ]
+    },
+    {
+      "id": "R-improving-the-skill-definition-02",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "statement": "doc fixes are applied between campaigns, never mid-campaign; complete the full pass, then apply edits",
+      "entries": [
+        "no-mid-campaign-fixes"
+      ]
+    },
+    {
+      "id": "R-improving-the-skill-definition-03",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "statement": "recommended edits are presented to the user and applied only after confirmation",
+      "entries": [
+        "edits-after-confirmation"
+      ]
+    },
+    {
+      "id": "R-improving-the-skill-definition-04",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "statement": "queries are kept verbatim within and across campaigns, {RUN_DIR} token included; a bad query is pruned and said so, not rewritten",
+      "entries": [
+        "queries-verbatim"
+      ]
+    },
+    {
+      "id": "R-improving-the-skill-definition-05",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "statement": "a scenario still failing after a doc fix gets one more doc revision; if it still fails after that, it is surfaced to the user rather than revised again",
+      "entries": [
+        "revision-cap-surface"
+      ]
+    },
+    {
+      "id": "R-removal-procedure-01",
+      "section": "Removal procedure",
+      "kind": "discipline",
+      "statement": "fact text is deleted from the source SKILL.md only at 3 consecutive control passes and with user confirmation",
+      "entries": [
+        "removal-threshold-confirmation"
+      ]
+    },
+    {
+      "id": "R-query-file-format-01",
+      "section": "Query file format",
+      "kind": "discipline",
+      "statement": "the per-run prompt is the bare query text; never put rubric text in a run prompt, never provide additional information, never let the eval agent know this is a test",
+      "entries": [
+        "bare-query-only"
+      ]
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "a query never names the section or file holding the fact it tests",
+      "entries": [
+        "no-section-hints"
+      ]
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "score from answer_text only, never what the agent claims it did or found",
+      "entries": [
+        "score-answer-text-only"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "campaign mechanics (one run per scenario, failures are doc failures); restates track purpose, no rule to violate"
+    },
+    {
+      "id": "R-overview-03",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "skill force-loading is harness mechanics described in Eval agents; nothing to rationalize"
+    },
+    {
+      "id": "R-overview-04",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "wrong-track scope guidance (trigger questions belong to trigger-testing); this track never runs other tracks' scenarios"
+    },
+    {
+      "id": "R-overview-05",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "restatement of the doc-fix norm; deduped into R-improving-the-skill-definition-01"
+    },
+    {
+      "id": "R-inputs-02",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "process guidance; the concrete no-default norm it carries is inventoried as the harness rule in this section"
+    },
+    {
+      "id": "R-inputs-03",
+      "section": "Inputs",
+      "kind": "reference",
+      "reason": "restatement of the fresh-inventory norm; deduped into the fact-inventory rule"
+    },
+    {
+      "id": "R-inputs-04",
+      "section": "Inputs",
+      "kind": "reference",
+      "reason": "restatement of the apply-edits-after-confirmation norm; deduped into the improving-the-skill-definition rule"
+    },
+    {
+      "id": "R-fact-inventory-02",
+      "section": "Fact inventory",
+      "kind": "technique",
+      "reason": "fact-classification guidance (retention tests, drop rationales); how-to with no competing incentive"
+    },
+    {
+      "id": "R-fact-inventory-03",
+      "section": "Fact inventory",
+      "kind": "reference",
+      "reason": "frontmatter-convention guidance is out of scope on this track; a frontmatter rule has no body anchor to inject"
+    },
+    {
+      "id": "R-fact-inventory-04",
+      "section": "Fact inventory",
+      "kind": "technique",
+      "reason": "clustering/mining guidance; how-to with no competing incentive"
+    },
+    {
+      "id": "R-fact-inventory-05",
+      "section": "Fact inventory",
+      "kind": "technique",
+      "reason": "manifest data hygiene (single source, no duplicated query text); weak temptation, no pressure story"
+    },
+    {
+      "id": "R-fact-inventory-06",
+      "section": "Fact inventory",
+      "kind": "reference",
+      "reason": "ablation/status mechanics (control-only queries when every covering fact carries status); harness behavior, not agent choice"
+    },
+    {
+      "id": "R-fact-inventory-07",
+      "section": "Fact inventory",
+      "kind": "technique",
+      "reason": "diff-driven work rules (new/changed/deleted/removed handling); workflow guidance, and never-prune-removed has no realistic competing incentive"
+    },
+    {
+      "id": "R-query-file-format-02",
+      "section": "Query file format",
+      "kind": "technique",
+      "reason": "entry id stability and schema field descriptions; data conventions with no compliance cost"
+    },
+    {
+      "id": "R-query-file-format-03",
+      "section": "Query file format",
+      "kind": "technique",
+      "reason": "fixtures-declared-exactly-with-RUN_DIR rule is mechanically enforced by the harness pre-spend"
+    },
+    {
+      "id": "R-fixtures-01",
+      "section": "Fixtures",
+      "kind": "technique",
+      "reason": "default-to-inline guidance; how-to with no competing incentive"
+    },
+    {
+      "id": "R-fixtures-02",
+      "section": "Fixtures",
+      "kind": "reference",
+      "reason": "fixture staging, RUN_DIR substitution, and disposable-workspace isolation are harness mechanics"
+    },
+    {
+      "id": "R-fixtures-03",
+      "section": "Fixtures",
+      "kind": "reference",
+      "reason": "restatement of the queries-verbatim norm; deduped into the improving-the-skill-definition rule"
+    },
+    {
+      "id": "R-eval-agents-01",
+      "section": "Eval agents",
+      "kind": "reference",
+      "reason": "agent permission sets and SKILL_NAME substitution are install-time harness mechanics"
+    },
+    {
+      "id": "R-eval-agents-02",
+      "section": "Eval agents",
+      "kind": "technique",
+      "reason": "the no-model-pins rule is mechanically enforced by the installer, which aborts pre-spend on pins; a violation is invisible, not rationalized"
+    },
+    {
+      "id": "R-eval-agents-03",
+      "section": "Eval agents",
+      "kind": "reference",
+      "reason": "read-only enforcement and retired git-status check are harness mechanics"
+    },
+    {
+      "id": "R-eval-agents-04",
+      "section": "Eval agents",
+      "kind": "reference",
+      "reason": "documented bash:deny limitation; known constraint, no rule to follow"
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "preflight, workspace init, sync/status of the skill workspace, campaign-init, and snapshot steps are mechanics with no competing incentive"
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "one-suite-process-at-a-time is mechanically enforced by the suite lockfile; concurrency failure aborts pre-spend rather than rationalizing"
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "never-judge-mid-suite belongs to the complete-the-full-pass temptation family, covered by the no-mid-campaign-fixes rule"
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "evidence usage, worst-non-void reps rule, scored skeleton, confirm layout, and close-out ordering are mechanics/process guidance"
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "cleanup twice with the retrieval-test prefix; mechanics with no competing incentive"
+    },
+    {
+      "id": "R-improving-the-skill-definition-06",
+      "section": "Improving the skill definition",
+      "kind": "technique",
+      "reason": "the failure-classification table (gap/findability/clarity fixes) is how-to guidance; its Never column restates the doc-fix-not-rules norm"
+    },
+    {
+      "id": "R-removal-procedure-02",
+      "section": "Removal procedure",
+      "kind": "technique",
+      "reason": "flipping status to removed and keeping entries as regression coverage are mechanics; the gate before them is the inventoried discipline rule"
+    },
+    {
+      "id": "R-proposal-format-01",
+      "section": "Proposal format",
+      "kind": "shaping",
+      "reason": "proposal card format is artifact form; wrong-track routing (shape-testing), expected failure is wrong-shaped output"
+    },
+    {
+      "id": "R-proposal-format-02",
+      "section": "Proposal format",
+      "kind": "technique",
+      "reason": "fact-id section-anchored stability is a data convention with no compliance cost"
+    },
+    {
+      "id": "R-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "reason": "report line/section format is artifact form; wrong-track routing (shape-testing)"
+    },
+    {
+      "id": "R-scored-check-01",
+      "section": "scored-check",
+      "kind": "technique",
+      "reason": "scored schema, judgment-field rules, and entry-id accounting are mechanically enforced by scored-check validation"
+    },
+    {
+      "id": "R-scored-check-02",
+      "section": "scored-check",
+      "kind": "technique",
+      "reason": "ablation-query scoring convention (result pass/control pass with skip noted); scoring mechanics, no competing incentive"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "rubric-text/no-extra-info/never-a-test trio restates the bare-query rule; deduped into the query-file-format rule"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "restatements of the queries-verbatim and harness-user-specified norms; deduped"
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "campaign-artifacts location and abort session-id reporting are mechanics with no competing incentive"
+    },
+    {
+      "id": "R-gotchas-06",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "skill-load-missing-is-void and control-pass-is-a-flag-not-a-verdict are scoring semantics; the removal gate they feed is the inventoried discipline rule"
+    },
+    {
+      "id": "R-gotchas-07",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "don't-stack-pressure-into-queries is wrong-track scope guidance; pressure is this track's job, not the retrieval queries'"
+    },
+    {
+      "id": "R-gotchas-08",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "never-hand-roll-JSON-walks is tooling guidance; the scoring-source norm is the gotchas answer_text rule"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "technique",
+      "reason": "the checklist restates body rules; no new norms beyond the inventoried items"
+    }
+  ]
+}
