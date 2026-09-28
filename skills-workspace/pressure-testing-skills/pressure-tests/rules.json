@@ -1,0 +1,419 @@
+{
+  "skill": "pressure-testing-skills",
+  "generated": "2026-09-28",
+  "rules": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "discipline",
+      "statement": "Non-discipline rules are recorded as excluded with a routing reason and are never routed to other testing tracks or skills.",
+      "entries": [
+        "no-delegation"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-quick-reference-01",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "Harness: always user-specified — prompt the user; never assume, auto-detect, or pick one yourself.",
+      "entries": [
+        "harness-user-specified"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-quick-reference-02",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "Rules run strictly serially — one rule's complete RED → GREEN → meta → REFACTOR cycle before the next — and only one suite process runs at a time for the whole campaign.",
+      "entries": [
+        "serial-one-suite"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-quick-reference-03",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "A spend confirmation gates each arm and each refactor round.",
+      "entries": [
+        "spend-confirmation"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-quick-reference-04",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "statement": "The meta invocation must repeat the original run's --model/--variant.",
+      "entries": [
+        "meta-same-model"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-rule-inventory-01",
+      "section": "Rule inventory",
+      "kind": "discipline",
+      "statement": "Build the inventory fresh from the current doc; refuse to reuse a previous campaign's manifest as a starting inventory.",
+      "entries": [
+        "no-manifest-reuse"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Use one sterile workspace, never synced; if the contamination gate trips, recreate the workspace — never copy the skill in to fix it.",
+      "entries": [
+        "never-sync"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Record only after a completed FULL campaign — never aborted campaigns, never mini-campaigns, never calibration pilots.",
+      "entries": [
+        "record-full-only"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Write-backs to the source SKILL.md happen only on explicit user confirmation.",
+      "entries": [
+        "write-back-confirmation"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-plugging-rationalizations-01",
+      "section": "Plugging rationalizations",
+      "kind": "discipline",
+      "statement": "Always run RED before writing any counter; every counter is an explicit negation of an observed, verbatim rationalization from this campaign.",
+      "entries": [
+        "red-first-counters"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-suite-mechanics-01",
+      "section": "suite mechanics",
+      "kind": "discipline",
+      "statement": "Never let the eval agent know this is a test; never put rule text, the compliant option, or the expected answer in any prompt or scenario framing.",
+      "entries": [
+        "no-test-knowledge"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-scoring-01",
+      "section": "Scoring",
+      "kind": "discipline",
+      "statement": "Read every answer and judge choice and citation by hand; grep is triage, not verdict.",
+      "entries": [
+        "read-answers-by-hand"
+      ]
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Never run GREEN after a compliant baseline — no-failure and void entries must have no green arm in the results union.",
+      "entries": [
+        "no-green-after-compliant"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Mid-campaign arm re-runs are legitimate but must be disclosed in the report.",
+      "entries": [
+        "disclose-reruns"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "technique",
+      "statement": "Whether a skill fires, whether a documented fact can be found, and whether output holds its shape are wrong tracks here — say so instead of running pressure scenarios.",
+      "reason": "Scope-routing guidance with no competing incentive; the discipline norm against routing excluded rules is separately inventoried."
+    },
+    {
+      "id": "R-overview-03",
+      "section": "Overview",
+      "kind": "reference",
+      "statement": "Frontmatter-convention guidance is always out of scope.",
+      "reason": "No body anchor to inject against; a scope convention, not a compliance-cost rule."
+    },
+    {
+      "id": "R-overview-04",
+      "section": "Overview",
+      "kind": "technique",
+      "statement": "Consume exit codes and JSON from harness scripts only — never parse their prose stdout.",
+      "reason": "How-to guidance for consuming harness output; no competing incentive."
+    },
+    {
+      "id": "R-quick-reference-05",
+      "section": "Quick reference",
+      "kind": "reference",
+      "statement": "Defaults: 5 reps per arm; 300 s per-run timeout.",
+      "reason": "Documented defaults, not a rule to violate."
+    },
+    {
+      "id": "R-quick-reference-06",
+      "section": "Quick reference",
+      "kind": "reference",
+      "statement": "Cost per rule formula and the 25-run hard cap.",
+      "reason": "Documented limits, not a rule to violate."
+    },
+    {
+      "id": "R-quick-reference-07",
+      "section": "Quick reference",
+      "kind": "technique",
+      "statement": "A rep passes only if it chose compliant_option and cited a section.",
+      "reason": "Pass-criterion definition used in scoring; no rationalization incentive."
+    },
+    {
+      "id": "R-quick-reference-08",
+      "section": "Quick reference",
+      "kind": "technique",
+      "statement": "Cleanup uses --prefix pressure-test.",
+      "reason": "Invocation detail; the record-scope norm is covered by the record-full-only discipline rule."
+    },
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "technique",
+      "statement": "Collect all inputs before starting; prompt the user for any that are missing.",
+      "reason": "Input-gathering procedure; no competing incentive."
+    },
+    {
+      "id": "R-rule-inventory-02",
+      "section": "Rule inventory",
+      "kind": "reference",
+      "statement": "Rule-kind classification definitions (discipline / shaping / pattern / reference / technique).",
+      "reason": "Definitions, not rules."
+    },
+    {
+      "id": "R-rule-inventory-03",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "statement": "Rule ids are minted by evaluator.py inventory-mint from a per-section pool, not assigned by hand.",
+      "reason": "Mechanical script-driven procedure."
+    },
+    {
+      "id": "R-rule-inventory-04",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "statement": "Diff a rebuilt inventory with inventory-diff; the script diffs, the driver proposes scenarios and pruning.",
+      "reason": "Procedure; no competing incentive."
+    },
+    {
+      "id": "R-scenario-design-01",
+      "section": "Scenario design",
+      "kind": "shaping",
+      "statement": "Draft exactly one scenario per rule; force an A/B/C choice with plausible options.",
+      "reason": "Shapes the scenario artifact — shape-testing track."
+    },
+    {
+      "id": "R-scenario-design-02",
+      "section": "Scenario design",
+      "kind": "shaping",
+      "statement": "Stack 3+ distinct pressures from the fixed taxonomy in every scenario.",
+      "reason": "Schema/shaping constraint enforced pre-spend by the harness validator."
+    },
+    {
+      "id": "R-scenario-design-03",
+      "section": "Scenario design",
+      "kind": "shaping",
+      "statement": "Scenarios use concrete details, act-don't-opine, offer no easy outs, leak nothing, and mark every fictional prop illustrative.",
+      "reason": "Form-of-artifact rules about the scenario text — shape-testing track."
+    },
+    {
+      "id": "R-proposal-cards-01",
+      "section": "Proposal cards",
+      "kind": "shaping",
+      "statement": "Proposal cards follow the fixed card format with exactly three closing lines (coverage / excluded / cost).",
+      "reason": "Output-shaping rule — shape-testing track."
+    },
+    {
+      "id": "R-eval-agent-01",
+      "section": "Eval agent",
+      "kind": "reference",
+      "statement": "The eval agent's answer contract and read-quartet permission set.",
+      "reason": "Agent definition installed and enforced by the harness."
+    },
+    {
+      "id": "R-eval-agent-02",
+      "section": "Eval agent",
+      "kind": "technique",
+      "statement": "The eval agent pins no model config.",
+      "reason": "Enforced mechanically by the installer pre-spend gate."
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "technique",
+      "statement": "Preflight before spend: python3 --version and evaluator.py check --harness [--model].",
+      "reason": "Procedure; no competing incentive."
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "technique",
+      "statement": "Snapshot scenarios.json, rules.json, the source skill dir, and skill-body.txt via the documented extract_frontmatter pipeline.",
+      "reason": "Procedural snapshot pipeline; no competing incentive."
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "technique",
+      "statement": "inventory-update runs only on full campaigns and applies status/ablation_streak deterministically from scored control outcomes.",
+      "reason": "Script-driven close-out procedure; deterministic, not rationalizable."
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "technique",
+      "statement": "The verify gate must exit 0 before record; record takes the per-skill aggregate manifest and overwrites only the pressure-test key.",
+      "reason": "Procedural gate mechanics enforced by the harness."
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "technique",
+      "statement": "After write-backs, run a confirmation mini-campaign in the confirm/ subdir via evaluator.py select; it is never recorded.",
+      "reason": "Procedure; the never-record norm is covered by the record-full-only discipline rule."
+    },
+    {
+      "id": "R-suite-mechanics-02",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "statement": "Pre-spend gates, prompt assembly forms, smoke rep then parallel batches of at most 10 workers.",
+      "reason": "Harness-enforced mechanics, not driver rules."
+    },
+    {
+      "id": "R-suite-mechanics-03",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "statement": "Results JSON schema, run-record fields, void signals, and timeout-not-a-void-signal semantics.",
+      "reason": "Documented schema and scoring semantics."
+    },
+    {
+      "id": "R-suite-mechanics-04",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "statement": "suite silently overwrites --out; campaign-init auto-suffixes same-day dirs.",
+      "reason": "Documented tool behavior, not a rule to violate."
+    },
+    {
+      "id": "R-scoring-02",
+      "section": "Scoring",
+      "kind": "reference",
+      "statement": "Verdict definitions: bulletproof / no-failure / unresolved / void.",
+      "reason": "Definitions, not rules."
+    },
+    {
+      "id": "R-scoring-03",
+      "section": "Scoring",
+      "kind": "technique",
+      "statement": "scored.json schema and the emit-skeleton-then-fill-then-validate flow.",
+      "reason": "Procedure enforced by scored-check."
+    },
+    {
+      "id": "R-meta-testing-01",
+      "section": "Meta-testing",
+      "kind": "technique",
+      "statement": "The meta question is the fixed text with letters substituted; meta output is report evidence only; empty-session reps are noted meta unavailable.",
+      "reason": "Prescribed wording and reporting policy; no competing incentive."
+    },
+    {
+      "id": "R-meta-testing-02",
+      "section": "Meta-testing",
+      "kind": "reference",
+      "statement": "Meta reply classification taxonomy (clear-but-ignored / should-have-said-X / didn't-see-section-Y).",
+      "reason": "Classification reference."
+    },
+    {
+      "id": "R-plugging-rationalizations-02",
+      "section": "Plugging rationalizations",
+      "kind": "reference",
+      "statement": "Counter convention table (Iron Law, spirit-vs-letter, red flags, rationalization table, named loophole closure) and when each applies.",
+      "reason": "How-to reference for matching conventions; no competing incentive."
+    },
+    {
+      "id": "R-plugging-rationalizations-03",
+      "section": "Plugging rationalizations",
+      "kind": "shaping",
+      "statement": "Counter bodies are full revised bodies; a refactor round differs from the GREEN baseline by exactly the counters.",
+      "reason": "Shapes the counter artifact — shape-testing track."
+    },
+    {
+      "id": "R-campaign-layout-01",
+      "section": "Campaign layout",
+      "kind": "reference",
+      "statement": "Campaign directory layout, naming, and the -superseded rename convention for redone runs.",
+      "reason": "Documented layout/bookkeeping convention."
+    },
+    {
+      "id": "R-file-schemas-01",
+      "section": "File schemas",
+      "kind": "reference",
+      "statement": "rules.json and scenarios.json schemas, enforced pre-spend by harness validation.",
+      "reason": "Schema definitions enforced by the harness."
+    },
+    {
+      "id": "R-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "statement": "Report opens with four fixed lines; per-rule blocks carry arm tables, rationalizations, meta and write-back lines; index sections and summary line follow.",
+      "reason": "Output-shaping rule — shape-testing track."
+    },
+    {
+      "id": "R-removal-procedure-01",
+      "section": "Removal procedure",
+      "kind": "technique",
+      "statement": "At 3 consecutive control passes on an ablation rule, propose removal; on confirmation delete the rule text, flip status to removed keeping the streak, keep the scenario.",
+      "reason": "Procedure gated on user confirmation; the confirmation norm is covered by the write-back-confirmation discipline rule."
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "Never batch reps in one prompt; void is a harness/agent problem, never a rule finding; raise --timeout before blaming the agent body.",
+      "reason": "Documented mechanics and escalation guidance."
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "statement": "The end-of-campaign checklist enumerates every gate above.",
+      "reason": "Derived summary of the other rules, not an independent rule."
+    }
+  ]
+}
