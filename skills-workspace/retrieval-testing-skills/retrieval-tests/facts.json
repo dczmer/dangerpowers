@@ -1,0 +1,418 @@
+{
+  "skill": "retrieval-testing-skills",
+  "generated": "2026-09-28",
+  "facts": [
+    {
+      "id": "F-overview-01",
+      "section": "Overview",
+      "statement": "Does-it-trigger questions are trigger-testing, the wrong track; retrieval testing measures the skill body",
+      "entries": [
+        "track-routing"
+      ]
+    },
+    {
+      "id": "F-overview-02",
+      "section": "Overview",
+      "statement": "A skill whose fact inventory is empty needs no retrieval testing; stop instead of fabricating queries",
+      "entries": [
+        "track-routing"
+      ]
+    },
+    {
+      "id": "F-inputs-01",
+      "section": "Inputs",
+      "statement": "The harness is always user-specified with no default; prompt for it when missing",
+      "entries": [
+        "harness-and-output"
+      ]
+    },
+    {
+      "id": "F-overview-03",
+      "section": "Overview",
+      "statement": "Consume exit codes and JSON from harness scripts only; never parse their prose stdout",
+      "entries": [
+        "harness-and-output"
+      ]
+    },
+    {
+      "id": "F-workflow-01",
+      "section": "Workflow",
+      "statement": "Both eval workspaces are initialized with --prefix retrieval-test, never the trigger-test prefix",
+      "entries": [
+        "workspace-prefix"
+      ]
+    },
+    {
+      "id": "F-workflow-02",
+      "section": "Workflow",
+      "statement": "Sync only the skill workspace with the skill; the control workspace is never synced",
+      "entries": [
+        "control-isolation"
+      ]
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "statement": "One contaminated control baseline voids the whole campaign",
+      "entries": [
+        "control-isolation"
+      ]
+    },
+    {
+      "id": "F-eval-agents-01",
+      "section": "Eval agents",
+      "statement": "Skill arm: skill allow, read/grep/glob/list allowed, edit/bash/task/todowrite/webfetch/websearch/question denied; control arm identical except skill deny",
+      "entries": [
+        "eval-agent-config"
+      ]
+    },
+    {
+      "id": "F-eval-agents-02",
+      "section": "Eval agents",
+      "statement": "Neither eval agent pins model/variant/temperature/top_p; campaign --model/--variant flags are the only model-selection path",
+      "entries": [
+        "eval-agent-config"
+      ]
+    },
+    {
+      "id": "F-eval-agents-03",
+      "section": "Eval agents",
+      "statement": "The skill under test is force-loaded by instruction in every scenario; the per-run prompt is the bare query",
+      "entries": [
+        "eval-dispatch-mechanics"
+      ]
+    },
+    {
+      "id": "F-eval-agents-04",
+      "section": "Eval agents",
+      "statement": "bash is denied, so a skill whose value includes executable scripts cannot have that value exercised",
+      "entries": [
+        "eval-agent-config"
+      ]
+    },
+    {
+      "id": "F-eval-agents-05",
+      "section": "Eval agents",
+      "statement": "Read-only is enforced by the harness permission layer, not claimed in a prompt",
+      "entries": [
+        "eval-dispatch-mechanics"
+      ]
+    },
+    {
+      "id": "F-eval-agents-06",
+      "section": "Eval agents",
+      "statement": "The old git status contamination check is retired — the repo is never the working directory",
+      "entries": [
+        "eval-dispatch-mechanics"
+      ]
+    },
+    {
+      "id": "F-inputs-02",
+      "section": "Inputs",
+      "statement": "Reps default to 1; the per-run abort timeout defaults to 300 seconds",
+      "entries": [
+        "defaults"
+      ]
+    },
+    {
+      "id": "F-gotchas-02",
+      "section": "Gotchas",
+      "statement": "Never name the section or file holding the fact in a query",
+      "entries": [
+        "query-hygiene"
+      ]
+    },
+    {
+      "id": "F-gotchas-03",
+      "section": "Gotchas",
+      "statement": "Never put rubric text in a run prompt; the per-run prompt is the bare query",
+      "entries": [
+        "query-hygiene"
+      ]
+    },
+    {
+      "id": "F-gotchas-04",
+      "section": "Gotchas",
+      "statement": "Never provide additional information beyond the query text, and never let the eval agent know it is a test",
+      "entries": [
+        "query-hygiene"
+      ]
+    },
+    {
+      "id": "F-gotchas-05",
+      "section": "Gotchas",
+      "statement": "Keep the query verbatim within and across campaigns, {RUN_DIR} token included",
+      "entries": [
+        "query-hygiene"
+      ]
+    },
+    {
+      "id": "F-gotchas-06",
+      "section": "Gotchas",
+      "statement": "Score from answer_text only; what the agent claims it did or found is not evidence",
+      "entries": [
+        "scoring-integrity"
+      ]
+    },
+    {
+      "id": "F-scored-check-01",
+      "section": "scored-check",
+      "statement": "missed_bullets are copied character-for-character from the entry's expect list",
+      "entries": [
+        "scoring-integrity"
+      ]
+    },
+    {
+      "id": "F-scored-check-02",
+      "section": "scored-check",
+      "statement": "ablation_flag derives mechanically as control == pass; classification is recorded if and only if result is fail",
+      "entries": [
+        "scoring-integrity"
+      ]
+    },
+    {
+      "id": "F-scored-check-03",
+      "section": "scored-check",
+      "statement": "Every results.json entry id must be accounted for exactly once in scored.json",
+      "entries": [
+        "scoring-integrity"
+      ]
+    },
+    {
+      "id": "F-gotchas-07",
+      "section": "Gotchas",
+      "statement": "A missing skill-load signal is void, not fail; the doc was never in context",
+      "entries": [
+        "void-and-reps"
+      ]
+    },
+    {
+      "id": "F-scored-check-04",
+      "section": "scored-check",
+      "statement": "With reps > 1 the entry result is the worst non-void run outcome; an entry is void only if every run is void",
+      "entries": [
+        "void-and-reps"
+      ]
+    },
+    {
+      "id": "F-gotchas-08",
+      "section": "Gotchas",
+      "statement": "A control pass is a flag, not a verdict; removal requires 3 consecutive control passes plus user confirmation",
+      "entries": [
+        "ablation-lifecycle"
+      ]
+    },
+    {
+      "id": "F-workflow-03",
+      "section": "Workflow",
+      "statement": "inventory-update: a control pass auto-marks a status-less fact status ablation streak 0 and increments the streak on a statused fact; a control fail clears an ablation fact's status and streak; a void control run neither increments nor resets",
+      "entries": [
+        "ablation-lifecycle"
+      ]
+    },
+    {
+      "id": "F-removal-procedure-01",
+      "section": "Removal procedure",
+      "statement": "On removal: delete the fact text from SKILL.md, hand-edit the inventory item to status removed (streak continues, not reset), keep the entries as regression coverage",
+      "entries": [
+        "ablation-lifecycle"
+      ]
+    },
+    {
+      "id": "F-facts-manifest-01",
+      "section": "Facts manifest",
+      "statement": "A query runs control-only when every fact covering it carries the same status; mixed-status queries run both arms",
+      "entries": [
+        "ablation-arms"
+      ]
+    },
+    {
+      "id": "F-workflow-04",
+      "section": "Workflow",
+      "statement": "Ablation/removed queries run the control arm only; a control fail triggers a follow-up skill-arm suite without --manifest into the same campaign dir, merging by id",
+      "entries": [
+        "ablation-arms"
+      ]
+    },
+    {
+      "id": "F-workflow-05",
+      "section": "Workflow",
+      "statement": "Doc fixes re-run only the failed entries as a mini-campaign in a confirm/round<N>/ subdir, with the queries file select-filtered to those entries",
+      "entries": [
+        "mini-campaign-rules"
+      ]
+    },
+    {
+      "id": "F-workflow-06",
+      "section": "Workflow",
+      "statement": "Mini-campaigns are never recorded, never passed to verify/record, and never touch ablation streaks",
+      "entries": [
+        "mini-campaign-rules"
+      ]
+    },
+    {
+      "id": "F-workflow-07",
+      "section": "Workflow",
+      "statement": "The counted results file is always named results.json; a superseded run is renamed results-superseded.json (then -2, ...) before re-running",
+      "entries": [
+        "mini-campaign-rules"
+      ]
+    },
+    {
+      "id": "F-facts-manifest-02",
+      "section": "Facts manifest",
+      "statement": "Fact ids are minted by inventory-mint, never assigned by hand; they are section-anchored as F-<section-slug>-<nn>",
+      "entries": [
+        "mint-and-manifest"
+      ]
+    },
+    {
+      "id": "F-facts-manifest-03",
+      "section": "Facts manifest",
+      "statement": "The manifest is regenerated via the script whenever entries change and never hand-maintained; rebuild the inventory fresh from the doc every campaign as a diff baseline, never a cache",
+      "entries": [
+        "mint-and-manifest"
+      ]
+    },
+    {
+      "id": "F-inputs-03",
+      "section": "Inputs",
+      "statement": "For <root>/.opencode/skills/<name> the source root is <root>/.opencode — the directory containing the skills/ dir",
+      "entries": [
+        "paths-and-artifacts"
+      ]
+    },
+    {
+      "id": "F-inputs-04",
+      "section": "Inputs",
+      "statement": "Queries and facts default under <source-root>/skills-workspace/<skill>/retrieval-tests/",
+      "entries": [
+        "paths-and-artifacts"
+      ]
+    },
+    {
+      "id": "F-gotchas-09",
+      "section": "Gotchas",
+      "statement": "Campaign artifacts (results, scored, snapshots) live in the persistent campaign dir under skills-workspace, never inside the temp eval workspaces",
+      "entries": [
+        "paths-and-artifacts"
+      ]
+    },
+    {
+      "id": "F-fixtures-01",
+      "section": "Fixtures",
+      "statement": "Each run gets the entry's fixture files copied fresh into its own run directory inside the eval workspace; no run ever writes into the repository",
+      "entries": [
+        "paths-and-artifacts"
+      ]
+    },
+    {
+      "id": "F-fixtures-02",
+      "section": "Fixtures",
+      "statement": "A {RUN_DIR} token requires a fixtures entry and fixtures require a token; the harness rejects the mismatch before any spend",
+      "entries": [
+        "fixture-token-validation"
+      ]
+    },
+    {
+      "id": "F-workflow-08",
+      "section": "Workflow",
+      "statement": "Close-out order after a full campaign: scored.json, then inventory-update, then verify, then record; record runs only after verify exits 0",
+      "entries": [
+        "closeout-order"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-01",
+      "section": "Improving the skill definition",
+      "statement": "Findability fix: better headings, a TOC, a quick-reference row, one-level-deep references, move important reference content above line 100; never an always-read-X-first clause",
+      "entries": [
+        "fix-findability"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-02",
+      "section": "Improving the skill definition",
+      "statement": "Fix failures by editing the doc, never by adding behavioral rules, prohibitions, or discipline clauses",
+      "entries": [
+        "fix-findability"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-03",
+      "section": "Improving the skill definition",
+      "statement": "Apply doc fixes between campaigns after the full pass completes, only with user confirmation, never mid-campaign",
+      "entries": [
+        "fix-findability"
+      ]
+    },
+    {
+      "id": "F-report-format-01",
+      "section": "Report format",
+      "statement": "Report layout: 'retrieval test: <skill> — <date>' header; queries:/artifacts:/manifest: lines; an id/result/control table; a 'summary: N pass / M fail / G gap / V void' line; then failures:, gaps:, ablation flags:, and regression failures: sections",
+      "entries": [
+        "report-format"
+      ]
+    },
+    {
+      "id": "F-proposal-format-01",
+      "section": "Proposal format",
+      "statement": "Proposal cards: '## N. <entry-id>' with covers:/facts:/query:/expect:/why: lines, closed by coverage:/excluded:/cost:/fixtures: lines",
+      "entries": [
+        "proposal-format"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-workflow-09",
+      "section": "Workflow",
+      "reason": "two arms in parallel with arm-tagged progress lines — harness-enforced mechanics, not an agent decision a prompt elicits"
+    },
+    {
+      "id": "F-workflow-10",
+      "section": "Workflow",
+      "reason": "one suite process at a time enforced by a machine-wide lockfile — harness-enforced mechanics"
+    },
+    {
+      "id": "F-workflow-11",
+      "section": "Workflow",
+      "reason": "verify's snapshot/wiring/scored-check consistency checks — harness-enforced consistency proof"
+    },
+    {
+      "id": "F-workflow-12",
+      "section": "Workflow",
+      "reason": "record derives counts from the scored file, model/variant from results config, date from the campaign dir name — harness mechanics"
+    },
+    {
+      "id": "F-fact-inventory-01",
+      "section": "Fact inventory",
+      "reason": "the seven fact-keeper tests and drop/dedupe/cluster methodology — self-describing methodology, not reference-domain facts"
+    },
+    {
+      "id": "F-fact-inventory-02",
+      "section": "Fact inventory",
+      "reason": "derive queries from the failure mode, bait- or review-shaped — methodology guidance folded into authoring practice"
+    },
+    {
+      "id": "F-scored-check-05",
+      "section": "scored-check",
+      "reason": "result vocabulary pass/fail/gap/void — near-baseline vocabulary; the scored schema shape is exercised by the harness"
+    },
+    {
+      "id": "F-query-file-format-01",
+      "section": "Query file format",
+      "reason": "'id — stable fact identifier; never reuse ids' — schema detail enforced by the harness"
+    },
+    {
+      "id": "F-inputs-05",
+      "section": "Inputs",
+      "reason": "the harness measures bytes on disk so whether the driving session can load the skill is irrelevant — harness mechanics"
+    },
+    {
+      "id": "F-improving-the-skill-definition-04",
+      "section": "Improving the skill definition",
+      "reason": "a scenario still failing after a doc fix gets one more revision, then surface to the user — escalation policy, thinly testable and already implied by the fix rules"
+    }
+  ]
+}

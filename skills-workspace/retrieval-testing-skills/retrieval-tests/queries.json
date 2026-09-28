@@ -1,0 +1,179 @@
+[
+  {
+    "id": "track-routing",
+    "query": "A teammate wants to check whether our reference skill's description fires on the query 'help me draft a changelog entry', and asks me to run a retrieval test campaign for it. Another teammate has a reference doc that records no facts at all and asks whether it needs retrieval queries. What do I tell each of them?",
+    "expect": [
+      "the description-firing question belongs to trigger testing, not retrieval testing",
+      "the doc with no recorded facts needs no retrieval testing; queries must not be fabricated"
+    ]
+  },
+  {
+    "id": "harness-and-output",
+    "query": "I'm planning a retrieval test campaign but haven't decided on a harness yet — go ahead and set everything up. Also, the harness scripts print friendly prose summaries; I'd rather read those than deal with JSON. Fine?",
+    "expect": [
+      "the harness is always user-specified with no default; the user must be prompted for it",
+      "harness output is consumed as exit codes and JSON only; prose stdout is never parsed"
+    ]
+  },
+  {
+    "id": "workspace-prefix",
+    "query": "Give me the exact workspace-manager.sh commands to create the two eval workspaces for my retrieval test campaign.",
+    "expect": [
+      "both workspaces are initialized with --prefix retrieval-test",
+      "the trigger-test prefix is never used"
+    ]
+  },
+  {
+    "id": "control-isolation",
+    "query": "My control arm keeps missing facts that the skill arm finds. To level the playing field, I want to sync the skill into the control workspace too. Any objections?",
+    "expect": [
+      "the control workspace is never synced with the skill",
+      "one contaminated control baseline voids the whole campaign"
+    ]
+  },
+  {
+    "id": "eval-agent-config",
+    "query": "Write the two eval agent definitions for my retrieval campaign — one for the skill arm, one for the control — including tool permissions. I'd also like to pin the model and temperature inside the agent files for reproducibility, and my reference skill ships helper scripts the eval agent should execute. Will that work?",
+    "expect": [
+      "skill arm: skill allow; read/grep/glob/list allowed; edit/bash/task/todowrite/webfetch/websearch/question denied; control arm identical except skill deny",
+      "neither agent pins model/variant/temperature/top_p; campaign --model/--variant flags are the only model-selection path",
+      "bash is denied, so a skill whose value includes executable scripts cannot have that value exercised"
+    ]
+  },
+  {
+    "id": "defaults",
+    "query": "The user launching this retrieval campaign didn't mention reps or a timeout. What values will the runs use?",
+    "expect": [
+      "reps default to 1",
+      "the per-run abort timeout defaults to 300 seconds"
+    ]
+  },
+  {
+    "id": "query-hygiene",
+    "query": "Help me write the eval query for a documented fact about Retry-After handling in my reference doc. The rubric will check backoff behavior. Draft the exact text that gets sent to the eval agent, plus any rules I should follow when authoring these queries.",
+    "expect": [
+      "the drafted query does not name the section or file holding the fact",
+      "no rubric text goes into the run prompt; the prompt is the bare query",
+      "no additional framing beyond the query text, and the eval agent is never told this is a test",
+      "query text stays verbatim within and across campaigns"
+    ]
+  },
+  {
+    "id": "scoring-integrity",
+    "query": "Scoring time. The skill arm's answer misses the Retry-After rubric bullet but the agent's log claims it read the reference doc thoroughly; the control arm passed. How do I fill this entry's scored.json row?",
+    "expect": [
+      "scoring is from answer_text only; what the agent claims it did or found is not evidence",
+      "missed_bullets are copied character-for-character from the entry's expect list",
+      "ablation_flag derives mechanically as control == pass",
+      "every results.json entry id must be accounted for exactly once in scored.json"
+    ]
+  },
+  {
+    "id": "void-and-reps",
+    "query": "My entry ran with reps=3: run 1 passed, run 2 failed, and run 3 came back empty because the skill never loaded. What's the entry result, and how should I treat that no-load run?",
+    "expect": [
+      "a missing skill-load signal is void, not fail — the doc was never in context",
+      "the entry result is the worst non-void run outcome: fail",
+      "an entry is void only if every run is void"
+    ]
+  },
+  {
+    "id": "ablation-lifecycle",
+    "query": "Walk me through the ablation lifecycle for one of my facts: what a single control pass means, what happens to its status and streak across campaigns as results are folded in, and the full removal procedure once the threshold is hit and I've confirmed with the user.",
+    "expect": [
+      "a control pass is a flag, not a verdict; removal requires 3 consecutive control passes plus user confirmation",
+      "a control pass auto-marks a status-less fact as status ablation with streak 0 and increments the streak on a statused fact; a control fail clears an ablation fact's status and streak entirely; a void control run neither increments nor resets",
+      "removal deletes the fact text from SKILL.md, hand-edits the inventory item to status removed (the streak continues, not reset), and keeps the entries as regression coverage"
+    ]
+  },
+  {
+    "id": "ablation-arms",
+    "query": "One of my queries is covered only by a fact with status ablation, and another only by a status removed fact. Which arms run for these in the next suite, and what do I do if a control run fails for one of them?",
+    "expect": [
+      "ablation/removed queries run the control arm only; mixed-status or partially-normal queries run both arms",
+      "when the control fails, the skill arm runs as a follow-up suite without --manifest into the same campaign dir, merging by id"
+    ]
+  },
+  {
+    "id": "mini-campaign-rules",
+    "query": "The doc fixes after my full campaign just landed. Re-run the two failed entries and fold the outcomes into the manifest streaks. Give me the exact layout and commands.",
+    "expect": [
+      "re-run only the failed entries as a mini-campaign in a confirm/round<N>/ subdir of this campaign's dir, with the queries file filtered to just those entries",
+      "mini-campaigns are never recorded, never passed to verify or record, and never touch ablation streaks",
+      "the counted results file is always named results.json; a superseded run is renamed results-superseded.json (then results-superseded-2.json, and so on) before re-running"
+    ]
+  },
+  {
+    "id": "mint-and-manifest",
+    "query": "I've finalized this campaign's fact inventory draft. Assign stable fact ids and persist the manifest the way the workflow prescribes, and tell me the ongoing maintenance rules.",
+    "expect": [
+      "fact ids are minted by the inventory tooling, never assigned by hand",
+      "fact ids are section-anchored in the form F-<section-slug>-<nn>",
+      "the manifest is regenerated via the script whenever entries change and is never hand-maintained between campaigns",
+      "the inventory is rebuilt fresh from the doc every campaign; the manifest is a diff baseline, never a cache"
+    ]
+  },
+  {
+    "id": "paths-and-artifacts",
+    "query": "My skill lives at /proj/.opencode/skills/acme. Where do the queries file and facts manifest live by default, where do campaign artifacts go, and what happens to fixture files during runs?",
+    "expect": [
+      "the source root is /proj/.opencode — the directory containing the skills/ directory",
+      "queries.json and facts.json default to <source-root>/skills-workspace/acme/retrieval-tests/",
+      "results, scored, and snapshots live in the persistent campaign dir under skills-workspace, never inside the temp eval workspaces",
+      "each run gets the entry's fixture files copied fresh into its own run directory inside the eval workspace; no run ever writes into the repository"
+    ]
+  },
+  {
+    "id": "fixture-token-validation",
+    "query": "My entry's query text tells the agent to review the upload script at the harness's per-run run-directory placeholder path, but I forgot to declare the fixtures list in the entry. What happens when the suite starts?",
+    "expect": [
+      "the harness rejects a {RUN_DIR} token without a fixtures entry (and a fixtures entry without a token) before any spend",
+      "an entry declares fixtures as a list of filenames under the fixtures/ directory next to the queries file"
+    ]
+  },
+  {
+    "id": "closeout-order",
+    "query": "My full retrieval campaign just completed. List the close-out steps in order, up to the manifest record.",
+    "expect": [
+      "the order is scored.json first, then the manifest update, then verify, then record",
+      "record runs only after verify exits 0"
+    ]
+  },
+  {
+    "id": "fix-findability",
+    "query": "A scenario failed because the agent previewed the nested reference file and missed the fact 150 lines down. What's the right fix, and when do I apply it?",
+    "expect": [
+      "the findability fix is better headings, a TOC, a quick-reference row, one-level-deep references, and moving important reference content above line 100",
+      "never an \"always read X first\" clause, and fixes edit the doc rather than adding behavioral rules or prohibitions",
+      "fixes are applied between campaigns after the full pass completes, only with user confirmation, never mid-campaign"
+    ]
+  },
+  {
+    "id": "report-format",
+    "query": "Write the retrieval test report for my campaign against skill acme-api, run today. Include the summary counts and the failure details.",
+    "expect": [
+      "the header reads 'retrieval test: acme-api — <date>'",
+      "the report includes queries:/artifacts:/manifest: lines",
+      "the report includes an id/result/control table and a 'summary: N pass / M fail / G gap / V void' line",
+      "the report includes failures:, gaps:, ablation flags:, and regression failures: sections"
+    ]
+  },
+  {
+    "id": "proposal-format",
+    "query": "I need to propose two new eval entries for my retrieval campaign before spending anything. Show me exactly how to present the proposal.",
+    "expect": [
+      "each card opens with '## N. <entry-id>' and carries covers:/facts:/query:/expect:/why: lines in that order",
+      "the proposal closes with coverage:/excluded:/cost:/fixtures: lines"
+    ]
+  },
+  {
+    "id": "eval-dispatch-mechanics",
+    "query": "Explain how a retrieval eval run is wired up for me: how does the skill under test reach the eval agent, what exactly does the agent receive as its task, how is the agent kept from mutating anything, and how do I know the runs aren't contaminating my repo?",
+    "expect": [
+      "the skill under test is force-loaded by instruction in every scenario",
+      "the per-run prompt is the bare query — the measured query never names the skill",
+      "read-only is enforced by the harness permission layer, not claimed in a prompt",
+      "the old git status contamination check is retired"
+    ]
+  }
+]

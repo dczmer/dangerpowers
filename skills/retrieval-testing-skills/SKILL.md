@@ -132,12 +132,14 @@ before the first run:
   `skill: deny`; runs in the control workspace, which never contains the
   skill, and answers from its own knowledge.
 
-Neither agent pins `model`/`variant`/`temperature`/`top_p` — the installer
-asserts this and aborts before any spend, so campaign `--model`/`--variant`
-flags are the only model-selection path and sweeps measure what they
-claim. Read-only is enforced by the harness permission layer, not claimed
-in a prompt; the old `git status` contamination check is retired (the repo
-is never the working directory).
+- Neither agent pins `model`/`variant`/`temperature`/`top_p` — the
+  installer asserts this and aborts before any spend, so campaign
+  `--model`/`--variant` flags are the only model-selection path and
+  sweeps measure what they claim.
+- Read-only is enforced by the harness permission layer, not claimed in
+  a prompt.
+- The old `git status` contamination check is retired — the repo is
+  never the working directory.
 
 Known limitation: `bash: deny` means a skill whose value includes
 executable `scripts/` cannot have that value exercised — the syncer copies

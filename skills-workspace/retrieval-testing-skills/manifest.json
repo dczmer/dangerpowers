@@ -1,0 +1,18 @@
+{
+  "skill": "retrieval-testing-skills",
+  "retrieval-test": {
+    "date": "2026-09-28",
+    "checksum": "sha256:ad7b87e8c9a2489f735cd7aef1a47b7a55b7c87cf2fa3b69c3d7fb5faa2161cc",
+    "passes": 17,
+    "fails": 1,
+    "gaps": 0,
+    "voids": 1,
+    "model": "kimi-code-plan-global/kimi-for-coding",
+    "variant": null,
+    "ablations": 0,
+    "campaign": "campaign-2026-09-28",
+    "models": [
+      "kimi-code-plan-global/kimi-for-coding"
+    ]
+  }
+}
