@@ -21,6 +21,7 @@ from typing import cast
 import evaluator
 from src.common import (
     counts_gate,
+    rep_label,
     run_rep_batched,
     union_results,
     validate_eval_agent,
@@ -62,12 +63,15 @@ COUNTS_VOCABULARY = {
 EVIDENCE_TRACKS = {
     "retrieval": (
         "retrieval-test",
-        {"entry": None, "arm": None, "compare": False},
+        {"entry": None, "arm": None, "compare": False, "matrix": False},
     ),
-    "shape": ("shape-test", {"entry": None, "arm": None, "compare": False}),
+    "shape": (
+        "shape-test",
+        {"entry": None, "arm": None, "compare": False, "matrix": False},
+    ),
     "pressure": (
         "pressure-test",
-        {"entry": None, "arm": None, "compare": False},
+        {"entry": None, "arm": None, "compare": False, "matrix": False},
     ),
 }
 
@@ -125,6 +129,26 @@ class RunRepBatchedTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             runs = run_rep_batched(run_one, 3, " x ")
         self.assertEqual(runs, [{"rep": 1}, {"rep": 2}, {"rep": 3}])
+
+
+class RepLabelTests(unittest.TestCase):
+    """rep_label (issue #55): the persisted 1-based 'rep' field is the
+    stable display label; results written before the field existed fall
+    back to positional numbering."""
+
+    def test_persisted_rep_wins_over_position(self):
+        self.assertEqual(rep_label({"rep": 2}, 1), 2)
+
+    def test_missing_rep_falls_back_to_position(self):
+        self.assertEqual(rep_label({"arm": "v0"}, 3), 3)
+
+    def test_malformed_rep_falls_back_to_position(self):
+        for bad in (None, 0, -1, "2", 2.5, True):
+            with self.subTest(rep=bad):
+                self.assertEqual(rep_label({"rep": bad}, 4), 4)
+
+    def test_non_dict_run_falls_back_to_position(self):
+        self.assertEqual(rep_label("nope", 2), 2)
 
 
 class AgentGateTests(unittest.TestCase):
@@ -384,6 +408,65 @@ class UnionResultsTests(unittest.TestCase):
         self._assert_dedupe(
             "pressure", ["a", "n"], {"a": {"red", "green"}, "n": {"red"}}
         )
+
+    def test_union_cross_dir_rejected(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        paths = self._fixtures("shape", root)
+        subdir = root / "round-2"
+        subdir.mkdir()
+        moved = subdir / Path(paths[1]).name
+        Path(paths[1]).rename(moved)
+        out = union_results(
+            [paths[0], str(moved)], "shape", entry_hook=_shape_union_hook
+        )
+        self.assertIsInstance(out, str)
+        self.assertIn("same directory", out)
+        self.assertIn("--label", out)
+        self.assertIn(str(root), out)
+        self.assertIn(str(subdir), out)
+
+    def test_union_labeled_cross_dir_namespaces_arms(self):
+        # The sanctioned round-2 merge (issue #55): labels waive the
+        # same-dir guard and namespace each file's arms, so round-2's
+        # v1 never pools with the main campaign's v1 — in the arm set
+        # and in the hook extras alike.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        paths = self._fixtures("shape", root)
+        subdir = root / "round-2"
+        subdir.mkdir()
+        moved = subdir / Path(paths[1]).name
+        Path(paths[1]).rename(moved)
+        out = union_results(
+            [paths[0], str(moved)],
+            "shape",
+            entry_hook=_shape_union_hook,
+            labels=["main", "round-2"],
+        )
+        if isinstance(out, str):
+            self.fail(f"union_results returned an error: {out}")
+        ids, arms, extras = out
+        self.assertEqual(ids, ["a", "p"])
+        self.assertEqual(arms["a"], {"main:v0", "round-2:v1", "round-2:v2"})
+        self.assertEqual(arms["p"], {"main:v0"})
+        self.assertEqual(extras["kinds"], {"a": "shaping", "p": "pattern"})
+        self.assertEqual(
+            set(extras["marker_counts"]["a"]),
+            {"main:v0", "round-2:v1", "round-2:v2"},
+        )
+
+    def test_union_labels_count_mismatch_rejected(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        paths = self._fixtures("shape", Path(tmp.name))
+        out = union_results(
+            paths, "shape", entry_hook=_shape_union_hook, labels=["only"]
+        )
+        self.assertIsInstance(out, str)
+        self.assertIn("exactly once per --results file", out)
 
 
 class EvidenceEnvelopeTests(unittest.TestCase):
@@ -675,6 +758,25 @@ class SkeletonEmitTests(unittest.TestCase):
             self.assertIsNone(entry["counters"])
             self.assertIsNone(entry["notes"])
 
+    def test_emit_skeleton_creates_missing_output_parent_dirs(self):
+        # Issue #54: --emit-skeleton naming not-yet-existing subdirs
+        # works (the record convention), never a raw FileNotFoundError.
+        results = self._results("retrieval")
+        out = self.root / "nested" / "dir" / "skeleton.json"
+        rc, _, stderr = self._run("retrieval", results, emit=str(out))
+        self.assertEqual(rc, 0, stderr)
+        self.assertTrue(out.is_file())
+
+    def test_emit_skeleton_unwritable_output_fails_cleanly(self):
+        results = self._results("retrieval")
+        blocker = self.root / "blocker"
+        blocker.write_text("x")
+        out = blocker / "sub" / "skeleton.json"
+        rc, _, stderr = self._run("retrieval", results, emit=str(out))
+        self.assertEqual(rc, 1)
+        self.assertIn("error: could not write", stderr)
+        self.assertNotIn("Traceback", stderr)
+
     def test_emit_skeleton_header_campaign_derived(self):
         campaign_dir = self.root / "campaign-2099-01-01"
         campaign_dir.mkdir()
@@ -689,6 +791,25 @@ class SkeletonEmitTests(unittest.TestCase):
         )
         nested = campaign_dir / "results.json"
         nested.write_text(results.read_text())
+        out = self.root / "skel.json"
+        rc, _, stderr = self._run("retrieval", str(nested), emit=str(out))
+        self.assertEqual(rc, 0, stderr)
+        doc = json.loads(out.read_text())
+        self.assertEqual(doc["campaign"], "campaign-2099-01-01")
+        self.assertEqual(doc["skill"], "demo-skill")
+
+    def test_emit_skeleton_header_campaign_from_ancestor(self):
+        subdir = self.root / "campaign-2099-01-01" / "round-2"
+        subdir.mkdir(parents=True)
+        nested = subdir / "results.json"
+        nested.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [{"id": "a", "expect": []}],
+                }
+            )
+        )
         out = self.root / "skel.json"
         rc, _, stderr = self._run("retrieval", str(nested), emit=str(out))
         self.assertEqual(rc, 0, stderr)

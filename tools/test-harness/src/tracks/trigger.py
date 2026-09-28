@@ -370,6 +370,8 @@ class TriggerTrack(Track):
         if args.reps is None:
             args.reps = 3
         if args.timeout is None:
+            # Deliberately not DEFAULT_TIMEOUT (300 s): trigger queries
+            # are short single-shot loads under a restricted agent.
             args.timeout = 30
         workspace = Path(args.workspace)
         stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
@@ -520,6 +522,7 @@ class TriggerTrack(Track):
             )
             return 1
         n_failures = 0
+        n_no_reasoning = 0
         for q in data["queries"]:
             failures = q.get("failures") or []
             if not failures:
@@ -538,12 +541,26 @@ class TriggerTrack(Track):
                     f"  run {f.get('run')}: {f.get('outcome')}{timeout}"
                     f"{session} — {f.get('detail', '')}"
                 )
-                reasoning = f.get("reasoning") or "(no reasoning captured)"
-                for line in reasoning.splitlines():
-                    print(f"    {line}")
+                reasoning = f.get("reasoning")
+                if not reasoning:
+                    n_no_reasoning += 1
+                    print(
+                        "    (no reasoning captured — evidence rests on "
+                        "the harness detail string)"
+                    )
+                else:
+                    for line in reasoning.splitlines():
+                        print(f"    {line}")
             print()
         if n_failures == 0:
             print(f"no failed runs in {path}")
+        elif n_no_reasoning > 0:
+            print(
+                f"warning: {n_no_reasoning} of {n_failures} failed runs "
+                "carry no reasoning; categories for these rest on the "
+                "harness detail string, not run reasoning",
+                file=sys.stderr,
+            )
         return 0
 
 

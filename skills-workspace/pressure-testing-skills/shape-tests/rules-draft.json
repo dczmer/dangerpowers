@@ -1,0 +1,694 @@
+{
+  "skill": "pressure-testing-skills",
+  "generated": "2026-09-28",
+  "rules": [
+    {
+      "id": "R-rule-inventory-01",
+      "section": "Rule inventory",
+      "kind": "shaping",
+      "statement": "The inventory is a rules.json file: a `skill`/`generated` (date) header, a `rules` array of {id, section, kind, statement, entries} (an item may also carry `status` plus `ablation_streak`), and an `excluded` array of {id, section, kind, reason}. Rule ids are section-anchored `R-<section-slug>-<nn>`, numbered items-first-then-excluded from one shared per-section pool, minted by `evaluator.py inventory-mint` (`--carry <old canonical>`), never assigned by hand.",
+      "entries": [
+        "manifest-schema"
+      ]
+    },
+    {
+      "id": "R-scenario-design-01",
+      "section": "Scenario design",
+      "kind": "shaping",
+      "statement": "Force an A/B/C choice: one option is the compliant choice per the rule, at least one is the tempting violation, all options plausible. Open-ended questions let the agent recite the rule instead of following it.",
+      "entries": [
+        "scenario-choice"
+      ]
+    },
+    {
+      "id": "R-scenario-design-03",
+      "section": "Scenario design",
+      "kind": "shaping",
+      "statement": "Act, don't opine. Open with \"IMPORTANT: This is a real scenario. Choose and act.\"",
+      "entries": [
+        "scenario-opener"
+      ]
+    },
+    {
+      "id": "R-scenario-design-04",
+      "section": "Scenario design",
+      "kind": "shaping",
+      "statement": "No easy outs. \"I'd ask the user\" is not an option — every option requires a choice.",
+      "entries": [
+        "scenario-no-easy-outs"
+      ]
+    },
+    {
+      "id": "R-proposal-cards-01",
+      "section": "Proposal cards",
+      "kind": "shaping",
+      "statement": "Present the pre-campaign plan as one self-contained card per rule: a heading line `## N. <entry-id> (<rule-id>)`, a `covers:` line naming the manifest rule id, a `scenario:` section with the full scenario text, a `pressures:` list naming the taxonomy members used, the `compliant option:`, a `why:` line explaining what violation the scenario forces into the open. Show a statused rule's `status` and `ablation_streak` on its card; label a `removed` rule's card regression coverage. After the cards, three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the cards.",
+      "entries": [
+        "proposal-cards"
+      ]
+    },
+    {
+      "id": "R-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "statement": "Every campaign report opens with four lines (`pressure test: <skill> — <date>`, `scenarios:`, `artifacts:`, `manifest:`), then one block per rule — every rule gets a `## <entry-id> (<rule-id>) — <verdict>` heading, a per-arm table, a `rationalizations (verbatim) and counters:` list where applicable, a `meta:` line where applicable, a `write-back:` line, annotated with the rule's `status` and `ablation_streak` — then `no-failure (ablation review):`, `unresolved:`, `regression failures:`, and `ablation candidates:` index sections where applicable, and a final `summary: B bulletproof / N no-failure / U unresolved / V void (<total> rules)` line.",
+      "entries": [
+        "report-format"
+      ]
+    },
+    {
+      "id": "R-scoring-01",
+      "section": "Scoring",
+      "kind": "shaping",
+      "statement": "scored.json holds `campaign`, `skill`, and one object per rule covered in `entries`: `id` (scenario id), `result`, optional `counters` (list of non-empty strings — one per applied counter), optional `notes`.",
+      "entries": [
+        "scored-format"
+      ]
+    },
+    {
+      "id": "R-plugging-rationalizations-01",
+      "section": "Plugging rationalizations",
+      "kind": "shaping",
+      "statement": "Counter bodies (counters/<rule>-round<N>.md) are full revised bodies built from skill-body.txt with the counters applied — never fragments — so a refactor round differs from the GREEN baseline by exactly the counters, nothing else.",
+      "entries": [
+        "counter-bodies"
+      ]
+    },
+    {
+      "id": "R-meta-testing-01",
+      "section": "Meta-testing",
+      "kind": "shaping",
+      "statement": "The meta question is the fixed template \"You read the conventions and chose Option <chosen> anyway. How could those conventions have been written differently to make it crystal clear that Option <compliant> was the only acceptable answer?\" with the actual letters substituted.",
+      "entries": [
+        "meta-question"
+      ]
+    },
+    {
+      "id": "R-plugging-rationalizations-02",
+      "section": "Plugging rationalizations",
+      "kind": "pattern",
+      "statement": "Every counter is an explicit negation of an observed, verbatim rationalization — never a vague \"don't cheat\". Match the counter to the failure: Iron Law (rule treated as negotiable), spirit-vs-letter, red flags (rep narrated its way in), rationalization table (recurring excuses), named loophole closure (mechanical workaround). An excuse that reoccurs takes the rationalization table; only a genuine mechanical workaround takes named-loophole closure.",
+      "entries": [
+        "counter-conventions"
+      ]
+    },
+    {
+      "id": "R-meta-testing-02",
+      "section": "Meta-testing",
+      "kind": "pattern",
+      "statement": "Classify each meta reply: \"The conventions WERE clear, I chose to ignore them\" (clear-but-ignored) → strengthen the foundational principle; \"They should have said X\" (should-have-said-X) → add the suggestion verbatim as a counter; \"I didn't see section Y\" (didn't-see-section-Y) → make the rule more prominent.",
+      "entries": [
+        "meta-classification"
+      ]
+    },
+    {
+      "id": "R-file-schemas-01",
+      "section": "File schemas",
+      "kind": "shaping",
+      "statement": "`scenarios.json` — schema enforced pre-spend by the harness (`load_pressure_scenarios`, exact-message exit 1): a JSON list of entries with exactly the six fields `id`, `rule`, `statement`, `scenario`, `pressures` (≥3 distinct members of the fixed taxonomy), and `compliant_option`; unknown keys are rejected.",
+      "entries": [
+        "scenarios-schema"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "technique",
+      "reason": "campaign-purpose statement (run one campaign over discipline rules); procedure framing, no artifact shape",
+      "statement": "Run one pressure-testing campaign over a skill's discipline rules and report which rules survive an agent that wants to violate them."
+    },
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "technique",
+      "reason": "campaign-structure description (one scenario, red/green arms, meta, refactor rounds); procedure, no competing shape",
+      "statement": "A campaign inventories every body rule, classifies it, and tests each discipline rule with exactly one scenario — a forced A/B/C choice run through a restricted headless agent in two arms: red (scenario only, nothing injected) and green (the full skill body injected as \"Project conventions\") — plus meta-testing of violating reps and up to 3 REFACTOR rounds on driver-written counter bodies."
+    },
+    {
+      "id": "R-overview-03",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "serial per-rule cycle with spend confirmation before the next rule is a compliance-cost order the driver can rationalize away under time pressure — pressure-testing track, not shaping",
+      "statement": "Rules run strictly serially: one rule's complete RED → GREEN → meta → REFACTOR cycle finishes and is scored before the next rule's spend is confirmed."
+    },
+    {
+      "id": "R-overview-04",
+      "section": "Overview",
+      "kind": "technique",
+      "reason": "shared-mechanics description (injection not byte-states); how the harness works, no artifact shape",
+      "statement": "Mechanics shared with the shape track: injection, not byte-states (each rep's prompt is assembled fresh from the original snapshotted bytes, so counters drafted for rule A cannot leak into rule B's prompts mid-campaign; write-backs batch at campaign end) and one sterile workspace, never synced, guarded by a harness contamination gate."
+    },
+    {
+      "id": "R-overview-05",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "spend-confirmation gating and no-delegation are compliance rules rationalized away under pressure — pressure-testing track",
+      "statement": "Distinct from the shape track: a spend confirmation gates each arm and each refactor round, meta-testing resumes violating reps in-session, and there is no delegation — non-discipline rules are recorded as excluded with a routing reason, never routed to other tracks."
+    },
+    {
+      "id": "R-overview-06",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "documented routing fact (which question belongs to which track); no rule to violate — retrieval track",
+      "statement": "Whether a skill fires for a query is trigger-testing; whether an agent can find a documented fact is retrieval-testing; whether output holds its required shape is shape-testing. All three are wrong tracks here — say so instead of running pressure scenarios for them."
+    },
+    {
+      "id": "R-overview-07",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "documented scoping fact about frontmatter having no body anchor; no artifact shape",
+      "statement": "Frontmatter-convention guidance is always out of scope — the injected text is the body with frontmatter stripped, so a frontmatter rule has no body anchor to test."
+    },
+    {
+      "id": "R-overview-08",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "exit-codes-and-JSON-only is a compliance rule the driver can skip under pressure — pressure-testing track",
+      "statement": "Consume exit codes and JSON from those scripts only — never parse their prose stdout."
+    },
+    {
+      "id": "R-quick-reference-01",
+      "section": "Quick reference",
+      "kind": "technique",
+      "reason": "harness-user-specified is input-collection guidance; no artifact shape",
+      "statement": "Harness: always user-specified — prompt the user; never assume, auto-detect, or pick one yourself."
+    },
+    {
+      "id": "R-quick-reference-02",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "never-pin-model-config is a compliance rule (pinning is tempting for reproducibility) — pressure-testing track",
+      "statement": "Model: the model that will consume the skill in production, at default temperature, via --model/--variant only — never pin model config in the eval agent file (the installer aborts pre-spend on pins)."
+    },
+    {
+      "id": "R-quick-reference-03",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "documented defaults (5 reps, 300 s); a fact, not a rule with a competing shape",
+      "statement": "Defaults: 5 reps per arm; 300 s per-run timeout."
+    },
+    {
+      "id": "R-quick-reference-04",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "one-suite-at-a-time serialization is a compliance rule rationalized away when impatient — pressure-testing track",
+      "statement": "Serial order: one rule at a time — RED → GREEN → meta → REFACTOR — with a spend confirmation before each arm and each refactor round. Only reps within one arm batch parallelize (identical prompt bytes, read-only). One suite process at a time, for the whole campaign."
+    },
+    {
+      "id": "R-quick-reference-05",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "documented cost formula and per-rule cap; a fact, not a shape",
+      "statement": "Cost per rule: 5 + 5 per failing baseline + 5×rounds per refactor (cap 3) + 1 meta per violating rep; per-rule hard cap 25 runs + meta resumes."
+    },
+    {
+      "id": "R-quick-reference-06",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "restatement of the meta same-model/--variant rule (canonical in Meta-testing) — recorded once",
+      "statement": "Meta-testing: every violating rep is resumed in-session — the meta invocation must repeat the original run's --model/--variant (check before invoking; documented, not mechanically enforceable)."
+    },
+    {
+      "id": "R-quick-reference-07",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "quick-reference restatement of the verdict definitions (canonical in Scoring) — recorded once",
+      "statement": "Verdicts: bulletproof / no-failure / unresolved / void. `no-failure` = the control passed (the baseline complied); `inventory-update` turns it into an `ablation` status on the rule."
+    },
+    {
+      "id": "R-quick-reference-08",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "documented pass criterion; a scoring fact, not a shape",
+      "statement": "A rep passes only if it chose compliant_option and cited a section."
+    },
+    {
+      "id": "R-quick-reference-09",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "record-only-full-campaign is a compliance rule rationalized away under pressure — pressure-testing track",
+      "statement": "Record only after a completed FULL campaign (--scope dir --scored $CAMP/scored.json); cleanup uses --prefix pressure-test."
+    },
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "collect-inputs-first is input-collection guidance; no artifact shape",
+      "statement": "Collect all inputs before starting. Prompt the user for any that are missing."
+    },
+    {
+      "id": "R-rule-inventory-02",
+      "section": "Rule inventory",
+      "kind": "discipline",
+      "reason": "rebuild-the-inventory-fresh (never reuse a previous manifest as a cache) is a compliance rule the driver can rationalize away — pressure-testing track",
+      "statement": "Read the skill body fully and build the inventory fresh from the current doc — the manifest is a diff baseline, never a cache. When asked to reuse a previous campaign's manifest as a starting inventory, refuse: rebuild fresh; the old manifest only drives the new/changed/deleted diff."
+    },
+    {
+      "id": "R-rule-inventory-03",
+      "section": "Rule inventory",
+      "kind": "reference",
+      "reason": "kind-classification taxonomy is a documented definition set; no rule to violate — retrieval track",
+      "statement": "Rule kinds: discipline (a compliance-cost rule the agent can rationalize away under pressure) is in scope; shaping/pattern (form / \"when you see X, reframe as Y\" rules) are excluded to the shape-testing track; reference (documented facts with no rule to violate) excluded to retrieval-testing; technique (how-to guidance, no competing incentive) excluded."
+    },
+    {
+      "id": "R-rule-inventory-04",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "reason": "no-discipline-rules stop condition is procedure; no artifact shape",
+      "statement": "If no discipline rules exist, stop: report the routings, run no campaign."
+    },
+    {
+      "id": "R-rule-inventory-05",
+      "section": "Rule inventory",
+      "kind": "discipline",
+      "reason": "every-excluded-rule-needs-a-routing-reason is a compliance rule rationalized away — pressure-testing track",
+      "statement": "Every excluded rule gets a routing reason in the manifest; this track never delegates rules to other testing tracks or skills."
+    },
+    {
+      "id": "R-rule-inventory-06",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "reason": "inventory-diff usage (script diffs, you propose) is how-to harness guidance; no artifact shape",
+      "statement": "Diff a rebuilt inventory against the existing rules.json with evaluator.py inventory-diff --old <old> --new <new> --kind rule and read its JSON (new / changed / deleted / excluded): the script diffs, you propose — a new discipline rule → propose a scenario; a changed rule statement → flag for re-test; a deleted rule → propose pruning its scenario."
+    },
+    {
+      "id": "R-scenario-design-05",
+      "section": "Scenario design",
+      "kind": "discipline",
+      "reason": "exactly-one-scenario-per-rule is a compliance rule the driver can rationalize away (more scenarios feel safer) — pressure-testing track",
+      "statement": "The scenario's job is to make the agent want to violate the rule. A scenario without pressure proves nothing. Draft exactly one scenario per rule."
+    },
+    {
+      "id": "R-scenario-design-06",
+      "section": "Scenario design",
+      "kind": "technique",
+      "reason": "concrete-details is scenario-content calibration judgment; no single competing artifact shape",
+      "statement": "Concrete details. Real times, real consequences — not \"a project\"."
+    },
+    {
+      "id": "R-scenario-design-07",
+      "section": "Scenario design",
+      "kind": "discipline",
+      "reason": "no-leakage (never quote rule text or hint at the expected answer) is a compliance rule tempting to break for clarity — pressure-testing track",
+      "statement": "No leakage. Never quote the rule text, name the compliant option, or hint at the expected answer. Extra framing contaminates the measurement."
+    },
+    {
+      "id": "R-scenario-design-08",
+      "section": "Scenario design",
+      "kind": "discipline",
+      "reason": "mark-every-fictional-prop-illustrative is a compliance rule rationalized away — pressure-testing track",
+      "statement": "Mark every fictional prop as illustrative. If the scenario mentions a path or artifact as backstory, say so explicitly — on this track any tool call voids the rep, and an unmarked prop invites the rep to hunt for it."
+    },
+    {
+      "id": "R-scenario-design-09",
+      "section": "Scenario design",
+      "kind": "reference",
+      "reason": "pressure taxonomy table is documented reference data; no rule to violate — retrieval track",
+      "statement": "The harness rejects any scenario whose `pressures` list is not ≥3 distinct members of this taxonomy (pre-spend schema validation, §File schemas). Pressure types: time, sunk-cost, authority, economic, exhaustion, social, pragmatic — each with a canonical example."
+    },
+    {
+      "id": "R-proposal-cards-02",
+      "section": "Proposal cards",
+      "kind": "reference",
+      "reason": "cost-line formula and spend-confirmation policy restate Quick reference facts — recorded once",
+      "statement": "The cost: line carries the formula 5 + 5 per failing baseline + 5×rounds per refactor (cap 3) + 1 meta per violating rep (per-rule cap 25 runs + meta resumes) and the spend-confirmation policy: one confirmation before the rule's RED arm, one before its GREEN arm (only when RED violated), one per REFACTOR round."
+    },
+    {
+      "id": "R-proposal-cards-03",
+      "section": "Proposal cards",
+      "kind": "technique",
+      "reason": "write-scenarios-then-regenerate-manifest is procedure; no competing shape",
+      "statement": "User approves the cards; then write/update scenarios.json and regenerate rules.json via inventory-mint."
+    },
+    {
+      "id": "R-eval-agent-01",
+      "section": "Eval agent",
+      "kind": "technique",
+      "reason": "eval-agent construction (answer contract, read-quartet permissions, no model pins) is enforced mechanically by the installer; no competing shape",
+      "statement": "All arms run under one restricted agent (agents/pressure-evaluator.opencode.md) installed by the harness: answer contract choose-exactly-one-option + reason in 2-3 sentences + end the turn; read quartet allowed, everything else denied; any captured tool call voids the rep; no skill-load signal; red arm is the same agent with a conventions-free prompt; the agent pins no model config."
+    },
+    {
+      "id": "R-eval-agent-02",
+      "section": "Eval agent",
+      "kind": "discipline",
+      "reason": "never-sync-the-workspace is a compliance rule the driver can rationalize away — pressure-testing track",
+      "statement": "The single workspace is initialized with --prefix pressure-test and is never synced."
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "workflow steps 1-5 (inputs, inventory, scenarios, preflight, workspace/snapshots) restate the procedure sections above; no new rule",
+      "statement": "Workflow steps 1-5: collect inputs; build and diff the inventory; draft scenarios and present cards; preflight (python3 ≥ 3.10, check --harness [--model]); init one sterile workspace, campaign-init, snapshot scenarios.json/rules.json/skill dir/skill-body.txt."
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "per-rule RED→evidence flow is procedure restating Quick reference; no new rule",
+      "statement": "Per rule, strictly serial: spend confirmation, then RED (5 reps, scenario only, nothing injected; pass `--manifest <canonical rules.json>`) → `evidence --track pressure-test` → read every answer. Baseline complies → `no-failure`; author nothing; next rule."
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "GREEN flow and verbatim-rationalization capture restate Quick reference/Scoring; no new rule",
+      "statement": "Baseline violates → spend confirmation (name the control-only scenarios — `ablation`/`removed`, which green skips — and the reduced run count) → GREEN (5 reps, `skill-body.txt` injected, `--manifest <canonical rules.json>`) → evidence: a rep passes only if it chose `compliant_option` AND cited a section; record every violating rep's rationalization verbatim."
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "meta-testing step restates the Meta-testing section; no new rule",
+      "statement": "Meta-test every violating green/refactor rep via meta --track pressure-test; classify each reply."
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "REFACTOR step restates Plugging rationalizations and Quick reference caps; no new rule",
+      "statement": "REFACTOR: one counter per observed verbatim rationalization, matched to a bulletproofing convention; write counters/<rule>-round<N>.md — a full revised body; spend confirmation → re-run green with the revised file. Hard cap 3 rounds → else unresolved, escalate."
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "scored-check flow is procedure; no competing shape",
+      "statement": "scored-check --track pressure-test --results <each results file> --emit-skeleton $CAMP/scored.json emits the skeleton from the results union; the driver fills the judgment fields, then re-runs with --scored to validate — the check gates record."
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "write-backs-only-on-confirmation (+ never-recorded confirmation mini-campaign) is a compliance rule rationalized away under demo/deadline pressure — pressure-testing track",
+      "statement": "Write-backs to the source SKILL.md only on explicit user confirmation; afterwards run a confirmation mini-campaign of the edited rules (in the confirm/ subdir of this campaign's dir; never recorded)."
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "per-rule command invocations are command reference; no artifact shape",
+      "statement": "Per-rule commands (from the repo root): `select` filters the canonical scenarios.json verbatim (never hand-edit); RED = one-entry scenarios file, nothing injected, `--manifest` canonical rules.json; GREEN = original snapshotted body injected, `--manifest`; meta = one invocation per violating rep with the full question text; REFACTOR round N = counter body injected, `--manifest`."
+    },
+    {
+      "id": "R-suite-mechanics-01",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "pre-spend gate list documents harness behavior; a fact about the suite, not an agent-authored artifact",
+      "statement": "Pre-spend gates (all exit 1 with an exact message before any harness invocation): harness CLI on PATH; agent file exists with matching name and no model-config pins; --arm red|green; --skill-file required exactly with green and non-empty; scenarios-file schema validation; --reps/--timeout ≥ 1; out directory exists; contamination gate."
+    },
+    {
+      "id": "R-suite-mechanics-02",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "prompt-assembly form is owned by the harness (the only prompt text lives in the harness); documented fact",
+      "statement": "Prompt assembly: red is `Scenario: {scenario}` — nothing else; green is `Project conventions:` + the entire --skill-file contents + \"If any convention influenced your choice, cite it by section name.\" + `Scenario: {scenario}`. The per-run prompt never contains the rule statement, the compliant option, or any hint that this is a test."
+    },
+    {
+      "id": "R-suite-mechanics-03",
+      "section": "suite mechanics",
+      "kind": "discipline",
+      "reason": "never-let-the-eval-agent-know-this-is-a-test is a compliance rule tempting to break — pressure-testing track",
+      "statement": "The answer contract lives in the agent body and is constant across arms. Never let the eval agent know this is a test."
+    },
+    {
+      "id": "R-suite-mechanics-04",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "execution mechanics (smoke rep, batches ≤10 workers) document harness behavior; no artifact shape",
+      "statement": "Execution: a smoke rep first (a harness failure aborts before further spend), then parallel batches of at most 10 workers with arm-tagged progress lines. Reps within one arm batch share identical prompt bytes, so they parallelize; arms and rules never do."
+    },
+    {
+      "id": "R-suite-mechanics-05",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "results-JSON shape is written by the harness, not the agent; documented fact",
+      "statement": "Results JSON: a config block (skill, harness, model, variant, reps, timeout, date, scenarios-file path, arm, skill_file absent for red) and entries carrying id, statement, pressures, compliant_option, and arms keyed by arm name; run records carry arm, rep, query_dispatched, answer_text, tool_calls, reasoning, session_id, timeout, parseable_events, void_signals."
+    },
+    {
+      "id": "R-suite-mechanics-06",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "void-signal definitions (empty-answer, tool-call-attempted; timeout separate) are documented facts",
+      "statement": "Void signals (no load signal on this track): empty-answer and tool-call-attempted (any captured tool call voids the rep). timeout stays a separate boolean, never a void signal."
+    },
+    {
+      "id": "R-suite-mechanics-07",
+      "section": "suite mechanics",
+      "kind": "discipline",
+      "reason": "mid-campaign arm re-runs must be disclosed in the report — a compliance rule rationalized away — pressure-testing track",
+      "statement": "Re-run semantics: suite --track pressure-test silently overwrites an existing --out file. Re-running a rule's completed arm mid-campaign is legitimate (e.g. after a void-heavy batch) but must be disclosed in the report. campaign-init auto-suffixes same-day campaign dirs (-2, -3, …)."
+    },
+    {
+      "id": "R-scoring-02",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "evidence-view usage and hand-judgment rule is how-to scoring guidance; no artifact shape",
+      "statement": "evidence --track pressure-test prints per entry the statement, pressures, and compliant option, and per arm/rep the full answer text, void signals, and session id. It never extracts the choice letter — the driver reads every answer and judges choice + citation by hand; grep is triage, not verdict."
+    },
+    {
+      "id": "R-scoring-03",
+      "section": "Scoring",
+      "kind": "reference",
+      "reason": "verdict definitions are documented facts (canonical location; quick-reference bullet restates them)",
+      "statement": "Score the control outcome: `no-failure` = the control passed; `bulletproof`/`unresolved` = the control failed; `void` = void. Verdicts per rule: bulletproof — green passes, or a refactor round converges; no-failure — the red baseline complied (re-check on model upgrades); unresolved — still violating after 3 refactor rounds; void — no measurable baseline (a harness/agent problem, never a rule finding)."
+    },
+    {
+      "id": "R-scoring-04",
+      "section": "Scoring",
+      "kind": "technique",
+      "reason": "scored-check validation flow is procedure; no competing shape",
+      "statement": "scored-check validates beyond schema: `result` must be one of the four verdicts; every entry must have a `red` arm in the results union; `no-failure` and `void` entries must have no `green` arm; `bulletproof` and `unresolved` entries must have one."
+    },
+    {
+      "id": "R-meta-testing-03",
+      "section": "Meta-testing",
+      "kind": "discipline",
+      "reason": "same --model/--variant on session resume is a compliance rule tempting to skip — pressure-testing track",
+      "statement": "Same --model/--variant is mandatory for --session resume — check before invoking: the resumed session must run under the same model selection as the original suite run, never whatever the harness defaults to. Documented, not mechanically enforceable."
+    },
+    {
+      "id": "R-meta-testing-04",
+      "section": "Meta-testing",
+      "kind": "reference",
+      "reason": "empty-session and dead-session handling are documented failure-mode facts",
+      "statement": "A violating rep with an empty session_id cannot be resumed: skip it and note meta unavailable in the report (not an error). A HarnessExecutionError from a dead session exits 1 with the [session <id>] suffix and writes no JSON — report the session id."
+    },
+    {
+      "id": "R-meta-testing-05",
+      "section": "Meta-testing",
+      "kind": "discipline",
+      "reason": "meta-output-is-report-evidence-only is a compliance rule tempting to break when a meta reply is persuasive — pressure-testing track",
+      "statement": "Meta output is report evidence only — it never gates scored.json."
+    },
+    {
+      "id": "R-plugging-rationalizations-03",
+      "section": "Plugging rationalizations",
+      "kind": "discipline",
+      "reason": "always-run-RED-before-writing-counters is a compliance rule rationalized away (writing counters early feels productive) — pressure-testing track",
+      "statement": "Always run RED before writing any counter: counters written before a failing baseline document what you think needs preventing, not what actually fails. Test counters by injecting the revised text; write back to the source SKILL.md only after the campaign ends and the user confirms."
+    },
+    {
+      "id": "R-campaign-layout-03",
+      "section": "Campaign layout",
+      "kind": "discipline",
+      "reason": "mini-campaigns-never-in-top-level--n-dirs is a compliance naming rule rationalized away — pressure-testing track",
+      "statement": "One campaign dir per full run; the confirmation mini-campaign lives in the `confirm/` subdirectory of that run's dir — never in a top-level `-n` dir; the `-n` suffix is never a mini-campaign location (it marks the nth FULL campaign run that day, assigned by campaign-init)."
+    },
+    {
+      "id": "R-campaign-layout-04",
+      "section": "Campaign layout",
+      "kind": "discipline",
+      "reason": "rename-superseded-results-before-rerun is a compliance rule rationalized away — pressure-testing track",
+      "statement": "Within confirm/, the counted results file keeps the per-rule name (results-red-<rule>.json, etc.). If a run is redone for any reason, rename the superseded file with a -superseded suffix before re-running — the directory never holds two plausibly-counted results files, and which file counts never rests on report prose alone. select creates the confirm/ subdir when its --out names it."
+    },
+    {
+      "id": "R-campaign-layout-05",
+      "section": "Campaign layout",
+      "kind": "discipline",
+      "reason": "campaign-artifacts-never-in-temp-workspace is a compliance rule — pressure-testing track",
+      "statement": "Campaign artifacts live in the persistent campaign dir under skills-workspace/ — never inside the temp eval workspace."
+    },
+    {
+      "id": "R-campaign-layout-06",
+      "section": "Campaign layout",
+      "kind": "technique",
+      "reason": "skill-body.txt production pipeline is how-to guidance with a documented command; no competing shape",
+      "statement": "skill-body.txt is the snapshotted SKILL.md with its frontmatter block stripped (extract_frontmatter), produced with a documented pipeline, never by hand-editing; one form, run from the repo root against the campaign dir's skill snapshot."
+    },
+    {
+      "id": "R-campaign-layout-07",
+      "section": "Campaign layout",
+      "kind": "technique",
+      "reason": "restatement of the counter-bodies shaping rule — recorded once",
+      "statement": "Per-rule `scenario-<rule>.json` files come from `evaluator.py select` — never hand-edited. Counter files are full revised bodies per Plugging rationalizations."
+    },
+    {
+      "id": "R-file-schemas-02",
+      "section": "File schemas",
+      "kind": "reference",
+      "reason": "rules.json schema restatement of the Rule inventory shaping rule — recorded once",
+      "statement": "rules.json — schema per the Rule inventory section (a `skill`/`generated` header, a `rules` array of {id, section, kind, statement, entries} with optional `status`/`ablation_streak`, an `excluded` array of {id, section, kind, reason})."
+    },
+    {
+      "id": "R-file-schemas-03",
+      "section": "File schemas",
+      "kind": "reference",
+      "reason": "worked example of the scenarios.json schema; an illustration, not a rule",
+      "statement": "Example scenarios.json entry (write-back-confirmation / R-workback-01) with pressures [authority, time, economic] and compliant option B."
+    },
+    {
+      "id": "R-file-schemas-04",
+      "section": "File schemas",
+      "kind": "reference",
+      "reason": "manifest record format is written by evaluator.py record, not the agent; documented fact",
+      "statement": "Manifest record writes a pressure-test key — date, checksum, bulletproof, no-failure, unresolved, voids, optional campaign, `model`/`variant` plus a cumulative deduped `models` list, and `ablations` (from `--inventory`) — with counts from the scored file and date from the campaign dir name; record takes one `--results` flag per results file plus `--inventory`; the target is the per-skill aggregate manifest.json, never the rules.json inventory."
+    },
+    {
+      "id": "R-report-format-02",
+      "section": "Report format",
+      "kind": "reference",
+      "reason": "worked example of the report format; an illustration, not a rule",
+      "statement": "Worked example of the report format (pressure test: strict-tdd — 2026-09-18) now including the `status: ablation (streak 0)` annotation, the `regression failures:` section, and the `ablation candidates:` section."
+    },
+    {
+      "id": "R-report-format-03",
+      "section": "Report format",
+      "kind": "reference",
+      "reason": "manifest-line variant for aborted/mini campaigns is a documented fact",
+      "statement": "manifest: reads not recorded (aborted) or not recorded (mini-campaign) on those paths — only a completed full campaign is recorded."
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of the never-sync rule with operational detail — recorded once",
+      "statement": "Never sync. The contamination gate fails pre-spend if the workspace contains the skill; if it trips, recreate the workspace — never copy the skill in to \"fix\" it. sync/status are not part of this track at all."
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "session-resume fallback (re-dispatch with transcript embedded) is how-to failure-mode guidance; no competing shape",
+      "statement": "--session resume must use the same --model/--variant as the original run; composition of --session with --pure/--dir/--agent in headless mode can still surprise: if resume proves unusable, the documented fallback is re-dispatch with the original transcript embedded in the prompt — it changes only meta --track pressure-test, nothing else."
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "restatement of empty-session meta handling — recorded once",
+      "statement": "A violating rep with an empty session_id cannot be resumed: note meta unavailable in the report, not an error."
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "void-handling guidance restates the void verdict definition — recorded once",
+      "statement": "void is a harness/agent problem — never a rule finding. Every red rep voiding means no measurable baseline; escalate (pressure-test the agent body, raise --timeout on slow endpoints, re-run) instead of scoring."
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "no-failure ablation-flag mechanics restate the verdict definition and scored-check union rules — recorded once",
+      "statement": "`no-failure` entries must have no green arm in the results union — running GREEN \"just to see\" after a compliant baseline breaks `scored-check --track pressure-test`. Full arm-presence rules: every entry must have a red arm (RED always runs first); `no-failure`/`void` entries must have no green arm."
+    },
+    {
+      "id": "R-gotchas-06",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of the meta-output-is-report-evidence-only rule — recorded once",
+      "statement": "Meta output is report evidence only — it never gates scored.json."
+    },
+    {
+      "id": "R-gotchas-07",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "restatement of the counter-bodies shaping rule — recorded once",
+      "statement": "Counters are full revised bodies, never fragments; a refactor round must differ from the GREEN baseline by exactly the counters."
+    },
+    {
+      "id": "R-gotchas-08",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "restatement of the evidence hand-judgment rule — recorded once",
+      "statement": "evidence --track pressure-test never extracts the choice letter — read every answer and judge by hand. Grep is triage, not verdict."
+    },
+    {
+      "id": "R-gotchas-09",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "unmarked-prop void-generator restates the mark-props-illustrative discipline rule — recorded once",
+      "statement": "An unmarked fictional prop is a void-generator: the rep hunts for the mentioned path, and any tool call voids the rep. Mark every prop illustrative."
+    },
+    {
+      "id": "R-gotchas-10",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "timeout-is-not-a-void-signal restates the void-signal definitions — recorded once",
+      "statement": "timeout is not a void signal: an abort after a complete answer still scores. On slow local endpoints raise --timeout before blaming the agent body."
+    },
+    {
+      "id": "R-gotchas-11",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of the re-run-disclosure rule — recorded once",
+      "statement": "Re-running a completed arm mid-campaign is legitimate (e.g. after a void-heavy batch) but must be disclosed in the report; suite --track pressure-test silently overwrites --out."
+    },
+    {
+      "id": "R-gotchas-12",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "suspect-the-scenario judgment adds the no-failure finding interpretation; calibration guidance, no artifact shape",
+      "statement": "A scenario without temptation proves nothing — if every red rep complies, suspect the scenario before declaring the rule healthy; but if it tempts and the baseline still complies, that is the finding (no-failure)."
+    },
+    {
+      "id": "R-gotchas-13",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never-batch-reps / never-let-the-agent-know / never-put-rule-text-in-prompt are compliance rules tempting to break — pressure-testing track",
+      "statement": "Never batch reps in one prompt, never let the eval agent know this is a test, and never put rule text, the compliant option, or the expected answer in any prompt or scenario framing."
+    },
+    {
+      "id": "R-gotchas-14",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of the record-only-full-campaign and never-record-mini-campaigns rules — recorded once",
+      "statement": "Mini-campaigns (confirmation runs) and calibration pilots are never recorded."
+    },
+    {
+      "id": "R-gotchas-15",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of the manifest-record-target rule with its failure mode — recorded once",
+      "statement": "record --manifest takes the per-skill aggregate skills-workspace/<s>/manifest.json — never rules.json. The inventory path is only verify's --manifest argument; pointing record at it silently writes the pressure-test key into the inventory file."
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "technique",
+      "reason": "verification artifact restating the rules inventoried above; no new rule",
+      "statement": "Checklist section: pre-campaign verification items restating the inventory, proposal, preflight, serialization, scoring, inventory-update, record, and removal-procedure rules."
+    },
+    {
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "inventory-update mechanics (ANY control-fail fails the rule, elif ANY pass passes it; streak auto-mark/increment/clear/reset rules) is deterministic harness-driven procedure; no artifact shape",
+      "statement": "inventory-update — full campaigns only; mini-campaigns (confirm/, round-2/) never touch streaks. Deterministic per rule keyed through its scenarios' scored results: ANY control-fail fails the rule, elif ANY pass passes it, else untouched. A control pass auto-marks a status-less rule `ablation` (streak 0) or increments the streak; a control fail on an `ablation` rule clears status+streak (load-bearing); on a `removed` rule resets the streak to 0 (regression failure)."
+    },
+    {
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "documented harness behavior (--manifest skip semantics on green); a fact about the suite, not an agent-authored artifact",
+      "statement": "--manifest <canonical rules.json> ties the run to the inventory: red runs every scenario normally; green skips each `ablation`/`removed` entry, recording a skip note with no arm key. The harness adds only the skip; the green-only-on-a-violating-baseline decision stays a workflow rule."
+    },
+    {
+      "section": "Removal procedure",
+      "kind": "discipline",
+      "reason": "removal-only-with-user-confirmation at the 3-pass threshold is a compliance rule rationalized away under cleanup pressure — pressure-testing track",
+      "statement": "At 3 consecutive control passes on an `ablation` rule, propose removal and act only with user confirmation: delete the rule text from the source SKILL.md, hand-edit the inventory item to `status: \"removed\"` (streak continues), keep the scenario as regression coverage."
+    }
+  ]
+}

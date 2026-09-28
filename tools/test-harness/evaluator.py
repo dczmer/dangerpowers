@@ -5,9 +5,15 @@ Subcommands: check (harness/model validation); run and split (single-query
 trigger probing: one invocation = one query, N reps under the restricted
 `trigger-evaluator` agent); suite, evidence, scored-check, and meta (the
 unified --track campaign commands for trigger-test, retrieval-test,
-shape-test, and pressure-test); record (manifest recording from frontmatter
-scores, --score-from results, or --scored files); and inventory-check /
-inventory-mint / inventory-diff (discipline-rule inventories).
+shape-test, and pressure-test); select (track-agnostic filtering of an
+entries/queries/scenarios file to a subset of ids); verify (the
+end-of-campaign consistency proof gating record: snapshot byte-identity,
+manifest<->entries wiring, skill-body/span checks, scored<->results
+consistency plus the record preflight); record (manifest
+recording from frontmatter scores, --score-from results, or --scored
+files); and inventory-check / inventory-mint / inventory-diff /
+inventory-update (discipline-rule inventories and their
+ablation/regression status fields).
 
 Per-track campaign behavior lives behind the Track interface in
 src/tracks/; shared campaign primitives (rep batching, evidence
@@ -17,12 +23,15 @@ implemented.
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Iterator
 
 from src.common import (
     _err,
@@ -31,12 +40,17 @@ from src.common import (
     _scored_target_gate,
     base_config,
     check_coverage,
+    check_results_labels,
     counts_gate,
     emit,
+    load_entries,
+    load_results_envelope,
     load_scored_json,
+    load_status_map,
     union_results,
 )
 from src.strategies import (
+    DEFAULT_TIMEOUT,
     _fail,
     check_harness,
     resolve_strategy,
@@ -44,15 +58,172 @@ from src.strategies import (
 from src.tracks import (
     TRACKS,
     Track,
+    check_span_uniqueness,
     cmd_run,
     cmd_split,
+    load_pressure_scenarios,
+    load_retrieval_queries,
+    load_shape_entries,
 )
+
+# --------------------------------------------------------------------------
+# Cross-process suite serialization (BUGS.md B5)
+
+
+def _suite_lock_path() -> Path:
+    """The cross-process suite lock path. EVALUATOR_SUITE_LOCK overrides
+    it (test isolation; two drivers against genuinely separate endpoints
+    can point at different paths). The default serializes every suite
+    for this user — the conservative reading of the skills' "one suite
+    process at a time" rule, since the harness never sees the endpoint
+    URL (model/provider selection lives in the user's harness config)."""
+    override = os.environ.get("EVALUATOR_SUITE_LOCK")
+    if override:
+        return Path(override)
+    state = os.environ.get(
+        "XDG_STATE_HOME", str(Path.home() / ".local" / "state")
+    )
+    return Path(state) / "opencode-test-harness" / "suite.lock"
+
+
+@contextlib.contextmanager
+def _suite_lock() -> Iterator[None]:
+    """Hold the cross-process suite lock for one suite invocation.
+    Atomic O_EXCL acquire; a held lock exits 1 with an exact message
+    before any spend, since concurrent suites multiply per-rep latency
+    into empty-answer timeout voids that misattribute as agent defects.
+    A crashed suite leaves a stale lock — the message names it for
+    manual removal."""
+    path = _suite_lock_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            holder = path.read_text().strip()
+        except OSError:
+            holder = ""
+        _fail(
+            "another suite is already running"
+            + (f" ({holder})" if holder else "")
+            + "; concurrent suites multiply per-rep latency into "
+            "empty-answer timeout voids that misattribute as agent "
+            "defects (BUGS.md B5). Wait for it to exit; if no suite is "
+            f"running, remove the stale lock: {path}"
+        )
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(
+                f"pid {os.getpid()} since "
+                f"{datetime.now(UTC).isoformat(timespec='seconds')}"
+            )
+        yield
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    """The check command: harness binary (+ model when given) preflight."""
+    """The check command: harness binary (+ model when given) preflight,
+    or — with --entries/--skill-file — the shape track's proposal-time
+    section-span check (BUGS.md B7): every entry's span must occur
+    verbatim exactly once in the skill body BEFORE the campaign dir,
+    snapshots, and proposal are built. Span mode never touches the
+    harness, so --harness is required only for the preflight form."""
+    entries_arg = getattr(args, "entries", None)
+    skill_file_arg = getattr(args, "skill_file", None)
+    if entries_arg is not None or skill_file_arg is not None:
+        if entries_arg is None or skill_file_arg is None:
+            return _err("--entries and --skill-file must be given together")
+        entries = load_shape_entries(Path(entries_arg))  # exits 1
+        skill_file = Path(skill_file_arg)
+        if not skill_file.is_file():
+            return _err(f"skill file not found: {skill_file}")
+        text = skill_file.read_text()
+        # Strip a frontmatter block when present, so the mode works on
+        # the canonical SKILL.md at proposal time as well as on an
+        # already-stripped skill-body.txt snapshot.
+        fm = extract_frontmatter(text)
+        body = text[len(fm) :] if fm is not None else text
+        manifest_arg = getattr(args, "manifest", None)
+        removed = {
+            eid
+            for eid, status in load_status_map(
+                Path(manifest_arg) if manifest_arg else None, "rule"
+            ).items()
+            if status == "removed"
+        }
+        errors = check_span_uniqueness(entries, body, removed)
+        if errors:
+            for e in errors:
+                print(f"error: {e}", file=sys.stderr)
+            return 1
+        for entry in entries:
+            print(
+                f"ok: entry {entry['id']!r}: section span occurs "
+                f"exactly once"
+            )
+        print(
+            f"ok: {len(entries)} entries, every section span unique in "
+            f"{skill_file}"
+        )
+        return 0
+    if args.harness is None:
+        return _err("--harness is required without --entries/--skill-file")
     strategy_cls = resolve_strategy(args.harness)
     check_harness(args.harness, strategy_cls, args.model)
+    return 0
+
+
+def _write_out(out: Path, text: str) -> int | None:
+    """Write text to an --out path, creating missing parent dirs (the
+    record convention: --out naming a not-yet-existing mini-campaign
+    subdir like confirm/ or round-2/ is the canonical usage — issue
+    #54). OSError surfaces as a clean `error:` line and exit 1, never a
+    raw traceback. Returns the _err rc on failure, None on success."""
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text)
+    except OSError as e:
+        return _err(f"could not write {out}: {e}")
+    return None
+
+
+def cmd_select(args: argparse.Namespace) -> int:
+    """The select command (BUGS.md B8): filter an entries/queries/
+    scenarios file to the entries --ids names, for the campaign subsets
+    (entries-failing, entries-restraint, round-2) the driver used to
+    hand-build. Pure filtering: envelope validation only (load_entries'
+    shared checks, no per-track field hook, so one command serves every
+    track whose file carries ids), input document order preserved for
+    diff-stability against frozen baselines, and unknown --ids are an
+    error naming them — a typo must not silently yield a too-small
+    file. Changed-form variant authoring stays driver-side.
+
+    Matching is a union over entry ids and, when an entry carries a
+    `rule` field (pressure scenarios), rule ids (issue #56): the
+    confirmation mini-campaign workflow names edited rules, and
+    selecting by rule id naturally picks up every scenario of that
+    rule. A token matching both an entry id and another entry's rule
+    selects both entries; no special-casing."""
+    ids = [s for s in (t.strip() for t in args.ids.split(",")) if s]
+    if not ids:
+        return _err("--ids must name at least one id")
+    entries = load_entries(Path(args.entries), "entries", "entry")
+    have = {e["id"] for e in entries} | {
+        e["rule"] for e in entries if "rule" in e
+    }
+    missing = list(dict.fromkeys(i for i in ids if i not in have))
+    if missing:
+        return _err(f"ids not found in {args.entries}: {', '.join(missing)}")
+    wanted = set(ids)
+    selected = [
+        e for e in entries if e["id"] in wanted or e.get("rule") in wanted
+    ]
+    out = Path(args.out)
+    rc = _write_out(out, json.dumps(selected, indent=2) + "\n")
+    if rc is not None:
+        return rc
+    print(f"select: {len(selected)}/{len(entries)} entries -> {out}")
     return 0
 
 
@@ -74,35 +245,37 @@ def run_suite(track: Track, args: argparse.Namespace) -> int:
     entries = track.pre_spend_gates(args, strategy_cls)
     if isinstance(entries, int):
         return entries
-    out = Path(args.out)
-    # The log mirror opens BEFORE the zero_results_on_empty branch: this
-    # preserves the historical trigger behavior (the old cmd_suite opened
-    # _Log.file at evaluator.py 496, before the empty-query return at 519)
-    # — an empty trigger campaign still creates/truncates the .log and the
-    # "note: empty query file" line is mirrored into it. It also prevents
-    # the note from mirroring into a stale _Log.file handle in long-lived
-    # processes (the test suite runs many campaigns in one process).
-    _Log.file = out.with_suffix(".log").open("w")
-    if not entries and track.zero_results_on_empty:
-        track.write_empty(args)
+    with _suite_lock():
+        out = Path(args.out)
+        # The log mirror opens BEFORE the zero_results_on_empty branch:
+        # this preserves the historical trigger behavior (the old
+        # cmd_suite opened _Log.file at evaluator.py 496, before the
+        # empty-query return at 519) — an empty trigger campaign still
+        # creates/truncates the .log and the "note: empty query file"
+        # line is mirrored into it. It also prevents the note from
+        # mirroring into a stale _Log.file handle in long-lived
+        # processes (the test suite runs many campaigns in one process).
+        _Log.file = out.with_suffix(".log").open("w")
+        if not entries and track.zero_results_on_empty:
+            track.write_empty(args)
+            return 0
+        strategy = strategy_cls(timeout=args.timeout)
+        track.install_agents(strategy, args)
+        for line in track.banner(args, len(entries)):
+            emit(line)
+        results: list[dict] = []
+        for entry in entries:
+            record = track.run_entry(strategy, entry, args)
+            if isinstance(record, int):
+                return record  # mid-campaign abort (retrieval arm failure)
+            results.append(record)
+        config = base_config(args)
+        config.update(track.extra_config(args))
+        out.write_text(
+            json.dumps(track.finalize(config, results), indent=2) + "\n"
+        )
+        emit(track.done_line(len(entries), out))
         return 0
-    strategy = strategy_cls(timeout=args.timeout)
-    track.install_agents(strategy, args)
-    for line in track.banner(args, len(entries)):
-        emit(line)
-    results: list[dict] = []
-    for entry in entries:
-        record = track.run_entry(strategy, entry, args)
-        if isinstance(record, int):
-            return record  # mid-campaign abort (retrieval arm failure)
-        results.append(record)
-    config = base_config(args)
-    config.update(track.extra_config(args))
-    out.write_text(
-        json.dumps(track.finalize(config, results), indent=2) + "\n"
-    )
-    emit(track.done_line(len(entries), out))
-    return 0
 
 
 def score_from_results(results_path: Path) -> float | str:
@@ -221,10 +394,12 @@ def _scored_skeleton_header(results_paths: list[str]) -> dict:
     """campaign/skill header for the retrieval and pressure skeletons.
     The scored-checks never validate the header, so these values are
     driver context only: 'skill' comes from the first results file's
-    config block, 'campaign' from that file's parent directory when it
-    is named campaign-*, else the 'pilot' placeholder."""
+    config block, 'campaign' from the nearest ancestor directory of
+    that file named campaign-* (so a mini-campaign subdir like
+    campaign-X/round-2/ still attributes to campaign-X), else the
+    'pilot' placeholder."""
     skill = "pilot"
-    parent = Path(results_paths[0]).resolve().parent.name
+    parent = Path(results_paths[0]).resolve().parent
     try:
         data = json.loads(Path(results_paths[0]).read_text())
     except (OSError, json.JSONDecodeError):
@@ -232,7 +407,11 @@ def _scored_skeleton_header(results_paths: list[str]) -> dict:
     config = data.get("config") if isinstance(data, dict) else None
     if isinstance(config, dict) and isinstance(config.get("skill"), str):
         skill = config["skill"] or "pilot"
-    campaign = parent if parent.startswith("campaign-") else "pilot"
+    campaign = "pilot"
+    for ancestor in (parent, *parent.parents):
+        if ancestor.name.startswith("campaign-"):
+            campaign = ancestor.name
+            break
     return {"campaign": campaign, "skill": skill}
 
 
@@ -292,7 +471,17 @@ def cmd_record(args: argparse.Namespace) -> int:
     the scored.json result sums and the track is detected from the file
     (an explicit --track is checked against the detection); the counts
     flags are rejected (`counts flags are replaced by --scored`) and
-    --scored is required with --scope dir."""
+    --scored is required with --scope dir. Every entry carries model/
+    variant attribution plus a cumulative deduped `models` list: dir
+    scope derives model/variant from the --results files' config blocks
+    (first file wins; drift across files warns on stderr), frontmatter
+    scope takes the --model/--variant passthrough flags. With
+    --scope dir --inventory, the entry's `ablations` count is derived
+    from the inventory (items currently carrying a status). Without
+    --date, a --campaign value named like a campaign dir
+    (campaign-YYYY-MM-DD[-N]) supplies the entry's date, so a close-out
+    after local midnight still agrees with the dir campaign-init
+    named."""
     skill_path = Path(args.skill_path)
     scope = getattr(args, "scope", "frontmatter")
 
@@ -307,6 +496,10 @@ def cmd_record(args: argparse.Namespace) -> int:
     if scope == "frontmatter":
         if getattr(args, "scored", None) is not None:
             return _err("--scored is only valid with --scope dir")
+        if getattr(args, "results", None):
+            return _err("--results is only valid with --scope dir")
+        if getattr(args, "inventory", None) is not None:
+            return _err("--inventory is only valid with --scope dir")
         if args.score is None:
             return _err("--score is required with --scope frontmatter")
         if _any_counts_given(args):
@@ -322,14 +515,27 @@ def cmd_record(args: argparse.Namespace) -> int:
             return _err(f"missing or unterminated frontmatter in {skill_path}")
         checksum = "sha256:" + hashlib.sha256(frontmatter.encode()).hexdigest()
         entry = {
-            "date": args.date or datetime.now(UTC).date().isoformat(),
+            "date": args.date
+            or datetime.now(UTC).astimezone().date().isoformat(),
             "checksum": checksum,
             "score": args.score,
+            "model": getattr(args, "model", None),
+            "variant": getattr(args, "variant", None),
         }
         key = "trigger-test"
     else:  # dir
         if args.score is not None:
             return _err("--score is only valid with --scope frontmatter")
+        if getattr(args, "model", None) is not None:
+            return _err(
+                "--model is only valid with --scope frontmatter (dir "
+                "scope derives it from --results)"
+            )
+        if getattr(args, "variant", None) is not None:
+            return _err(
+                "--variant is only valid with --scope frontmatter (dir "
+                "scope derives it from --results)"
+            )
         if not skill_path.is_dir():
             return _err(
                 f"--scope dir expects the skill directory: {skill_path}"
@@ -345,17 +551,57 @@ def cmd_record(args: argparse.Namespace) -> int:
         if isinstance(track_sums, str):
             return _err(track_sums)
         track, sums = track_sums
+        model: str | None = None
+        variant: str | None = None
+        results_files = getattr(args, "results", None) or []
+        if results_files:
+            configs = []
+            for results_file in results_files:
+                _entries, config, error = load_results_envelope(
+                    Path(results_file), TRACKS[track].results_noun
+                )
+                if error is not None:
+                    return _err(error)
+                configs.append(config if isinstance(config, dict) else {})
+            base = configs[0]
+            model = base.get("model")
+            variant = base.get("variant")
+            for results_file, config in zip(results_files[1:], configs[1:]):
+                if (config.get("model"), config.get("variant")) != (
+                    model,
+                    variant,
+                ):
+                    print(
+                        f"warning: {results_file}: config differs on "
+                        "model/variant",
+                        file=sys.stderr,
+                    )
         entry = {
-            "date": args.date or datetime.now(UTC).date().isoformat(),
+            "date": args.date
+            or datetime.now(UTC).astimezone().date().isoformat(),
             "checksum": checksum,
             **sums,
+            "model": model,
+            "variant": variant,
         }
-        if args.ablations is not None:
-            entry["ablations"] = args.ablations
+        inventory_arg = getattr(args, "inventory", None)
+        if inventory_arg is not None:
+            kind = TRACKS[track].inventory_kind
+            assert kind is not None  # dir scope excludes trigger
+            inv = load_inventory(Path(inventory_arg), kind)  # exits 1
+            entry["ablations"] = sum(
+                1 for item in inv[INVENTORY_ARRAYS[kind]] if "status" in item
+            )
         key = track
 
     if args.campaign is not None:
         entry["campaign"] = args.campaign
+        if args.date is None:
+            m = re.fullmatch(
+                r"campaign-(\d{4}-\d{2}-\d{2})(-\d+)?", args.campaign
+            )
+            if m:
+                entry["date"] = m.group(1)
 
     manifest = Path(args.manifest)
     data: dict = {}
@@ -370,6 +616,14 @@ def cmd_record(args: argparse.Namespace) -> int:
                 f"error: {manifest}: expected a JSON object", file=sys.stderr
             )
             return 1
+
+    prior = data.get(key)
+    models: list[str] = []
+    if isinstance(prior, dict) and isinstance(prior.get("models"), list):
+        models = [m for m in prior["models"] if isinstance(m, str)]
+    if entry["model"] is not None and entry["model"] not in models:
+        models.append(entry["model"])
+    entry["models"] = models
 
     data["skill"] = args.skill
     data[key] = entry
@@ -418,6 +672,15 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
         return _err(
             f"exactly one --results file is valid with --track {track.name}"
         )
+    labels = getattr(args, "label", None)
+    if labels and not track.multi_results:
+        return _err(
+            f"--label is only valid with a multi-results track "
+            f"(not --track {track.name})"
+        )
+    label_error = check_results_labels(args.results, labels)
+    if label_error is not None:
+        return _err(label_error)
     foreign = [
         n
         for n in _ALL_COUNT_DESTS
@@ -431,7 +694,10 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
             f"(not --track {track.name})"
         )
     union = union_results(
-        args.results, track.results_noun, entry_hook=track.union_hook
+        args.results,
+        track.results_noun,
+        entry_hook=track.union_hook,
+        labels=getattr(args, "label", None),
     )
     if isinstance(union, str):
         return _err(union)
@@ -447,7 +713,9 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
         entries = [track.skeleton_entry(eid, extras) for eid in results_ids]
         doc = dict(header) if header else {}
         doc["entries"] = entries
-        out_path.write_text(json.dumps(doc, indent=2) + "\n")
+        rc = _write_out(out_path, json.dumps(doc, indent=2) + "\n")
+        if rc is not None:
+            return rc
         print(f"wrote skeleton: {out_path} ({len(results_ids)} entries)")
         return 0
 
@@ -474,8 +742,9 @@ def cmd_scored_check(args: argparse.Namespace) -> int:
 
 
 def cmd_evidence(args: argparse.Namespace) -> int:
-    """Generic evidence dispatcher: flag/track pairing gates, then the
-    track's printer."""
+    """Generic evidence dispatcher: flag/track pairing gates, the
+    --results file-count gate (shape merges N files; the other tracks
+    take exactly one), then the track's printer."""
     track = TRACKS[args.track]
     if args.arm is not None and track.name not in (
         "shape-test",
@@ -487,6 +756,28 @@ def cmd_evidence(args: argparse.Namespace) -> int:
         )
     if args.compare and track.name != "shape-test":
         return _err("--compare is only valid with --track shape-test")
+    if args.matrix and track.name != "shape-test":
+        return _err("--matrix is only valid with --track shape-test")
+    results = (
+        args.results if isinstance(args.results, list) else [args.results]
+    )
+    labels = getattr(args, "label", None)
+    if labels and track.name != "shape-test":
+        return _err("--label is only valid with --track shape-test")
+    label_error = check_results_labels(results, labels)
+    if label_error is not None:
+        return _err(label_error)
+    args.labels = labels
+    if track.name != "shape-test":
+        if len(results) != 1:
+            return _err(
+                f"exactly one --results file is valid with "
+                f"--track {track.name}"
+            )
+        # single-file printers take the path as a plain string
+        args.results = results[0]
+    else:
+        args.results = results
     return track.print_evidence(args)
 
 
@@ -498,6 +789,346 @@ def cmd_meta(args: argparse.Namespace) -> int:
     strategy_cls = resolve_strategy(args.harness)
     check_harness(args.harness, strategy_cls)  # binary only
     return track.run_meta(args, strategy_cls)
+
+
+# --------------------------------------------------------------------------
+# End-of-campaign verification (BUGS.md B9)
+
+# Per-track campaign-input loaders for verify: the schema validation the
+# suite ran pre-spend, re-run on the canonical files at record time.
+_VERIFY_LOADERS = {
+    "shape-test": load_shape_entries,
+    "pressure-test": load_pressure_scenarios,
+    "retrieval-test": load_retrieval_queries,
+}
+
+
+def _verify_snapshot_checks(
+    camp: Path,
+    skill_name: str,
+    canonical: list[Path],
+    skill_path: Path,
+    scored_path: Path,
+    results: list[str],
+    labels: list[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Check group 1: the campaign snapshots are byte-identical to the
+    canonical files (a recorded campaign measures the snapshotted bytes;
+    a silent post-campaign edit to either side invalidates the record),
+    and the scored/results artifacts live in the campaign dir (a record
+    must not draw on another campaign's files). Mini-campaign subdirs
+    (round-2/, confirm/) are consulted only through a --label: a labeled
+    --results file may live in a direct subdirectory of the campaign
+    dir, so round-2-adopted arms are visible to the proof. Returns
+    (ok lines, errors)."""
+    oks: list[str] = []
+    errors: list[str] = []
+    for path in canonical:
+        snap = camp / path.name
+        if not snap.is_file():
+            errors.append(f"snapshot missing: {snap} (canonical {path})")
+        elif snap.read_bytes() != path.read_bytes():
+            errors.append(f"snapshot {snap} differs from canonical {path}")
+        else:
+            oks.append(f"snapshot {snap.name} byte-identical to {path}")
+    snap_skill = camp / skill_name
+    if not skill_path.is_dir():
+        errors.append(
+            f"--skill-path expects the skill directory: {skill_path}"
+        )
+    elif not snap_skill.is_dir():
+        errors.append(f"snapshot skill dir missing: {snap_skill}")
+    elif hash_skill_dir(snap_skill) != hash_skill_dir(skill_path):
+        errors.append(
+            f"snapshot skill dir {snap_skill} differs from {skill_path}"
+        )
+    else:
+        oks.append(
+            f"snapshot skill dir {snap_skill.name}/ matches {skill_path}"
+        )
+    camp_dir = camp.resolve()
+    if scored_path.resolve().parent != camp_dir:
+        errors.append(
+            f"--scored must live in the campaign dir {camp_dir}: "
+            f"{scored_path}"
+        )
+    for r in results:
+        parent = Path(r).resolve().parent
+        if parent == camp_dir:
+            continue
+        if labels is not None and parent.parent == camp_dir:
+            continue  # labeled mini-campaign subdir (round-2/, confirm/)
+        errors.append(
+            f"--results must live in the campaign dir {camp_dir}: {r}"
+        )
+    return oks, errors
+
+
+def _verify_wiring_checks(
+    manifest_path: Path,
+    inv: dict,
+    kind: str,
+    entries_path: Path,
+    entries: list[dict],
+) -> tuple[list[str], list[str]]:
+    """Check group 2: manifest<->entries wiring, both directions. Rule
+    kind (shape/pressure): every entry's 'rule' id exists and that
+    item's entries array names the entry; every id an item names exists
+    with a matching back-reference; no entry id is named by two items;
+    no non-excluded item names zero entries (an untested rule cannot be
+    recorded). Fact kind (retrieval): the covering relation is N:M with
+    no back-reference field — every fact's entries exist and every query
+    is named by at least one fact (a query testing no documented fact
+    measures nothing). Both kinds: excluded ids never have entries.
+    Returns (ok lines, errors)."""
+    array = INVENTORY_ARRAYS[kind]
+    items = inv[array]
+    by_id = {item["id"]: item for item in items}
+    excluded_ids = {x["id"] for x in inv["excluded"]}
+    entry_ids = [e["id"] for e in entries]
+    entry_set = set(entry_ids)
+    errors: list[str] = []
+    listed_by: dict[str, list[str]] = {}
+    for item in items:
+        for eid in item["entries"]:
+            listed_by.setdefault(eid, []).append(item["id"])
+            if eid not in entry_set:
+                errors.append(
+                    f"{manifest_path}: item {item['id']} names entry "
+                    f"{eid!r}, which does not exist in {entries_path}"
+                )
+    for eid in sorted(excluded_ids & entry_set):
+        errors.append(
+            f"{entries_path}: entry {eid!r} is an excluded id in "
+            f"{manifest_path} (excluded ids never get entries)"
+        )
+    if kind == "rule":
+        for e in entries:
+            rid = e.get("rule")
+            if not isinstance(rid, str) or not rid:
+                errors.append(
+                    f"{entries_path}: entry {e['id']!r} missing 'rule' "
+                    "(non-empty string)"
+                )
+                continue
+            item = by_id.get(rid)
+            if item is None:
+                errors.append(
+                    f"{entries_path}: entry {e['id']!r} names rule "
+                    f"{rid!r}, which does not exist in {manifest_path}"
+                )
+            elif e["id"] not in item["entries"]:
+                errors.append(
+                    f"{entries_path}: entry {e['id']!r} names rule "
+                    f"{rid!r}, but that rule's entries do not name it"
+                )
+        for eid, owners in listed_by.items():
+            if len(owners) > 1:
+                errors.append(
+                    f"{manifest_path}: entry {eid!r} is named by "
+                    f"multiple items: {', '.join(owners)}"
+                )
+        for item in items:
+            if not item["entries"]:
+                errors.append(
+                    f"{manifest_path}: item {item['id']} names no "
+                    "entries — an untested rule cannot be recorded"
+                )
+    else:  # fact: N:M covering relation, no back-reference field
+        for eid in entry_ids:
+            if eid not in listed_by:
+                errors.append(
+                    f"{entries_path}: entry {eid!r} is named by no fact "
+                    f"in {manifest_path} (it tests no documented fact)"
+                )
+    if errors:
+        return [], errors
+    return [
+        f"wiring: {len(entries)} entries wired to "
+        f"{len(items)} {array}; {len(excluded_ids)} excluded ids absent"
+    ], []
+
+
+def _verify_skill_body_checks(
+    camp: Path,
+    skill_path: Path,
+    entries: list[dict],
+    shape: bool,
+    removed: set[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Check group 3: skill-body.txt is the canonical SKILL.md with its
+    frontmatter stripped (the exact injected bytes — the pipeline's
+    output is never otherwise re-verified), and — shape only — every
+    entry's section span occurs in it exactly once (the same
+    check_span_uniqueness assertion the pre-spend doc-drift gate and
+    the proposal-time check mode run), except REMOVED entries, whose
+    span must occur zero times (the rule text was deleted; the entry
+    persists as regression coverage). Only the shape track snapshots a
+    stripped body; on the other tracks the file is verified when present
+    and skipped when absent. Returns (ok lines, errors)."""
+    body_file = camp / "skill-body.txt"
+    if not body_file.is_file():
+        if shape:
+            return [], [f"snapshot missing: {body_file}"]
+        return [], []
+    body = body_file.read_text()
+    oks: list[str] = []
+    errors: list[str] = []
+    skill_md = skill_path / "SKILL.md"
+    if not skill_md.is_file():
+        errors.append(f"skill file not found: {skill_md}")
+    else:
+        src = skill_md.read_text()
+        fm = extract_frontmatter(src)
+        if fm is None:
+            errors.append(f"missing or unterminated frontmatter in {skill_md}")
+        elif src[len(fm) :] != body:
+            errors.append(
+                f"{body_file} does not match {skill_md} with its "
+                "frontmatter stripped"
+            )
+        else:
+            oks.append(
+                f"{body_file.name} matches {skill_md} with frontmatter "
+                "stripped"
+            )
+    if shape:
+        span_errors = check_span_uniqueness(entries, body, removed)
+        errors.extend(span_errors)
+        if not span_errors:
+            oks.append(
+                f"{len(entries)} entries, every section span unique in "
+                f"{body_file.name}"
+            )
+    return oks, errors
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """The verify command (BUGS.md B9): the end-of-campaign consistency
+    proof that gates `record`. Four check groups, all always run — the
+    failures are repaired in batches, so a failing group never hides a
+    later one: (1) snapshot byte-identity and artifact placement; (2)
+    manifest<->entries wiring; (3) skill-body identity plus the shape
+    span assertion; (4) scored<->results consistency — the scored-check
+    flow itself, reused not duplicated — plus full-campaign coverage
+    (results union ids == entries ids; a mini-campaign is a subset and
+    is never recorded) and the record preflight (the exact counts
+    `record --scope dir` would write; nothing is written). Exit 1 when
+    any group failed."""
+    track = TRACKS[args.track]
+    camp = Path(args.campaign_dir)
+    if not camp.is_dir():
+        return _err(f"campaign dir not found: {camp}")
+    labels = getattr(args, "label", None)
+    label_error = check_results_labels(args.results, labels)
+    if label_error is not None:
+        return _err(label_error)
+    manifest_path = Path(args.manifest)
+    entries_path = Path(args.entries)
+    scored_path = Path(args.scored)
+    skill_path = Path(args.skill_path)
+    kind = track.inventory_kind
+    assert kind is not None  # the parser choices exclude trigger
+    inv = load_inventory(manifest_path, kind)  # exits 1 on violation
+    entries = _VERIFY_LOADERS[track.name](entries_path)  # exits 1
+    removed = {
+        eid
+        for item in inv[INVENTORY_ARRAYS[kind]]
+        if item.get("status") == "removed"
+        for eid in item["entries"]
+    }
+
+    failed = 0
+
+    def report(oks: list[str], errors: list[str]) -> None:
+        nonlocal failed
+        if errors:
+            failed += 1
+            for e in errors:
+                print(f"error: {e}", file=sys.stderr)
+        else:
+            for line in oks:
+                print(f"ok: {line}")
+
+    report(
+        *_verify_snapshot_checks(
+            camp,
+            inv["skill"],
+            [manifest_path, entries_path],
+            skill_path,
+            scored_path,
+            args.results,
+            labels,
+        )
+    )
+    report(
+        *_verify_wiring_checks(manifest_path, inv, kind, entries_path, entries)
+    )
+    report(
+        *_verify_skill_body_checks(
+            camp,
+            skill_path,
+            entries,
+            shape=track.name == "shape-test",
+            removed=removed,
+        )
+    )
+
+    union = union_results(
+        args.results,
+        track.results_noun,
+        entry_hook=track.union_hook,
+        labels=getattr(args, "label", None),
+    )
+    if isinstance(union, str):
+        report([], [union])
+    else:
+        results_ids, _arms, _extras = union
+        entry_set = {e["id"] for e in entries}
+        missing = [e["id"] for e in entries if e["id"] not in results_ids]
+        extra = [r for r in results_ids if r not in entry_set]
+        cov_errors = []
+        if missing:
+            cov_errors.append(
+                "entries with no results coverage (a full campaign "
+                f"covers every entry): {', '.join(missing)}"
+            )
+        if extra:
+            cov_errors.append(
+                f"results ids with no entry in {entries_path}: "
+                f"{', '.join(extra)}"
+            )
+        report([f"results cover all {len(entries)} entries"], cov_errors)
+        scored_ns = argparse.Namespace(
+            track=track.name,
+            results=list(args.results),
+            scored=str(scored_path),
+            emit_skeleton=None,
+            label=labels,
+            **{d: None for d in _ALL_COUNT_DESTS},
+        )
+        if cmd_scored_check(scored_ns) != 0:
+            failed += 1
+        else:
+            sums = sums_from_scored(scored_path, track.name)
+            if isinstance(sums, str):
+                print(f"error: {sums}", file=sys.stderr)
+                failed += 1
+            else:
+                _resolved, counts = sums
+                detail = " / ".join(
+                    f"{counts[k]} {k}" for k in track.sum_keys.values()
+                )
+                print(
+                    "ok: record preflight (nothing written): record "
+                    f"--scope dir would write {track.name}: {detail}"
+                )
+
+    if failed:
+        print(f"verify: {failed} check group(s) failed", file=sys.stderr)
+        return 1
+    print(f"verify: all checks passed ({camp})")
+    return 0
 
 
 # --------------------------------------------------------------------------
@@ -533,14 +1164,43 @@ def _inventory_require_str(
     return value
 
 
+def _inventory_check_status(
+    path: Path, label: str, i: int, entry: dict, eid: object
+) -> None:
+    """status/ablation_streak pairing (ablation & regression testing):
+    status is 'ablation' or 'removed'; ablation_streak is an int >= 0
+    required exactly when status is present (bools are rejected —
+    isinstance(True, int) is True in Python). Absence of both is always
+    valid: pre-existing inventories carry neither (no backfill)."""
+    status = entry.get("status")
+    streak = entry.get("ablation_streak")
+    if status is not None and status not in ("ablation", "removed"):
+        _fail(
+            f"{path}: {label} {i} ({eid}) status must be 'ablation' or "
+            f"'removed', got {status!r}"
+        )
+    if status is None:
+        if streak is not None:
+            _fail(
+                f"{path}: {label} {i} ({eid}) has ablation_streak but "
+                "no status"
+            )
+    elif isinstance(streak, bool) or not isinstance(streak, int) or streak < 0:
+        _fail(
+            f"{path}: {label} {i} ({eid}) ablation_streak must be an "
+            f"int >= 0 when status is present, got {streak!r}"
+        )
+
+
 def load_inventory(path: Path, kind: str, allow_idless: bool = False) -> dict:
     """Load a rules.json/facts.json inventory and validate the unified
     schema: skill/generated header, the item array named by kind, and an
     excluded list whose entries carry a routing reason. Item ids must be
     unique across the items and the excluded list. On any violation prints
     `error: <exact reason>` to stderr and exits 1. With allow_idless
-    (inventory-mint on a draft) items missing 'id' are accepted so ids can
-    be assigned; every other command requires ids on all items."""
+    (inventory-mint on a draft) items and excluded entries missing 'id'
+    are accepted so ids can be assigned; every other command requires ids
+    on all items and excluded entries."""
     array_name = INVENTORY_ARRAYS[kind]
     if not path.exists():
         _fail(f"inventory file not found: {path}")
@@ -576,17 +1236,26 @@ def load_inventory(path: Path, kind: str, allow_idless: bool = False) -> dict:
             _fail(f"{path}: duplicate id: {eid}")
         else:
             seen.add(eid)
+        _inventory_check_status(path, "item", i, item, eid)
     for i, entry in enumerate(excluded):
         if not isinstance(entry, dict):
             _fail(f"{path}: excluded entry {i} is not an object")
         if kind == "rule":
             _inventory_require_str(path, "excluded entry", i, entry, "kind")
-        eid = _inventory_require_str(path, "excluded entry", i, entry, "id")
+        eid = entry.get("id")
+        if not isinstance(eid, str) or not eid:
+            if not allow_idless:
+                _fail(
+                    f"{path}: excluded entry {i} missing 'id' "
+                    "(non-empty string)"
+                )
+        elif eid in seen:
+            _fail(f"{path}: duplicate id: {eid}")
+        else:
+            seen.add(eid)
         _inventory_require_str(path, "excluded entry", i, entry, "section")
         _inventory_require_str(path, "excluded entry", i, entry, "reason")
-        if eid in seen:
-            _fail(f"{path}: duplicate id: {eid}")
-        seen.add(eid)
+        _inventory_check_status(path, "excluded entry", i, entry, eid)
     return data
 
 
@@ -666,43 +1335,92 @@ def cmd_inventory_check(args: argparse.Namespace) -> int:
 
 
 def cmd_inventory_mint(args: argparse.Namespace) -> int:
-    """Assign ids to id-less items of a draft inventory. Ids are minted in
-    document order, numbered 01.. within each section, skipping numbers
-    already taken by existing ids in that section. Items that already have
-    an id pass through untouched, so re-running on an unchanged file is a
-    byte-identical no-op — the stability rule that makes inventory-diff
-    silent-mis-diff-proof."""
+    """Assign ids to id-less items and excluded entries of a draft
+    inventory. Ids are minted in document order (items first, then
+    excluded), numbered 01.. within each section from one shared
+    per-section pool, skipping numbers already taken by existing ids in
+    either list — so a minted item id can never collide with an excluded
+    id in the same section. Entries that already have an id pass through
+    untouched, so re-running on an unchanged file is a byte-identical
+    no-op — the stability rule that makes inventory-diff
+    silent-mis-diff-proof.
+
+    With --carry <old>, status/ablation_streak carry forward from the
+    previous canonical inventory: a surviving id keeps its status pair
+    (nothing else is overwritten), and an old item whose id vanished
+    from the draft is re-appended verbatim — in old-file order, after
+    the surviving items — exactly when its status is 'removed' (the rule
+    text is already deleted from the doc, so the fresh draft never
+    contains it; the item persists purely as regression coverage). A
+    dropped 'ablation' or status-less item is NOT re-appended — the
+    normal 'deleted' diff bucket handles it. Old excluded entries are
+    never carried (exclusions are doc-derived). The byte-identical
+    no-op guarantee extends: no mints and no carries reuses the raw
+    input bytes."""
     path = Path(args.inventory)
     raw = path.read_text()
     inv = load_inventory(path, args.kind, allow_idless=True)
+    old: dict | None = None
+    if getattr(args, "carry", None) is not None:
+        old = load_inventory(Path(args.carry), args.kind)  # exits 1
     array_name = INVENTORY_ARRAYS[args.kind]
     prefix = INVENTORY_KINDS[args.kind]
     items = inv[array_name]
+    excluded = inv["excluded"]
     used: dict[str, set[int]] = {}
-    for item in items:
-        eid = item.get("id")
+    for entry in (*items, *excluded):
+        eid = entry.get("id")
         if isinstance(eid, str) and eid:
             m = re.search(r"-(\d+)$", eid)
             if m:
-                used.setdefault(item["section"], set()).add(int(m.group(1)))
+                used.setdefault(entry["section"], set()).add(int(m.group(1)))
     minted = 0
-    for i, item in enumerate(items):
-        eid = item.get("id")
-        if isinstance(eid, str) and eid:
-            continue
-        section = item["section"]
-        n = 1
-        while n in used.setdefault(section, set()):
-            n += 1
-        used[section].add(n)
-        items[i] = {"id": mint_inventory_id(prefix, section, n), **item}
-        minted += 1
+    for seq in (items, excluded):
+        for i, entry in enumerate(seq):
+            eid = entry.get("id")
+            if isinstance(eid, str) and eid:
+                continue
+            section = entry["section"]
+            n = 1
+            while n in used.setdefault(section, set()):
+                n += 1
+            used[section].add(n)
+            seq[i] = {"id": mint_inventory_id(prefix, section, n), **entry}
+            minted += 1
+    carried = 0
+    if old is not None:
+        new_by_id = {
+            item["id"]: item
+            for item in items
+            if isinstance(item.get("id"), str) and item["id"]
+        }
+        for old_item in old[array_name]:
+            oid = old_item["id"]
+            target = new_by_id.get(oid)
+            if target is not None:
+                if "status" in old_item and (
+                    target.get("status") != old_item["status"]
+                    or target.get("ablation_streak")
+                    != old_item["ablation_streak"]
+                ):
+                    target["status"] = old_item["status"]
+                    target["ablation_streak"] = old_item["ablation_streak"]
+                    carried += 1
+            elif old_item.get("status") == "removed":
+                items.append(old_item)
+                carried += 1
     out = Path(args.out)
-    if minted == 0:
-        out.write_text(raw)
+    if minted == 0 and carried == 0:
+        payload = raw
     else:
-        out.write_text(json.dumps(inv, indent=2, ensure_ascii=False) + "\n")
-    emit(f"{out}: minted {minted} id(s)")
+        payload = json.dumps(inv, indent=2, ensure_ascii=False) + "\n"
+    rc = _write_out(out, payload)
+    if rc is not None:
+        return rc
+    line = f"{out}: minted {minted} id(s)"
+    if old is not None:
+        line += f", carried status onto {carried} item(s)"
+    emit(line)
     return 0
 
 
@@ -740,9 +1458,106 @@ def cmd_inventory_diff(args: argparse.Namespace) -> int:
             )
     payload = json.dumps(diff, indent=2, ensure_ascii=False) + "\n"
     if args.out:
-        Path(args.out).write_text(payload)
+        rc = _write_out(Path(args.out), payload)
+        if rc is not None:
+            return rc
     else:
         sys.stdout.write(payload)
+    return 0
+
+
+def _control_outcome(kind: str, entry: dict) -> str:
+    """The control outcome of one scored entry: 'pass', 'fail', or
+    'void'. Retrieval (fact kind) reads the entry's control field;
+    rule kind derives it from the result — no-failure means the
+    control passed, adopted/bulletproof/unresolved mean it failed,
+    anything else is void."""
+    if kind == "fact":
+        control = entry.get("control")
+        return control if control in ("pass", "fail") else "void"
+    result = entry.get("result")
+    if result == "no-failure":
+        return "pass"
+    if result in ("adopted", "bulletproof", "unresolved"):
+        return "fail"
+    return "void"
+
+
+def cmd_inventory_update(args: argparse.Namespace) -> int:
+    """The deterministic close-out step, run after scoring and before
+    record (full campaigns only — mini-campaigns never touch streaks,
+    a workflow rule this command does not enforce). Per inventory item,
+    keyed through its entries' scored rows: ANY control-fail fails the
+    item, elif ANY control-pass passes it, else (all void / no scored
+    rows) the item is untouched — a void control run neither increments
+    nor resets the streak. A control pass auto-marks a status-less item
+    as ablation with streak 0, or increments an existing streak. A
+    control fail on an ablation item clears status/ablation_streak
+    entirely (the rule proved load-bearing — back to normal testing);
+    on a removed item it resets the streak to 0 and prints a
+    `regression failure:` line the report quotes (the deletion may have
+    been wrong). Transitions INTO removed are never done here: the
+    driver flips ablation -> removed by hand at the documented
+    threshold."""
+    path = Path(args.manifest)
+    inv = load_inventory(path, args.kind)  # exits 1 on violation
+    scored_entries = load_scored_json(Path(args.scored))
+    if isinstance(scored_entries, str):
+        return _err(scored_entries)
+    scored_by_id = {
+        e["id"]: e
+        for e in scored_entries
+        if isinstance(e, dict) and isinstance(e.get("id"), str)
+    }
+    items = inv[INVENTORY_ARRAYS[args.kind]]
+    auto_marked = incremented = reset = regressions = 0
+    for item in items:
+        outcomes = [
+            _control_outcome(args.kind, scored_by_id[eid])
+            for eid in item["entries"]
+            if eid in scored_by_id
+        ]
+        if any(o == "fail" for o in outcomes):
+            outcome = "fail"
+        elif any(o == "pass" for o in outcomes):
+            outcome = "pass"
+        else:
+            continue  # void / no scored rows: streak untouched
+        status = item.get("status")
+        if outcome == "pass":
+            if status is None:
+                item["status"] = "ablation"
+                item["ablation_streak"] = 0
+                auto_marked += 1
+            else:
+                item["ablation_streak"] += 1
+                incremented += 1
+        elif status == "removed":
+            item["ablation_streak"] = 0
+            reset += 1
+            regressions += 1
+            print(
+                f"regression failure: {item['id']} — control failed; "
+                "the deletion may have been wrong"
+            )
+        elif status == "ablation":
+            del item["status"]
+            del item["ablation_streak"]
+            reset += 1
+            print(
+                f"load-bearing: {item['id']} — control failed; status "
+                "cleared (back to normal testing)"
+            )
+    rc = _write_out(
+        Path(args.out), json.dumps(inv, indent=2, ensure_ascii=False) + "\n"
+    )
+    if rc is not None:
+        return rc
+    print(
+        f"inventory-update: {auto_marked} auto-marked, {incremented} "
+        f"streaks incremented, {reset} streaks reset, {regressions} "
+        "regression failures"
+    )
     return 0
 
 
@@ -752,10 +1567,20 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     check = sub.add_parser("check")
-    check.add_argument("--harness", required=True)
+    # Not argparse-required: the --entries/--skill-file span-check mode
+    # (BUGS.md B7) never touches the harness. cmd_check enforces the
+    # pairing gates.
+    check.add_argument("--harness")
     check.add_argument(
         "--model",
         help="also validate the model against the harness's model list",
+    )
+    check.add_argument("--entries")  # shape span-check mode
+    check.add_argument("--skill-file")  # shape span-check mode
+    check.add_argument(
+        "--manifest",  # shape span-check mode: rules.json with statuses
+        help="canonical rules.json; removed entries are checked for ZERO "
+        "occurrences of their span (span-check mode only)",
     )
 
     run = sub.add_parser("run")
@@ -770,6 +1595,8 @@ def main() -> int:
     run.add_argument("--model")
     run.add_argument("--variant")
     run.add_argument("--reps", type=int, default=3)
+    # run's 30 s matches the trigger track: a single short trigger-style
+    # probe, not a long-form generation (contrast DEFAULT_TIMEOUT).
     run.add_argument("--timeout", type=int, default=30)
 
     split = sub.add_parser("split")
@@ -777,6 +1604,15 @@ def main() -> int:
     split.add_argument("--out-dir", required=True)
     split.add_argument("--train-frac", type=float, default=0.6)
     split.add_argument("--seed", type=int)
+
+    select = sub.add_parser(
+        "select",
+        help="filter an entries/queries/scenarios file to a subset of "
+        "ids, preserving input document order (BUGS.md B8)",
+    )
+    select.add_argument("--entries", required=True)
+    select.add_argument("--ids", required=True)
+    select.add_argument("--out", required=True)
 
     suite = sub.add_parser("suite")
     suite.add_argument(
@@ -790,10 +1626,12 @@ def main() -> int:
     suite.add_argument("--out", required=True)
     suite.add_argument("--model")
     suite.add_argument("--variant")
-    # No parser defaults: each track applies its historical default as
-    # the first lines of pre_spend_gates. A parser default would make
+    # No parser defaults: each track applies its own default as the
+    # first lines of pre_spend_gates. A parser default would make
     # args.reps/args.timeout never-None and flatten all four tracks to
-    # one default.
+    # one default. The split today: shape/pressure/retrieval share
+    # DEFAULT_TIMEOUT (300 s, src/strategies.py); trigger keeps 30 s —
+    # do not "restore" a single value here.
     suite.add_argument("--reps", type=int)
     suite.add_argument("--timeout", type=int)
     # per-track flags (Q7a: historical names kept); required status is
@@ -808,6 +1646,11 @@ def main() -> int:
     suite.add_argument("--fixture-key", default="application")  # shape
     suite.add_argument("--scenarios")  # pressure
     suite.add_argument("--arm")  # pressure
+    suite.add_argument(
+        "--manifest",  # retrieval, shape, pressure (ablation/regression)
+        help="canonical rules.json/facts.json inventory; entries whose "
+        "rules/facts carry a status run control-only",
+    )
 
     record = sub.add_parser("record")
     record.add_argument("--skill", required=True)
@@ -842,7 +1685,28 @@ def main() -> int:
     record.add_argument("--bulletproof", type=int)
     record.add_argument("--no-failure", dest="no_failure", type=int)
     record.add_argument("--unresolved", type=int)
-    record.add_argument("--ablations")
+    record.add_argument(
+        "--results",
+        action="append",
+        help="campaign results file(s) whose config block supplies the "
+        "entry's model/variant (repeatable; --scope dir only)",
+    )
+    record.add_argument(
+        "--model",
+        help="model attribution passthrough (--scope frontmatter only; "
+        "dir scope derives it from --results)",
+    )
+    record.add_argument(
+        "--variant",
+        help="variant attribution passthrough (--scope frontmatter only; "
+        "dir scope derives it from --results)",
+    )
+    record.add_argument(
+        "--inventory",
+        help="canonical rules.json/facts.json; the derived ablations "
+        "count (items carrying a status) is recorded from it "
+        "(--scope dir only)",
+    )
     record.add_argument("--campaign")
     record.add_argument("--date")
 
@@ -850,13 +1714,22 @@ def main() -> int:
     evidence.add_argument(
         "--track", required=True, choices=[t.name for t in TRACKS.values()]
     )
-    evidence.add_argument("--results", required=True)
+    evidence.add_argument("--results", action="append", required=True)
     evidence.add_argument("--entry")
     # free-form: shape arms are v0/variant names, pressure's are
     # red/green; the tracks' printers validate (no argparse choices —
     # the old shape-evidence --arm took any arm name)
     evidence.add_argument("--arm")
     evidence.add_argument("--compare", action="store_true")
+    evidence.add_argument("--matrix", action="store_true")
+    evidence.add_argument(
+        "--label",
+        action="append",
+        help="namespace for one --results file (repeatable, one per "
+        "--results, positionally paired); required to merge files "
+        "across directories — arms display as <label>:<arm> and never "
+        "pool across labels",
+    )
 
     scored = sub.add_parser("scored-check")
     scored.add_argument(
@@ -865,6 +1738,14 @@ def main() -> int:
         choices=[n for n, t in TRACKS.items() if t.supports_scored],
     )
     scored.add_argument("--results", action="append", required=True)
+    scored.add_argument(
+        "--label",
+        action="append",
+        help="namespace for one --results file (repeatable, one per "
+        "--results, positionally paired); required to union files "
+        "across directories — arms key as <label>:<arm> and never "
+        "pool across labels",
+    )
     scored.add_argument("--scored")
     scored.add_argument("--emit-skeleton")
     for dest in _ALL_COUNT_DESTS:
@@ -884,7 +1765,46 @@ def main() -> int:
     meta.add_argument("--out", required=True)
     meta.add_argument("--model")
     meta.add_argument("--variant")
-    meta.add_argument("--timeout", type=int, default=120)
+    meta.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+
+    verify = sub.add_parser(
+        "verify",
+        help="end-of-campaign consistency proof gating record: snapshot "
+        "byte-identity, manifest<->entries wiring, skill-body/span "
+        "checks, and scored<->results consistency with the record "
+        "preflight (BUGS.md B9)",
+    )
+    verify.add_argument(
+        "--track",
+        required=True,
+        choices=[n for n, t in TRACKS.items() if t.supports_scored],
+    )
+    verify.add_argument(
+        "--manifest",
+        required=True,
+        help="canonical rules.json/facts.json inventory",
+    )
+    verify.add_argument(
+        "--entries",
+        required=True,
+        help="canonical entries/queries/scenarios file",
+    )
+    verify.add_argument("--scored", required=True)
+    verify.add_argument("--results", action="append", required=True)
+    verify.add_argument(
+        "--label",
+        action="append",
+        help="namespace for one --results file (repeatable, one per "
+        "--results, positionally paired); a labeled file may live in "
+        "a direct subdirectory of --campaign-dir (round-2/, confirm/) "
+        "and its arms key as <label>:<arm>",
+    )
+    verify.add_argument("--campaign-dir", required=True)
+    verify.add_argument(
+        "--skill-path",
+        required=True,
+        help="the canonical skill directory (snapshot comparison source)",
+    )
 
     inv = sub.add_parser(
         "inventory-check",
@@ -903,6 +1823,13 @@ def main() -> int:
     mint.add_argument("--inventory", required=True)
     mint.add_argument("--kind", required=True, choices=["rule", "fact"])
     mint.add_argument("--out", required=True)
+    mint.add_argument(
+        "--carry",
+        help="previous canonical inventory; status/ablation_streak "
+        "carry forward onto surviving ids, and old items whose status "
+        "is 'removed' are re-appended verbatim (regression coverage "
+        "for already-deleted rules)",
+    )
 
     idiff = sub.add_parser(
         "inventory-diff",
@@ -913,6 +1840,18 @@ def main() -> int:
     idiff.add_argument("--new", required=True)
     idiff.add_argument("--kind", required=True, choices=["rule", "fact"])
     idiff.add_argument("--out")
+
+    iupd = sub.add_parser(
+        "inventory-update",
+        help="deterministic close-out: apply the scored.json control "
+        "outcomes to the inventory's status/ablation_streak fields "
+        "(auto-mark ablation, increment/reset streaks, report "
+        "regression failures)",
+    )
+    iupd.add_argument("--manifest", required=True)
+    iupd.add_argument("--kind", required=True, choices=["rule", "fact"])
+    iupd.add_argument("--scored", required=True)
+    iupd.add_argument("--out", required=True)
 
     args = parser.parse_args()
     if args.command == "suite":
@@ -925,11 +1864,14 @@ def main() -> int:
         return cmd_meta(args)
     handlers = {
         "check": cmd_check,
+        "select": cmd_select,
         "split": cmd_split,
         "record": cmd_record,
+        "verify": cmd_verify,
         "inventory-check": cmd_inventory_check,
         "inventory-mint": cmd_inventory_mint,
         "inventory-diff": cmd_inventory_diff,
+        "inventory-update": cmd_inventory_update,
     }
     if args.command in handlers:
         return handlers[args.command](args)

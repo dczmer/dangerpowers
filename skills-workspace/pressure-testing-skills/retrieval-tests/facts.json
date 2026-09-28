@@ -1,0 +1,345 @@
+{
+  "skill": "pressure-testing-skills",
+  "generated": "2026-09-28",
+  "facts": [
+    {
+      "id": "F-quick-reference-01",
+      "section": "Quick reference",
+      "statement": "default 5 reps per arm and 300 s per-run timeout",
+      "entries": [
+        "campaign-run-defaults"
+      ]
+    },
+    {
+      "id": "F-quick-reference-02",
+      "section": "Quick reference",
+      "statement": "rules run strictly serially: one rule's complete RED→GREEN→meta→REFACTOR cycle before the next rule's spend",
+      "entries": [
+        "campaign-run-defaults"
+      ]
+    },
+    {
+      "id": "F-quick-reference-03",
+      "section": "Quick reference",
+      "statement": "one suite process at a time for the whole campaign; a machine-wide lockfile enforces it",
+      "entries": [
+        "campaign-run-defaults"
+      ]
+    },
+    {
+      "id": "F-quick-reference-04",
+      "section": "Quick reference",
+      "statement": "cost per rule: 5 + 5 per failing baseline + 5×rounds per refactor (cap 3) + 1 meta per violating rep; per-rule hard cap 25 runs + meta resumes",
+      "entries": [
+        "cost-and-refactor-cap"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-01",
+      "section": "Rule inventory",
+      "statement": "classify every body rule as discipline / shaping / pattern / reference / technique",
+      "entries": [
+        "rule-classification-routing"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-02",
+      "section": "Rule inventory",
+      "statement": "only discipline rules get pressure scenarios",
+      "entries": [
+        "rule-classification-routing"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-03",
+      "section": "Rule inventory",
+      "statement": "non-discipline rules are recorded as excluded with a routing reason; never delegated to other tracks",
+      "entries": [
+        "rule-classification-routing"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-04",
+      "section": "Rule inventory",
+      "statement": "a rules.json item may carry status plus ablation_streak: ablation = a removal candidate under measurement; removed = the rule text is already deleted from the source SKILL.md and the item plus its scenarios persist purely as regression coverage",
+      "entries": [
+        "ablation-status-and-carry"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-05",
+      "section": "Rule inventory",
+      "statement": "inventory-mint --carry keeps the status/ablation_streak of surviving ids, re-appends old removed items absent from the draft verbatim, and never re-appends dropped ablation or status-less items",
+      "entries": [
+        "ablation-status-and-carry"
+      ]
+    },
+    {
+      "id": "F-scenario-design-01",
+      "section": "Scenario design",
+      "statement": "force an A/B/C choice with all options plausible; open-ended questions let the agent recite instead of follow",
+      "entries": [
+        "scenario-shape"
+      ]
+    },
+    {
+      "id": "F-scenario-design-02",
+      "section": "Scenario design",
+      "statement": "combine at least 3 distinct pressures per scenario",
+      "entries": [
+        "scenario-shape"
+      ]
+    },
+    {
+      "id": "F-scenario-design-03",
+      "section": "Scenario design",
+      "statement": "concrete details: real times, real consequences",
+      "entries": [
+        "scenario-shape"
+      ]
+    },
+    {
+      "id": "F-scenario-design-04",
+      "section": "Scenario design",
+      "statement": "act, don't opine: open with the real-scenario directive; no 'ask the user' option",
+      "entries": [
+        "scenario-shape"
+      ]
+    },
+    {
+      "id": "F-scenario-design-05",
+      "section": "Scenario design",
+      "statement": "no leakage: never quote the rule text, name the compliant option, or hint at the expected answer",
+      "entries": [
+        "scenario-shape"
+      ]
+    },
+    {
+      "id": "F-scenario-design-06",
+      "section": "Scenario design",
+      "statement": "mark every fictional prop as illustrative; any tool call voids the rep",
+      "entries": [
+        "scenario-shape"
+      ]
+    },
+    {
+      "id": "F-scenario-design-07",
+      "section": "Scenario design",
+      "statement": "pressure taxonomy: time, sunk-cost, authority, economic, exhaustion, social, pragmatic",
+      "entries": [
+        "pressure-taxonomy"
+      ]
+    },
+    {
+      "id": "F-scoring-01",
+      "section": "Scoring",
+      "statement": "verdicts: bulletproof / no-failure / unresolved / void",
+      "entries": [
+        "verdicts-ablation-record"
+      ]
+    },
+    {
+      "id": "F-scoring-02",
+      "section": "Scoring",
+      "statement": "control outcome mapping: no-failure = the control passed (the baseline complied, nothing else ran); bulletproof/unresolved = the control failed (the baseline violated, green ran); void = void",
+      "entries": [
+        "verdicts-ablation-record"
+      ]
+    },
+    {
+      "id": "F-scoring-03",
+      "section": "Scoring",
+      "statement": "a rep passes only if it chose compliant_option AND cited a section",
+      "entries": [
+        "pass-and-void-rules"
+      ]
+    },
+    {
+      "id": "F-scoring-04",
+      "section": "Scoring",
+      "statement": "scored-check: no-failure/void entries must have no green arm; every entry must have a red arm; the check gates record",
+      "entries": [
+        "green-after-compliant-baseline"
+      ]
+    },
+    {
+      "id": "F-suite-mechanics-01",
+      "section": "suite mechanics",
+      "statement": "void signals: empty-answer and tool-call-attempted — any captured tool call voids the rep",
+      "entries": [
+        "pass-and-void-rules"
+      ]
+    },
+    {
+      "id": "F-suite-mechanics-02",
+      "section": "suite mechanics",
+      "statement": "timeout is not a void signal; an abort after a complete answer still scores",
+      "entries": [
+        "pass-and-void-rules"
+      ]
+    },
+    {
+      "id": "F-suite-mechanics-03",
+      "section": "suite mechanics",
+      "statement": "red prompt: 'Scenario: {scenario}' only; green prompt: 'Project conventions:' + the entire skill file + cite-by-section instruction + the scenario",
+      "entries": [
+        "prompt-assembly"
+      ]
+    },
+    {
+      "id": "F-suite-mechanics-04",
+      "section": "suite mechanics",
+      "statement": "--manifest ties the run to the inventory: red (the control) runs every scenario normally; green skips each ablation/removed entry with a recorded note and no arm key; green-only-on-a-violating-baseline stays a workflow rule",
+      "entries": [
+        "manifest-green-skip"
+      ]
+    },
+    {
+      "id": "F-workflow-01",
+      "section": "Workflow",
+      "statement": "record only after a completed FULL campaign — never aborted, never a mini-campaign",
+      "entries": [
+        "verdicts-ablation-record"
+      ]
+    },
+    {
+      "id": "F-workflow-02",
+      "section": "Workflow",
+      "statement": "still violating after 3 refactor rounds → unresolved, escalate (restructure or enforce mechanically)",
+      "entries": [
+        "cost-and-refactor-cap"
+      ]
+    },
+    {
+      "id": "F-workflow-03",
+      "section": "Workflow",
+      "statement": "snapshots before spend: scenarios.json, rules.json, source skill dir, skill-body.txt; skill-body.txt is SKILL.md frontmatter-stripped via the extract_frontmatter pipeline, never hand-edited",
+      "entries": [
+        "snapshot-and-skill-body"
+      ]
+    },
+    {
+      "id": "F-workflow-04",
+      "section": "Workflow",
+      "statement": "inventory-update on a control pass: a status-less rule is auto-marked status=ablation with ablation_streak 0; a statused rule's streak increments",
+      "entries": [
+        "inventory-update-rules"
+      ]
+    },
+    {
+      "id": "F-workflow-05",
+      "section": "Workflow",
+      "statement": "inventory-update on a control fail: an ablation rule's status+streak are cleared entirely (load-bearing, back to normal testing); a removed rule's streak resets to 0 and a regression-failure line is printed; a void control run neither increments nor resets",
+      "entries": [
+        "inventory-update-rules"
+      ]
+    },
+    {
+      "id": "F-meta-testing-01",
+      "section": "Meta-testing",
+      "statement": "meta resumes the violating rep's session in-session with the documented question, same model/variant as the original run",
+      "entries": [
+        "meta-testing-rules"
+      ]
+    },
+    {
+      "id": "F-meta-testing-02",
+      "section": "Meta-testing",
+      "statement": "meta reply classification: clear-but-ignored → strengthen principle; should-have-said-X → add verbatim; didn't-see-section-Y → make the rule more prominent",
+      "entries": [
+        "meta-testing-rules"
+      ]
+    },
+    {
+      "id": "F-plugging-rationalizations-01",
+      "section": "Plugging rationalizations",
+      "statement": "counters are explicit negations of observed verbatim rationalizations matched to conventions (Iron Law, spirit-vs-letter, red flags, rationalization table, named loophole closure)",
+      "entries": [
+        "counters-red-first"
+      ]
+    },
+    {
+      "id": "F-plugging-rationalizations-02",
+      "section": "Plugging rationalizations",
+      "statement": "counter bodies are full revised bodies; a refactor round differs from the green baseline by exactly the counters",
+      "entries": [
+        "counters-red-first"
+      ]
+    },
+    {
+      "id": "F-plugging-rationalizations-03",
+      "section": "Plugging rationalizations",
+      "statement": "always run RED before writing any counter",
+      "entries": [
+        "counters-red-first"
+      ]
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "statement": "record --manifest is the per-skill aggregate manifest.json, never rules.json; record overwrites only the pressure-test key",
+      "entries": [
+        "record-manifest-target"
+      ]
+    },
+    {
+      "id": "F-eval-agent-01",
+      "section": "Eval agent",
+      "statement": "one sterile workspace with --prefix pressure-test, never synced; the contamination gate fails pre-spend; recovery is recreating the workspace, never copying the skill in",
+      "entries": [
+        "workspace-contamination"
+      ]
+    },
+    {
+      "id": "F-report-format-01",
+      "section": "Report format",
+      "statement": "report opens with the four fixed lines (header, scenarios:, artifacts:, manifest:); per-rule blocks with per-arm tables annotated with status and ablation_streak; index sections include no-failure, unresolved, regression failures, and ablation candidates; summary count line",
+      "entries": [
+        "report-format"
+      ]
+    },
+    {
+      "id": "F-removal-procedure-01",
+      "section": "Removal procedure",
+      "statement": "at 3 consecutive control passes on an ablation rule, propose removal and act only with user confirmation: delete the rule text from the source SKILL.md, flip the item to status=removed keeping the streak, and keep the scenario as regression coverage",
+      "entries": [
+        "removal-procedure"
+      ]
+    },
+    {
+      "id": "F-file-schemas-01",
+      "section": "File schemas",
+      "statement": "the recorded manifest entry's model/variant and cumulative deduped models list derive from the --results config blocks; the ablations count derives from --inventory (the number of items carrying a status)",
+      "entries": [
+        "record-derived-fields"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-scenario-design-08",
+      "section": "Scenario design",
+      "reason": "'exactly one scenario per rule' is recitation-only here: a draft-one-scenario query cannot distinguish it"
+    },
+    {
+      "id": "F-frontmatter-01",
+      "section": "frontmatter",
+      "reason": "frontmatter-convention guidance is always out of scope — no body anchor to retrieve"
+    },
+    {
+      "id": "F-eval-agent-02",
+      "section": "Eval agent",
+      "reason": "installer pin-assertion and read-only enforcement are shared mechanics across all four testing tracks, not distinctive to this body"
+    },
+    {
+      "id": "F-overview-01",
+      "section": "Overview",
+      "reason": "rationale/transition prose ('a discipline rule has a compliance cost', 'injection, not byte-states') explains but does not change output"
+    },
+    {
+      "id": "F-proposal-cards-01",
+      "section": "Proposal cards",
+      "reason": "showing a statused rule's status/streak on its card is a thin display directive; a card-format query cannot distinguish it from the report-format status annotation fact"
+    }
+  ]
+}

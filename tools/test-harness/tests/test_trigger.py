@@ -307,7 +307,58 @@ class FailuresTests(unittest.TestCase):
         )
         rc, out = self._run()
         self.assertEqual(rc, 0)
-        self.assertIn("(no reasoning captured)", out)
+        self.assertIn("(no reasoning captured", out)
+
+    def _run_with_stderr(self) -> tuple[int, str, str]:
+        args = argparse.Namespace(results=str(self.results))
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        with (
+            contextlib.redirect_stdout(buf_out),
+            contextlib.redirect_stderr(buf_err),
+        ):
+            rc = TRACKS["trigger-test"].print_evidence(args)
+        return rc, buf_out.getvalue(), buf_err.getvalue()
+
+    def test_empty_reasoning_warns_on_stderr_with_counts(self):
+        # One reasoned failure + one empty: the warning fires with exact
+        # counts; exit stays 0 (extractor, not a gate).
+        self._write(
+            [
+                {
+                    "query": "q1",
+                    "should_trigger": True,
+                    "failures": [
+                        self._failure(),
+                        self._failure(run=3, reasoning=""),
+                    ],
+                }
+            ]
+        )
+        rc, out, err = self._run_with_stderr()
+        self.assertEqual(rc, 0)
+        self.assertIn("    it looked\n    relevant", out)
+        self.assertIn("(no reasoning captured", out)
+        self.assertIn("warning: 1 of 2 failed runs carry no reasoning", err)
+
+    def test_all_reasoned_failures_emit_no_warning(self):
+        self._write(
+            [
+                {
+                    "query": "q1",
+                    "should_trigger": True,
+                    "failures": [self._failure()],
+                }
+            ]
+        )
+        rc, _, err = self._run_with_stderr()
+        self.assertEqual(rc, 0)
+        self.assertNotIn("no reasoning", err)
+
+    def test_no_failures_emits_no_warning(self):
+        self._write([{"query": "q1", "should_trigger": True, "failures": []}])
+        rc, _, err = self._run_with_stderr()
+        self.assertEqual(rc, 0)
+        self.assertNotIn("no reasoning", err)
 
     def test_missing_file(self):
         rc, _ = self._run(Path(self.tmp.name) / "nope.json")
@@ -322,6 +373,27 @@ class FailuresTests(unittest.TestCase):
         self.results.write_text(json.dumps({"totals": {}}))
         rc, _ = self._run()
         self.assertEqual(rc, 1)
+
+    def test_multiple_results_files_rejected_via_cmd_evidence(self):
+        # evidence merges N --results files for shape only; every other
+        # track keeps the single-file printer behind the scored-check
+        # message
+        args = argparse.Namespace(
+            track="trigger-test",
+            results=[str(self.results), str(self.results)],
+            entry=None,
+            arm=None,
+            compare=False,
+            matrix=False,
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            rc = evaluator.cmd_evidence(args)
+        self.assertEqual(rc, 1)
+        self.assertIn(
+            "exactly one --results file is valid with --track trigger-test",
+            buf.getvalue(),
+        )
 
 
 class HarnessWorkspaceMixin:

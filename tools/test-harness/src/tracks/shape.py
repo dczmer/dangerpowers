@@ -9,15 +9,20 @@ from src.common import (
     EvidenceError,
     _err,
     _fail,
+    check_results_same_dir,
     emit,
     iter_evidence,
+    label_arm,
     load_entries,
+    load_results_envelope,
     load_results_json,
+    load_status_map,
     log_start,
+    rep_label,
     run_rep_batched,
     validate_eval_agent,
 )
-from src.strategies import EvalStrategy
+from src.strategies import DEFAULT_TIMEOUT, EvalStrategy
 from src.tracks.retrieval import SOURCES_RE
 from src.tracks.track import Track, _required
 
@@ -55,10 +60,42 @@ def _check_marker_tokens(
 def load_shape_entries(path: Path) -> list[dict]:
     """Read and strictly validate a shape entries file. Schema only: the
     verbatim section-span assertion against the snapshotted skill body
-    lives in ShapeTrack.pre_spend_gates, which owns the body bytes. On
-    any violation prints `error: <exact reason>` to stderr and exits 1
-    (pre-spend: zero harness runs happen before this returns)."""
+    lives in check_span_uniqueness, called by ShapeTrack.pre_spend_gates
+    (the body owner) and by evaluator's proposal-time `check --entries`
+    mode. On any violation prints `error: <exact reason>` to stderr and
+    exits 1 (pre-spend: zero harness runs happen before this returns)."""
     return load_entries(path, "entries", "entry", _check_shape_fields)
+
+
+def check_span_uniqueness(
+    entries: list[dict], body: str, removed: set[str] | None = None
+) -> list[str]:
+    """The verbatim section-span assertion (BUGS.md B7): every entry's
+    section span must occur exactly once in the body bytes — except a
+    REMOVED entry (regression coverage for an already-deleted rule),
+    whose span must occur ZERO times. Returns one error string per
+    violating entry, empty when clean — the pre-spend doc-drift gate
+    fails on the first, the proposal-time check mode prints them all
+    (drift is fixed in batches at proposal time)."""
+    removed = removed or set()
+    errors = []
+    for entry in entries:
+        occurrences = body.count(entry["section"])
+        if entry["id"] in removed:
+            if occurrences != 0:
+                errors.append(
+                    f"doc drift: section span of removed entry "
+                    f"{entry['id']!r} occurs {occurrences} times in the "
+                    f"skill body (expected zero — the rule was removed)"
+                )
+        elif occurrences != 1:
+            errors.append(
+                f"doc drift: section span of entry {entry['id']!r} "
+                f"occurs {occurrences} times in the skill body "
+                f"(expected exactly once); fix the entry or the "
+                f"snapshot"
+            )
+    return errors
 
 
 def _check_shape_fields(path: Path, i: int, entry: dict, eid: str) -> None:
@@ -182,12 +219,19 @@ def build_shape_prompt(body: str, fixture: str) -> str:
     return SHAPE_PROMPT_TEMPLATE.format(body=body, fixture=fixture)
 
 
-def assemble_arm_body(body: str, entry: dict, arm: str) -> str:
+def assemble_arm_body(
+    body: str, entry: dict, arm: str, removed: bool = False
+) -> str:
     """One arm's body bytes. v0 (control) removes the rule's section span
     together with exactly one following blank line; vN replaces the span
     with the variant text. The caller asserts the span occurs verbatim
     exactly once in body before calling (pre-spend doc-drift gate), so a
-    violated invariant here is a harness bug, not doc drift."""
+    violated invariant here is a harness bug, not doc drift. A REMOVED
+    entry's span is already deleted from the doc: its v0 arm IS the
+    unchanged body and no span lookup happens (variant arms are never
+    assembled for removed/ablation entries)."""
+    if removed and arm == "v0":
+        return body
     section = entry["section"]
     idx = body.find(section)
     end = idx + len(section)
@@ -206,9 +250,15 @@ def assemble_arm_body(body: str, entry: dict, arm: str) -> str:
     return body[:idx] + entry["variants"][arm] + body[end:]
 
 
-def verify_arm_bytes(new_body: str, entry: dict, arm: str) -> None:
+def verify_arm_bytes(
+    new_body: str, entry: dict, arm: str, removed: bool = False
+) -> None:
     """Post-assembly sanity check, run before any dispatch: the v0 arm
-    must have lost the span, a variant arm must carry its text."""
+    must have lost the span, a variant arm must carry its text. A
+    REMOVED entry's v0 arm is the unchanged body — the span is gone
+    trivially, so the assertion is skipped."""
+    if removed and arm == "v0":
+        return
     if arm == "v0":
         if entry["section"] in new_body:
             raise ValueError(
@@ -228,6 +278,7 @@ def build_shape_run_record(
     timed_out: bool,
     ws_root: Path,
     arm: str,
+    rep: int,
 ) -> dict:
     """The shape-track run record: build_run_record adapted, not reused,
     because that builder keys its signals on the retrieval arm names.
@@ -254,6 +305,7 @@ def build_shape_run_record(
             break
     return {
         "arm": arm,
+        "rep": rep,
         "query_dispatched": query_dispatched,
         "answer_text": answer,
         "sources_consulted": m.group("block").strip() if m else None,
@@ -288,7 +340,7 @@ def run_shape_rep_batch(
             args.model,
             args.variant,
         )
-        record = build_shape_run_record(ev, prompt, timed_out, ws, arm)
+        record = build_shape_run_record(ev, prompt, timed_out, ws, arm, n)
         line = f"[{tag}] [rep {n:>3}] completed"
         if timed_out:
             line += " (timeout)"
@@ -311,10 +363,24 @@ def marker_triage_counts(answer: str, markers: dict) -> dict:
     return counts
 
 
+def _base_arm(arm: str) -> str:
+    """Strip a --label namespace prefix ('round-2:v1' -> 'v1',
+    'round-2:v2@counter-example' -> 'v2@counter-example'); unlabeled
+    arms pass through."""
+    return arm.rpartition(":")[2] if ":" in arm else arm
+
+
+def _arm_label(arm: str) -> str | None:
+    """The --label namespace prefix of an arm key, None when unlabeled."""
+    return arm.rpartition(":")[0] if ":" in arm else None
+
+
 def _is_v0_family(arm: object) -> bool:
     """v0 control arms, including disclosed control re-run keys (e.g.
-    v0-rerun): control evidence, never candidates."""
-    return isinstance(arm, str) and (arm == "v0" or arm.startswith("v0-"))
+    v0-rerun) and labeled forms (main:v0): control evidence, never
+    candidates."""
+    base = _base_arm(arm) if isinstance(arm, str) else arm
+    return isinstance(base, str) and (base == "v0" or base.startswith("v0-"))
 
 
 def aggregate_counts(arm_data: dict | None, markers: dict) -> dict:
@@ -344,21 +410,226 @@ def _print_shape_compare(eid: str, arms: dict, markers: dict) -> None:
     """--compare: per-marker property-frequency verdict of each candidate
     arm against the v0 control. The adoption rule hinges on the strict >
     on the normalized frequency: equal frequency means the rule is not
-    binding. A missing v0 control skips the comparison with a note —
-    there is nothing to beat, and comparing against an empty base would
-    manufacture EXCEEDS verdicts from no control evidence."""
-    if "v0" not in arms:
-        print(f"compare: entry {eid}: no v0 control arm; comparison skipped")
+    binding. A missing v0 control skips the comparison with a note on
+    stderr — there is nothing to beat, and comparing against an empty
+    base would manufacture EXCEEDS verdicts from no control evidence.
+    Fixture-disambiguated rerun arms (v2@counter-example, see
+    _merge_shape_results) are visible in the evidence but are never
+    compare candidates: their runs answer a different fixture. With
+    --label-namespaced arms the baseline is the same label's v0-family
+    arm when one exists, else the entry's only v0-family arm (a round-2
+    file carries no control; the main file's v0 is the baseline)."""
+    controls = [a for a in arms if _is_v0_family(a)]
+    if not controls:
+        print(
+            f"compare: entry {eid}: no v0 control arm; comparison skipped",
+            file=sys.stderr,
+        )
         return
-    base = aggregate_counts(arms.get("v0"), markers)
+
+    def baseline_for(arm: str) -> str | None:
+        label = _arm_label(arm)
+        pool = controls
+        if label is not None:
+            same = [c for c in controls if _arm_label(c) == label]
+            if same:
+                pool = same
+        for c in pool:
+            if _base_arm(c) == "v0":
+                return c
+        return pool[0] if len(pool) == 1 else None
+
     for arm in arms:
         if _is_v0_family(arm):
             continue  # v0-family arms are control evidence, not candidates
+        if "@" in _base_arm(arm):
+            continue  # fixture-disambiguated reruns are not candidates
+        baseline = baseline_for(arm)
+        if baseline is None:
+            print(
+                f"compare: entry {eid}: arm {arm!r}: no unambiguous v0 "
+                "control; comparison skipped",
+                file=sys.stderr,
+            )
+            continue
+        base = aggregate_counts(arms.get(baseline), markers)
         cand = aggregate_counts(arms[arm], markers)
         for name in markers:
             b, c = base.get(name, 0), cand.get(name, 0)
             verdict = "EXCEEDS" if c > b else "does-not-exceed"
-            print(f"compare {name}: {arm} {c} vs v0 {b} -> {verdict}")
+            print(f"compare {name}: {arm} {c} vs {baseline} {b} -> {verdict}")
+
+
+def _print_arm_matrix(
+    path: Path, eid: str, arm: str, runs: list, markers: dict
+) -> str | None:
+    """One arm's --matrix block: a summary line with rep, timeout, and
+    void-signal counts (per-signal breakdown), one line per rep with
+    each marker's hit count, and a totals line adding per-marker fired
+    rep counts — so a never-firing wrong-shape marker or an always-on
+    right-shape marker is visible without reading any answers. Returns
+    an exact error message on a malformed run, else None."""
+    timeouts = 0
+    voided = 0
+    signals: dict[str, int] = {}
+    totals = {name: 0 for name in markers}
+    fired = {name: 0 for name in markers}
+    rep_lines = []
+    for n, run in enumerate(runs, start=1):
+        if not isinstance(run, dict):
+            return (
+                f"{path}: entry {eid} arm {arm!r} run {n} " f"is not an object"
+            )
+        if run.get("timeout"):
+            timeouts += 1
+        sigs = run.get("void_signals") or []
+        if sigs:
+            voided += 1
+        for s in sigs:
+            signals[s] = signals.get(s, 0) + 1
+        answer = run.get("answer_text")
+        answer = answer if isinstance(answer, str) else ""
+        counts = marker_triage_counts(answer, markers)
+        for name, c in counts.items():
+            totals[name] += c
+            if c:
+                fired[name] += 1
+        rep_lines.append(
+            f"  rep {rep_label(run, n):>3}: "
+            + ", ".join(f"{k}={v}" for k, v in counts.items())
+        )
+    detail = ""
+    if signals:
+        detail = " (" + ", ".join(f"{k}={v}" for k, v in signals.items()) + ")"
+    print(
+        f"[ {arm} ] reps={len(runs)}, timeouts={timeouts}, "
+        f"voids={voided}{detail}"
+    )
+    if not markers:
+        print("  (no markers recorded)")
+        return None
+    for line in rep_lines:
+        print(line)
+    print(
+        "  totals: "
+        + ", ".join(f"{k}={v}" for k, v in totals.items())
+        + " | fired: "
+        + ", ".join(f"{k} {fired[k]}/{len(runs)} reps" for k in markers)
+    )
+    return None
+
+
+# Config keys whose drift across merged results files makes the pooled
+# runs unattributable to one model selection; drift warns on stderr.
+_DRIFT_CONFIG_KEYS = ("model", "variant", "reps", "timeout")
+
+
+def _merge_shape_results(
+    paths: list[Path], labels: list[str] | None = None
+) -> tuple[list[dict], str | None]:
+    """Merge N shape results files into one entries list for evidence:
+    entries keyed by id in first-appearance order (union_results
+    semantics). An arm appearing in several files is pooled only when
+    the files' config.fixture_key values match — a restraint gate
+    reuses the winning arm's key under fixture_key counter-example, and
+    pooling it with the application-fixture runs would contaminate the
+    --compare property frequencies. Fixture-mismatched runs stay
+    visible under a suffixed display key (v2@counter-example). Run
+    concatenation and config drift on _DRIFT_CONFIG_KEYS note on
+    stderr. All paths must be in the same directory
+    (check_results_same_dir) unless labels are given — one --label per
+    path (check_results_labels), which waives the guard and namespaces
+    every arm key '<label>:<arm>' so a mini-campaign subdir's arms
+    (round-2 v1) never pool with the full campaign's same-named arms.
+    Returns (merged entries, exact error message).
+
+    Asymmetry, deliberate: scored-check's union (via _shape_union_hook)
+    has no fixture-key guard — it sums same-named arms unconditionally
+    (within one label) and the driver narrows the skeleton by hand. The
+    guard lives here because evidence is where the frequency comparison
+    happens; a scored-check that also split restraint runs would change
+    the recorded marker_counts schema."""
+    order: list[str] = []
+    by_id: dict[str, dict] = {}
+    arm_fixtures: dict[tuple[str, str], object] = {}
+    base_config: dict | None = None
+    base_path: Path | None = None
+    if labels is None:
+        dir_error = check_results_same_dir([str(p) for p in paths])
+        if dir_error is not None:
+            return [], dir_error
+    for fi, path in enumerate(paths):
+        label = labels[fi] if labels else None
+        entries, config, error = load_results_envelope(path, "shape")
+        if error is not None:
+            return [], error
+        config = config if config is not None else {}
+        if base_config is None:
+            base_config, base_path = config, path
+        else:
+            drift = [
+                k
+                for k in _DRIFT_CONFIG_KEYS
+                if config.get(k) != base_config.get(k)
+            ]
+            if drift:
+                print(
+                    f"warning: {path}: config differs from {base_path} "
+                    f"on: {', '.join(drift)}",
+                    file=sys.stderr,
+                )
+        fixture_key = config.get("fixture_key")
+        for i, entry in enumerate(entries):
+            eid = entry.get("id") if isinstance(entry, dict) else None
+            if not isinstance(eid, str) or not eid:
+                return [], (
+                    f"{path}: results entry {i} missing 'id' "
+                    f"(non-empty string)"
+                )
+            arms = entry.get("arms") if isinstance(entry, dict) else None
+            if not isinstance(arms, dict):
+                return [], (
+                    f"{path}: entry {eid} is missing its 'arms' object"
+                )
+            if eid not in by_id:
+                order.append(eid)
+                merged = dict(entry)
+                merged["arms"] = {}
+                by_id[eid] = merged
+            merged = by_id[eid]
+            kind = entry.get("kind")
+            if kind != merged.get("kind"):
+                return [], (
+                    f"{path}: entry {eid}: kind {kind!r} differs from "
+                    f"earlier results file ({merged.get('kind')!r})"
+                )
+            for arm, arm_data in arms.items():
+                if not isinstance(arm_data, dict) or not isinstance(
+                    arm_data.get("runs"), list
+                ):
+                    return [], (
+                        f"{path}: entry {eid} arm {arm!r} is missing "
+                        f"its run list"
+                    )
+                display_base = label_arm(label, arm)
+                key = (eid, display_base)
+                if key not in arm_fixtures:
+                    arm_fixtures[key] = fixture_key
+                display = (
+                    display_base
+                    if arm_fixtures[key] == fixture_key
+                    else f"{display_base}@{fixture_key}"
+                )
+                if display in merged["arms"]:
+                    merged["arms"][display]["runs"].extend(arm_data["runs"])
+                    print(
+                        f"note: {path}: entry {eid} arm {display!r}: "
+                        f"concatenated {len(arm_data['runs'])} runs",
+                        file=sys.stderr,
+                    )
+                else:
+                    merged["arms"][display] = {"runs": list(arm_data["runs"])}
+    return [by_id[eid] for eid in order], None
 
 
 def _shape_union_hook(path: Path, e: dict, extras: dict) -> str | None:
@@ -433,9 +704,12 @@ class ShapeTrack(Track):
     _i: int = 0
     _n: int = 0
     # pre_spend_gates stashes for run_entry/banner/extra_config: the
-    # snapshotted skill body and the parsed --arms list.
+    # snapshotted skill body and the parsed --arms list. _status_map is
+    # the --manifest entry-id -> inventory status map (ablation/removed
+    # entries run v0 only); empty without --manifest.
     _body: str = ""
     _arms: list[str] = []
+    _status_map: dict[str, str] = {}
 
     def pre_spend_gates(
         self, args: argparse.Namespace, strategy_cls: type[EvalStrategy]
@@ -445,13 +719,14 @@ class ShapeTrack(Track):
         non-empty → --fixture-key → --arms → load entries → per-entry
         arm/variant + fixture gates → doc-drift gate → --out parent →
         contamination. Returns the validated entries, or an int rc with the
-        exact error already printed. The merged-parser flag requirement and
-        the historical 5/120 reps/timeout defaults are applied here (Q7a)."""
+        exact error already printed. The merged-parser flag requirement,
+        the historical 5-reps default, and the shared DEFAULT_TIMEOUT
+        (300 s; BUGS.md B3) are applied here (Q7a)."""
         _required(args, self, "workspace", "entries", "skill_file", "arms")
         if args.reps is None:
             args.reps = 5
         if args.timeout is None:
-            args.timeout = 120
+            args.timeout = DEFAULT_TIMEOUT
         self._harness_preflight(args.harness, strategy_cls, args.model)
         ws = Path(args.workspace)
         agents_dir = Path(args.agents_dir)
@@ -486,6 +761,11 @@ class ShapeTrack(Track):
             )
 
         entries = load_shape_entries(entries_path)  # exits 1 on violation
+        # --manifest: entry-id -> status from the rules inventory
+        # (ablation/removed entries run the v0 control only).
+        self._status_map = load_status_map(
+            getattr(args, "manifest", None), self.inventory_kind
+        )
         for entry in entries:
             for arm in arms:
                 if arm != "v0" and arm not in entry["variants"]:
@@ -503,17 +783,21 @@ class ShapeTrack(Track):
 
         # Doc-drift gate: every section span must appear verbatim exactly
         # once in the snapshotted body (frontmatter already stripped by
-        # the driver — spans overlapping frontmatter are never matched).
+        # the driver — spans overlapping frontmatter are never matched),
+        # except REMOVED entries, whose span must be GONE (the rule text
+        # was deleted; the entry persists as regression coverage).
         # Aborts before spend.
-        for entry in entries:
-            occurrences = body.count(entry["section"])
-            if occurrences != 1:
-                _fail(
-                    f"doc drift: section span of entry {entry['id']!r} "
-                    f"occurs {occurrences} times in the skill body "
-                    f"(expected exactly once); fix the entry or the "
-                    f"snapshot"
-                )
+        errors = check_span_uniqueness(
+            entries,
+            body,
+            {
+                eid
+                for eid, status in self._status_map.items()
+                if status == "removed"
+            },
+        )
+        if errors:
+            _fail(errors[0])
 
         out = Path(args.out)
         if not out.parent.is_dir():
@@ -567,10 +851,26 @@ class ShapeTrack(Track):
             "restraint_markers": entry.get("restraint_markers"),
             "arms": {},
         }
-        for arm in self._arms:
+        # Ablation/removed entries run the v0 control only, whatever
+        # --arms says (v0 IS the control; for a removed entry the body
+        # is unchanged, so v0 measures the current body). Variant phases
+        # never run for them.
+        status = self._status_map.get(entry["id"])
+        arms = self._arms
+        if status is not None:
+            if arms != ["v0"]:
+                emit(
+                    f"note: entry {entry['id']} is {status}; "
+                    "running v0 only"
+                )
+            arms = ["v0"]
+        removed = status == "removed"
+        for arm in arms:
             try:
-                arm_body = assemble_arm_body(self._body, entry, arm)
-                verify_arm_bytes(arm_body, entry, arm)
+                arm_body = assemble_arm_body(
+                    self._body, entry, arm, removed=removed
+                )
+                verify_arm_bytes(arm_body, entry, arm, removed=removed)
             except ValueError as e:
                 _fail(str(e))
             prompt = build_shape_prompt(
@@ -600,18 +900,34 @@ class ShapeTrack(Track):
         return f"shape suite: {n} entries -> {out}"
 
     def print_evidence(self, args: argparse.Namespace) -> int:
-        """Print the per-run scoring evidence from a shape-suite results
+        """Print the per-run scoring evidence from shape-suite results
         JSON: per entry/arm/rep the answer text, void signals, session
         id, and marker triage counts (markers are carried in the results
         entries, so no entries-file re-read is needed). Extraction only —
-        the driver judges convergence across the reps by hand. Exit 0
-        with an entry count line; exit 1 only on a malformed file or
-        unknown --entry."""
-        path = Path(args.results)
-        data_entries, error = load_results_json(path, "shape")
+        the driver judges convergence across the reps by hand. With
+        several --results files the entries are merged by id
+        (_merge_shape_results: same-fixture arms pooled, fixture-
+        mismatched reruns suffixed), which is what puts the v0 control
+        within --compare's reach across the phase-1/phase-2 file split.
+        --matrix replaces the per-rep answer dump with the compact
+        marker x rep hit matrix (per-arm void/timeout summary, per-rep
+        per-marker hit counts, per-marker fired rep counts) — the
+        proposal-time calibration view. Exit 0 with an entry count
+        line; exit 1 only on a malformed file or unknown --entry."""
+        paths = (
+            args.results if isinstance(args.results, list) else [args.results]
+        )
+        paths = [Path(p) for p in paths]
+        labels = getattr(args, "labels", None)
+        if len(paths) == 1:
+            data_entries, error = load_results_json(paths[0], "shape")
+        else:
+            data_entries, error = _merge_shape_results(paths, labels)
         if error is not None:
             print(f"error: {error}", file=sys.stderr)
             return 1
+        path = paths[0]
+        origin = ", ".join(str(p) for p in paths)
 
         n_printed = 0
         try:
@@ -643,6 +959,14 @@ class ShapeTrack(Track):
                             file=sys.stderr,
                         )
                         return 1
+                    if args.matrix:
+                        error = _print_arm_matrix(
+                            path, eid, arm, arm_data["runs"], markers
+                        )
+                        if error is not None:
+                            print(f"error: {error}", file=sys.stderr)
+                            return 1
+                        continue
                     for n, run in enumerate(arm_data["runs"], start=1):
                         if not isinstance(run, dict):
                             print(
@@ -653,7 +977,10 @@ class ShapeTrack(Track):
                             return 1
                         timeout = "timeout" if run.get("timeout") else "ok"
                         session = run.get("session_id") or "no-session"
-                        print(f"[ {arm} ] rep {n:>3} ({session}, {timeout})")
+                        print(
+                            f"[ {arm} ] rep {rep_label(run, n):>3} "
+                            f"({session}, {timeout})"
+                        )
                         answer = run.get("answer_text")
                         answer = answer if isinstance(answer, str) else ""
                         if answer:
@@ -689,7 +1016,7 @@ class ShapeTrack(Track):
         if args.entry is not None and n_printed == 0:
             print(f"error: no entry with id: {args.entry}", file=sys.stderr)
             return 1
-        print(f"evidence: {n_printed} entries from {path}")
+        print(f"evidence: {n_printed} entries from {origin}")
         return 0
 
     def skeleton_entry(self, eid: str, extras: dict) -> dict:

@@ -1,0 +1,48 @@
+{
+  "skill": "pressure-testing-skills",
+  "retrieval-test": {
+    "date": "2026-09-28",
+    "checksum": "sha256:bf8efdb00a704a3d837af15547551eca42c37ef47407b4fe16225c2354fdf6ad",
+    "passes": 19,
+    "fails": 1,
+    "gaps": 0,
+    "voids": 0,
+    "model": "kimi-code-plan-global/kimi-for-coding",
+    "variant": null,
+    "ablations": 0,
+    "campaign": "campaign-2026-09-28",
+    "models": [
+      "kimi-code-plan-global/kimi-for-coding"
+    ]
+  },
+  "shape-test": {
+    "date": "2026-09-28",
+    "checksum": "sha256:c1200b6915e23c4130be27162d95ac3bf63232c321ad95d0145f307f0df29823",
+    "adopted": 6,
+    "no-failure": 6,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "kimi-code-plan-global/kimi-for-coding",
+    "variant": null,
+    "ablations": 6,
+    "campaign": "campaign-2026-09-28",
+    "models": [
+      "kimi-code-plan-global/kimi-for-coding"
+    ]
+  },
+  "pressure-test": {
+    "date": "2026-09-28",
+    "checksum": "sha256:272661533a786a549ba6d17b1a9de062715278ba540487cb26dfcd35dcadeec8",
+    "bulletproof": 1,
+    "no-failure": 13,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "kimi-code-plan-global/kimi-for-coding",
+    "variant": null,
+    "ablations": 13,
+    "campaign": "campaign-2026-09-28",
+    "models": [
+      "kimi-code-plan-global/kimi-for-coding"
+    ]
+  }
+}

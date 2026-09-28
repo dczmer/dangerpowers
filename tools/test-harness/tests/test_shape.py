@@ -28,6 +28,7 @@ from src.tracks import (
     assemble_arm_body,
     build_shape_prompt,
     build_shape_run_record,
+    check_span_uniqueness,
     load_shape_entries,
     marker_triage_counts,
     verify_arm_bytes,
@@ -258,6 +259,53 @@ class ShapeEntriesTests(unittest.TestCase):
         self._rejected()
 
 
+class SpanUniquenessTests(unittest.TestCase):
+    """check_span_uniqueness (BUGS.md B7): the shared section-span
+    assertion behind the pre-spend doc-drift gate and the proposal-time
+    check mode — empty when clean, one error per violating entry."""
+
+    BODY = "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_B + "\n"
+
+    def test_clean_returns_empty(self):
+        entries = [
+            shaping_entry(),
+            shaping_entry(eid="tests", section=SECTION_B),
+        ]
+        self.assertEqual(check_span_uniqueness(entries, self.BODY), [])
+
+    def test_every_violating_entry_reported(self):
+        # css-modules' span occurs twice, tests' span is absent: both
+        # must be named (the gate fails on the first; the check mode
+        # prints them all for batch repair at proposal time).
+        body = "# Demo\n\n" + SECTION_A + "\n\n" + SECTION_A + "\n"
+        entries = [
+            shaping_entry(),
+            shaping_entry(eid="tests", section=SECTION_B),
+        ]
+        errors = check_span_uniqueness(entries, body)
+        self.assertEqual(len(errors), 2)
+        self.assertIn("entry 'css-modules'", errors[0])
+        self.assertIn("occurs 2 times", errors[0])
+        self.assertIn("entry 'tests'", errors[1])
+        self.assertIn("occurs 0 times", errors[1])
+
+    def test_removed_entry_expects_zero_occurrences(self):
+        # Regression coverage for an already-deleted rule: the span is
+        # gone from the body, and that is the PASS case.
+        entries = [shaping_entry(), shaping_entry(eid="gone", section="## X")]
+        self.assertEqual(
+            check_span_uniqueness(entries, self.BODY, {"gone"}), []
+        )
+
+    def test_removed_entry_span_present_reported(self):
+        entries = [shaping_entry()]
+        errors = check_span_uniqueness(entries, self.BODY, {"css-modules"})
+        self.assertEqual(len(errors), 1)
+        self.assertIn("removed entry 'css-modules'", errors[0])
+        self.assertIn("occurs 1 times", errors[0])
+        self.assertIn("expected zero — the rule was removed", errors[0])
+
+
 class ArmAssemblyTests(unittest.TestCase):
     """assemble_arm_body / verify_arm_bytes: the byte-exactness spec —
     v0 removes the span plus exactly one following blank line, vN replaces
@@ -348,12 +396,18 @@ class ShapeRunRecordTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def _record(self, ev, arm="v0"):
-        return build_shape_run_record(ev, "the prompt", False, self.ws, arm)
+    def _record(self, ev, arm="v0", rep=1):
+        return build_shape_run_record(
+            ev, "the prompt", False, self.ws, arm, rep
+        )
 
     def test_arm_key_recorded(self):
         rec = self._record(EventStream(answer_parts=["a"]), arm="v2")
         self.assertEqual(rec["arm"], "v2")
+
+    def test_rep_recorded(self):
+        rec = self._record(EventStream(answer_parts=["a"]), rep=5)
+        self.assertEqual(rec["rep"], 5)
 
     def test_skill_load_attempt_signals_on_every_arm(self):
         ev = EventStream(
@@ -385,7 +439,7 @@ class ShapeRunRecordTests(unittest.TestCase):
         self.assertTrue(rec["timeout"] is False)
         ev_timeout = EventStream(answer_parts=["complete answer"])
         rec = build_shape_run_record(
-            ev_timeout, "the prompt", True, self.ws, "v0"
+            ev_timeout, "the prompt", True, self.ws, "v0", 1
         )
         self.assertTrue(rec["timeout"])
         self.assertEqual(rec["void_signals"], [])
@@ -833,6 +887,179 @@ class ShapePreSpendGateTests(unittest.TestCase):
         self.assertEqual(cm.exception.code, 1)
 
 
+class ShapeManifestSuiteTests(unittest.TestCase):
+    """suite --manifest: ablation/removed entries run the v0 control
+    only (variants skipped with a note line, whatever --arms says); a
+    removed entry's v0 IS the unchanged body, and its span must be GONE
+    from the body (zero-occurrence doc-drift gate)."""
+
+    GONE_SECTION = "## Gone\n\nThis rule was deleted"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "shape-evaluator.opencode.md").write_text(
+            "---\nname: shape-evaluator\nmode: primary\n---\nbody\n"
+        )
+        self.ws = self.root / "ws"
+        self.ws.mkdir()
+        self.body = "# Demo\n\n" + SECTION_A + "\n"
+        self.skill_body = self.root / "skill-body.txt"
+        self.skill_body.write_text(self.body)
+        self.entries_path = self.root / "entries.json"
+        self.entries_path.write_text(
+            json.dumps(
+                [
+                    shaping_entry(eid="a", section=SECTION_A),
+                    shaping_entry(eid="gone", section=self.GONE_SECTION),
+                ]
+            )
+        )
+        self.manifest = self.root / "rules.json"
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-28",
+                    "rules": [
+                        {
+                            "id": "R-styling-01",
+                            "section": "Styling",
+                            "kind": "shaping",
+                            "statement": "s",
+                            "entries": ["a"],
+                            "status": "ablation",
+                            "ablation_streak": 1,
+                        },
+                        {
+                            "id": "R-gone-01",
+                            "section": "Gone",
+                            "kind": "shaping",
+                            "statement": "s",
+                            "entries": ["gone"],
+                            "status": "removed",
+                            "ablation_streak": 3,
+                        },
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+        self.out = self.root / "results.json"
+
+    def tearDown(self):
+        log = evaluator._Log.file
+        evaluator._Log.file = None
+        if log is not None:
+            log.close()
+        self.tmp.cleanup()
+
+    class _FakeStrategy:
+        def __init__(self):
+            self.queries: list[str] = []
+
+        def agent_file(self, agents_dir, base):
+            return Path(agents_dir) / f"{base}.opencode.md"
+
+        def install(self, *args, **kwargs):
+            return None
+
+        def execute(self, ws, agent, query, model, variant, skill=None):
+            self.queries.append(query)
+            return (EventStream(answer_parts=["answer"]), False)
+
+    def _args(self, **overrides):
+        args = argparse.Namespace(
+            harness="opencode",
+            skill="demo-skill",
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.ws),
+            entries=str(self.entries_path),
+            skill_file=str(self.skill_body),
+            arms="v0,v1",
+            out=str(self.out),
+            fixture_key="application",
+            model=None,
+            variant=None,
+            reps=1,
+            timeout=120,
+            manifest=str(self.manifest),
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        return args
+
+    def _run(self, **overrides):
+        fake = self._FakeStrategy()
+        args = self._args(**overrides)
+        buf = io.StringIO()
+        with mock_check_and_resolve(fake):
+            with redirect_stdout(buf):
+                rc = evaluator.run_suite(TRACKS["shape-test"], args)
+        return rc, buf.getvalue(), fake
+
+    def test_status_entries_run_v0_only_with_note(self):
+        rc, out, fake = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("note: entry a is ablation; running v0 only", out)
+        self.assertIn("note: entry gone is removed; running v0 only", out)
+        entries = {
+            e["id"]: e for e in json.loads(self.out.read_text())["entries"]
+        }
+        self.assertEqual(set(entries["a"]["arms"]), {"v0"})
+        self.assertEqual(set(entries["gone"]["arms"]), {"v0"})
+        self.assertEqual(len(fake.queries), 2)
+
+    def test_ablation_v0_removes_span_and_removed_v0_is_unchanged(self):
+        rc, _out, fake = self._run()
+        self.assertEqual(rc, 0)
+        by_fixture = {}
+        for query in fake.queries:
+            if query.endswith("write a component for a"):
+                by_fixture["a"] = query
+            else:
+                by_fixture["gone"] = query
+        # The ablation entry's rule is still in the doc: v0 removes it.
+        self.assertNotIn(SECTION_A, by_fixture["a"])
+        # The removed entry's rule is already gone: v0 IS the body.
+        expected = build_shape_prompt(self.body, "write a component for gone")
+        self.assertEqual(by_fixture["gone"], expected)
+
+    def test_ablation_entry_v0_only_under_variant_arms(self):
+        # --arms v1,v2 still yields only v0 for a status entry.
+        rc, out, _fake = self._run(arms="v1,v2")
+        self.assertEqual(rc, 0)
+        entries = {
+            e["id"]: e for e in json.loads(self.out.read_text())["entries"]
+        }
+        for eid in ("a", "gone"):
+            self.assertEqual(set(entries[eid]["arms"]), {"v0"})
+        self.assertIn("running v0 only", out)
+
+    def test_removed_entry_with_span_present_fails_pre_spend(self):
+        # The zero-occurrence gate: a removed entry whose span is back
+        # in the body is doc drift (the deletion was reverted without
+        # flipping the status).
+        self.skill_body.write_text(
+            "# Demo\n\n" + SECTION_A + "\n\n" + self.GONE_SECTION + "\n"
+        )
+        err = io.StringIO()
+        with self.assertRaises(SystemExit) as cm:
+            with redirect_stderr(err):
+                with redirect_stdout(io.StringIO()):
+                    self._run()
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("removed entry 'gone'", err.getvalue())
+        self.assertFalse(self.out.exists())
+
+    def test_no_note_when_arms_is_already_v0(self):
+        rc, out, _fake = self._run(arms="v0")
+        self.assertEqual(rc, 0)
+        self.assertNotIn("note:", out)
+
+
 class ShapeScoredCheckTests(unittest.TestCase):
     """The shape scored-check (cmd_scored_check over ShapeTrack):
     multi-results union with dedupe, adoption discipline (adopted_arm
@@ -919,6 +1146,46 @@ class ShapeScoredCheckTests(unittest.TestCase):
             ),
             1,
         )
+
+    def test_cross_dir_union_rejected_without_labels(self):
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        moved = subdir / "results.json"
+        Path(self.results[1]).rename(moved)
+        rc = self._check(
+            [
+                self._entry("a", result="adopted", adopted_arm="v2"),
+                self._entry("p"),
+            ],
+            results=[self.results[0], str(moved)],
+        )
+        self.assertEqual(rc, 1)
+
+    def test_labeled_cross_dir_union_adopts_namespaced_arm(self):
+        # Issue #55: round-2 results join the scored-check union via
+        # --label; scored.json names the namespaced adopted arm.
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        moved = subdir / "results.json"
+        Path(self.results[1]).rename(moved)
+        rc = self._check(
+            [
+                self._entry("a", result="adopted", adopted_arm="round-2:v1"),
+                self._entry("p"),
+            ],
+            results=[self.results[0], str(moved)],
+            label=["main", "round-2"],
+        )
+        self.assertEqual(rc, 0)
+
+    def test_label_rejected_on_single_results_track(self):
+        rc = self._check(
+            [self._entry("a", result="adopted", adopted_arm="v2")],
+            track="retrieval-test",
+            results=[self.results[0]],
+            label=["x"],
+        )
+        self.assertEqual(rc, 1)
 
     def test_unknown_id_rejected(self):
         self.assertEqual(
@@ -1137,7 +1404,10 @@ class ShapeRecordTests(unittest.TestCase):
             adopted=2,
             no_failure=1,
             unresolved=0,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign="campaign-2026-09-13",
             date="2026-09-13",
         )
@@ -1230,16 +1500,19 @@ class ShapeEvidenceTests(unittest.TestCase):
     def _run(self, **overrides):
         args = argparse.Namespace(
             track="shape-test",
-            results=str(self.results),
+            results=[str(self.results)],
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         for k, v in overrides.items():
             setattr(args, k, v)
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
             rc = evaluator.cmd_evidence(args)
+        self.last_err = err.getvalue()
         return rc, buf.getvalue()
 
     def test_prints_runs_with_marker_triage(self):
@@ -1399,13 +1672,475 @@ class ShapeEvidenceTests(unittest.TestCase):
         )
         rc, out = self._run(entry="a", compare=True)
         self.assertEqual(rc, 0)
-        self.assertIn("compare: entry a: no v0 control arm", out)
+        # the skip note goes to stderr so a scripted --compare pipeline
+        # cannot mistake the silence for a clean comparison
+        self.assertIn("compare: entry a: no v0 control arm", self.last_err)
         self.assertNotIn("compare m:", out)
+        self.assertNotIn("no v0 control arm", out)
 
     def test_compare_off_leaves_output_unchanged(self):
         rc, out = self._run()
         self.assertEqual(rc, 0)
         self.assertNotIn("compare", out)
+
+
+def _evidence_runs(*answers: str) -> dict:
+    return {
+        "runs": [
+            {
+                "answer_text": a,
+                "void_signals": [],
+                "session_id": f"s{i}",
+                "timeout": False,
+            }
+            for i, a in enumerate(answers)
+        ]
+    }
+
+
+def _evidence_entry(eid: str, arms: dict) -> dict:
+    return {
+        "id": eid,
+        "kind": "pattern",
+        "markers": {"m": "TODO"},
+        "restraint_markers": None,
+        "arms": arms,
+    }
+
+
+class ShapeEvidenceMergeTests(unittest.TestCase):
+    """evidence --results a b: multi-file merge for --compare across the
+    phase-1/phase-2 file split — entries keyed by id in first-appearance
+    order, same-fixture arms pooled, fixture-mismatched reruns suffixed,
+    config drift warned."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.control = self.root / "results-control.json"
+        self.variants = self.root / "results-variants.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, paths, **overrides):
+        args = argparse.Namespace(
+            track="shape-test",
+            results=[str(p) for p in paths],
+            entry=None,
+            arm=None,
+            compare=False,
+            matrix=False,
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        self.last_err = err.getvalue()
+        return rc, buf.getvalue()
+
+    def test_union_control_and_variants_yields_compare_verdicts(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        results_file(
+            self.variants,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v1": _evidence_runs("TODO\nTODO"),
+                        "v2": _evidence_runs("line\nline"),
+                    },
+                )
+            ],
+        )
+        rc, out = self._run(
+            [self.control, self.variants], entry="a", compare=True
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("compare m: v1 1.0 vs v0 0.5 -> EXCEEDS", out)
+        self.assertIn("compare m: v2 0.0 vs v0 0.5 -> does-not-exceed", out)
+        self.assertEqual(out.count("compare m:"), 2)
+        self.assertIn(str(self.control), out)
+        self.assertIn(str(self.variants), out)
+
+    def test_same_fixture_duplicate_arm_concatenates_with_note(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v0": _evidence_runs("line\nline")})],
+        )
+        rc, out = self._run([self.control, self.variants], entry="a")
+        self.assertEqual(rc, 0)
+        # one pooled arm: rep numbering continues across the files
+        self.assertEqual(out.count("[ v0 ] rep"), 2)
+        self.assertIn("[ v0 ] rep   1", out)
+        self.assertIn("[ v0 ] rep   2", out)
+        self.assertIn("concatenated 1 runs", self.last_err)
+
+    def test_fixture_key_mismatch_disambiguates_and_skips_compare(self):
+        results_file(
+            self.control,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v0": _evidence_runs("TODO\nline"),
+                        "v2": _evidence_runs("TODO\nTODO"),
+                    },
+                )
+            ],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v2": _evidence_runs("line\nline")})],
+            fixture_key="counter-example",
+        )
+        rc, out = self._run(
+            [self.control, self.variants], entry="a", compare=True
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("[ v2 ] rep   1", out)
+        self.assertIn("[ v2@counter-example ] rep   1", out)
+        # only the application-fixture v2 is a compare candidate; the
+        # restraint rerun is evidence, never pooled, never compared
+        self.assertIn("compare m: v2 1.0 vs v0 0.5 -> EXCEEDS", out)
+        self.assertEqual(out.count("compare m:"), 1)
+        self.assertNotIn("v2@counter-example 0.0", out)
+
+    def test_config_drift_warns_naming_differing_keys(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO\nTODO")})],
+            model="m2",
+            timeout=300,
+        )
+        rc, out = self._run([self.control, self.variants], entry="a")
+        self.assertEqual(rc, 0)
+        self.assertIn("warning:", self.last_err)
+        self.assertIn("model", self.last_err)
+        self.assertIn("timeout", self.last_err)
+        # date always differs across files and is not drift
+        self.assertNotIn("date", self.last_err)
+
+    def test_merged_kind_mismatch_is_an_error(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        entry = _evidence_entry("a", {"v1": _evidence_runs("TODO")})
+        entry["kind"] = "shaping"
+        results_file(self.variants, [entry])
+        rc, _ = self._run([self.control, self.variants])
+        self.assertEqual(rc, 1)
+        self.assertIn("kind 'shaping' differs", self.last_err)
+
+    def test_cross_dir_merge_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results-variants.json"
+        results_file(
+            mini,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        rc, _ = self._run([self.control, mini], entry="a")
+        self.assertEqual(rc, 1)
+        self.assertIn("same directory", self.last_err)
+        self.assertIn("--label", self.last_err)
+        self.assertIn(str(self.root), self.last_err)
+        self.assertIn(str(subdir), self.last_err)
+
+    def test_labeled_cross_dir_merge_namespaces_arms(self):
+        # The sanctioned round-2 merge (issue #55): --label waives the
+        # same-dir guard and namespaces every arm, so round-2's v1 never
+        # pools with the main campaign's v1.
+        results_file(
+            self.control,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v0": _evidence_runs("TODO\nline"),
+                        "v1": _evidence_runs("TODO"),
+                    },
+                )
+            ],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results.json"
+        results_file(
+            mini,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO\nTODO")})],
+        )
+        rc, out = self._run(
+            [self.control, mini], entry="a", label=["main", "round-2"]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("[ main:v0 ] rep   1", out)
+        self.assertIn("[ main:v1 ] rep   1", out)
+        self.assertIn("[ round-2:v1 ] rep   1", out)
+        self.assertNotIn("concatenated", self.last_err)
+
+    def test_labeled_compare_uses_same_entry_control_baseline(self):
+        # A round-2 file carries no control; the main file's labeled v0
+        # is the compare baseline.
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results.json"
+        results_file(
+            mini,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO\nTODO")})],
+        )
+        rc, out = self._run(
+            [self.control, mini],
+            entry="a",
+            compare=True,
+            label=["main", "round-2"],
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "compare m: round-2:v1 1.0 vs main:v0 0.5 -> EXCEEDS", out
+        )
+        self.assertEqual(out.count("compare m:"), 1)
+
+    def test_labeled_same_label_control_preferred(self):
+        # When the candidate's own label has a v0 arm, it beats the
+        # other label's control as the baseline.
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO\nline")})],
+        )
+        subdir = self.root / "round-2"
+        subdir.mkdir()
+        mini = subdir / "results.json"
+        results_file(
+            mini,
+            [
+                _evidence_entry(
+                    "a",
+                    {
+                        "v0": _evidence_runs("line"),
+                        "v1": _evidence_runs("TODO\nTODO"),
+                    },
+                )
+            ],
+        )
+        rc, out = self._run(
+            [self.control, mini],
+            entry="a",
+            compare=True,
+            label=["main", "round-2"],
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "compare m: round-2:v1 1.0 vs round-2:v0 0.0 -> EXCEEDS", out
+        )
+
+    def test_label_count_mismatch_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        rc, _ = self._run([self.control, self.variants], label=["main"])
+        self.assertEqual(rc, 1)
+        self.assertIn("exactly once per --results file", self.last_err)
+
+    def test_label_grammar_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        for bad in ("has:colon", "has@at", ""):
+            with self.subTest(label=bad):
+                rc, _ = self._run(
+                    [self.control, self.variants], label=["main", bad]
+                )
+                self.assertEqual(rc, 1)
+                self.assertIn("invalid --label", self.last_err)
+
+    def test_duplicate_labels_rejected(self):
+        results_file(
+            self.control,
+            [_evidence_entry("a", {"v0": _evidence_runs("TODO")})],
+        )
+        results_file(
+            self.variants,
+            [_evidence_entry("a", {"v1": _evidence_runs("TODO")})],
+        )
+        rc, _ = self._run([self.control, self.variants], label=["x", "x"])
+        self.assertEqual(rc, 1)
+        self.assertIn("--label values must be unique", self.last_err)
+
+
+class ShapeEvidenceMatrixTests(unittest.TestCase):
+    """evidence --matrix: the compact marker x rep hit matrix — per-arm
+    rep/timeout/void summary, per-rep per-marker hit counts, and
+    per-marker fired rep counts, so a never-firing wrong-shape marker
+    or an always-on right-shape marker is visible at a glance."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.results = self.root / "results.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, paths=None, **overrides):
+        paths = paths or [self.results]
+        args = argparse.Namespace(
+            track="shape-test",
+            results=[str(p) for p in paths],
+            entry=None,
+            arm=None,
+            compare=False,
+            matrix=True,
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        self.last_err = err.getvalue()
+        return rc, buf.getvalue()
+
+    @staticmethod
+    def _runs(*runs: dict) -> dict:
+        return {"runs": list(runs)}
+
+    @staticmethod
+    def _run_rec(answer, timeout=False, void_signals=None):
+        return {
+            "answer_text": answer,
+            "void_signals": void_signals or [],
+            "session_id": "s",
+            "timeout": timeout,
+        }
+
+    def test_matrix_summary_per_rep_counts_and_fired(self):
+        entry = _evidence_entry(
+            "a",
+            {
+                "v0": self._runs(
+                    self._run_rec("TODO\nTODO"),
+                    self._run_rec(
+                        "",
+                        timeout=True,
+                        void_signals=["empty-answer"],
+                    ),
+                    self._run_rec("plain"),
+                )
+            },
+        )
+        results_file(self.results, [entry])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "[ v0 ] reps=3, timeouts=1, voids=1 (empty-answer=1)", out
+        )
+        self.assertIn("rep   1: m=2", out)
+        self.assertIn("rep   2: m=0", out)
+        self.assertIn("rep   3: m=0", out)
+        # never-firing marker visible at a glance: 2 pooled hits but
+        # only 1 of 3 reps fired
+        self.assertIn("totals: m=2 | fired: m 1/3 reps", out)
+        # the matrix replaces the answer dump
+        self.assertNotIn("answer:", out)
+        self.assertNotIn("TODO", out)
+
+    def test_matrix_arm_filter_applies(self):
+        entry = _evidence_entry(
+            "a",
+            {
+                "v0": self._runs(self._run_rec("TODO")),
+                "v1": self._runs(self._run_rec("TODO\nTODO")),
+            },
+        )
+        results_file(self.results, [entry])
+        rc, out = self._run(arm="v1")
+        self.assertEqual(rc, 0)
+        self.assertNotIn("[ v0 ]", out)
+        self.assertIn("[ v1 ] reps=1, timeouts=0, voids=0", out)
+        self.assertIn("totals: m=2 | fired: m 1/1 reps", out)
+
+    def test_matrix_merges_multi_file_runs(self):
+        results_file(
+            self.results,
+            [_evidence_entry("a", {"v0": self._runs(self._run_rec("TODO"))})],
+        )
+        second = self.root / "results-2.json"
+        results_file(
+            second,
+            [_evidence_entry("a", {"v1": self._runs(self._run_rec("x"))})],
+        )
+        rc, out = self._run(paths=[self.results, second])
+        self.assertEqual(rc, 0)
+        self.assertIn("[ v0 ] reps=1", out)
+        self.assertIn("[ v1 ] reps=1", out)
+        self.assertIn("fired: m 1/1 reps", out)
+        self.assertIn("fired: m 0/1 reps", out)
+
+    def test_matrix_uses_persisted_rep_labels(self):
+        # Persisted 'rep' fields win over list position (issue #55):
+        # out-of-order runs keep their stable numbers.
+        entry = _evidence_entry(
+            "a",
+            {
+                "v0": self._runs(
+                    {**self._run_rec("TODO"), "rep": 2},
+                    {**self._run_rec("TODO"), "rep": 1},
+                )
+            },
+        )
+        results_file(self.results, [entry])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        rep_lines = [ln for ln in out.splitlines() if ln.startswith("  rep ")]
+        self.assertEqual(rep_lines, ["  rep   2: m=1", "  rep   1: m=1"])
+
+    def test_matrix_malformed_run_is_an_error(self):
+        entry = _evidence_entry("a", {"v0": {"runs": ["nope"]}})
+        results_file(self.results, [entry])
+        rc, _ = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("arm 'v0' run 1 is not an object", self.last_err)
+
+    def test_matrix_entry_without_markers_notes_it(self):
+        entry = _evidence_entry("a", {"v0": self._runs(self._run_rec("x"))})
+        del entry["markers"]
+        results_file(self.results, [entry])
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("(no markers recorded)", out)
 
 
 class MarkerTriageTests(unittest.TestCase):
@@ -1493,13 +2228,13 @@ class ShapeInjectionTests(unittest.TestCase):
                 text_event("the artifact"),
             ]
         )
-        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0", 1)
         self.assertIn("skill-load-attempted", record["void_signals"])
         self.assertNotIn("empty-answer", record["void_signals"])
 
     def test_clean_run_has_no_signals(self):
         ev = self._ev([text_event("the artifact")])
-        record = build_shape_run_record(ev, "p", False, Path("/"), "v0")
+        record = build_shape_run_record(ev, "p", False, Path("/"), "v0", 1)
         self.assertEqual(record["void_signals"], [])
         self.assertNotIn("skill_load_completed", record)
 

@@ -118,7 +118,10 @@ class RecordScopeTests(unittest.TestCase):
             fails=1,
             gaps=0,
             voids=2,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign=None,
             date="2026-09-12",
         )
@@ -326,6 +329,7 @@ class RunRecordTests(unittest.TestCase):
             ws_root=self.ws,
             arm=arm,
             skill=skill,
+            rep=1,
         )
         defaults.update(kwargs)
         return build_run_record(ev, **defaults)
@@ -352,6 +356,11 @@ class RunRecordTests(unittest.TestCase):
         ev = EventStream(completed_load=True)
         rec = self._record(ev, arm="skill_arm")
         self.assertIn("empty-answer", rec["void_signals"])
+
+    def test_rep_recorded(self):
+        ev = EventStream(answer_parts=["answer"], completed_load=True)
+        rec = self._record(ev, rep=3)
+        self.assertEqual(rec["rep"], 3)
 
     def test_sources_block_extraction(self):
         ev = EventStream(
@@ -865,6 +874,7 @@ class RetrievalEvidenceTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         for key, value in overrides.items():
             setattr(args, key, value)
@@ -897,6 +907,253 @@ class RetrievalEvidenceTests(unittest.TestCase):
     def test_unknown_entry_rejected(self):
         rc, _ = self._run(entry="zzz")
         self.assertEqual(rc, 1)
+
+
+class ManifestSuiteTests(unittest.TestCase):
+    """suite --manifest (ablation & regression): a query runs
+    control-only exactly when EVERY fact covering it carries the same
+    status (the N:M rule); mixed-status or partially normal coverage
+    runs both arms as today. Without --manifest nothing changes."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "retrieval-evaluator.opencode.md").write_text(
+            "---\nname: retrieval-evaluator\nmode: primary\n---\n"
+            "load {{SKILL_NAME}}\n"
+        )
+        (self.agents_dir / "retrieval-control.opencode.md").write_text(
+            "---\nname: retrieval-control\nmode: primary\n---\nbody\n"
+        )
+        self.skill_ws = self.root / "skill-ws"
+        (self.skill_ws / ".agents" / "skills" / "demo-skill").mkdir(
+            parents=True
+        )
+        self.control_ws = self.root / "control-ws"
+        (self.control_ws / ".agents").mkdir(parents=True)
+        (self.root / "fixtures").mkdir()
+        self.queries = self.root / "queries.json"
+        self.queries.write_text(
+            json.dumps(
+                [
+                    {"id": "ab", "query": "q1", "expect": ["b"]},
+                    {"id": "rm", "query": "q2", "expect": ["b"]},
+                    {"id": "mix", "query": "q3", "expect": ["b"]},
+                    {"id": "plain", "query": "q4", "expect": ["b"]},
+                ]
+            )
+        )
+        self.manifest = self.root / "facts.json"
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-28",
+                    "facts": [
+                        {
+                            "id": "F-a-01",
+                            "section": "A",
+                            "statement": "s",
+                            "entries": ["ab"],
+                            "status": "ablation",
+                            "ablation_streak": 1,
+                        },
+                        {
+                            "id": "F-b-01",
+                            "section": "B",
+                            "statement": "s",
+                            "entries": ["rm"],
+                            "status": "removed",
+                            "ablation_streak": 3,
+                        },
+                        {
+                            "id": "F-c-01",
+                            "section": "C",
+                            "statement": "s",
+                            "entries": ["mix"],
+                            "status": "ablation",
+                            "ablation_streak": 1,
+                        },
+                        {
+                            "id": "F-c-02",
+                            "section": "C",
+                            "statement": "s",
+                            "entries": ["mix"],
+                        },
+                        {
+                            "id": "F-d-01",
+                            "section": "D",
+                            "statement": "s",
+                            "entries": ["plain"],
+                        },
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+        self.out = self.root / "results.json"
+
+    def tearDown(self):
+        evaluator._Log.file = None
+        self.tmp.cleanup()
+
+    class _FakeStrategy:
+        """Records the agent of every execute() call."""
+
+        def __init__(self):
+            self.agents: list[str] = []
+
+        def agent_file(self, agents_dir, base):
+            return Path(agents_dir) / f"{base}.opencode.md"
+
+        def install(self, *args, **kwargs):
+            return None
+
+        def execute(self, ws, agent, query, model, variant, skill=None):
+            self.agents.append(agent)
+            return (
+                EventStream(answer_parts=["answer"], completed_load=True),
+                False,
+            )
+
+    def _run(self, manifest=True):
+        fake = self._FakeStrategy()
+        args = argparse.Namespace(
+            harness="opencode",
+            skill="demo-skill",
+            agents_dir=str(self.agents_dir),
+            skill_workspace=str(self.skill_ws),
+            control_workspace=str(self.control_ws),
+            queries=str(self.queries),
+            out=str(self.out),
+            model=None,
+            variant=None,
+            reps=1,
+            timeout=120,
+            manifest=str(self.manifest) if manifest else None,
+        )
+        buf = io.StringIO()
+        with mock.patch.object(evaluator, "check_harness", lambda *a: None):
+            with mock.patch.object(
+                evaluator,
+                "resolve_strategy",
+                lambda h: lambda timeout=30: fake,
+            ):
+                with redirect_stdout(buf):
+                    rc = evaluator.run_suite(TRACKS["retrieval-test"], args)
+        return rc, buf.getvalue(), fake
+
+    def test_ablation_and_removed_entries_run_control_only(self):
+        rc, _out, fake = self._run()
+        self.assertEqual(rc, 0)
+        entries = {
+            e["id"]: e for e in json.loads(self.out.read_text())["entries"]
+        }
+        for eid in ("ab", "rm"):
+            self.assertIn("control_arm", entries[eid])
+            self.assertNotIn("skill_arm", entries[eid])
+        self.assertEqual(
+            fake.agents.count("retrieval-control"), 4  # every query
+        )
+        # Only the mixed and plain queries ran the skill arm.
+        self.assertEqual(fake.agents.count("retrieval-evaluator"), 2)
+
+    def test_mixed_status_query_runs_both_arms(self):
+        rc, _out, _fake = self._run()
+        self.assertEqual(rc, 0)
+        entries = {
+            e["id"]: e for e in json.loads(self.out.read_text())["entries"]
+        }
+        self.assertIn("skill_arm", entries["mix"])
+        self.assertIn("control_arm", entries["mix"])
+        self.assertIn("skill_arm", entries["plain"])
+
+    def test_no_manifest_runs_both_arms_everywhere(self):
+        rc, _out, fake = self._run(manifest=False)
+        self.assertEqual(rc, 0)
+        self.assertEqual(fake.agents.count("retrieval-evaluator"), 4)
+
+
+class RetrievalEvidenceArmToleranceTests(unittest.TestCase):
+    """print_evidence tolerates control-only records (ablation/removed
+    entries): a missing arm key prints nothing for that arm; a present
+    but malformed arm list is still an error."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.results = self.root / "results.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write(self, entry):
+        self.results.write_text(
+            json.dumps({"config": {"skill": "demo-skill"}, "entries": [entry]})
+        )
+
+    def _run(self):
+        args = argparse.Namespace(
+            track="retrieval-test",
+            results=str(self.results),
+            entry=None,
+            arm=None,
+            compare=False,
+            matrix=False,
+        )
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        return rc, buf.getvalue(), err.getvalue()
+
+    def test_control_only_entry_prints(self):
+        self._write(
+            {
+                "id": "a",
+                "query": "q",
+                "expect": ["b"],
+                "control_arm": {
+                    "runs": [
+                        {
+                            "answer_text": "baseline",
+                            "sources_consulted": None,
+                            "tool_calls": [],
+                            "void_signals": [],
+                            "session_id": "",
+                            "timeout": False,
+                        }
+                    ]
+                },
+            }
+        )
+        rc, out, _err = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn("[control] rep   1", out)
+        self.assertNotIn("[ skill ]", out)
+        self.assertIn("evidence: 1 entries", out)
+
+    def test_entry_with_no_arms_rejected(self):
+        self._write({"id": "a", "query": "q", "expect": ["b"]})
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("missing arm run lists", err)
+
+    def test_malformed_present_arm_rejected(self):
+        self._write(
+            {
+                "id": "a",
+                "query": "q",
+                "expect": ["b"],
+                "control_arm": {"runs": []},
+                "skill_arm": {"runs": "nope"},
+            }
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("missing arm run lists", err)
 
 
 class GrammarCompatTests(unittest.TestCase):

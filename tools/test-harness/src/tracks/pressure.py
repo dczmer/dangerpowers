@@ -14,11 +14,13 @@ from src.common import (
     iter_evidence,
     load_entries,
     load_results_json,
+    load_status_map,
     log_start,
+    rep_label,
     run_rep_batched,
     validate_eval_agent,
 )
-from src.strategies import EvalStrategy, HarnessExecutionError
+from src.strategies import DEFAULT_TIMEOUT, EvalStrategy, HarnessExecutionError
 from src.tracks.track import Track, _required
 
 # Track constants: the pressure track runs one arm per invocation and
@@ -39,6 +41,18 @@ PRESSURE_TYPES = {
 }
 PRESSURE_RESULTS = {"bulletproof", "no-failure", "unresolved", "void"}
 PRESSURE_ARMS = {"red", "green"}
+
+# The scenario schema is exactly these six fields (SKILL.md §File schemas);
+# load_pressure_scenarios rejects unknown keys — a scenario file is machine
+# input, and a silently ignored key would rot there.
+SCENARIO_FIELDS = (
+    "id",
+    "rule",
+    "statement",
+    "scenario",
+    "pressures",
+    "compliant_option",
+)
 
 # Per-run prompt assembly: the prompt never contains the rule statement,
 # the compliant option, or any hint that this is a test — the answer
@@ -68,8 +82,16 @@ def load_pressure_scenarios(path: Path) -> list[dict]:
 
 
 def _check_pressure_fields(path: Path, i: int, entry: dict, eid: str) -> None:
-    """Per-field checks for a pressure scenario: rule, statement,
-    scenario, the pressures taxonomy list, and the compliant option."""
+    """Per-field checks for a pressure scenario: the exact six-field
+    schema (unknown keys rejected), rule, statement, scenario, the
+    pressures taxonomy list, and the compliant option."""
+    unknown = sorted(set(entry) - set(SCENARIO_FIELDS))
+    if unknown:
+        _fail(
+            f"{path}: entry {i} ({eid}) unknown keys: "
+            f"{', '.join(unknown)} (allowed: "
+            f"{', '.join(SCENARIO_FIELDS)})"
+        )
     rule = entry.get("rule")
     if not isinstance(rule, str) or not rule:
         _fail(
@@ -144,12 +166,14 @@ def build_pressure_run_record(
     prompt: str,
     timed_out: bool,
     arm: str,
+    rep: int,
 ) -> dict:
     """The pressure-track run record. Unlike the retrieval/shape builders
     it takes no ws_root: nothing is ever synced or written on this track,
     so no outside-workspace read is possible."""
     return {
         "arm": arm,
+        "rep": rep,
         "query_dispatched": prompt,
         "answer_text": "".join(ev.answer_parts),
         "tool_calls": ev.tool_calls,
@@ -184,7 +208,7 @@ def run_pressure_rep_batch(
             args.model,
             args.variant,
         )
-        record = build_pressure_run_record(ev, prompt, timed_out, arm)
+        record = build_pressure_run_record(ev, prompt, timed_out, arm, n)
         line = f"[{tag}] [rep {n:>3}] completed"
         if timed_out:
             line += " (timeout)"
@@ -210,6 +234,15 @@ def _pressure_union_hook(path: Path, e: dict, extras: dict) -> str | None:
         a for a in arms if isinstance(a, str) and a
     )
     return None
+
+
+def _base_arm_keys(arms) -> set[str]:
+    """Strip --label namespace prefixes from union arm keys
+    ('confirm:red' -> 'red'); unlabeled keys pass through."""
+    return {
+        a.rpartition(":")[2] if isinstance(a, str) and ":" in a else a
+        for a in arms
+    }
 
 
 class PressureTrack(Track):
@@ -242,7 +275,11 @@ class PressureTrack(Track):
     _n: int = 0
     # pre_spend_gates stashes for run_entry (the ONE allowed per-run
     # instance state): the green arm's skill body bytes, None on red.
+    # _status_map is the --manifest entry-id -> inventory status map
+    # (ablation/removed scenarios run the red control only); empty
+    # without --manifest.
     _skill_text: str | None = None
+    _status_map: dict[str, str] = {}
 
     def pre_spend_gates(
         self, args: argparse.Namespace, strategy_cls: type[EvalStrategy]
@@ -251,13 +288,14 @@ class PressureTrack(Track):
         → agent validation → --arm validity → green/red --skill-file
         rules → load scenarios → --reps → --timeout → --out parent →
         contamination. Returns the validated entries, or an int rc with the
-        exact error already printed. The merged-parser flag requirement and
-        the historical 5/120 reps/timeout defaults are applied here (Q7a)."""
+        exact error already printed. The merged-parser flag requirement,
+        the historical 5-reps default, and the shared DEFAULT_TIMEOUT
+        (300 s; BUGS.md B3) are applied here (Q7a)."""
         _required(args, self, "workspace", "scenarios", "arm")
         if args.reps is None:
             args.reps = 5
         if args.timeout is None:
-            args.timeout = 120
+            args.timeout = DEFAULT_TIMEOUT
         ws = Path(args.workspace)
         agents_dir = Path(args.agents_dir)
         scenarios_path = Path(args.scenarios)
@@ -286,6 +324,11 @@ class PressureTrack(Track):
                 _fail(f"skill file is empty: {skill_file}")
 
         entries = load_pressure_scenarios(scenarios_path)  # exits 1 on error
+        # --manifest: entry-id -> status from the rules inventory
+        # (ablation/removed scenarios run the red control only).
+        self._status_map = load_status_map(
+            getattr(args, "manifest", None), self.inventory_kind
+        )
         if args.reps < 1:
             _fail("--reps must be >= 1")
         if args.timeout < 1:
@@ -332,26 +375,35 @@ class PressureTrack(Track):
     ) -> dict | int:
         """One entry's single arm: reps of the arm's prompt bytes. The
         workspace is never synced and never written; arms differ only in
-        prompt bytes."""
+        prompt bytes. An ablation/removed scenario runs the red control
+        only: a green run is skipped (the arm key is omitted from the
+        record) with a note — the conditional "green only if red failed"
+        stays a workflow rule, so this track needs no in-suite
+        conditionality, only the skip."""
         record = {
             "id": entry["id"],
             "statement": entry["statement"],
             "pressures": entry["pressures"],
             "compliant_option": entry["compliant_option"],
-            "arms": {
-                args.arm: {
-                    "runs": run_pressure_rep_batch(
-                        strategy,
-                        entry,
-                        args.arm,
-                        Path(args.workspace),
-                        PRESSURE_EVALUATOR_AGENT,
-                        args,
-                        self._skill_text,
-                    )
-                }
-            },
+            "arms": {},
         }
+        status = self._status_map.get(entry["id"])
+        if status is not None and args.arm == "green":
+            emit(
+                f"note: entry {entry['id']} is {status}; " "green arm skipped"
+            )
+        else:
+            record["arms"][args.arm] = {
+                "runs": run_pressure_rep_batch(
+                    strategy,
+                    entry,
+                    args.arm,
+                    Path(args.workspace),
+                    PRESSURE_EVALUATOR_AGENT,
+                    args,
+                    self._skill_text,
+                )
+            }
         self._i += 1
         emit(f"[{self._i}/{self._n}] {entry['id']}")
         return record
@@ -428,7 +480,10 @@ class PressureTrack(Track):
                         timeout = "timeout" if run.get("timeout") else "ok"
                         session = run.get("session_id") or "no-session"
                         tag = PRESSURE_ARM_TAGS.get(arm, f" {arm} ")
-                        print(f"[{tag}] rep {n:>3} ({session}, {timeout})")
+                        print(
+                            f"[{tag}] rep {rep_label(run, n):>3} "
+                            f"({session}, {timeout})"
+                        )
                         answer = run.get("answer_text")
                         answer = answer if isinstance(answer, str) else ""
                         if answer:
@@ -455,7 +510,7 @@ class PressureTrack(Track):
     def skeleton_entry(self, eid: str, extras: dict) -> dict:
         """One scored.json skeleton entry: the verdict_constraint hint
         derived from the red/green arm union (judgment fields null)."""
-        arms = extras["arms"].get(eid, set())
+        arms = _base_arm_keys(extras["arms"].get(eid, set()))
         if "red" not in arms:
             # No red arm means the entry can never pass the scored check
             # (RED always runs first); nothing to constrain.
@@ -484,6 +539,7 @@ class PressureTrack(Track):
         set, and counters/notes types. Returns _err(...) on violation,
         None when the entry passes."""
         eid = entry["id"]
+        arms = _base_arm_keys(arms)
         result = entry.get("result")
         if result not in PRESSURE_RESULTS:
             return _err(

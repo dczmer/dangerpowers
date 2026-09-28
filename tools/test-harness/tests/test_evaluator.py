@@ -12,9 +12,11 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest import mock
 
@@ -24,6 +26,110 @@ from src.common import _score_counts
 from src.tracks import TRACKS
 
 SKILL = "writing-skills"
+
+
+class SuiteLockTests(unittest.TestCase):
+    """The cross-process suite lock (BUGS.md B5): run_suite holds one
+    machine-wide lock so two concurrent suite processes can't multiply
+    per-rep latency into misattributable empty-answer timeout voids.
+    Zero harness runs: the trigger track's empty-queries path reaches
+    the lock with no spend."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.lock = self.root / "suite.lock"
+        self.env_patcher = mock.patch.dict(
+            os.environ, {"EVALUATOR_SUITE_LOCK": str(self.lock)}
+        )
+        self.env_patcher.start()
+        self.workspace = self.root / "ws"
+        stub = self.workspace / ".agents" / "skills" / SKILL / "SKILL.md"
+        stub.parent.mkdir(parents=True)
+        stub.write_text(f"---\nname: {SKILL}\n---\n")
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "trigger-evaluator.opencode.md").write_text(
+            "---\nname: trigger-evaluator\n---\n# Agent\n"
+        )
+        self.queries = self.root / "queries.json"
+        self.queries.write_text("[]")
+        self.out = self.root / "results.json"
+
+    def tearDown(self):
+        self.env_patcher.stop()
+        if evaluator._Log.file is not None:
+            evaluator._Log.file.close()
+            evaluator._Log.file = None
+        self.tmp.cleanup()
+
+    def _run_empty_suite(self) -> int:
+        args = argparse.Namespace(
+            harness="opencode",
+            skill=SKILL,
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.workspace),
+            queries=str(self.queries),
+            out=str(self.out),
+            model=None,
+            variant=None,
+            reps=3,
+            timeout=30,
+        )
+        with (
+            mock.patch.object(
+                strategies.shutil, "which", return_value="/usr/bin/opencode"
+            ),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            return evaluator.run_suite(TRACKS["trigger-test"], args)
+
+    def test_held_lock_aborts_before_spend(self):
+        self.lock.write_text("pid 99999 since 2026-09-22T00:00:00+00:00")
+        err = io.StringIO()
+        with (
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            self._run_empty_suite()
+        self.assertEqual(cm.exception.code, 1)
+        msg = err.getvalue()
+        self.assertIn(
+            "error: another suite is already running (pid 99999", msg
+        )
+        self.assertIn(str(self.lock), msg)
+        # No results file, and the foreign lock is left untouched.
+        self.assertFalse(self.out.exists())
+        self.assertEqual(
+            self.lock.read_text(),
+            "pid 99999 since 2026-09-22T00:00:00+00:00",
+        )
+
+    def test_lock_acquired_and_released(self):
+        rc = self._run_empty_suite()
+        self.assertEqual(rc, 0)
+        self.assertFalse(self.lock.exists())
+
+    def test_lock_released_on_exception(self):
+        with self.assertRaises(RuntimeError):
+            with evaluator._suite_lock():
+                self.assertTrue(self.lock.exists())
+                self.assertIn(f"pid {os.getpid()}", self.lock.read_text())
+                raise RuntimeError("boom")
+        self.assertFalse(self.lock.exists())
+
+    def test_nested_acquire_exits_1(self):
+        with evaluator._suite_lock():
+            err = io.StringIO()
+            with (
+                contextlib.redirect_stderr(err),
+                self.assertRaises(SystemExit) as cm,
+            ):
+                with evaluator._suite_lock():
+                    pass
+            self.assertEqual(cm.exception.code, 1)
+            self.assertIn("another suite is already running", err.getvalue())
+        self.assertFalse(self.lock.exists())
 
 
 class RecordTests(unittest.TestCase):
@@ -43,6 +149,8 @@ class RecordTests(unittest.TestCase):
             skill_path=str(self.skill_md),
             manifest=str(self.manifest),
             score=0.81,
+            model=None,
+            variant=None,
             campaign="campaign-2026-09-02",
             date=None,
         )
@@ -56,9 +164,23 @@ class RecordTests(unittest.TestCase):
         data = json.loads(self.manifest.read_text())
         self.assertEqual(data["skill"], "test-skill")
         entry = data["trigger-test"]
-        self.assertEqual(set(entry), {"date", "checksum", "score", "campaign"})
+        self.assertEqual(
+            set(entry),
+            {
+                "date",
+                "checksum",
+                "score",
+                "campaign",
+                "model",
+                "variant",
+                "models",
+            },
+        )
         self.assertEqual(entry["score"], 0.81)
         self.assertEqual(entry["campaign"], "campaign-2026-09-02")
+        self.assertIsNone(entry["model"])
+        self.assertIsNone(entry["variant"])
+        self.assertEqual(entry["models"], [])
 
     def test_checksum_is_frontmatter_sha256(self):
         self._record()
@@ -131,18 +253,76 @@ class RecordTests(unittest.TestCase):
         entry = json.loads(self.manifest.read_text())["trigger-test"]
         self.assertNotIn("campaign", entry)
 
+    def test_date_derived_from_campaign_dir_name(self):
+        # Without --date, a --campaign named like a campaign dir
+        # supplies the entry date, so a close-out after local midnight
+        # still agrees with the dir campaign-init named (issue #60).
+        rc = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["date"], "2026-09-02")
+
+    def test_date_derived_from_suffixed_campaign_dir(self):
+        rc = self._record(campaign="campaign-2026-09-02-3")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["date"], "2026-09-02")
+
+    def test_date_defaults_to_local_today(self):
+        # Without --date or a dir-named --campaign, record stamps the
+        # LOCAL date, matching campaign-init's `date +%F` dir stamp
+        # (issue #55).
+        rc = self._record(campaign=None)
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(
+            entry["date"], datetime.now(UTC).astimezone().date().isoformat()
+        )
+
+    def test_non_dir_campaign_falls_back_to_local_today(self):
+        rc = self._record(campaign="pilot")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(
+            entry["date"], datetime.now(UTC).astimezone().date().isoformat()
+        )
+
+    def test_date_flag_overrides_campaign_date(self):
+        rc = self._record(date="2026-01-01")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["date"], "2026-01-01")
+
     def test_score_out_of_range(self):
         self.assertEqual(self._record(score=1.5), 1)
         self.assertFalse(self.manifest.exists())
+
+    def test_model_variant_passthrough_flags(self):
+        # Trigger records carry the attribution fields too: --model and
+        # --variant are the frontmatter-scope passthroughs.
+        rc = self._record(model="m1", variant="v9")
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["model"], "m1")
+        self.assertEqual(entry["variant"], "v9")
+        self.assertEqual(entry["models"], ["m1"])
+
+    def test_models_accumulate_across_records(self):
+        self.assertEqual(self._record(model="m1"), 0)
+        self.assertEqual(self._record(model="m2"), 0)
+        self.assertEqual(self._record(model="m1"), 0)
+        entry = json.loads(self.manifest.read_text())["trigger-test"]
+        self.assertEqual(entry["models"], ["m1", "m2"])
 
 
 class RecordScoredTests(unittest.TestCase):
     """record --scope dir --scored: the manifest counts come from the
     scored.json result sums (one source of truth), the track is detected
     from discriminating signals and never guessed, an explicit --track is
-    checked against the detection, --ablations passes through verbatim,
-    and the counts flags are rejected (`counts flags are replaced by
-    --scored`)."""
+    checked against the detection, model/variant derive from the
+    --results files' config blocks, `ablations` derives from
+    --inventory, and the counts flags are rejected (`counts flags are
+    replaced by --scored`)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -178,7 +358,10 @@ class RecordScoredTests(unittest.TestCase):
             bulletproof=None,
             no_failure=None,
             unresolved=None,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign="campaign-2026-09-14",
             date="2026-09-14",
         )
@@ -223,6 +406,14 @@ class RecordScoredTests(unittest.TestCase):
         )
         self.assertNotIn("deprecated", err)
 
+    def test_scored_date_derived_from_campaign_dir_name(self):
+        # Dir scope takes the campaign-derived date too (issue #60).
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record(date=None)
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["date"], "2026-09-14")
+
     def test_dir_scope_preserves_existing_manifest_keys(self):
         self.manifest.write_text(
             json.dumps(
@@ -250,6 +441,9 @@ class RecordScoredTests(unittest.TestCase):
                 "gaps",
                 "voids",
                 "campaign",
+                "model",
+                "variant",
+                "models",
             },
         )
         self.assertEqual(entry["date"], "2026-09-14")
@@ -360,13 +554,141 @@ class RecordScoredTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("not in the retrieval-test vocabulary", err)
 
-    def test_ablations_passthrough_on_scored_path(self):
+    def _write_results(self, name, model="m1", variant=None):
+        path = self.root / name
+        path.write_text(
+            json.dumps(
+                {
+                    "config": {
+                        "skill": "test-skill",
+                        "model": model,
+                        "variant": variant,
+                    },
+                    "entries": [],
+                }
+            )
+        )
+        return str(path)
+
+    def test_model_variant_derived_from_results_config(self):
         self._write_scored([self._retrieval_entry("a", "pass")])
-        rc, _out, _err = self._record(ablations="arm-rerun-of-v2")
+        results = self._write_results("results.json", model="m1", variant="v9")
+        rc, _out, _err = self._record(results=[results])
         self.assertEqual(rc, 0)
         entry = json.loads(self.manifest.read_text())["retrieval-test"]
-        self.assertEqual(entry["ablations"], "arm-rerun-of-v2")
-        self.assertEqual(entry["passes"], 1)
+        self.assertEqual(entry["model"], "m1")
+        self.assertEqual(entry["variant"], "v9")
+        self.assertEqual(entry["models"], ["m1"])
+
+    def test_no_results_leaves_model_variant_null(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertIsNone(entry["model"])
+        self.assertIsNone(entry["variant"])
+        self.assertEqual(entry["models"], [])
+
+    def test_results_drift_warns_and_first_wins(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        first = self._write_results("r1.json", model="m1")
+        second = self._write_results("r2.json", model="m2")
+        rc, _out, err = self._record(results=[first, second])
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            f"warning: {second}: config differs on model/variant", err
+        )
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["model"], "m1")
+
+    def test_models_accumulate_and_dedupe_across_records(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        first = self._write_results("r1.json", model="m1")
+        second = self._write_results("r2.json", model="m2")
+        self.assertEqual(self._record(results=[first])[0], 0)
+        self.assertEqual(self._record(results=[second])[0], 0)
+        self.assertEqual(self._record(results=[first])[0], 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["model"], "m1")
+        self.assertEqual(entry["models"], ["m1", "m2"])
+
+    def test_ablations_count_derived_from_inventory(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        inventory = self.root / "facts.json"
+        inventory.write_text(
+            json.dumps(
+                {
+                    "skill": "test-skill",
+                    "generated": "2026-09-14",
+                    "facts": [
+                        {
+                            "id": "F-a-01",
+                            "section": "A",
+                            "statement": "s1",
+                            "entries": ["a"],
+                            "status": "ablation",
+                            "ablation_streak": 2,
+                        },
+                        {
+                            "id": "F-a-02",
+                            "section": "A",
+                            "statement": "s2",
+                            "entries": ["a"],
+                        },
+                        {
+                            "id": "F-b-01",
+                            "section": "B",
+                            "statement": "s3",
+                            "entries": ["b"],
+                            "status": "removed",
+                            "ablation_streak": 4,
+                        },
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+        rc, _out, _err = self._record(inventory=str(inventory))
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertEqual(entry["ablations"], 2)
+
+    def test_no_inventory_omits_ablations_key(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, _err = self._record()
+        self.assertEqual(rc, 0)
+        entry = json.loads(self.manifest.read_text())["retrieval-test"]
+        self.assertNotIn("ablations", entry)
+
+    def test_results_rejected_on_frontmatter_scope(self):
+        rc, _out, err = self._record(
+            scope="frontmatter",
+            skill_path=str(self.skill_dir / "SKILL.md"),
+            scored=None,
+            score=0.5,
+            results=[self._write_results("r.json")],
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--results is only valid with --scope dir", err)
+        self.assertFalse(self.manifest.exists())
+
+    def test_inventory_rejected_on_frontmatter_scope(self):
+        rc, _out, err = self._record(
+            scope="frontmatter",
+            skill_path=str(self.skill_dir / "SKILL.md"),
+            scored=None,
+            score=0.5,
+            inventory=str(self.root / "facts.json"),
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--inventory is only valid with --scope dir", err)
+
+    def test_model_rejected_on_dir_scope(self):
+        self._write_scored([self._retrieval_entry("a", "pass")])
+        rc, _out, err = self._record(model="m1")
+        self.assertEqual(rc, 1)
+        self.assertIn("--model is only valid with --scope frontmatter", err)
+        self.assertFalse(self.manifest.exists())
 
     def test_counts_flags_without_scored_rejected(self):
         # The counts flags stay parseable but can no longer record:
@@ -420,7 +742,10 @@ class RecordScoreFromTests(unittest.TestCase):
             bulletproof=None,
             no_failure=None,
             unresolved=None,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign="campaign-2026-09-02",
             date=None,
         )
@@ -518,6 +843,351 @@ class CheckCommandTests(unittest.TestCase):
             "opencode", strategies.OpencodeStrategy, None
         )
 
+    def test_harness_required_without_span_mode(self):
+        ns = argparse.Namespace(
+            harness=None, model=None, entries=None, skill_file=None
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            rc = evaluator.cmd_check(ns)
+        self.assertEqual(rc, 1)
+        self.assertIn("--harness is required", buf.getvalue())
+
+
+class CheckSpanModeTests(unittest.TestCase):
+    """cmd_check --entries/--skill-file (BUGS.md B7): the shape track's
+    proposal-time section-span check. Zero harness involvement — the
+    preflight mock must never be called in span mode."""
+
+    SECTION = "## Styling\n\nComponents use css modules, never inline"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.entries = self.root / "entries.json"
+        self.skill = self.root / "SKILL.md"
+        self._write_entries([("css-modules", self.SECTION)])
+        self.skill.write_text("# Demo\n\n" + self.SECTION + "\n")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_entries(self, pairs):
+        self.entries.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": eid,
+                        "kind": "shaping",
+                        "section": section,
+                        "fixtures": {
+                            "application": f"write a component for {eid}"
+                        },
+                        "markers": {"inline_style": "style="},
+                        "variants": {"v1": "Never use inline styles."},
+                    }
+                    for eid, section in pairs
+                ]
+            )
+        )
+
+    def _run(self, entries=True, skill_file=True, manifest=None):
+        ns = argparse.Namespace(
+            harness=None,
+            model=None,
+            entries=str(self.entries) if entries else None,
+            skill_file=str(self.skill) if skill_file else None,
+            manifest=str(manifest) if manifest else None,
+        )
+        buf = io.StringIO()
+        with mock.patch.object(evaluator, "check_harness") as check_mock:
+            with (
+                contextlib.redirect_stdout(buf),
+                contextlib.redirect_stderr(buf),
+            ):
+                rc = evaluator.cmd_check(ns)
+        return rc, check_mock, buf.getvalue()
+
+    def test_clean_exits_0_with_per_entry_report(self):
+        rc, check_mock, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "ok: entry 'css-modules': section span occurs exactly once", out
+        )
+        self.assertIn("every section span unique", out)
+        check_mock.assert_not_called()
+
+    def test_absent_span_exits_1_naming_entry(self):
+        self.skill.write_text("# Demo\n\nother text\n")
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'css-modules'", out)
+        self.assertIn("occurs 0 times", out)
+
+    def test_duplicated_span_exits_1(self):
+        self.skill.write_text(
+            "# Demo\n\n" + self.SECTION + "\n\n" + self.SECTION + "\n"
+        )
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("occurs 2 times", out)
+
+    def test_all_drifted_spans_reported(self):
+        other = "## Testing\n\nTests live next to the component"
+        self._write_entries([("css-modules", self.SECTION), ("tests", other)])
+        self.skill.write_text("# Demo\n\nno spans here\n")
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'css-modules'", out)
+        self.assertIn("entry 'tests'", out)
+
+    def test_frontmatter_stripped_before_matching(self):
+        self.skill.write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\n" + self.SECTION + "\n"
+        )
+        rc, _, _ = self._run()
+        self.assertEqual(rc, 0)
+
+    def test_entries_without_skill_file_rejected(self):
+        rc, _, out = self._run(skill_file=False)
+        self.assertEqual(rc, 1)
+        self.assertIn("must be given together", out)
+
+    def test_skill_file_without_entries_rejected(self):
+        rc, _, out = self._run(entries=False)
+        self.assertEqual(rc, 1)
+        self.assertIn("must be given together", out)
+
+    def test_missing_skill_file_rejected(self):
+        self.skill.unlink()
+        rc, _, out = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("skill file not found", out)
+
+    def _write_manifest(self, status="removed"):
+        manifest = self.root / "rules.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-23",
+                    "rules": [
+                        {
+                            "id": "R-styling-01",
+                            "section": "Styling",
+                            "kind": "shaping",
+                            "statement": "Use CSS modules.",
+                            "entries": ["css-modules"],
+                            "status": status,
+                            "ablation_streak": 3,
+                        }
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+        return manifest
+
+    def test_removed_entry_span_absent_passes(self):
+        # A removed entry's span is ALREADY deleted from the doc: the
+        # zero-occurrence expectation replaces exactly-once.
+        manifest = self._write_manifest()
+        self.skill.write_text("# Demo\n\nno spans here\n")
+        rc, _, out = self._run(manifest=manifest)
+        self.assertEqual(rc, 0)
+        self.assertIn("every section span unique", out)
+
+    def test_removed_entry_span_present_fails_with_removed_message(self):
+        manifest = self._write_manifest()
+        rc, _, out = self._run(manifest=manifest)
+        self.assertEqual(rc, 1)
+        self.assertIn("removed entry 'css-modules'", out)
+        self.assertIn("expected zero — the rule was removed", out)
+
+    def test_ablation_entry_still_expects_exactly_once(self):
+        manifest = self._write_manifest(status="ablation")
+        self.skill.write_text("# Demo\n\nno spans here\n")
+        rc, _, out = self._run(manifest=manifest)
+        self.assertEqual(rc, 1)
+        self.assertIn("occurs 0 times", out)
+        self.assertIn("expected exactly once", out)
+
+
+class SelectTests(unittest.TestCase):
+    """cmd_select (BUGS.md B8): track-agnostic filtering of an
+    entries/queries/scenarios file to a subset of ids. Envelope
+    validation only, input document order preserved, unknown ids a
+    named error."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.entries = self.root / "entries.json"
+        self.out = self.root / "out.json"
+        self._write([("alpha", 1), ("beta", 2), ("gamma", 3)])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write(self, pairs):
+        self.entries.write_text(
+            json.dumps([{"id": eid, "n": n} for eid, n in pairs])
+        )
+
+    def _write_dicts(self, dicts):
+        self.entries.write_text(json.dumps(dicts))
+
+    def _run(self, ids):
+        ns = argparse.Namespace(
+            entries=str(self.entries), ids=ids, out=str(self.out)
+        )
+        buf = io.StringIO()
+        with (
+            contextlib.redirect_stdout(buf),
+            contextlib.redirect_stderr(buf),
+        ):
+            rc = evaluator.cmd_select(ns)
+        return rc, buf.getvalue()
+
+    def _selected(self):
+        return json.loads(self.out.read_text())
+
+    def test_filters_to_named_ids(self):
+        rc, out = self._run("alpha,gamma")
+        self.assertEqual(rc, 0)
+        ids = [e["id"] for e in self._selected()]
+        self.assertEqual(ids, ["alpha", "gamma"])
+        self.assertIn("select: 2/3 entries ->", out)
+
+    def test_input_document_order_preserved(self):
+        rc, _ = self._run("gamma,alpha")
+        self.assertEqual(rc, 0)
+        ids = [e["id"] for e in self._selected()]
+        self.assertEqual(ids, ["alpha", "gamma"])
+
+    def test_entry_objects_carried_verbatim(self):
+        rc, _ = self._run("beta")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self._selected(), [{"id": "beta", "n": 2}])
+
+    def test_unknown_id_exits_1_naming_it(self):
+        rc, out = self._run("alpha,delta")
+        self.assertEqual(rc, 1)
+        self.assertIn("ids not found in", out)
+        self.assertIn("delta", out)
+        self.assertFalse(self.out.exists())
+
+    def test_empty_ids_rejected(self):
+        rc, out = self._run(" , ")
+        self.assertEqual(rc, 1)
+        self.assertIn("--ids must name at least one id", out)
+        self.assertFalse(self.out.exists())
+
+    def test_duplicate_id_in_ids_selects_once(self):
+        rc, _ = self._run("beta,beta")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["beta"])
+
+    def _write_scenarios(self):
+        # Pressure scenarios shape (issue #56): entry id plus a rule
+        # field naming the rule the scenario tests; two entries may
+        # share one rule.
+        self._write_dicts(
+            [
+                {"id": "s-one", "rule": "R-a", "n": 1},
+                {"id": "s-two", "rule": "R-b", "n": 2},
+                {"id": "s-three", "rule": "R-b", "n": 3},
+            ]
+        )
+
+    def test_rule_id_selects_matching_entry(self):
+        self._write_scenarios()
+        rc, _ = self._run("R-a")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["s-one"])
+
+    def test_rule_id_selects_every_entry_of_that_rule(self):
+        self._write_scenarios()
+        rc, _ = self._run("R-b")
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            [e["id"] for e in self._selected()], ["s-two", "s-three"]
+        )
+
+    def test_entry_and_rule_ids_mix_in_one_ids_list(self):
+        self._write_scenarios()
+        rc, _ = self._run("s-one,R-b")
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            [e["id"] for e in self._selected()],
+            ["s-one", "s-two", "s-three"],
+        )
+
+    def test_token_matching_id_and_rule_selects_each_once(self):
+        self._write_dicts(
+            [
+                {"id": "s-one", "rule": "R-a", "n": 1},
+                {"id": "R-a", "rule": "R-b", "n": 2},
+            ]
+        )
+        rc, _ = self._run("R-a")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["s-one", "R-a"])
+
+    def test_unknown_rule_id_exits_1_naming_it(self):
+        self._write_scenarios()
+        rc, out = self._run("R-a,R-z")
+        self.assertEqual(rc, 1)
+        self.assertIn("ids not found in", out)
+        self.assertIn("R-z", out)
+        self.assertFalse(self.out.exists())
+
+    def test_missing_output_parent_dirs_created(self):
+        # Issue #54: --out naming a not-yet-existing mini-campaign
+        # subdir (confirm/, round-2/) is the canonical usage; the
+        # command creates the parents rather than crashing.
+        self.out = self.root / "confirm" / "round1" / "queries.json"
+        rc, out = self._run("alpha")
+        self.assertEqual(rc, 0)
+        self.assertEqual([e["id"] for e in self._selected()], ["alpha"])
+        self.assertIn("select: 1/3 entries ->", out)
+
+    def test_unwritable_output_fails_cleanly(self):
+        # A --out whose parent path is a FILE: mkdir cannot succeed,
+        # so the failure surfaces as a clean `error:` line (rc 1),
+        # never a raw traceback.
+        blocker = self.root / "blocker"
+        blocker.write_text("x")
+        self.out = blocker / "sub" / "out.json"
+        rc, out = self._run("alpha")
+        self.assertEqual(rc, 1)
+        self.assertIn("error: could not write", out)
+        self.assertNotIn("Traceback", out)
+
+    def _run_envelope_error(self):
+        ns = argparse.Namespace(
+            entries=str(self.entries), ids="alpha", out=str(self.out)
+        )
+        err = io.StringIO()
+        with (
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.cmd_select(ns)
+        return cm.exception.code, err.getvalue()
+
+    def test_non_list_input_rejected(self):
+        self.entries.write_text('{"id": "alpha"}')
+        code, err = self._run_envelope_error()
+        self.assertEqual(code, 1)
+        self.assertIn("expected a JSON list", err)
+
+    def test_duplicate_id_in_input_rejected(self):
+        self._write([("alpha", 1), ("alpha", 2)])
+        code, err = self._run_envelope_error()
+        self.assertEqual(code, 1)
+        self.assertIn("duplicate id: alpha", err)
+
 
 class _ProbeStrategy:
     """Satisfies validate_eval_agent's agent_file probe in gate tests
@@ -528,6 +1198,652 @@ class _ProbeStrategy:
 
     def agent_file(self, agents_dir, base):
         return Path(agents_dir) / f"{base}.opencode.md"
+
+
+class VerifyTests(unittest.TestCase):
+    """cmd_verify (BUGS.md B9): the end-of-campaign consistency proof
+    gating record. Snapshot byte-identity, manifest<->entries wiring,
+    skill-body/span checks, and the scored<->results group (the
+    scored-check flow reused, full-campaign coverage, record preflight).
+    All groups always run — a failing group never hides a later one."""
+
+    SECTION = "Always use CSS modules."
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        # Canonical files.
+        self.manifest = self.root / "rules.json"
+        self._write_manifest()
+        self.entries = self.root / "entries.json"
+        self._write_entries([self._shape_entry("css-modules")])
+        self.skill_dir = self.root / "demo-skill"
+        self.skill_dir.mkdir()
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\n" + self.SECTION + "\n"
+        )
+        # Campaign dir with byte-identical snapshots.
+        self.camp = self.root / "campaign-2026-09-23"
+        self.camp.mkdir()
+        self._snapshot()
+        self.results_control = self.camp / "results-control.json"
+        self.results_variants = self.camp / "results-variants.json"
+        self._write_shape_results()
+        self.scored = self.camp / "scored.json"
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "v1",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_manifest(self, items=None, excluded=None):
+        items = (
+            items
+            if items is not None
+            else [
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                }
+            ]
+        )
+        excluded = excluded if excluded is not None else []
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-23",
+                    "rules": items,
+                    "excluded": excluded,
+                }
+            )
+        )
+
+    def _shape_entry(self, eid, rule="R-styling-01", section=None):
+        return {
+            "id": eid,
+            "rule": rule,
+            "kind": "shaping",
+            "section": section if section is not None else self.SECTION,
+            "fixtures": {"application": f"Build a component for {eid}."},
+            "markers": {"inline_style": "style="},
+            "variants": {"v1": "Never use inline styles."},
+        }
+
+    def _write_entries(self, entries):
+        self.entries.write_text(json.dumps(entries))
+
+    def _snapshot(self):
+        (self.camp / "rules.json").write_bytes(self.manifest.read_bytes())
+        (self.camp / "entries.json").write_bytes(self.entries.read_bytes())
+        snap_skill = self.camp / "demo-skill"
+        snap_skill.mkdir(exist_ok=True)
+        (snap_skill / "SKILL.md").write_bytes(
+            (self.skill_dir / "SKILL.md").read_bytes()
+        )
+        (self.camp / "skill-body.txt").write_text(
+            "# Demo\n\n" + self.SECTION + "\n"
+        )
+
+    def _shape_results_entry(self, eid, arms):
+        return {
+            "id": eid,
+            "kind": "shaping",
+            "markers": {"inline_style": "style="},
+            "restraint_markers": None,
+            "arms": {a: {"runs": [{"answer_text": "ok"}]} for a in arms},
+        }
+
+    def _write_shape_results(self, ids=("css-modules",)):
+        self.results_control.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        self._shape_results_entry(eid, ["v0"]) for eid in ids
+                    ],
+                }
+            )
+        )
+        self.results_variants.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        self._shape_results_entry(eid, ["v1"]) for eid in ids
+                    ],
+                }
+            )
+        )
+
+    def _write_scored(self, entries):
+        self.scored.write_text(json.dumps({"entries": entries}))
+
+    def _run(self, **overrides):
+        ns = argparse.Namespace(
+            track="shape-test",
+            manifest=str(self.manifest),
+            entries=str(self.entries),
+            scored=str(self.scored),
+            results=[str(self.results_control), str(self.results_variants)],
+            campaign_dir=str(self.camp),
+            skill_path=str(self.skill_dir),
+        )
+        for k, v in overrides.items():
+            setattr(ns, k, v)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_verify(ns)
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_happy_path(self):
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("snapshot rules.json byte-identical", out)
+        self.assertIn("snapshot entries.json byte-identical", out)
+        self.assertIn("snapshot skill dir demo-skill/ matches", out)
+        self.assertIn("wiring: 1 entries wired to 1 rules", out)
+        self.assertIn("with frontmatter stripped", out)
+        self.assertIn("every section span unique", out)
+        self.assertIn("results cover all 1 entries", out)
+        self.assertIn("covers 1 entries", out)  # scored-check's own line
+        self.assertIn(
+            "record preflight (nothing written): record --scope dir "
+            "would write shape-test: 1 adopted / 0 no-failure / "
+            "0 unresolved / 0 voids",
+            out,
+        )
+        self.assertIn("verify: all checks passed", out)
+
+    def test_manifest_snapshot_drift_fails_but_later_groups_run(self):
+        (self.camp / "rules.json").write_text("{}")
+        rc, out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("differs from canonical", err)
+        # Fail-batch: the other groups still ran.
+        self.assertIn("wiring: 1 entries wired", out)
+        self.assertNotIn("verify: all checks passed", out)
+
+    def test_missing_snapshot_named(self):
+        (self.camp / "entries.json").unlink()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("snapshot missing:", err)
+        self.assertIn("entries.json", err)
+
+    def test_skill_dir_snapshot_drift(self):
+        (self.camp / "demo-skill" / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nedited\n"
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("snapshot skill dir", err)
+        self.assertIn("differs", err)
+
+    def test_scored_outside_campaign_dir_rejected(self):
+        other = self.root / "scored.json"
+        other.write_text(self.scored.read_text())
+        rc, _out, err = self._run(scored=str(other))
+        self.assertEqual(rc, 1)
+        self.assertIn("--scored must live in the campaign dir", err)
+
+    def test_results_outside_campaign_dir_rejected(self):
+        other = self.root / "results-control.json"
+        other.write_text(self.results_control.read_text())
+        rc, _out, err = self._run(results=[str(other)])
+        self.assertEqual(rc, 1)
+        self.assertIn("--results must live in the campaign dir", err)
+
+    def _write_round2(self):
+        sub = self.camp / "round-2"
+        sub.mkdir()
+        results = sub / "results.json"
+        results.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        self._shape_results_entry("css-modules", ["v1"])
+                    ],
+                }
+            )
+        )
+        return results
+
+    def test_results_in_subdir_rejected_without_labels(self):
+        round2 = self._write_round2()
+        rc, _out, err = self._run(
+            results=[
+                str(self.results_control),
+                str(self.results_variants),
+                str(round2),
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--results must live in the campaign dir", err)
+        self.assertIn("same directory", err)
+
+    def test_labeled_round2_results_prove_round2_adopted_arm(self):
+        # Issue #55: a round-2-adopted arm's results join the proof via
+        # --label; scored.json names the namespaced arm.
+        round2 = self._write_round2()
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "round-2:v1",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+        rc, out, err = self._run(
+            results=[
+                str(self.results_control),
+                str(self.results_variants),
+                str(round2),
+            ],
+            label=["main", "main", "round-2"],
+        )
+        self.assertEqual(rc, 1)  # duplicate labels
+        self.assertIn("--label values must be unique", err)
+        rc, out, err = self._run(
+            results=[
+                str(self.results_control),
+                str(self.results_variants),
+                str(round2),
+            ],
+            label=["control", "variants", "round-2"],
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertIn("verify: all checks passed", out)
+
+    def test_round2_arm_not_in_unlabeled_results_fails(self):
+        # The inverse: scored.json asserting a round-2 arm without the
+        # labeled round-2 results in the union fails the proof.
+        self._write_round2()
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "round-2:v1",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("not an arm present", err)
+
+    def test_entry_naming_unknown_rule(self):
+        self._write_entries([self._shape_entry("css-modules", "R-nope-99")])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("names rule 'R-nope-99'", err)
+        self.assertIn("does not exist", err)
+
+    def test_rule_entries_not_naming_entry(self):
+        self._write_entries([self._shape_entry("renamed-entry")])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("do not name it", err)
+        self.assertIn("does not exist", err)  # stale forward reference
+
+    def test_excluded_id_with_entry_rejected(self):
+        self._write_manifest(
+            excluded=[
+                {
+                    "id": "css-modules",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "reason": "routed out",
+                }
+            ]
+        )
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("excluded id", err)
+
+    def test_item_with_no_entries_rejected(self):
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": [],
+                }
+            ]
+        )
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("names no entries", err)
+
+    def test_entry_named_by_two_items_rejected(self):
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                },
+                {
+                    "id": "R-styling-02",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "No inline styles.",
+                    "entries": ["css-modules"],
+                },
+            ]
+        )
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("named by multiple items", err)
+
+    def test_skill_body_mismatch(self):
+        (self.camp / "skill-body.txt").write_text(
+            "# Demo\n\nAlways use css modules.\n"
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("with its frontmatter stripped", err)
+
+    def test_span_drift_reported(self):
+        (self.camp / "skill-body.txt").write_text("# Demo\n\nno spans\n")
+        # Identity holds (the source edit is mirrored by hand here);
+        # the span assertion is what must fire.
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nno spans\n"
+        )
+        (self.camp / "demo-skill" / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nno spans\n"
+        )
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'css-modules'", err)
+        self.assertIn("occurs 0 times", err)
+
+    def _mark_removed(self):
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                    "status": "removed",
+                    "ablation_streak": 3,
+                }
+            ]
+        )
+
+    def test_removed_entry_span_absent_passes(self):
+        # The rule text was deleted from the doc: the removed entry's
+        # span must occur ZERO times in the snapshotted body.
+        self._mark_removed()
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n"
+        )
+        self._snapshot()
+        (self.camp / "skill-body.txt").write_text("# Demo\n")
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("verify: all checks passed", out)
+
+    def test_removed_entry_span_present_fails_with_removed_message(self):
+        self._mark_removed()
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("removed entry 'css-modules'", err)
+        self.assertIn("expected zero — the rule was removed", err)
+
+    def test_missing_skill_body_is_an_error_on_shape(self):
+        (self.camp / "skill-body.txt").unlink()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("skill-body.txt", err)
+
+    def test_results_not_covering_every_entry_rejected(self):
+        second = self._shape_entry("no-nuance", rule="R-content-01")
+        self._write_entries([self._shape_entry("css-modules"), second])
+        self._write_manifest(
+            items=[
+                {
+                    "id": "R-styling-01",
+                    "section": "Styling",
+                    "kind": "shaping",
+                    "statement": "Use CSS modules.",
+                    "entries": ["css-modules"],
+                },
+                {
+                    "id": "R-content-01",
+                    "section": "Content",
+                    "kind": "shaping",
+                    "statement": "No nuance clauses.",
+                    "entries": ["no-nuance"],
+                },
+            ]
+        )
+        self._snapshot()
+        # Results (and scored) cover only the first entry.
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entries with no results coverage", err)
+        self.assertIn("no-nuance", err)
+
+    def test_results_id_with_no_entry_rejected(self):
+        self._write_shape_results(ids=("css-modules", "ghost"))
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("results ids with no entry", err)
+        self.assertIn("ghost", err)
+
+    def test_scored_inconsistency_fails_group_4(self):
+        self._write_scored(
+            [
+                {
+                    "id": "css-modules",
+                    "kind": "shaping",
+                    "result": "adopted",
+                    "adopted_arm": "v9",
+                    "restraint_gate": None,
+                    "marker_counts": {},
+                    "notes": None,
+                }
+            ]
+        )
+        rc, out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("adopted_arm", err)
+        self.assertNotIn("record preflight", out)
+
+    def test_missing_campaign_dir(self):
+        rc, _out, err = self._run(campaign_dir=str(self.root / "nope"))
+        self.assertEqual(rc, 1)
+        self.assertIn("campaign dir not found", err)
+
+
+class VerifyRetrievalTests(unittest.TestCase):
+    """cmd_verify on the fact kind (retrieval): the N:M covering
+    relation — every fact's entries exist, every query is named by at
+    least one fact — and no skill-body requirement."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.manifest = self.root / "facts.json"
+        self._write_facts(["q1"])
+        self.queries = self.root / "queries.json"
+        self._write_queries(["q1"])
+        self.skill_dir = self.root / "demo-skill"
+        self.skill_dir.mkdir()
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: demo-skill\n---\n# Demo\n\nbody\n"
+        )
+        self.camp = self.root / "campaign-2026-09-23"
+        self.camp.mkdir()
+        self._snapshot()
+        self.results = self.camp / "results.json"
+        self._write_results(["q1"])
+        self.scored = self.camp / "scored.json"
+        self._write_scored(["q1"])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_facts(self, qids):
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-23",
+                    "facts": [
+                        {
+                            "id": "F-demo-01",
+                            "section": "Demo",
+                            "statement": "a documented fact",
+                            "entries": qids,
+                        }
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+
+    def _write_queries(self, qids):
+        self.queries.write_text(
+            json.dumps(
+                [
+                    {"id": q, "query": f"query {q}", "expect": ["bullet"]}
+                    for q in qids
+                ]
+            )
+        )
+
+    def _snapshot(self):
+        (self.camp / "facts.json").write_bytes(self.manifest.read_bytes())
+        (self.camp / "queries.json").write_bytes(self.queries.read_bytes())
+        snap_skill = self.camp / "demo-skill"
+        snap_skill.mkdir(exist_ok=True)
+        (snap_skill / "SKILL.md").write_bytes(
+            (self.skill_dir / "SKILL.md").read_bytes()
+        )
+
+    def _write_results(self, qids):
+        self.results.write_text(
+            json.dumps(
+                {
+                    "config": {"skill": "demo-skill"},
+                    "entries": [
+                        {
+                            "id": q,
+                            "query": f"query {q}",
+                            "expect": ["bullet"],
+                            "skill_arm": {"runs": [{"answer_text": "ok"}]},
+                            "control_arm": {"runs": [{"answer_text": "ok"}]},
+                        }
+                        for q in qids
+                    ],
+                }
+            )
+        )
+
+    def _write_scored(self, qids):
+        self.scored.write_text(
+            json.dumps(
+                {
+                    "entries": [
+                        {
+                            "id": q,
+                            "result": "pass",
+                            "classification": None,
+                            "control": "pass",
+                            "ablation_flag": True,
+                            "missed_bullets": None,
+                            "notes": None,
+                        }
+                        for q in qids
+                    ]
+                }
+            )
+        )
+
+    def _run(self, **overrides):
+        ns = argparse.Namespace(
+            track="retrieval-test",
+            manifest=str(self.manifest),
+            entries=str(self.queries),
+            scored=str(self.scored),
+            results=[str(self.results)],
+            campaign_dir=str(self.camp),
+            skill_path=str(self.skill_dir),
+        )
+        for k, v in overrides.items():
+            setattr(ns, k, v)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_verify(ns)
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_happy_path_without_skill_body(self):
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("snapshot facts.json byte-identical", out)
+        self.assertIn("wiring: 1 entries wired to 1 facts", out)
+        self.assertNotIn("section span", out)
+        self.assertIn(
+            "would write retrieval-test: 1 passes / 0 fails / 0 gaps / "
+            "0 voids",
+            out,
+        )
+        self.assertIn("verify: all checks passed", out)
+
+    def test_fact_naming_unknown_query(self):
+        self._write_facts(["q1", "ghost"])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("names entry 'ghost'", err)
+
+    def test_query_covered_by_no_fact(self):
+        self._write_queries(["q1", "orphan"])
+        self._write_results(["q1", "orphan"])
+        self._write_scored(["q1", "orphan"])
+        self._snapshot()
+        rc, _out, err = self._run()
+        self.assertEqual(rc, 1)
+        self.assertIn("entry 'orphan' is named by no fact", err)
 
 
 class UnifiedCliGateTests(unittest.TestCase):
@@ -689,7 +2005,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                 reps=None,
                 timeout=None,
             ),
-            (1, 120),
+            (1, 300),
         )
 
     def test_shape_default_reps_timeout(self):
@@ -731,7 +2047,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                 reps=None,
                 timeout=None,
             ),
-            (5, 120),
+            (5, 300),
         )
 
     def test_pressure_default_reps_timeout(self):
@@ -768,7 +2084,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                 reps=None,
                 timeout=None,
             ),
-            (5, 120),
+            (5, 300),
         )
 
     def _scored_args(self, track_name, results, **counts):
@@ -833,6 +2149,7 @@ class UnifiedCliGateTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=True,
+            matrix=False,
         )
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
@@ -841,6 +2158,24 @@ class UnifiedCliGateTests(unittest.TestCase):
         self.assertEqual(
             err.getvalue(),
             "error: --compare is only valid with --track shape-test\n",
+        )
+
+    def test_evidence_matrix_only_on_shape(self):
+        args = argparse.Namespace(
+            track="retrieval-test",
+            results="x.json",
+            entry=None,
+            arm=None,
+            compare=False,
+            matrix=True,
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = evaluator.cmd_evidence(args)
+        self.assertEqual(rc, 1)
+        self.assertEqual(
+            err.getvalue(),
+            "error: --matrix is only valid with --track shape-test\n",
         )
 
     def test_evidence_arm_only_on_shape_or_pressure(self):
@@ -852,6 +2187,7 @@ class UnifiedCliGateTests(unittest.TestCase):
                     entry=None,
                     arm="red",
                     compare=False,
+                    matrix=False,
                 )
                 err = io.StringIO()
                 with contextlib.redirect_stderr(err):
@@ -862,6 +2198,35 @@ class UnifiedCliGateTests(unittest.TestCase):
                     "error: --arm is only valid with --track shape-test "
                     "or --track pressure-test\n",
                 )
+
+    def test_record_rejects_retired_ablations_flag(self):
+        # The freeform --ablations flag is retired: the manifest entry's
+        # ablations count is derived from --inventory instead.
+        argv = [
+            "evaluator.py",
+            "record",
+            "--skill",
+            "s",
+            "--skill-path",
+            "p",
+            "--manifest",
+            "m",
+            "--scope",
+            "dir",
+            "--scored",
+            "s.json",
+            "--ablations",
+            "3",
+        ]
+        err = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            contextlib.redirect_stderr(err),
+            self.assertRaises(SystemExit) as cm,
+        ):
+            evaluator.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("--ablations", err.getvalue())
 
     def test_meta_rejects_non_meta_track_with_exit_2(self):
         # supports_meta tracks are the argparse choices, so a non-meta

@@ -166,6 +166,24 @@ class PressureScenariosTests(unittest.TestCase):
         self._write([scenario_entry(compliant_option="")])
         self._rejected()
 
+    def test_unknown_key_rejected(self):
+        entry = scenario_entry()
+        entry["title"] = "Friday deploy"
+        self._write([entry])
+        self._rejected()
+
+    def test_unknown_keys_error_names_them(self):
+        entry = scenario_entry()
+        entry["options"] = ["A", "B", "C"]
+        entry["expected"] = "A"
+        self._write([entry])
+        err = io.StringIO()
+        with self.assertRaises(SystemExit) as cm:
+            with redirect_stderr(err):
+                self._load()
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("unknown keys: expected, options", err.getvalue())
+
 
 class PressurePromptTests(unittest.TestCase):
     """build_pressure_prompt: red is scenario-only (no conventions block,
@@ -216,8 +234,8 @@ class PressureRunRecordTests(unittest.TestCase):
     'list' call surfacing through the extended parse_stream capture);
     timeout stays a boolean, never a void signal."""
 
-    def _record(self, ev, arm="red"):
-        return build_pressure_run_record(ev, "prompt", False, arm)
+    def _record(self, ev, arm="red", rep=1):
+        return build_pressure_run_record(ev, "prompt", False, arm, rep)
 
     def test_record_fields(self):
         ev = EventStream(
@@ -277,9 +295,14 @@ class PressureRunRecordTests(unittest.TestCase):
 
     def test_timeout_is_a_boolean_not_a_void_signal(self):
         ev = EventStream(answer_parts=["complete answer"])
-        rec = build_pressure_run_record(ev, "prompt", True, "red")
+        rec = build_pressure_run_record(ev, "prompt", True, "red", 3)
         self.assertTrue(rec["timeout"])
         self.assertEqual(rec["void_signals"], [])
+
+    def test_rep_recorded(self):
+        ev = EventStream(answer_parts=["answer"])
+        rec = build_pressure_run_record(ev, "prompt", False, "green", 4)
+        self.assertEqual(rec["rep"], 4)
 
 
 class PressureSuiteTests(unittest.TestCase):
@@ -495,6 +518,133 @@ class PressurePreSpendGateTests(unittest.TestCase):
 
     def test_missing_out_parent_exits_1(self):
         self._assert_blocked(out=str(self.root / "no-dir" / "r.json"))
+
+
+class PressureManifestSuiteTests(unittest.TestCase):
+    """suite --manifest: ablation/removed scenarios run the red control
+    only — a green run is skipped (the arm key omitted from the record)
+    with a note line; red runs normally."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        (self.agents_dir / "pressure-evaluator.opencode.md").write_text(
+            "---\nname: pressure-evaluator\nmode: primary\n---\nbody\n"
+        )
+        self.ws = self.root / "ws"
+        self.ws.mkdir()
+        self.scenarios_path = self.root / "scenarios.json"
+        self.scenarios_path.write_text(
+            json.dumps(
+                [
+                    scenario_entry(),
+                    scenario_entry(eid="other-rule", rule="R-other-01"),
+                ]
+            )
+        )
+        self.skill_file = self.root / "skill-body.txt"
+        self.skill_file.write_text(SKILL_BODY)
+        self.manifest = self.root / "rules.json"
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "skill": "demo-skill",
+                    "generated": "2026-09-28",
+                    "rules": [
+                        {
+                            "id": "R-workflow-01",
+                            "section": "Workflow",
+                            "kind": "discipline",
+                            "statement": STATEMENT,
+                            "entries": ["tdd-no-tests-yet"],
+                            "status": "ablation",
+                            "ablation_streak": 2,
+                        },
+                        {
+                            "id": "R-other-01",
+                            "section": "Other",
+                            "kind": "discipline",
+                            "statement": "s",
+                            "entries": ["other-rule"],
+                        },
+                    ],
+                    "excluded": [],
+                }
+            )
+        )
+        self.out = self.root / "results.json"
+
+    def tearDown(self):
+        log = evaluator._Log.file
+        evaluator._Log.file = None
+        if log is not None:
+            log.close()
+        self.tmp.cleanup()
+
+    class _FakeStrategy:
+        def __init__(self):
+            self.queries: list[str] = []
+
+        def agent_file(self, agents_dir, base):
+            return Path(agents_dir) / f"{base}.opencode.md"
+
+        def install(self, *args, **kwargs):
+            return None
+
+        def execute(self, ws, agent, query, model, variant, skill=None):
+            self.queries.append(query)
+            return EventStream(answer_parts=["I choose A."]), False
+
+    def _run(self, **overrides):
+        fake = self._FakeStrategy()
+        args = argparse.Namespace(
+            harness="opencode",
+            skill="demo-skill",
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.ws),
+            scenarios=str(self.scenarios_path),
+            arm="red",
+            skill_file=None,
+            out=str(self.out),
+            model=None,
+            variant=None,
+            reps=1,
+            timeout=120,
+            manifest=str(self.manifest),
+        )
+        for k, v in overrides.items():
+            setattr(args, k, v)
+        buf = io.StringIO()
+        with mock_check_and_resolve(fake):
+            with redirect_stdout(buf):
+                rc = evaluator.run_suite(TRACKS["pressure-test"], args)
+        return rc, buf.getvalue(), fake
+
+    def test_red_arm_runs_normally_on_ablation_scenario(self):
+        rc, _out, fake = self._run()
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(fake.queries), 2)
+        entries = {
+            e["id"]: e for e in json.loads(self.out.read_text())["entries"]
+        }
+        self.assertEqual(set(entries["tdd-no-tests-yet"]["arms"]), {"red"})
+
+    def test_green_arm_skipped_on_ablation_scenario_with_note(self):
+        rc, out, fake = self._run(arm="green", skill_file=str(self.skill_file))
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "note: entry tdd-no-tests-yet is ablation; green arm skipped",
+            out,
+        )
+        # Only the normal scenario ran green.
+        self.assertEqual(len(fake.queries), 1)
+        entries = {
+            e["id"]: e for e in json.loads(self.out.read_text())["entries"]
+        }
+        self.assertEqual(entries["tdd-no-tests-yet"]["arms"], {})
+        self.assertEqual(set(entries["other-rule"]["arms"]), {"green"})
 
 
 class PressureScoredCheckTests(unittest.TestCase):
@@ -789,7 +939,10 @@ class PressureRecordTests(unittest.TestCase):
             bulletproof=3,
             no_failure=1,
             unresolved=0,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign="campaign-2026-09-18",
             date="2026-09-18",
         )
@@ -832,7 +985,10 @@ class PressureRecordTests(unittest.TestCase):
             bulletproof=3,
             no_failure=None,
             unresolved=None,
-            ablations=None,
+            results=None,
+            model=None,
+            variant=None,
+            inventory=None,
             campaign=None,
             date="2026-09-18",
         )
@@ -1037,6 +1193,7 @@ class PressureEvidenceTests(unittest.TestCase):
             entry=None,
             arm=None,
             compare=False,
+            matrix=False,
         )
         for k, v in overrides.items():
             setattr(args, k, v)

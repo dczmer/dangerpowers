@@ -171,7 +171,10 @@ def run_rep_batched(
 
 def base_config(args: argparse.Namespace) -> dict:
     """The six config keys every campaign results file shares; each
-    track's call site extends the returned dict with its own keys."""
+    track's call site extends the returned dict with its own keys.
+    The date is local time, matching workspace-manager.sh's
+    campaign-init datestamp (`date +%F`) so an evening campaign's
+    results and manifest agree with its campaign dir name."""
     return {
         "skill": args.skill,
         "harness": args.harness,
@@ -179,7 +182,7 @@ def base_config(args: argparse.Namespace) -> dict:
         "variant": args.variant,
         "reps": args.reps,
         "timeout": args.timeout,
-        "date": datetime.now(UTC).date().isoformat(),
+        "date": datetime.now(UTC).astimezone().date().isoformat(),
     }
 
 
@@ -188,6 +191,17 @@ def write_results(out: Path, config: dict, entries: list[dict]) -> None:
     out.write_text(
         json.dumps({"config": config, "entries": entries}, indent=2) + "\n"
     )
+
+
+def rep_label(run: object, position: int) -> int:
+    """A run's stable rep number for evidence display: the persisted
+    1-based 'rep' field when present (results written since issue #55),
+    else the run's positional index — the legacy behavior, kept so
+    pre-existing results files stay readable."""
+    rep = run.get("rep") if isinstance(run, dict) else None
+    if isinstance(rep, bool) or not isinstance(rep, int) or rep < 1:
+        return position
+    return rep
 
 
 class EvidenceError(Exception):
@@ -201,18 +215,33 @@ def load_results_json(path: Path, track: str) -> tuple[list[dict], str | None]:
     with an 'entries' list. Returns ([], exact error message) on
     failure — the caller prints it to stderr and returns 1, matching
     the evidence commands' historical exit style."""
+    entries, _, error = load_results_envelope(path, track)
+    return entries, error
+
+
+def load_results_envelope(
+    path: Path, track: str
+) -> tuple[list[dict], dict | None, str | None]:
+    """load_results_json plus the config block: returns (entries,
+    config, exact error message). config is None when the envelope
+    carries no object under 'config'."""
     if not path.exists():
-        return [], f"results file not found: {path}"
+        return [], None, f"results file not found: {path}"
     try:
         data = json.loads(path.read_text())
     except json.JSONDecodeError as e:
-        return [], f"invalid JSON in {path}: {e}"
+        return [], None, f"invalid JSON in {path}: {e}"
     if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
-        return [], (
-            f"{path}: not a {track}-suite results file "
-            f"(missing 'entries' list)"
+        return (
+            [],
+            None,
+            (
+                f"{path}: not a {track}-suite results file "
+                f"(missing 'entries' list)"
+            ),
         )
-    return data["entries"], None
+    config = data.get("config")
+    return data["entries"], config if isinstance(config, dict) else None, None
 
 
 def iter_evidence(
@@ -234,21 +263,92 @@ def iter_evidence(
         yield eid, entry
 
 
+def check_results_same_dir(paths: list[str]) -> str | None:
+    """Exact-dir equality guard for unioned results files: all paths
+    must resolve to the same parent directory, else an exact error
+    naming the differing dirs. Blocks cross-boundary pooling — e.g. a
+    mini-campaign subdir's results (campaign-X/round-2/) silently
+    summed with the full campaign's. The sanctioned way across the
+    boundary is one --label per --results file (check_results_labels),
+    which namespaces each file's arms instead of pooling them."""
+    dirs: list[str] = []
+    for p in paths:
+        d = str(Path(p).resolve().parent)
+        if d not in dirs:
+            dirs.append(d)
+    if len(dirs) > 1:
+        return (
+            "--results files must all be in the same directory; got "
+            + " vs ".join(dirs)
+            + " (or pass one --label per --results file to merge "
+            "across directories)"
+        )
+    return None
+
+
+def check_results_labels(
+    results: list[str], labels: list[str] | None
+) -> str | None:
+    """--label pairing and grammar for cross-directory results merges:
+    either no labels (the same-directory guard applies) or exactly one
+    per --results file, each non-empty, unique, and free of ':' and '@'
+    (both are display-key separators). Returns the exact error message,
+    None when valid."""
+    if not labels:
+        return None
+    if len(labels) != len(results):
+        return (
+            "--label must be given exactly once per --results file "
+            f"({len(results)} --results, {len(labels)} --label)"
+        )
+    for label in labels:
+        if not label or ":" in label or "@" in label:
+            return (
+                f"invalid --label {label!r}: must be non-empty and "
+                "contain no ':' or '@'"
+            )
+    if len(set(labels)) != len(labels):
+        return "--label values must be unique"
+    return None
+
+
+def label_arm(label: str | None, arm: str) -> str:
+    """Namespace an arm key with its results file's --label
+    ('round-2' + 'v1' -> 'round-2:v1'); unlabeled files keep the bare
+    arm name."""
+    return f"{label}:{arm}" if label else arm
+
+
 def union_results(
     paths: list[str],
     track: str,
     entry_hook: Callable[[Path, dict, dict], str | None] | None = None,
+    labels: list[str] | None = None,
 ) -> tuple[list[str], dict[str, set[str]], dict[str, dict]] | str:
     """Union with dedupe over repeated results files: an id appearing
     in N files is scored exactly once. Returns (ordered ids, id ->
     arm-key set, id -> hook-collected extras); entry_hook runs per
     entry occurrence and returns an exact error message on violation.
-    On any failure returns the error message (caller passes it to
-    _err)."""
+    All paths must be in the same directory (check_results_same_dir)
+    unless labels are given — one --label per path, validated by
+    check_results_labels — in which case each file's arm keys are
+    namespaced '<label>:<arm>' (also for the entry_hook's view) so
+    same-named arms from different rounds never pool. On any failure
+    returns the error message (caller passes it to _err)."""
+    if labels is None:
+        dir_error = check_results_same_dir(paths)
+        if dir_error is not None:
+            return dir_error
+    elif len(labels) != len(paths):
+        return check_results_labels(paths, labels) or (
+            "--label must be given exactly once per --results file "
+            f"({len(paths)} --results, {len(labels)} --label)"
+        )
     results_ids: list[str] = []
     results_arms: dict[str, set[str]] = {}
     extras: dict[str, dict] = {}
-    for results_str in paths:
+    for fi, results_str in enumerate(paths):
+        label = labels[fi] if labels else None
         results_path = Path(results_str)
         if not results_path.exists():
             return f"results file not found: {results_path}"
@@ -272,7 +372,7 @@ def union_results(
                 )
             arms = e.get("arms") if isinstance(e, dict) else None
             arm_keys = (
-                {a for a in arms if isinstance(a, str) and a}
+                {label_arm(label, a) for a in arms if isinstance(a, str) and a}
                 if isinstance(arms, dict)
                 else set()
             )
@@ -280,7 +380,15 @@ def union_results(
                 results_ids.append(eid)
             results_arms.setdefault(eid, set()).update(arm_keys)
             if entry_hook is not None:
-                hook_error = entry_hook(results_path, e, extras)
+                hook_entry = e
+                if label and isinstance(arms, dict):
+                    hook_entry = {
+                        **e,
+                        "arms": {
+                            label_arm(label, a): v for a, v in arms.items()
+                        },
+                    }
+                hook_error = entry_hook(results_path, hook_entry, extras)
                 if hook_error is not None:
                     return hook_error
     return results_ids, results_arms, extras
@@ -375,6 +483,54 @@ def counts_gate(
             f"got {got}"
         )
     return None
+
+
+def load_status_map(
+    path: Path | str | None, kind: str | None
+) -> dict[str, str]:
+    """entry-id -> status, built from an inventory's items: each item's
+    `entries` list votes its entry ids toward the item's status. An
+    entry maps to a status ONLY when every item naming it carries the
+    SAME status (the retrieval N:M rule: mixed-status or partially
+    normal coverage means all arms run — rule-kind wiring is 1:1, so
+    the same vote logic degenerates to a plain lookup there). Items
+    without status contribute a None vote. Empty map when path is None
+    (no --manifest: every entry behaves as status none). Light parse —
+    the full schema validation lives in evaluator.load_inventory."""
+    if path is None or kind is None:
+        return {}
+    path = Path(path)
+    if not path.exists():
+        _fail(f"inventory file not found: {path}")
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        _fail(f"invalid JSON in {path}: {e}")
+    array = "rules" if kind == "rule" else "facts"
+    items = data.get(array) if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        _fail(f"{path}: missing '{array}' list")
+    votes: dict[str, set[str | None]] = {}
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            _fail(f"{path}: item {i} is not an object")
+        status = item.get("status")
+        if status is not None and status not in ("ablation", "removed"):
+            _fail(
+                f"{path}: item {i} status must be 'ablation' or "
+                f"'removed', got {status!r}"
+            )
+        entries = item.get("entries")
+        if not isinstance(entries, list):
+            _fail(f"{path}: item {i} missing 'entries' (list)")
+        for eid in entries:
+            if isinstance(eid, str) and eid:
+                votes.setdefault(eid, set()).add(status)
+    return {
+        eid: only
+        for eid, ss in votes.items()
+        if len(ss) == 1 and (only := next(iter(ss))) is not None
+    }
 
 
 def load_entries(

@@ -19,6 +19,16 @@ from typing import Literal, NoReturn
 
 Outcome = Literal["triggered", "not-triggered", "void"]
 
+# The shared per-run timeout default (seconds) for the long-form tracks
+# (shape/pressure/retrieval suite and meta) — calibrated against slow
+# local endpoints under the suite's 10-way rep concurrency, where 120 s
+# drowned clean runs in empty-answer timeout voids (53/70 at 120 s, 0/70
+# at 300 s; BUGS.md B3). Trigger stays at its own 30 s: its queries are
+# short single-shot loads under a restricted agent. Only endpoint
+# latency should ever move this number; raise --timeout per invocation
+# for a slower endpoint rather than editing it.
+DEFAULT_TIMEOUT = 300
+
 
 @dataclass
 class Verdict:
@@ -279,7 +289,7 @@ class EvalStrategy:
     harness: str  # also the agent-file suffix, e.g. "opencode"
     agent_install_dir: str  # workspace-relative, e.g. ".opencode/agent"
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         self.timeout = timeout
 
     def agent_file(self, agents_dir: Path, base: str) -> Path:
