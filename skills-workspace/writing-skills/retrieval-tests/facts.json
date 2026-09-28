@@ -40,12 +40,14 @@
       "statement": "write explicit imperative directives, never passive phrasing",
       "entries": [
         "directives-not-passive"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "F-content-02",
       "section": "Content",
-      "statement": "keep the whole skill \u2014 SKILL.md plus every file the body loads \u2014 under 500 lines total; moving content to references/ to comply is a violation",
+      "statement": "keep the whole skill — SKILL.md plus every file the body loads — under 500 lines total; moving content to references/ to comply is a violation",
       "entries": [
         "skill-length-extraction"
       ]
@@ -56,7 +58,9 @@
       "statement": "prescribe exact steps only for fragile operations; state outcomes elsewhere",
       "entries": [
         "specificity-matches-fragility"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "F-content-04",
@@ -125,10 +129,12 @@
     {
       "id": "F-discovery-01",
       "section": "Discovery",
-      "statement": "write description and overview in the vocabulary an agent reaches for mid-task \u2014 symptoms, error messages, tool names, synonyms \u2014 not internal conceptual names",
+      "statement": "write description and overview in the vocabulary an agent reaches for mid-task — symptoms, error messages, tool names, synonyms — not internal conceptual names",
       "entries": [
         "discovery-vocabulary"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "F-discovery-02",
@@ -152,7 +158,9 @@
       "statement": "scripts handle own errors; justify every numeric constant",
       "entries": [
         "deterministic-scripts"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "F-structure-03",
@@ -176,7 +184,9 @@
       "statement": "branchy procedures MUST be mermaid flowchart TD blocks; reference data MUST be markdown tables; numbered lists only for strictly linear steps",
       "entries": [
         "structure-format-choice"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "F-structure-06",
@@ -192,7 +202,9 @@
       "statement": "spell out what a frontier model does implicitly for smaller models",
       "entries": [
         "small-model-explicitness"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "F-gotchas-01",

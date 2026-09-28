@@ -18,7 +18,9 @@
       "statement": "Use explicit instructions (\"Always use X\"), never passive phrasing (\"X is recommended\").",
       "entries": [
         "explicit-not-passive"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-content-06",
@@ -27,7 +29,9 @@
       "statement": "State constraints directly. Never scope a directive with an exemption — any phrasing that carves out cases (\"unless X\", \"except when Y\", \"excluding Z\") — either fold the condition into the directive or leave it out. Example: \"Always run the full migration suite before deploying, except when the deploy is just a config change\" becomes \"Always run the full migration suite before deploying.\"",
       "entries": [
         "no-nuance-clauses"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-content-07",
@@ -45,7 +49,9 @@
       "statement": "No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.",
       "entries": [
         "no-time-sensitive"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-content-10",
@@ -63,7 +69,9 @@
       "statement": "Ends with a checklist or verification procedure so the agent can verify its work.",
       "entries": [
         "ends-with-checklist"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-content-12",
@@ -90,7 +98,9 @@
       "statement": "Name the skill with a gerund or verb-first slug, all lowercase hyphens: `profiling-slow-sql-queries`, not `sql-query-profiler`.",
       "entries": [
         "name-format"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-frontmatter-03",
@@ -117,7 +127,9 @@
       "statement": "Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.",
       "entries": [
         "one-complete-example"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-structure-05",

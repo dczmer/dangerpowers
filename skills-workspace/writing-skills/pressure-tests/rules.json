@@ -27,7 +27,9 @@
       "statement": "No time-sensitive information. Put legacy approaches in a clearly labeled legacy section.",
       "entries": [
         "no-time-sensitive-info"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-content-10",
@@ -36,7 +38,9 @@
       "statement": "A skill without a Gotchas section is incomplete.",
       "entries": [
         "gotchas-section-required"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-content-11",
@@ -45,7 +49,9 @@
       "statement": "Ends with a checklist or verification procedure so the agent can verify its work.",
       "entries": [
         "ends-with-checklist"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-content-12",
@@ -81,7 +87,9 @@
       "statement": "Description triggering is testable, not a matter of taste: a description that fires too often or not at all is a bug. Run trigger-testing-skills against it and confirm agents load the body and follow it, rather than executing the description's summary.",
       "entries": [
         "trigger-testing-verification"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     }
   ],
   "excluded": [
