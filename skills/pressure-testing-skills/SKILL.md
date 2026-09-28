@@ -443,11 +443,16 @@ notes).
 `scored-check --track pressure-test --results <f> [--results <f> ...] --scored
 <f>` validates beyond
 schema (repeated `--results` union-dedupes entry ids; every union id covered
-exactly once): `result` must be one of the four verdicts; every entry must
-have a `"red"` arm in the results union (RED always runs first — no red arm
-means never baselined); `no-failure` and `void` entries must have **no**
-`"green"` arm (baseline complied or was unmeasurable; nothing else may have
-run); `bulletproof` and `unresolved` entries must have one. `--scored` and
+exactly once):
+
+- `result` must be one of the four verdicts.
+- Every entry must have a `"red"` arm in the results union — RED always
+  runs first; no red arm means never baselined.
+- `no-failure` and `void` entries must have **no** `"green"` arm (baseline
+  complied or was unmeasurable; nothing else may have run);
+  `bulletproof` and `unresolved` entries must have one.
+
+`--scored` and
 `--emit-skeleton` are mutually exclusive — never passed together. The flow
 is: run with `--emit-skeleton PATH` first (the check writes the skeleton —
 every union id once, judgment fields null — and exits 0), fill the judgment
@@ -691,7 +696,9 @@ act only with user confirmation:
   body, raise `--timeout` on slow endpoints, re-run) instead of scoring.
 - `no-failure` entries must have no green arm in the results union —
   running GREEN "just to see" after a compliant baseline breaks
-  `scored-check --track pressure-test`.
+  `scored-check --track pressure-test`. The full arm-presence rules: every
+  entry must have a red arm (RED always runs first — no red arm means
+  never baselined); `no-failure`/`void` entries must have no green arm.
 - Meta output is report evidence only — it never gates `scored.json`.
 - Counters are full revised bodies, never fragments; a refactor round must
   differ from the GREEN baseline by exactly the counters.

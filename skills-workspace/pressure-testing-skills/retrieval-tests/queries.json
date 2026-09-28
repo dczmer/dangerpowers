@@ -48,7 +48,7 @@
     "query": "In our pressure-testing report, what are the possible per-rule verdicts, which verdict means the rule costs prose for nothing, and under what conditions may the campaign be recorded to the manifest?",
     "expect": [
       "lists the verdicts bulletproof, no-failure, unresolved, void",
-      "no-failure (the baseline complied) is the ablation flag, and there is no separate ablation field",
+      "no-failure means the control passed (the baseline complied, nothing else ran) and inventory-update turns it into an ablation status on the rule",
       "recording happens only after a completed full campaign — never an aborted campaign, never a mini-campaign"
     ]
   },
@@ -138,7 +138,59 @@
       "opens with the four lines: 'pressure test: <skill> — <date>', 'scenarios:', 'artifacts:', 'manifest:'",
       "every rule gets its own heading block with a per-arm table (arm, reps, compliant count, cited count, notes)",
       "no-failure and unresolved rules also appear in their index sections, not only in the per-rule blocks",
-      "closes with a 'summary: B bulletproof / N no-failure / U unresolved / V void (total rules)' line"
+      "closes with a 'summary: B bulletproof / N no-failure / U unresolved / V void (total rules)' line",
+      "every rule block is annotated with the rule's status and ablation_streak",
+      "the index sections include regression failures and ablation candidates where applicable"
+    ]
+  },
+  {
+    "id": "ablation-status-and-carry",
+    "query": "I'm regenerating our pressure skill's rules.json inventory from the current doc. Two items in the old file carry a status field — one says \"ablation\", one says \"removed\". Explain what each status means, what the ablation_streak number tracks, and exactly what the minting step's carry option does with each kind of item when the regenerated draft no longer contains them.",
+    "expect": [
+      "ablation = a removal candidate under measurement; removed = the rule text is already deleted from the source doc and the item plus its scenarios persist purely as regression coverage",
+      "ablation_streak is an int >= 0 present exactly when status is present",
+      "carry keeps the status/streak of surviving ids",
+      "carry re-appends old removed items absent from the draft verbatim",
+      "dropped ablation or status-less items are NOT re-appended — the deleted diff bucket covers them"
+    ]
+  },
+  {
+    "id": "inventory-update-rules",
+    "query": "Our pressure campaign just finished and I'm about to update the inventory's statuses from the scored results. Walk me through exactly what happens to a rule with no status whose control passed, a rule already in ablation whose control passed, an ablation rule whose control failed, a removed rule whose control failed, and any rule whose control run voided.",
+    "expect": [
+      "no status + control pass → auto-marked status=ablation with ablation_streak 0",
+      "ablation + control pass → streak increments by one",
+      "ablation + control fail → status and streak cleared entirely (the rule proved load-bearing, back to normal testing)",
+      "removed + control fail → streak resets to 0 and a regression-failure line is printed",
+      "a void control run neither increments nor resets the streak"
+    ]
+  },
+  {
+    "id": "manifest-green-skip",
+    "query": "I'm passing the canonical rules.json to the suite via its manifest flag for a pressure run. What changes for the red arm and for the green arm when a scenario's rule is marked ablation or removed?",
+    "expect": [
+      "red (the control) runs every scenario normally, including ablation/removed entries",
+      "green skips each ablation/removed entry, recording a skip note with no arm key in that entry's record",
+      "whether green runs at all stays a workflow decision (only on a violating baseline) — the harness adds only the skip"
+    ]
+  },
+  {
+    "id": "removal-procedure",
+    "query": "One of our pressure rules has now passed its control baseline three campaigns in a row while marked for ablation. I want to actually remove it from the skill. Give me the exact procedure and what happens to its scenario and streak.",
+    "expect": [
+      "removal is proposed at 3 consecutive control passes and acted on only with user confirmation",
+      "delete the rule text from the source SKILL.md",
+      "flip the inventory item to status=removed, keeping the streak (never reset)",
+      "keep the scenario — it becomes regression coverage and the red baseline keeps running"
+    ]
+  },
+  {
+    "id": "record-derived-fields",
+    "query": "After our pressure campaign, where do the model, variant, models list, and ablations count in the recorded manifest entry come from?",
+    "expect": [
+      "model/variant derive from the campaign results files' config blocks",
+      "models is a cumulative deduped list built across records",
+      "the ablations count derives from the --inventory file (the number of items carrying a status)"
     ]
   }
 ]
