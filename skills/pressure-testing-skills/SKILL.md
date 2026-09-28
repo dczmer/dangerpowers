@@ -186,14 +186,14 @@ Pressure types:
 ## Proposal cards
 
 Present the pre-campaign plan as one self-contained card per rule: a heading
-line `## N. <entry-id> (<rule-id>)`; a `covers:` line naming the manifest
-rule id; a `scenario:` section with the full scenario text; a `pressures:`
-list naming the taxonomy members used; the `compliant option:`; a `why:` line
-explaining what violation the scenario forces into the open. Show a statused
-rule's `status` and `ablation_streak` on its card; label a `removed` rule's
-card regression coverage. After the cards,
-three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes
-or wraps the cards.
+line `## N. <entry-id> (<rule-id>)`, a `covers:` line naming the manifest
+rule id, a `scenario:` section with the full scenario text, a `pressures:`
+list naming the taxonomy members used, the `compliant option:`, and a `why:`
+line explaining what violation the scenario forces into the open. Show a
+statused rule's `status` and `ablation_streak` on its card; label a `removed`
+rule's card regression coverage. After the cards, exactly three closing
+lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the
+cards.
 
 The `cost:` line carries the formula `5 + 5 per failing baseline + 5×rounds
 per refactor (cap 3) + 1 meta per violating rep` (per-rule cap 25 runs + meta
@@ -435,8 +435,8 @@ violated, green ran); `void` = void. Verdicts per rule:
   raise `--timeout`, re-run) — do not score the rule.
 
 `scored.json` holds `campaign`, `skill`, and one object per rule covered in
-`entries`: `id` (scenario id), `result`, optional `counters` (list of
-non-empty strings — one per applied counter), optional `notes`. The harness
+`entries`: `id` (scenario id), `result`, optional `counters` (one non-empty
+string per applied counter), optional `notes`. The harness
 emits the skeleton; the driver fills the judgment fields (result, counters,
 notes).
 
@@ -471,6 +471,9 @@ conventions have been written differently to make it crystal clear that
 Option <compliant> was the only acceptable answer?
 ```
 
+The meta question is fixed — the text above, verbatim, with the actual
+letters substituted; never paraphrase it.
+
 - **Same `--model`/`--variant` is mandatory — check before invoking.** Pass
   the same `--model`/`--variant` as the original suite run, never whatever
   the harness defaults to: the resumed session must run under the same model
@@ -482,21 +485,24 @@ Option <compliant> was the only acceptable answer?
   inspected.
 - Meta output is **report evidence only** — it never gates `scored.json`.
 
-Classify each reply:
+Classify each meta reply before acting:
 
-- **"The conventions WERE clear, I chose to ignore them"** (clear-but-ignored)
-  → not a wording problem; strengthen the foundational principle (Iron Law,
-  spirit-vs-letter).
-- **"They should have said X"** (should-have-said-X) → wording gap; add the
-  suggestion verbatim as a counter.
-- **"I didn't see section Y"** (didn't-see-section-Y) → organization problem;
-  make the rule more prominent.
+- **"The conventions WERE clear, I chose to ignore them"** → not a wording
+  problem; strengthen the foundational principle.
+- **"They should have said X"** → wording gap; add the suggestion verbatim
+  as a counter.
+- **"I didn't see section Y"** → organization problem; make the rule more
+  prominent.
 
 ## Plugging rationalizations
 
 Every counter is an explicit negation of an *observed, verbatim*
-rationalization — never a vague "don't cheat". Match the counter to the
-failure:
+rationalization, matched to the failure: a negotiable rule gets an Iron Law
+restatement with a "No exceptions" list; a spirit-vs-letter excuse gets
+"Violating the letter of the rules is violating the spirit of the rules.";
+narrated-into-it violations get red flags with a mandated recovery; recurring
+excuses get a rationalization table (excuse verbatim, reality); a mechanical
+workaround gets named-loophole closure forbidding that workaround by name.
 
 | Convention | Use for |
 |---|---|
@@ -514,10 +520,12 @@ violating the spirit — takes named-loophole closure. ("Tests after achieve
 the same purpose" is the canonical rationalization-table row, not a
 loophole.)
 
-Counter bodies (`counters/<rule>-round<N>.md`) are **full revised bodies**
-built from `skill-body.txt` with the counters applied — never fragments — so
-a refactor round differs from the GREEN baseline by exactly the counters,
-nothing else. Always run RED before writing any counter: counters written
+Counter bodies (`counters/<rule>-round<N>.md`) are written by copying the
+full original body, inserting the counters at the rules they target, and
+changing nothing else — check the result with a diff against the original:
+the only differences allowed are the counter additions — so a refactor round
+differs from the GREEN baseline by exactly the counters, nothing else.
+Always run RED before writing any counter: counters written
 before a failing baseline document what you *think* needs preventing, not
 what actually fails. Test counters by injecting the revised text; write back
 to the source `SKILL.md` only after the campaign ends and the user confirms

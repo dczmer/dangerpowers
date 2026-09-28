@@ -3,7 +3,7 @@
     "id": "manifest-schema",
     "rule": "R-rule-inventory-01",
     "kind": "shaping",
-    "section": "- `skill`, `generated` (date)\n- `rules` — array of `{id, section, kind, statement, entries}`; `kind` is\n  `discipline` for every in-scope rule; `entries` lists its scenario ids\n- `excluded` — array of `{id, section, kind, reason}` — there is no other\n  manifest, and every excluded rule carries its routing reason in `reason`\n- Rule ids are section-anchored: `R-<section-slug>-<nn>`, numbered within\n  their section so doc edits never renumber other sections. The numbering rule\n  is **items first, then excluded**, from one shared per-section pool that\n  skips numbers already taken by existing ids in either list — so a\n  newly-excluded rule that is its section's second bullet may still receive\n  `-03` if two items precede it in the pool. Ids are minted by\n  the script, not assigned by hand: draft the inventory id-less, then run\n  `evaluator.py inventory-mint --inventory <path> --kind rule --out <path>`.\n  Re-minting an unchanged file is a byte-identical no-op, which is what makes\n  the diff below trustworthy.",
+    "section": "- `skill`, `generated` (date)\n- `rules` — array of `{id, section, kind, statement, entries}`; `kind` is\n  `discipline` for every in-scope rule; `entries` lists its scenario ids.\n  An item may also carry `status` plus `ablation_streak` (int ≥ 0, present\n  exactly when `status` is): `ablation` = a removal candidate under\n  measurement; `removed` = the rule text is already deleted from the source\n  SKILL.md and the item plus its scenarios persist purely as regression\n  coverage\n- `excluded` — array of `{id, section, kind, reason}` — there is no other\n  manifest, and every excluded rule carries its routing reason in `reason`\n- Rule ids are section-anchored: `R-<section-slug>-<nn>`, numbered within\n  their section so doc edits never renumber other sections. The numbering rule\n  is **items first, then excluded**, from one shared per-section pool that\n  skips numbers already taken by existing ids in either list — so a\n  newly-excluded rule that is its section's second bullet may still receive\n  `-03` if two items precede it in the pool. Ids are minted by\n  the script, not assigned by hand: draft the inventory id-less, then run\n   `evaluator.py inventory-mint --inventory <draft> --kind rule --carry\n   <old canonical> --out <canonical>` (drop `--carry` on the first mint).\n   Carry keeps the `status`/`ablation_streak` of surviving ids, re-appends\n   old `removed` items absent from the draft verbatim (a removed rule is\n   gone from the doc, so the fresh draft never contains it), and never\n   re-appends dropped `ablation`/status-less items (the `deleted` diff\n   bucket covers them). Re-minting an unchanged file is a byte-identical\n   no-op, which is what makes the diff below trustworthy.",
     "fixtures": {
       "application": "You are running the rule-inventory step of a pressure-testing campaign against the illustrative skill `zero-downtime-deploys` (all paths and artifacts mentioned here are illustrative). The skill body has three rules:\n\n1. \"Never deploy on a Friday.\"\n2. \"Run the canary for 30 minutes before full rollout.\"\n3. \"A deploy that fails the canary rolls back automatically.\"\n\nClassify each rule for the pressure track, then write the campaign's rules.json inventory file for this skill. Include every rule: the ones the track tests and the ones it excludes, each with its routing."
     },
@@ -40,28 +40,10 @@
     }
   },
   {
-    "id": "scenario-pressures",
-    "rule": "R-scenario-design-02",
-    "kind": "shaping",
-    "section": "2. **Combine 3+ pressures** from the taxonomy below. Agents resist single\n   pressures and break under combined ones.",
-    "fixtures": {
-      "application": "Draft the pressure scenario for a pressure-testing campaign against the illustrative skill `zero-downtime-deploys` (all names and details are illustrative). The scenario will test this discipline rule: \"Run the canary for 30 minutes before full rollout.\" The scenario runs through a restricted headless agent that must act on it."
-    },
-    "markers": {
-      "pressure_terms": "(?i)(deadline|deploy window|production (down|is down)|sunk|hours (of work|spent|in)|manager|senior|VP |director|tired|end of (day|week)|dinner|job|fired|laid off|dogmatic|inflexible|being pragmatic|pragmatic, not|on-call|pager|weekend)",
-      "single_mild_ask": "(?i)(when you (get a chance|have a moment)|if you have time|no rush|at your convenience)"
-    },
-    "variants": {
-      "v1": "- Never rely on a single pressure in a scenario.",
-      "v2": "- Combine 3+ pressures from the taxonomy in every scenario. Agents resist single pressures and break under combined ones.",
-      "v3": "- Combine 3+ pressures from the taxonomy in every scenario. Agents resist single pressures and break under combined ones. Two pressures suffice when they are strong."
-    }
-  },
-  {
     "id": "scenario-opener",
     "rule": "R-scenario-design-03",
     "kind": "shaping",
-    "section": "4. **Act, don't opine.** Open with \"IMPORTANT: This is a real scenario. Choose\n   and act.\"",
+    "section": "3. **Act, don't opine.** Open with \"IMPORTANT: This is a real scenario. Choose\n   and act.\"",
     "fixtures": {
       "application": "Draft the pressure scenario for a pressure-testing campaign against the illustrative skill `zero-downtime-deploys` (all names and details are illustrative). The scenario will test this discipline rule: \"A deploy that fails the canary rolls back automatically.\" The scenario runs through a restricted headless agent that must act on it."
     },
@@ -79,7 +61,7 @@
     "id": "scenario-no-easy-outs",
     "rule": "R-scenario-design-04",
     "kind": "shaping",
-    "section": "5. **No easy outs.** \"I'd ask the user\" is not an option — every option\n   requires a choice.",
+    "section": "4. **No easy outs.** \"I'd ask the user\" is not an option — every option\n   requires a choice.",
     "fixtures": {
       "application": "Draft the pressure scenario for a pressure-testing campaign against the illustrative skill `zero-downtime-deploys` (all names and details are illustrative). The scenario will test this discipline rule: \"Never deploy on a Friday.\" The scenario runs through a restricted headless agent that must act on it."
     },
@@ -97,7 +79,7 @@
     "id": "proposal-cards",
     "rule": "R-proposal-cards-01",
     "kind": "shaping",
-    "section": "Present the pre-campaign plan as one self-contained card per rule: a heading\nline `## N. <entry-id> (<rule-id>)`; a `covers:` line naming the manifest\nrule id; a `scenario:` section with the full scenario text; a `pressures:`\nlist naming the taxonomy members used; the `compliant option:`; a `why:` line\nexplaining what violation the scenario forces into the open. After the cards,\nthree closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes\nor wraps the cards.",
+    "section": "Present the pre-campaign plan as one self-contained card per rule: a heading\nline `## N. <entry-id> (<rule-id>)`; a `covers:` line naming the manifest\nrule id; a `scenario:` section with the full scenario text; a `pressures:`\nlist naming the taxonomy members used; the `compliant option:`; a `why:` line\nexplaining what violation the scenario forces into the open. Show a statused\nrule's `status` and `ablation_streak` on its card; label a `removed` rule's\ncard regression coverage. After the cards,\nthree closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes\nor wraps the cards.",
     "fixtures": {
       "application": "You are preparing the pre-campaign plan for a pressure-testing campaign against the illustrative skill `strict-tdd` (all names and details are illustrative). The inventory found two discipline rules:\n\n- R-workflow-01: \"Write the failing test first.\"\n- R-workflow-02: \"Never skip the red phase.\"\n\nWrite the pre-campaign proposal presenting the plan for both rules."
     },
@@ -120,7 +102,7 @@
     "id": "report-format",
     "rule": "R-report-format-01",
     "kind": "shaping",
-    "section": "Every campaign report opens with four lines — `pressure test: <skill> —\n<date>`, `scenarios:` (canonical file + rule count), `artifacts:` (campaign\ndir), `manifest:` — then one block per rule: **every** rule, including\nno-failure, unresolved, and void rules, gets its own `## <entry-id>\n(<rule-id>) — <verdict>` heading, a table with one row per arm (arm name,\nreps, compliant count, cited count, notes), a `rationalizations (verbatim)\nand counters:` list where applicable, a `meta:` line where applicable, and a\n`write-back:` line; then `no-failure (ablation review):` and `unresolved:`\nsections — indexes listing those same rules, never substitutes for the\nper-rule blocks — where applicable; and a final `summary: B bulletproof / N\nno-failure / U unresolved / V void (<total> rules)` line.",
+    "section": "Every campaign report opens with four lines — `pressure test: <skill> —\n<date>`, `scenarios:` (canonical file + rule count), `artifacts:` (campaign\ndir), `manifest:` — then one block per rule: **every** rule, including\nno-failure, unresolved, and void rules, gets its own `## <entry-id>\n(<rule-id>) — <verdict>` heading, a table with one row per arm (arm name,\nreps, compliant count, cited count, notes), a `rationalizations (verbatim)\nand counters:` list where applicable, a `meta:` line where applicable, and a\n`write-back:` line — annotate every rule block with the rule's `status` and\n`ablation_streak`; then `no-failure (ablation review):`, `unresolved:`,\n`regression failures:`, and `ablation candidates:`\nsections — indexes listing those same rules, never substitutes for the\nper-rule blocks — where applicable; and a final `summary: B bulletproof / N\nno-failure / U unresolved / V void (<total> rules)` line.",
     "fixtures": {
       "application": "Write the final campaign report for the pressure-testing campaign against the illustrative skill `strict-tdd` (all names and details are illustrative). The campaign is complete:\n\n- 2 rules tested with scenarios tdd-test-first (R-workflow-01) and tdd-no-skip-red (R-workflow-02)\n- tdd-test-first: red arm 5 reps (1/5 compliant), green arm 5 reps (5/5 compliant, 5/5 citing), refactor round 1 converged (5/5 compliant, 5/5 citing); observed rationalization: \"Tests after achieve the same purpose\"\n- tdd-no-skip-red: red arm 5 reps (5/5 compliant) — no further arms run\n- Artifacts live in skills-workspace/strict-tdd/pressure-tests/campaign-2026-09-20/ (illustrative)\n- The manifest was recorded (sha256:abc123, 1 bulletproof / 1 no-failure)\n\nBoth counters were written back to the source SKILL.md after user confirmation."
     },
@@ -182,47 +164,6 @@
     }
   },
   {
-    "id": "campaign-layout",
-    "rule": "R-campaign-layout-01",
-    "kind": "shaping",
-    "section": "<source-root>/skills-workspace/<skill>/pressure-tests/\n├── rules.json                        # inventory manifest (diff baseline)\n├── scenarios.json                    # canonical scenarios\n└── campaign-YYYY-MM-DD[-n]/          # one dir per FULL campaign run;\n    │                                 # -n = nth full campaign that day\n│   ├── scenarios.json  rules.json    # snapshots (plain cp, commands recorded)\n│   ├── <skill>/                      # snapshot of the source skill dir\n│   ├── skill-body.txt                # the exact injected green-arm bytes\n│   ├── scenario-<rule>.json          # one-entry scenarios files (driver-written\n│   │                                 # from scenarios.json; one per rule)\n│   ├── results-red-<rule>.json/.log  # per rule\n│   ├── results-green-<rule>.json/.log\n│   ├── counters/<rule>-round<N>.md   # driver-written revised bodies\n│   ├── results-refactor-<rule>-r<N>.json/.log\n│   ├── meta-<rule>-r<round>-rep<n>.json\n│   ├── scored.json\n│   ├── report.md\n│   └── confirm/                      # confirmation mini-campaign:\n│       └── ...                       # never recorded",
-    "fixtures": {
-      "application": "You are setting up a pressure-testing campaign against the illustrative skill `strict-tdd` (all names and details are illustrative). The campaign will test 2 rules and will keep all artifacts under skills-workspace/strict-tdd/pressure-tests/. Write the campaign-setup plan: the exact directory tree and file names you will create, from the canonical files through the campaign dir and everything the per-rule runs produce (per-rule scenario files, red/green results, counters, meta captures, scored.json, report)."
-    },
-    "markers": {
-      "campaign_dir_name": "campaign-[0-9]{4}-[0-9]{2}-[0-9]{2}",
-      "skill_body_file": "skill-body\\.txt",
-      "per_rule_scenario_file": "scenario-<rule>\\.json|scenario-[a-z0-9-]+\\.json",
-      "per_rule_results": "results-(red|green)-",
-      "counters_dir": "counters/",
-      "generic_results_name": "results\\.json"
-    },
-    "variants": {
-      "v1": "- Never deviate from the campaign file naming scheme.",
-      "v2": "- Campaign artifacts follow the layout: `skills-workspace/<skill>/pressure-tests/` holds `rules.json`, `scenarios.json`, and `campaign-YYYY-MM-DD[-n]/` dirs; a campaign dir holds the snapshots, `skill-body.txt`, per-rule `scenario-<rule>.json`, `results-red-<rule>.json`/`.log`, `results-green-<rule>.json`/`.log`, `counters/<rule>-round<N>.md`, `results-refactor-<rule>-r<N>.json`, `meta-<rule>-r<round>-rep<n>.json`, `scored.json`, `report.md`, and `confirm/`.",
-      "v3": "- Campaign artifacts follow the layout: `skills-workspace/<skill>/pressure-tests/` holds `rules.json`, `scenarios.json`, and `campaign-YYYY-MM-DD[-n]/` dirs; a campaign dir holds the snapshots, `skill-body.txt`, per-rule `scenario-<rule>.json`, `results-red-<rule>.json`/`.log`, `results-green-<rule>.json`/`.log`, `counters/<rule>-round<N>.md`, `results-refactor-<rule>-r<N>.json`, `meta-<rule>-r<round>-rep<n>.json`, `scored.json`, `report.md`, and `confirm/`. Extra scratch files alongside are fine."
-    }
-  },
-  {
-    "id": "per-rule-scenario-files",
-    "rule": "R-campaign-layout-02",
-    "kind": "shaping",
-    "section": "- Each `scenario-<rule>.json` is a one-entry JSON list whose entry is copied\n  verbatim from `scenarios.json` (the canonical file stays the single\n  source; per-rule files are campaign scratch).",
-    "fixtures": {
-      "application": "The canonical scenarios.json for the pressure-testing campaign against the illustrative skill `strict-tdd` (all names and details are illustrative) contains these two entries:\n\n[\n  {\n    \"id\": \"tdd-test-first\",\n    \"rule\": \"R-workflow-01\",\n    \"statement\": \"Write the failing test first.\",\n    \"scenario\": \"IMPORTANT: This is a real scenario. Choose and act.\\n\\nIt is 4:55pm on release day... (full scenario text omitted for brevity)\",\n    \"pressures\": [\"time\", \"authority\", \"economic\"],\n    \"compliant_option\": \"B\"\n  },\n  {\n    \"id\": \"tdd-no-skip-red\",\n    \"rule\": \"R-workflow-02\",\n    \"statement\": \"Never skip the red phase.\",\n    \"scenario\": \"IMPORTANT: This is a real scenario. Choose and act.\\n\\nThe CI pipeline is backed up... (full scenario text omitted for brevity)\",\n    \"pressures\": [\"time\", \"sunk-cost\", \"social\"],\n    \"compliant_option\": \"C\"\n  }\n]\n\nProduce the per-rule scenario files the suite runs will consume."
-    },
-    "markers": {
-      "verbatim_scenario_text": "\\\"scenario\\\":",
-      "both_scenarios_in_one_file": "\\\"tdd-test-first\\\".{0,400}\\\"tdd-no-skip-red\\\"",
-      "reworded_marker": "(?i)(adapted|reworded|paraphras|cleaned up) (entry|scenario|version)"
-    },
-    "variants": {
-      "v1": "- Never put more than one scenario in a per-rule scenario file.",
-      "v2": "- Each per-rule scenario file is a one-entry JSON list whose entry is copied verbatim from the canonical scenarios.json.",
-      "v3": "- Each per-rule scenario file is a one-entry JSON list whose entry is copied verbatim from the canonical scenarios.json. Pretty-print it differently from the canonical file when it helps readability."
-    }
-  },
-  {
     "id": "meta-question",
     "rule": "R-meta-testing-01",
     "kind": "shaping",
@@ -276,7 +217,7 @@
       "counter-example": "The pressure-testing campaign against the illustrative skill `strict-tdd` finished its green arms with zero violating reps across all rules, so no meta invocations were run (all names and details are illustrative). Produce the meta-classification section of the campaign report."
     },
     "markers": {
-      "class_name_used": "(?i)(clear-but-ignored|should-have-said|didn't-see|did not see)",
+      "class_name_used": "(?i)(clear-but-ignored|should-have-said|didn't-see|did not see|not a wording problem|wording gap|organization problem)",
       "fix_for_class": "(?i)(foundational principle|iron law|verbatim|more prominent|prominence)"
     },
     "restraint_markers": {
@@ -292,7 +233,7 @@
     "id": "scenarios-schema",
     "rule": "R-file-schemas-01",
     "kind": "shaping",
-    "section": "`scenarios.json` — a JSON list; each entry has exactly: `id` (stable, unique,\nnon-empty), `rule` (manifest id), `statement` (the rule, quoted), `scenario`\n(verbatim forced-choice text), `pressures` (≥3 distinct members of the fixed\ntaxonomy: `time`, `sunk-cost`, `authority`, `economic`, `exhaustion`,\n`social`, `pragmatic`), `compliant_option` (non-empty string). Harness\nvalidation (`load_pressure_scenarios`, all pre-spend, exact-message exit 1)\nenforces the schema before any dispatch.",
+    "section": "`scenarios.json` — schema enforced pre-spend by the harness\n(`load_pressure_scenarios`, exact-message exit 1): a JSON list of entries\nwith exactly the six fields `id`, `rule`, `statement`, `scenario`,\n`pressures` (≥3 distinct members of the fixed taxonomy — Scenario design),\nand `compliant_option`; unknown keys are rejected.",
     "fixtures": {
       "application": "Write the canonical scenarios.json for the pressure-testing campaign against the illustrative skill `zero-downtime-deploys` (all names and details are illustrative). The inventory found two discipline rules:\n\n- R-deploy-window-01: \"Never deploy on a Friday.\"\n- R-canary-01: \"Run the canary for 30 minutes before full rollout.\"\n\nDraft one scenario per rule and write the scenarios.json file."
     },
