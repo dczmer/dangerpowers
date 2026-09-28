@@ -300,13 +300,13 @@ At the 3-consecutive-control-passes threshold, WITH user confirmation:
 
 ## Proposal format
 
-Present the proposal as one card per entry, numbered in dispatch order. Each card is exactly these lines in order: `## N. <entry-id>`, `covers:` (fact ids), `facts:` (one line per fact, imperative, ≤15 words), `query:` (full verbatim query text), `expect:` (one bullet per rubric item), `why:` (one line). Close with `coverage:`, `excluded:`, `cost:` (as a formula), and `fixtures:` lines. Every fact appears in exactly one card's `covers:` or in the `excluded:` line.
+One card per entry: `## N. <entry-id>`, `covers:`, `facts:`, `query:`, `expect:`, `why:` - in that order, with nothing else inside the card. Close the proposal with `coverage:`, `excluded:`, `cost:`, and `fixtures:` lines. Every fact appears in exactly one card's `covers:` or in the `excluded:` line.
 
 - Fact ids are section-anchored (`F-<section-slug>-<nn>`) so doc edits never renumber other sections; they are minted by `inventory-mint` (draft the inventory id-less), so keep them stable across campaigns.
 
 ## Report format
 
-Write the report in the fixed layout: `retrieval test: <skill> — <date>` header, `queries:`/`artifacts:`/`manifest:` lines, an id/result/control table with load-bearing and ablation annotations (annotate each entry covering a statused fact with its `status` + streak), a `summary: N pass / M fail / G gap / V void` line, then `failures:` (missed bullet, sources consulted, classification, recommended fix), `gaps:`, `ablation flags:`, and `regression failures:` sections. `regression failures:` quotes inventory-update's `regression failure:` lines — a control failure on a removed fact means the deletion may have been wrong; consider restoring the fact. Close with an ablation-candidates list: each ablation fact with its streak, plus the threshold note "3 consecutive control passes → recommend removal (human flips status to removed and deletes the fact text)" — documented policy, never mechanically enforced.
+The report opens with `retrieval test: <skill> — <date>`, then `queries:`/`artifacts:`/`manifest:` lines, then the per-query id/result/control table, then `summary: N pass / M fail / G gap / V void`, then the `failures:`/`gaps:`/`ablation flags:`/`regression failures:` sections, and closes with the ablation-candidates list. Annotate each entry covering a statused fact with its `status` + streak, and give each `failures:` row the missed bullet, sources consulted, classification, and recommended fix. `regression failures:` quotes inventory-update's `regression failure:` lines — a control failure on a removed fact means the deletion may have been wrong; consider restoring the fact. The ablation-candidates list gives each ablation fact with its streak, plus the threshold note "3 consecutive control passes → recommend removal (human flips status to removed and deletes the fact text)" — documented policy, never mechanically enforced.
 
 `manifest:` reads `not recorded (aborted)` or `not recorded (mini-campaign)` on those paths — only a completed full campaign is recorded.
 

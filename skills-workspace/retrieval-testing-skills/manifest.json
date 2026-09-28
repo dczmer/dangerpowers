@@ -14,5 +14,20 @@
     "models": [
       "kimi-code-plan-global/kimi-for-coding"
     ]
+  },
+  "shape-test": {
+    "date": "2026-09-28",
+    "checksum": "sha256:d935ce8a9c351f6eda03e3c50283dd950b9d3f6d0ee0db2cddd23e746aa8119d",
+    "adopted": 3,
+    "no-failure": 5,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "kimi-code-plan-global/kimi-for-coding",
+    "variant": null,
+    "ablations": 5,
+    "campaign": "campaign-2026-09-28",
+    "models": [
+      "kimi-code-plan-global/kimi-for-coding"
+    ]
   }
 }

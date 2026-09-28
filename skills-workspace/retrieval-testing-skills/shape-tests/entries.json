@@ -1,0 +1,185 @@
+[
+ {
+  "id": "facts-manifest-schema",
+  "rule": "R-facts-manifest-01",
+  "kind": "shaping",
+  "section": "Persist the inventory as `facts.json` next to the queries file: fact id, home section, statement, covering entries, and exclusions with reasons — nothing else. Never duplicate query text or expectations into the manifest; the queries file is the single source for verbatim queries.",
+  "fixtures": {
+   "application": "Build the facts manifest for a retrieval-testing campaign against the reference skill \"acme-api\", a short doc for the Acme file-upload API. The campaign's queries file already exists and is the single source for the verbatim queries.\n\nInventory results from reading the doc:\n\n- kept fact, home section Uploads: reads the Retry-After header on 429 responses, value interpreted as seconds - covered by the query entry retry-after-header\n- kept fact, home section Auth: every upload request sends the X-Acme-Key header - covered by the query entry key-header\n- excluded: a 404 response means the file was not found - baseline HTTP knowledge any competent agent has\n\nWrite the manifest file content as JSON."
+  },
+  "markers": {
+   "facts_array": "^\\s*\"facts\"",
+   "excluded_array": "^\\s*\"excluded\"",
+   "statement_field": "\"statement\"",
+   "entries_field": "\"entries\"",
+   "reason_field": "\"reason\"",
+   "query_text_leaked": "\"(query|expect)\"\\s*:",
+   "prose_wrap": "Here is|Here are|Below is|I propose"
+  },
+  "variants": {
+   "v1": "Persist the inventory as `facts.json` next to the queries file with exactly these fields per fact: `id`, `section`, `statement`, and `entries` (the ids of the queries covering it), plus an `excluded` array where each item carries `id`, `section`, and `reason`. The manifest never contains query text or expectation text; the queries file is the single source for both.",
+   "v2": "Never duplicate query text or expectations into the manifest. A fact is one object `{id, section, statement, entries}`: statement is a single line naming the documented fact, entries lists the covering query ids. Dropped facts go in a separate `excluded` list, each with a reason.",
+   "v3": "facts.json schema: a `facts` array of `{id, section, statement, entries}` objects and an `excluded` array of `{id, section, reason}` objects. Nothing else - no query text, no rubric expectations, anywhere in the file."
+  }
+ },
+ {
+  "id": "query-file-schema",
+  "rule": "R-query-file-format-01",
+  "kind": "shaping",
+  "section": "Each entry tests one fact cluster:\n\n```json\n[\n  {\n    \"id\": \"retry-after-header\",\n    \"query\": \"Given this upload function — `def upload(path, url): return requests.post(url, data=open(path, 'rb'))` — add retry handling for 429 responses and return the complete updated function inline.\",\n    \"expect\": [\n      \"reads the Retry-After header rather than using a fixed backoff\",\n      \"interprets the value as seconds\",\n      \"does not retry on other 4xx codes\"\n    ]\n  },\n  {\n    \"id\": \"upload-script-review\",\n    \"query\": \"Review {RUN_DIR}/upload.py for the retry behavior you would add for 429 responses, and report the complete updated function inline.\",\n    \"expect\": [\n      \"reads the Retry-After header rather than using a fixed backoff\",\n      \"interprets the value as seconds\"\n    ],\n    \"fixtures\": [\"upload.py\"]\n  }\n]\n```\n\n- `id` — stable fact identifier; never reuse ids across facts.",
+  "fixtures": {
+   "application": "Write the queries.json file for a retrieval-testing campaign against the reference skill \"acme-api\", a short doc for the Acme file-upload API. The fact inventory kept two facts:\n\n- on a 429 response, the client reads the Retry-After header and waits that many seconds before retrying, and does not retry on other 4xx codes\n- every upload request must send the X-Acme-Key header\n\nWrite the JSON file content with one query entry per fact."
+  },
+  "markers": {
+   "id_key": "^\\s*\"id\"\\s*:",
+   "query_key": "^\\s*\"query\"\\s*:",
+   "expect_key": "^\\s*\"expect\"\\s*:",
+   "prose_enumeration": "^[Tt]he (first|second) (entry|query)",
+   "prose_wrap": "Here is|Here are|Below is"
+  },
+  "variants": {
+   "v1": "Each entry tests one fact cluster and is a JSON object with exactly: `id` (stable, never reused), `query` (the task text), `expect` (a list of rubric bullets the answer must satisfy), and `fixtures` (only when the query references staged fixture files).",
+   "v2": "queries.json is a JSON array of entries shaped like `{\"id\": ..., \"query\": ..., \"expect\": [...]}`: one entry per fact cluster, the query text verbatim, the rubric as expect bullets, fixtures listed only where staged files are referenced.",
+   "v3": "Write queries as a JSON array, one object per fact cluster. Every entry has `id`, `query`, and `expect`; add `fixtures` only for entries whose query references staged fixture files."
+  }
+ },
+ {
+  "id": "query-rubric-separation",
+  "rule": "R-query-file-format-02",
+  "kind": "pattern",
+  "section": "The query asks for the task; only the rubric names the expected behavior.",
+  "fixtures": {
+   "application": "Write one queries.json entry for a retrieval-testing campaign against the reference skill \"acme-api\". The entry must exercise this fact: on a 429 response the client reads the Retry-After header and waits that many seconds before retrying, and does not retry on other 4xx codes. Write the complete entry as JSON with the query and the expect rubric.",
+   "counter-example": "The team wants a standalone acceptance-criteria checklist for the Acme upload client's retry feature, for a human reviewer to verify the implementation by hand. This is a criteria document, not a test query. Write the checklist as a list of criteria the reviewer can check one by one."
+  },
+  "markers": {
+   "rubric_names_behavior": "reads the Retry-After header",
+   "value_seconds_bullet": "interprets the value as seconds",
+   "rubric_language_in_query": "^\\s*\"query\":\\s*\"[^\"]*(rather than|expected to|must read|should read)",
+   "criterion_in_query_field": "^\\s*\"query\":\\s*\"[^\"]*does not retry"
+  },
+  "restraint_markers": {
+   "bare_task_instead_of_criteria": "^\\s*\"query\":",
+   "task_heading": "^#+\\s*(Task|Query)",
+   "criteria_bullets_present": "^\\s*-\\s+.*(Retry-After|seconds|backoff)"
+  },
+  "variants": {
+   "v1": "The query is the bare task, phrased as the user would ask it. Every expected behavior - each criterion the answer must satisfy - is named once, as its own `expect` bullet. No expected behavior appears in the query text.",
+   "v2": "Write `query` as a plain request that names no expected behavior; put each expected behavior in the `expect` list as a separate bullet.",
+   "v3": "If a statement describes what the answer must do to count as correct, it belongs in `expect`, not in `query`. The query only says what to do; the rubric says what counts as done."
+  }
+ },
+ {
+  "id": "doc-fix-not-rule",
+  "rule": "R-improving-the-skill-definition-01",
+  "kind": "pattern",
+  "section": "Fix failures by editing the doc — never by adding behavioral rules, prohibitions, or \"always read X first\" discipline clauses. A reference failure means the information architecture failed, not the agent.",
+  "fixtures": {
+   "application": "You ran a retrieval-testing campaign against the reference skill \"acme-api\". The query retry-after-header failed: the agent returned the upload function with a fixed 1-second backoff and never mentioned the Retry-After header. The evidence shows the agent opened and read the uploads documentation; the Retry-After behavior is documented, but only inside one long prose paragraph halfway through the document with no heading of its own. The control arm failed the same way. Recommend the fix for this failure, in prose.",
+   "counter-example": "The maintainer of the retrieval-testing skill asks you to add a checklist item to its campaign checklist so operators never skip the planned-spend confirmation before the first eval run. Make the edit: add the checklist item."
+  },
+  "markers": {
+   "doc_edit_fix": "heading|restructure|relocate|split (the |that )?paragraph|rewrite (the |that )?(section|paragraph)",
+   "rule_addition_fix": "add (a )?(new )?rule|always read|must read|discipline clause|prohibit|forbid"
+  },
+  "restraint_markers": {
+   "doc_architecture_reframe": "information architecture|restructure the doc|edit the doc instead",
+   "refuses_rule_request": "I (cannot|will not|am not)",
+   "checklist_item_added": "-\\s*\\[[ x]\\].*spend"
+  },
+  "variants": {
+   "v1": "A retrieval failure is a documentation failure: fix it by editing the document - restructure, clarify, or relocate the content. Never add behavioral rules, prohibitions, or read-me-first clauses; the information architecture failed, not the agent.",
+   "v2": "When a scenario fails, fix the doc itself - better headings, placement, wording. A failure is never answered with a new rule for the skill.",
+   "v3": "If the evidence shows the agent had access to the fact and still failed, the doc failed: change where or how the fact is documented. Do not add rules, prohibitions, or always-read clauses to fix it."
+  }
+ },
+ {
+  "id": "proposal-card-format",
+  "rule": "R-proposal-format-01",
+  "kind": "shaping",
+  "section": "Present the proposal as one card per entry, numbered in dispatch order. Each card is exactly these lines in order: `## N. <entry-id>`, `covers:` (fact ids), `facts:` (one line per fact, imperative, ≤15 words), `query:` (full verbatim query text), `expect:` (one bullet per rubric item), `why:` (one line). Close with `coverage:`, `excluded:`, `cost:` (as a formula), and `fixtures:` lines. Every fact appears in exactly one card's `covers:` or in the `excluded:` line.",
+  "fixtures": {
+   "application": "You are running a retrieval-testing campaign against the reference skill \"acme-api\", a short doc for the Acme file-upload API. The fact inventory is complete. Two facts were kept:\n\n- the uploads endpoint returns 429 responses carrying a Retry-After header whose value is a number of seconds\n- upload requests must include the X-Acme-Key header\n\nOne fact was excluded as baseline knowledge: a 404 response means the requested file was not found.\n\nPresent the query proposal for this campaign: one query entry per kept fact, each with its full query text and its rubric."
+  },
+  "markers": {
+   "card_heading": "^## \\d+\\.",
+   "covers_line": "^covers:",
+   "facts_line": "^facts:",
+   "expect_line": "^expect:",
+   "why_line": "^why:",
+   "coverage_line": "^coverage:",
+   "excluded_line": "^excluded:",
+   "cost_line": "^cost:",
+   "narrative_wrap": "Here is|Here are|Below is|I propose|Let me (present|propose)"
+  },
+  "variants": {
+   "v1": "Present the proposal as one card per query entry, numbered in dispatch order. Each card is exactly these lines, in order: `## N. <entry-id>`, `covers:` (fact ids), `facts:` (one line per fact, imperative, 15 words or fewer), `query:` (full verbatim query text), `expect:` (one bullet per rubric item), `why:` (one line). Close with `coverage:`, `excluded:`, `cost:` (as a formula), and `fixtures:` lines. Every fact appears in exactly one card's `covers:` or in the `excluded:` line.",
+   "v2": "Proposal format: one card per entry in dispatch order. Card lines, in order: `## N. <entry-id>` / `covers: <fact ids>` / `facts: <one imperative line per fact, at most 15 words>` / `query: <verbatim query text>` / `expect: <one bullet per rubric item>` / `why: <one line>`. After the cards, closing lines: `coverage:`, `excluded:`, `cost: <formula>`, `fixtures:`.",
+   "v3": "One card per entry: `## N. <entry-id>`, `covers:`, `facts:`, `query:`, `expect:`, `why:` - in that order, with nothing else inside the card. Close the proposal with `coverage:`, `excluded:`, `cost:`, and `fixtures:` lines."
+  }
+ },
+ {
+  "id": "report-fixed-layout",
+  "rule": "R-report-format-01",
+  "kind": "shaping",
+  "section": "Write the report in the fixed layout: `retrieval test: <skill> — <date>` header, `queries:`/`artifacts:`/`manifest:` lines, an id/result/control table with load-bearing and ablation annotations (annotate each entry covering a statused fact with its `status` + streak), a `summary: N pass / M fail / G gap / V void` line, then `failures:` (missed bullet, sources consulted, classification, recommended fix), `gaps:`, `ablation flags:`, and `regression failures:` sections. `regression failures:` quotes inventory-update's `regression failure:` lines — a control failure on a removed fact means the deletion may have been wrong; consider restoring the fact. Close with an ablation-candidates list: each ablation fact with its streak, plus the threshold note \"3 consecutive control passes → recommend removal (human flips status to removed and deletes the fact text)\" — documented policy, never mechanically enforced.\n\n`manifest:` reads `not recorded (aborted)` or `not recorded (mini-campaign)` on those paths — only a completed full campaign is recorded.",
+  "fixtures": {
+   "application": "You have completed a retrieval-testing campaign against the reference skill \"acme-api\". Three queries ran, each with a control arm:\n\n- retry-after-header: skill arm passed; control arm failed\n- upload-script-review: skill arm failed - the answer used a fixed backoff and missed the Retry-After rubric bullet; control arm also failed\n- key-header: skill arm passed; control arm passed\n\nEvidence for the failed entry shows the agent read the uploads documentation, and the Retry-After detail is documented but buried in a long paragraph with no heading nearby. Write the campaign report."
+  },
+  "markers": {
+   "header_line": "^retrieval test: \\S+",
+   "queries_line": "^queries:",
+   "artifacts_line": "^artifacts:",
+   "manifest_line": "^manifest:",
+   "summary_line": "^summary: \\d+ pass",
+   "failures_section": "^failures:",
+   "prose_summary": "^Overall|In conclusion|To summarize|## Conclusion"
+  },
+  "variants": {
+   "v1": "Write the report in the fixed layout: `retrieval test: <skill> - <date>` header, `queries:`/`artifacts:`/`manifest:` lines, an id/result/control table, a `summary: N pass / M fail / G gap / V void` line, then `failures:`, `gaps:`, `ablation flags:`, and `regression failures:` sections, closing with an ablation-candidates list.",
+   "v2": "Report skeleton, in order: header line `retrieval test: <skill> - <date>`; `queries:`, `artifacts:`, `manifest:` lines; a table with one row per query (id, result, control); `summary: N pass / M fail / G gap / V void`; sections `failures:`, `gaps:`, `ablation flags:`, `regression failures:`; then the ablation-candidates list.",
+   "v3": "The report opens with `retrieval test: <skill> - <date>`, then `queries:`/`artifacts:`/`manifest:` lines, then the per-query id/result/control table, then `summary: N pass / M fail / G gap / V void`, then the `failures:`/`gaps:`/`ablation flags:`/`regression failures:` sections, and closes with the ablation-candidates list."
+  }
+ },
+ {
+  "id": "scored-json-schema",
+  "rule": "R-scored-check-01",
+  "kind": "shaping",
+  "section": "The driver scores entries offline from `results.json` (zero spend);\n`evaluator.py scored-check --track retrieval-test --results … \\\n--emit-skeleton <campaign>/scored.json`\nemits the skeleton from the results union — every results entry id once,\njudgment fields null (plus `control: null` and `ablation_flag: null` per\nentry) — and the driver fills the judgment fields before `evaluator.py\nscored-check --track retrieval-test --results … --scored\n<campaign>/scored.json` validates it against the results before anything\nis recorded. An unfilled skeleton fails the check. Schema:\n\n```json\n{\n  \"campaign\": \"campaign-2026-09-12\",\n  \"skill\": \"writing-skills\",\n  \"entries\": [\n    {\n      \"id\": \"retry-after-header\",\n      \"result\": \"fail\",\n      \"missed_bullets\": [\"states the Retry-After header is required\"],\n      \"classification\": \"findability\",\n      \"control\": \"fail\",\n      \"ablation_flag\": false,\n      \"notes\": \"read uploads.md but missed the header rule\"\n    }\n  ]\n}\n```\n\nScore each entry with: result (pass/fail/gap/void); classification (findability|clarity) if and only if result is fail; the control outcome; ablation_flag = (control == pass); missed_bullets copied character-for-character from the entry's expect list — required non-empty for fail and gap, absent otherwise.\n- An ablation query whose control passed (the skill arm never ran)\n  scores `result: \"pass\"`, `control: \"pass\"`, with the skip noted in\n  `notes` — no new result vocabulary; `ablation_flag` stays mechanically\n  derived as `control == \"pass\"`.\n- Every `results.json` entry id must be accounted for exactly once —\n  missing, duplicate, or unknown ids fail validation.",
+  "fixtures": {
+   "application": "Score this completed retrieval-testing campaign for the reference skill \"acme-api\". Two queries ran, each with a control arm:\n\n- retry-after-header: the skill arm answered with a fixed 1-second backoff and never mentioned Retry-After; the missed rubric bullets were \"reads the Retry-After header rather than using a fixed backoff\" and \"interprets the value as seconds\". The control arm also answered with a fixed backoff.\n- key-header: the skill arm passed every rubric bullet; the control arm also passed.\n\nWrite the scored.json content for this campaign."
+  },
+  "markers": {
+   "result_field": "\"result\"",
+   "control_field": "\"control\"",
+   "ablation_flag_field": "\"ablation_flag\"",
+   "missed_bullets_field": "\"missed_bullets\"",
+   "classification_field": "\"classification\"",
+   "invented_fields": "\"(confidence|grade|score_pct|severity)\"",
+   "prose_wrap": "Here is|Here are|Below is"
+  },
+  "variants": {
+   "v1": "Score each entry with: `result` (pass/fail/gap/void); `classification` (findability|clarity) if and only if result is fail; `control` (the control outcome); `ablation_flag` = (control == pass); `missed_bullets` copied character-for-character from the entry's expect list - required non-empty for fail and gap, absent otherwise.",
+   "v2": "scored.json per entry: `result` is pass, fail, gap, or void. `classification` appears only when result is fail. `control` holds the control outcome and `ablation_flag` is true exactly when control is pass. `missed_bullets` lists the expect bullets the answer missed - non-empty for fail and gap, absent otherwise.",
+   "v3": "Per entry: `{id, result, control, ablation_flag, notes}`, plus `classification` only on fail and `missed_bullets` only on fail or gap (copy the expect text verbatim). ablation_flag = (control == pass)."
+  }
+ },
+ {
+  "id": "no-section-hints",
+  "rule": "R-gotchas-01",
+  "kind": "shaping",
+  "section": "- Never name the section or file holding the fact in a query — that tests following directions, not retrieval.",
+  "fixtures": {
+   "application": "Draft the query text for a single queries.json entry in a retrieval-testing campaign against the reference skill \"acme-api\". The fact to exercise: on a 429 response the client reads the Retry-After header and waits that many seconds. Write only the query string - no rubric, no JSON wrapper."
+  },
+  "markers": {
+   "mentions_doc_location": "[Aa]ccording to|the Uploads section|uploads documentation|documentation (says|states)|SKILL\\.md|the doc(ument)? (says|states)",
+   "bare_task_shape": "429"
+  },
+  "variants": {
+   "v1": "Never name the section or file holding the fact in a query - that tests following directions, not retrieval.",
+   "v2": "The query must not mention where the fact is documented: no section names, no filenames, no 'according to the docs'. It asks for the task only.",
+   "v3": "Ask for the task as if no skill doc existed: no pointers to sections, files, or documentation locations anywhere in the query."
+  }
+ }
+]
