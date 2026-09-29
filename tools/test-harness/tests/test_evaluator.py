@@ -365,6 +365,11 @@ class RecordScoredTests(unittest.TestCase):
             campaign="campaign-2026-09-14",
             date="2026-09-14",
         )
+        if "results" not in overrides:
+            # --results is required with --scope dir; the default keeps
+            # the success-path tests honest. Tests exercising the
+            # requirement itself pass results=None explicitly.
+            overrides["results"] = [self._write_results("results.json")]
         for k, v in overrides.items():
             setattr(args, k, v)
         out, err = io.StringIO(), io.StringIO()
@@ -580,14 +585,16 @@ class RecordScoredTests(unittest.TestCase):
         self.assertEqual(entry["variant"], "v9")
         self.assertEqual(entry["models"], ["m1"])
 
-    def test_no_results_leaves_model_variant_null(self):
+    def test_no_results_rejected(self):
+        # --scope dir without --results can only write model: null, so
+        # the gate makes the attribution loss unreachable (issue: the
+        # pressure campaign of 2026-09-29 recorded a null model this
+        # way before the requirement existed).
         self._write_scored([self._retrieval_entry("a", "pass")])
-        rc, _out, _err = self._record()
-        self.assertEqual(rc, 0)
-        entry = json.loads(self.manifest.read_text())["retrieval-test"]
-        self.assertIsNone(entry["model"])
-        self.assertIsNone(entry["variant"])
-        self.assertEqual(entry["models"], [])
+        rc, _out, err = self._record(results=None)
+        self.assertEqual(rc, 1)
+        self.assertIn("--results is required with --scope dir", err)
+        self.assertFalse(self.manifest.exists())
 
     def test_results_drift_warns_and_first_wins(self):
         self._write_scored([self._retrieval_entry("a", "pass")])
@@ -678,6 +685,7 @@ class RecordScoredTests(unittest.TestCase):
             skill_path=str(self.skill_dir / "SKILL.md"),
             scored=None,
             score=0.5,
+            results=None,
             inventory=str(self.root / "facts.json"),
         )
         self.assertEqual(rc, 1)

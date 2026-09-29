@@ -481,7 +481,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     --date, a --campaign value named like a campaign dir
     (campaign-YYYY-MM-DD[-N]) supplies the entry's date, so a close-out
     after local midnight still agrees with the dir campaign-init
-    named."""
+    named. --results is required with --scope dir: model/variant can
+    only come from the results config blocks, and a dir-scope record
+    without them would silently write model: null."""
     skill_path = Path(args.skill_path)
     scope = getattr(args, "scope", "frontmatter")
 
@@ -545,6 +547,11 @@ def cmd_record(args: argparse.Namespace) -> int:
             return _err("counts flags are replaced by --scored")
         if getattr(args, "scored", None) is None:
             return _err("--scored is required with --scope dir")
+        if not getattr(args, "results", None):
+            return _err(
+                "--results is required with --scope dir (model/variant "
+                "derive from the results config blocks)"
+            )
         track_sums = sums_from_scored(
             Path(args.scored), getattr(args, "track", None)
         )

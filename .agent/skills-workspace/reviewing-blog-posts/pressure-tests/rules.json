@@ -1,0 +1,210 @@
+{
+  "skill": "reviewing-blog-posts",
+  "generated": "2026-09-29",
+  "rules": [
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Verify every claim using web search and other documents in the repository; a claim that matches the repository's documents can still be wrong, so externally verifiable claims also need an external source",
+      "entries": [
+        "fact-check-external-source"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Only spelling, grammar, and capitalization fixes are applied directly to the post; this is the only audit category applied directly and everything else goes in the report for the user to approve",
+      "entries": [
+        "direct-edit-only-sgc"
+      ]
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Repetition is acceptable only when the concept is important enough to drill into the reader, relevant in each section where it appears, and worded differently enough each time; evaluate every occurrence of a repeated concept against all three criteria separately and do not stop at the first instance",
+      "entries": [
+        "repetition-every-occurrence"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "Every line starting with `> EDITOR:` is a direct request from the author: resolve each one, remove or rewrite the marker line as appropriate, and report how each directive was resolved",
+      "entries": [
+        "editor-lines-all-resolved"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "citation presence per claim is artifact shape (house-style citation format) — shape-testing track; the discipline core (external verification) is covered by the fact-check rule"
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "Oxford comma in every list of three or more is artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "MLA-style title casing for section headers is artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "flagging structural problems and ambiguous referents is how-to guidance with no competing incentive"
+    },
+    {
+      "id": "R-workflow-09",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "proposing illustrations and analogies is how-to guidance with no competing incentive"
+    },
+    {
+      "id": "R-workflow-10",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "Bad/Good/Why example-block format is artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-workflow-11",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "one call-out quote per section with none skipped is report structure — shape-testing track"
+    },
+    {
+      "id": "R-workflow-12",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "markdown formatting audit ([label](url) links, >80-char code-block lines, stop at closing fence) is artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-citation-and-linking-convention-01",
+      "section": "Citation and linking convention",
+      "kind": "shaping",
+      "reason": "References-section format, letter assignment, and anchor syntax are artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-citation-and-linking-convention-02",
+      "section": "Citation and linking convention",
+      "kind": "shaping",
+      "reason": "grouped multi-claim citation and immediate [X](#ref-x) placement are artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-citation-and-linking-convention-03",
+      "section": "Citation and linking convention",
+      "kind": "shaping",
+      "reason": "ban on bare URLs, footnote markers, and other citation formats is artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-audit-report-01",
+      "section": "Audit report",
+      "kind": "shaping",
+      "reason": "numbered sections with lettered items is report structure — shape-testing track"
+    },
+    {
+      "id": "R-audit-report-02",
+      "section": "Audit report",
+      "kind": "shaping",
+      "reason": "an example or concrete suggestion for each proposed fix is report content shape — shape-testing track"
+    },
+    {
+      "id": "R-audit-report-03",
+      "section": "Audit report",
+      "kind": "shaping",
+      "reason": "reference locations by description or snippet, never line numbers, is artifact shape — shape-testing track"
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "verbatim restatement of the direct-edit-only rule (gotcha reinforcement); behavior covered by that rule, not a separate scenario"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "verbatim restatement of the fact-check rule (gotcha reinforcement); behavior covered by that rule, not a separate scenario"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "verbatim restatement of the repetition rule (gotcha reinforcement); behavior covered by that rule, not a separate scenario"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the fact-check/citation rules; behavior covered by those rules"
+    },
+    {
+      "id": "R-checklist-02",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the direct-edit/copyedit rules; behavior covered by those rules"
+    },
+    {
+      "id": "R-checklist-03",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the numbered/lettered report rule; behavior covered by that rule"
+    },
+    {
+      "id": "R-checklist-04",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the example-per-fix rule; behavior covered by that rule"
+    },
+    {
+      "id": "R-checklist-05",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the no-line-numbers rule; behavior covered by that rule"
+    },
+    {
+      "id": "R-checklist-06",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the EDITOR-lines rule; behavior covered by that rule"
+    },
+    {
+      "id": "R-checklist-07",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the call-out-quote rule; behavior covered by that rule"
+    },
+    {
+      "id": "R-checklist-08",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the repetition rule; behavior covered by that rule"
+    },
+    {
+      "id": "R-checklist-09",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the markdown-link-format rule; behavior covered by that rule"
+    },
+    {
+      "id": "R-checklist-10",
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "checklist restatement of the code-block-length rule; behavior covered by that rule"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+[
+  {
+    "id": "copyedit-oxford-mla",
+    "query": "Proofread {RUN_DIR}/post.md, a draft technical blog post, and list every spelling, grammar, and capitalization correction it needs, showing the corrected text for each.",
+    "expect": [
+      "corrects the misspelling 'recieved' to 'received'",
+      "adds the Oxford comma so the list reads 'latency, throughput, and error rate'",
+      "title-cases the section header in MLA style, e.g. 'Why We Built It'",
+      "treats anything beyond spelling, grammar, and capitalization (like the bare-URL link) as an audit-report item, not a direct edit"
+    ],
+    "fixtures": ["post.md"]
+  },
+  {
+    "id": "repetition-three-criteria",
+    "query": "Audit {RUN_DIR}/post-repetition.md for repetition and tell me what you would flag.",
+    "expect": [
+      "evaluates every occurrence of the repeated concept against all three criteria separately: importance, relevance in each section, and varied wording",
+      "flags the occurrence repeated verbatim in the retry-client section as too similarly worded",
+      "flags the occurrence in the dashboards section, where the concept is not relevant",
+      "does not stop at the first instance of the repeated concept"
+    ],
+    "fixtures": ["post-repetition.md"]
+  },
+  {
+    "id": "callout-quotes-all-sections",
+    "query": "Review {RUN_DIR}/post-callout.md and propose call-out quotes for it.",
+    "expect": [
+      "proposes one call-out quote for every section of the post, with no section skipped",
+      "each proposed quote is a single sentence that distills its section's central thesis"
+    ],
+    "fixtures": ["post-callout.md"]
+  },
+  {
+    "id": "editor-lines-resolved",
+    "query": "Review {RUN_DIR}/post-editor.md and deal with the author's outstanding requests in the draft.",
+    "expect": [
+      "treats each '> EDITOR:' line as a direct request from the author and resolves it",
+      "reports how each '> EDITOR:' directive was resolved",
+      "removes or rewrites the '> EDITOR:' marker lines rather than leaving them in the post"
+    ],
+    "fixtures": ["post-editor.md"]
+  },
+  {
+    "id": "markdown-links-code-lines",
+    "query": "Audit the markdown formatting of {RUN_DIR}/post-markdown.md and list the problems you find.",
+    "expect": [
+      "flags the bare URL and says links must be written in [label](url) form",
+      "flags the code-block line longer than 80 characters",
+      "does not flag the long blockquote line, because the 80-character limit applies to code blocks only"
+    ],
+    "fixtures": ["post-markdown.md"]
+  },
+  {
+    "id": "citation-house-style",
+    "query": "Fact-check {RUN_DIR}/post-citations.md and rewrite its citations and references in the finished form you would ship.",
+    "expect": [
+      "collects every source in a '## References' section at the bottom, with letter keys assigned in order of first citation",
+      "formats each reference entry as '- <a id=\"ref-a\"></a>**[A]** [Source - Title](url)'",
+      "cites inline as '[A](#ref-a)' immediately after the claim it supports",
+      "groups multiple sources supporting one claim in a single pair of parentheses, comma-separated",
+      "uses no bare URLs, footnote-style markers, or any other citation format"
+    ],
+    "fixtures": ["post-citations.md"]
+  },
+  {
+    "id": "external-verification",
+    "query": "Fact-check the claims in {RUN_DIR}/post-factcheck.md against the other documents in the same directory and tell me which claims are verified.",
+    "expect": [
+      "checks the post's claims against the accompanying repository document",
+      "states that a claim matching the repository document can still be wrong, and that externally verifiable claims need an external source",
+      "flags the externally verifiable claim (the Postgres 17 feature claims) as needing external verification rather than accepting the repository match as proof"
+    ],
+    "fixtures": ["post-factcheck.md", "notes.md"]
+  },
+  {
+    "id": "audit-report-shape",
+    "query": "Give {RUN_DIR}/post-audit.md a full editorial audit — structure, clarity, examples, illustrations — and report your findings.",
+    "expect": [
+      "organizes the report as numbered categories with lettered findings (like 1.a, 1.b), never bare bullets or loose prose paragraphs",
+      "includes an example or concrete suggestion with each proposed fix",
+      "references locations by quoted snippet or description, never by line numbers",
+      "proposes an illustration or analogy for the complex concept (the write-behind failure window)",
+      "proposes examples in 'Bad / Good / Why' blocks with a one-sentence caption under each"
+    ],
+    "fixtures": ["post-audit.md"]
+  }
+]

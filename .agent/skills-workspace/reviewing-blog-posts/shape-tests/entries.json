@@ -1,0 +1,181 @@
+[
+  {
+    "id": "copyedit-in-place",
+    "rule": "R-workflow-01",
+    "kind": "shaping",
+    "section": "2. **Fix spelling, grammar, and capitalization.** Edit the post in place. Use the Oxford comma in every list of three or more items (write \"a, b, and c\", never \"a, b and c\"), and use MLA-style title casing for section headers. This is the only audit category applied directly; everything else goes in the report.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# Speeding Up Our Search\n\n## why search got slow\n\nOur search latency doubled after we added fuzzy matching, and we recieved complaints from our biggest customer. We measured p50, p99 and throughput before rolling the change back.\n\n## The rollback plan\n\nWe will gate fuzzy matching behind a per-tenant flag. This should restore the old latency numbers and give us time to optimize the matcher.\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "report-only-copyedit": "(?i)(change|fix|correct|update) [`'‘]?(recieved|p50, p99 and|why search got slow)",
+      "right-oxford-comma": "p50, p99, and throughput",
+      "right-mla-header": "Why Search Got Slow",
+      "right-spelling": "received"
+    },
+    "variants": {
+      "v1": "2. **Fix spelling, grammar, and capitalization.** Deliver the corrected draft in full before anything else: every spelling, grammar, and capitalization fix (Oxford comma in every list of three or more; MLA-style title casing for section headers) applied directly in the corrected text. The corrected draft is the deliverable, not a list of suggested changes; only spelling, grammar, and capitalization may change in it, and all other issues go in the audit report.",
+      "v2": "2. **Fix spelling, grammar, and capitalization.** Output the full corrected draft first, fixes (Oxford comma in lists of three or more; MLA title case for headers) applied in the text itself rather than described. The draft changes only in spelling, grammar, and capitalization; everything else is reported, not edited."
+    }
+  },
+  {
+    "id": "bad-good-why-examples",
+    "rule": "R-workflow-02",
+    "kind": "shaping",
+    "section": "5. **Propose examples** for important concepts. Each example proposal is a 'Bad / Good / Why' block: the bad version, the good version beside it, and a one-sentence caption under each naming why it fails or works.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# Retrying Payment Requests\n\nPayment clients must retry failed requests, or transient network blips become lost sales. But a naive retry can charge a customer twice for one purchase.\n\nThe safe approach is to make every retry carry the same idempotency key, so the payment processor recognizes a replay and returns the original result instead of running a new charge.\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "single-example-prose": "(?i)here's an example|for example, (you could|consider)|one example would be",
+      "bad-label": "(?i)\\*\\*bad\\*\\*|^bad[:.) ]",
+      "good-label": "(?i)\\*\\*good\\*\\*|^good[:.) ]",
+      "why-label": "(?i)why (it|this) (fails|works)"
+    },
+    "variants": {
+      "v1": "5. **Propose examples** for important concepts. Every example proposal has three labeled parts in fixed order: `Bad:` the failing version, `Good:` the corrected version beside it, and a one-sentence `Why:` caption under each naming why it fails or works.",
+      "v2": "5. **Propose examples** for important concepts. Present each example as a labeled Bad / Good / Why block — bad version and good version side by side, one-sentence caption under each — never a single unlabeled example."
+    }
+  },
+  {
+    "id": "callout-quotes",
+    "rule": "R-workflow-03",
+    "kind": "shaping",
+    "section": "6. **Propose a call-out quote for the start of every section.** The report has one 'Call-out quote' item per section of the post — no section skipped — each holding a one-sentence quote (paraphrase allowed) that distills that section's central thesis.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# The Cache Rollout\n\n## Why we built it\n\nOur product pages made forty database round trips per view. At peak traffic the database CPU pinned at 100% and page loads crawled.\n\n## How the cache works\n\nA CDN-tier cache sits in front of the product service with a five-minute TTL. Cache misses replay to the database; hits never touch it.\n\n## Rollout metrics\n\nWe enabled the cache for 10% of traffic, then 50%, then 100%. Dashboards tracked hit ratio, origin load, and error rate.\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "callout-wording": "(?i)call[- ]?out (quote|box)",
+      "quote-block": "(?i)^> |^\\*\\*\"|\" — |distill"
+    },
+    "variants": {
+      "v1": "6. **Call-out quotes.** In the report, add one 'Call-out quote' item per section of the post, listed in section order, none skipped — for a post with N sections there are exactly N items, each a single sentence (paraphrase allowed) distilling that section's central thesis.",
+      "v2": "6. **Call-out quotes.** The report carries one 'Call-out quote' per section — exactly as many items as sections, in order, each one sentence distilling the section's thesis. A section with no quote is a defect."
+    }
+  },
+  {
+    "id": "markdown-flags",
+    "rule": "R-workflow-04",
+    "kind": "shaping",
+    "section": "9. **Audit markdown formatting.** Flag any link not written as `[label](url)` — malformed link markup renders as raw text or a dead element in HTML. Flag any multi-line code block with lines longer than 80 characters — code blocks are not word-wrapped when rendered to HTML, so a long line forces an annoying horizontal scrollbar. The 80-character limit applies to code blocks only, not to blockquotes or other preformatted elements.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# Reading Parquet from Python\n\nFull docs: https://example.com/pyarrow-docs\n\n```python\nimport pyarrow.parquet as pq\ntable = pq.read_table(\"/data/events/2026/09/partition_00000000000000000000000000000001_snappy.parquet\")\nprint(table.schema)\n```\n\n> Note from benchmarking: on my machine the load above takes a little over two seconds for a two-gigabyte file with several hundred thousand rows in it\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "blockquote-flagged": "(?i)(flag|issue|problem|fix).{0,80}blockquote|blockquote.{0,80}(flag|issue|problem|over (the )?limit|too long)",
+      "eighty-named": "80",
+      "bare-url-flagged": "(?i)(bare|raw|plain) (url|link)"
+    },
+    "variants": {
+      "v1": "9. **Audit markdown formatting.** Two checks, nothing more: every link must be `[label](url)` — flag any bare URL; every multi-line code block must have all lines at 80 characters or fewer — flag any longer line. Do not run the length check on blockquotes or any other preformatted text.",
+      "v2": "9. **Audit markdown formatting.** Flag (a) any link not in `[label](url)` form and (b) any line over 80 characters inside a multi-line code block. The length check stops at the code block's closing fence; blockquotes and other preformatted elements are out of scope."
+    }
+  },
+  {
+    "id": "references-section-form",
+    "rule": "R-citation-and-linking-convention-01",
+    "kind": "shaping",
+    "section": "Follow the house style used in the `docs/writing-skills/part-*/README.md` files, exactly and consistently:\n\n- List every source in a `## References` section at the bottom of the post. Assign each source a letter key, in order of first citation, as a list entry of the form `- <a id=\"ref-a\"></a>**[A]** [Source - Title](url)` (for example, `- <a id=\"ref-b\"></a>**[B]** [Anthropic - Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)`).",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# Faster CI with Remote Caching\n\nRemote build caching can cut CI build times by up to 90% according to vendor benchmarks. Google and Meta both built remote caching systems for their monorepos, and developer surveys consistently find that engineers spend most of their time reading code rather than writing it. Sources: https://example.com/benchmarks, https://example.com/google-meta, https://example.com/survey\n---\n\nFact-check this draft against your own knowledge and deliver the finished post with its citations and references in the form you would publish."
+    },
+    "markers": {
+      "anchor-form": "<a id=\"ref-",
+      "references-heading": "## References",
+      "numbered-refs": "(?m)^\\s*\\[[0-9]+\\]",
+      "sources-heading": "(?i)#+ sources"
+    },
+    "variants": {
+      "v1": "Follow this house style, exactly and consistently:\n\n- Sources go in a `## References` section at the bottom of the post, one entry per source, letter keys `[A]`, `[B]`, ... in order of first citation, each entry exactly of the form `- <a id=\"ref-a\"></a>**[A]** [Source - Title](url)`.",
+      "v2": "Follow this house style, exactly and consistently:\n\n- Every source appears once in a bottom `## References` section as `- <a id=\"ref-a\"></a>**[A]** [Source - Title](url)`, letters assigned in the order the sources are first cited in the post."
+    }
+  },
+  {
+    "id": "inline-citations",
+    "rule": "R-citation-and-linking-convention-02",
+    "kind": "shaping",
+    "section": "- Cite inline as `[A](#ref-a)` immediately after the claim it supports. Use descriptive link text when it reads more naturally, e.g. `[Anthropic's skill-authoring guide](#ref-a)` — the anchor target must always be the reference's `#ref-x` anchor. When a single sentence carries several sourced claims, cite them all in one pair of parentheses at the end of that sentence, comma-separated, e.g. `([A](#ref-a), [C](#ref-c))` — do not attach a separate citation to each clause of the same sentence.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# Faster CI with Remote Caching\n\nRemote build caching can cut CI build times by up to 90% according to vendor benchmarks. Google and Meta both built remote caching systems for their monorepos, and developer surveys consistently find that engineers spend most of their time reading code rather than writing it. Sources: https://example.com/benchmarks, https://example.com/google-meta, https://example.com/survey\n---\n\nFact-check this draft against your own knowledge and deliver the finished post with its citations and references in the form you would publish."
+    },
+    "markers": {
+      "ref-anchor-links": "\\]\\(#ref-",
+      "numeric-inline": "(?<!#)\\[[0-9]+\\]",
+      "grouped-paren": "\\(\\[[A-Z]\\]\\(#ref-[a-z]+\\), \\[[A-Z]\\]\\(#ref-[a-z]+\\)\\)"
+    },
+    "variants": {
+      "v1": "- Cite each sourced claim inline as `[A](#ref-a)` right after the claim (descriptive link text such as `[the benchmark](#ref-a)` is fine; the `#ref-x` anchor is not negotiable). When one sentence carries several sourced claims, give it one grouped citation at the end of the sentence: `([A](#ref-a), [C](#ref-c))` — never a separate citation on each clause.",
+      "v2": "- Every sourced claim carries an inline `[A](#ref-a)` citation at the end of its sentence. A sentence with several sourced claims gets them grouped in one parenthesis, comma-separated; per-clause citations are wrong."
+    }
+  },
+  {
+    "id": "report-skeleton-lettered",
+    "rule": "R-audit-report-01",
+    "kind": "shaping",
+    "section": "- The audit report's skeleton is numbered sections with lettered items: `1. <category>` -> `1.a <one finding>`, `1.b <one finding>`, `2. <category>` -> `2.a <one finding>`. Every finding is exactly one lettered item. Findings never appear as bare bullets or prose paragraphs.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# How We Cut p99 Latency in Half\n\n## What we changed\n\nWe added a write-behind cache in front of the sessions store. This made it much faster, and we saw the difference on the first day. It batches writes and flushes them asynchronously.\n\n## Rollout notes\n\nWe rolled the cache out service by service over two weeks. This went smoothly and we did not have to roll anything back.\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "bare-bullet-findings": "(?m)^\\s*[-*] (flag|issue|problem|consider|the )",
+      "lettered-items": "\\b[0-9]+\\.[a-z]{1,2}\\b",
+      "heading-findings": "(?m)^#{2,4} (issue|finding|flag|recommendation)"
+    },
+    "variants": {
+      "v1": "- The audit report's skeleton: numbered category headings (`1. Fact-check`, `2. Structure`, ...) with lettered findings under each — `1.a`, `1.b`, `2.a`. Every finding is exactly one `N.x` item; bare bullets and prose paragraphs never carry findings.",
+      "v2": "- Write the audit report as numbered sections with lettered items (`1. <category>` -> `1.a`, `1.b` findings). A reader must be able to say \"item 2.b\" and have it mean exactly one finding."
+    }
+  },
+  {
+    "id": "example-per-fix",
+    "rule": "R-audit-report-02",
+    "kind": "shaping",
+    "section": "- Include an example or concrete suggestion for each proposed fix.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# How We Cut p99 Latency in Half\n\n## What we changed\n\nWe added a write-behind cache in front of the sessions store. This made it much faster, and we saw the difference on the first day. It batches writes and flushes them asynchronously.\n\n## Rollout notes\n\nWe rolled the cache out service by service over two weeks. This went smoothly and we did not have to roll anything back.\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "vague-verdict-only": "(?i)consider (tightening|revising|improving|rewording)[^.!?]*[.!?]",
+      "suggestion-signals": "(?i)(suggest|rewrite|for example|e\\.g\\.|concrete|try:|fix:)"
+    },
+    "variants": {
+      "v1": "- Every proposed fix ships with the fix itself: a rewritten sentence, an example, or a concrete suggestion the author can apply as-is. A finding with nothing applicable attached to it is incomplete.",
+      "v2": "- Attach an example or concrete suggestion to each proposed fix — show the rewritten snippet or name the exact change; never leave a finding as a bare verdict."
+    }
+  },
+  {
+    "id": "snippet-locations",
+    "rule": "R-audit-report-03",
+    "kind": "shaping",
+    "section": "- Reference locations by describing them or quoting a snippet of the surrounding text. Never use line numbers — they go stale after every round of edits.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# How We Cut p99 Latency in Half\n\n## What we changed\n\nWe added a write-behind cache in front of the sessions store. This made it much faster, and we saw the difference on the first day. It batches writes and flushes them asynchronously.\n\n## Rollout notes\n\nWe rolled the cache out service by service over two weeks. This went smoothly and we did not have to roll anything back.\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "line-numbers": "(?i)\\bline [0-9]+\\b|\\bL[0-9]+\\b",
+      "snippet-quotes": "`[^`\\n]{10,}`"
+    },
+    "variants": {
+      "v1": "- Point at every finding by quoting the offending words in backticks or by describing the spot (\"the second paragraph of 'Rollout notes'\"). Line numbers are forbidden — they go stale after every edit.",
+      "v2": "- Reference each finding with a short quoted snippet or a description of where it sits; never with line numbers."
+    }
+  },
+  {
+    "id": "editor-resolution-report",
+    "rule": "R-audit-report-04",
+    "kind": "shaping",
+    "section": "- Report how each `> EDITOR:` directive was resolved — a resolution the author can't see is indistinguishable from one that never happened.",
+    "fixtures": {
+      "application": "Here is a draft of a technical blog post:\n\n---\n# Tuning Our Postgres Pool\n\n> EDITOR: Is the 50ms figure still up to date? Confirm it or update it.\n\nOur API servers talk to Postgres through a connection pool sized at twenty connections per node. At that size the average query wait is around 50ms under normal load.\n\n> EDITOR: The middle section feels too long — can you tighten it up?\n\nWhen we raised the pool to two hundred connections per node, throughput barely moved. The database CPU was already saturated, so extra waiting connections just queued.\n---\n\nPlease review this draft and deliver your editorial response."
+    },
+    "markers": {
+      "editor-mentioned": "EDITOR",
+      "resolutions-item": "(?i)resolv"
+    },
+    "variants": {
+      "v1": "- The report contains one item per `> EDITOR:` line stating what was done about it and why. A directive resolved silently counts as unresolved.",
+      "v2": "- Each `> EDITOR:` directive gets its own report entry describing the resolution; the author must be able to see how every directive was handled."
+    }
+  }
+]
