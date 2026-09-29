@@ -29,21 +29,21 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
 
    Evaluate every occurrence of a repeated concept against all three criteria separately. Flag any repetition failing one of these.
 8. **Resolve `> EDITOR:` lines.** Any line starting with `> EDITOR:` is a direct request from the author. Resolve each one and remove or rewrite the marker line as appropriate.
-9. **Audit markdown formatting.** Flag any link not written as `[label](url)` — malformed link markup renders as raw text or a dead element in HTML. Flag any multi-line code block with lines longer than 80 characters — code blocks are not word-wrapped when rendered to HTML, so a long line forces an annoying horizontal scrollbar. The 80-character limit applies to code blocks only, not to blockquotes or other preformatted elements.
+9. **Audit markdown formatting.** Flag (a) any link not in `[label](url)` form and (b) any line over 80 characters inside a multi-line code block. The length check stops at the code block's closing fence; blockquotes and other preformatted elements are out of scope.
 
 ## Citation and linking convention
 
-Follow the house style used in the `docs/writing-skills/part-*/README.md` files, exactly and consistently:
+Follow this house style, exactly and consistently:
 
-- List every source in a `## References` section at the bottom of the post. Assign each source a letter key, in order of first citation, as a list entry of the form `- <a id="ref-a"></a>**[A]** [Source - Title](url)` (for example, `- <a id="ref-b"></a>**[B]** [Anthropic - Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)`).
-- Cite inline as `[A](#ref-a)` immediately after the claim it supports. Use descriptive link text when it reads more naturally, e.g. `[Anthropic's skill-authoring guide](#ref-a)` — the anchor target must always be the reference's `#ref-x` anchor. When a single sentence carries several sourced claims, cite them all in one pair of parentheses at the end of that sentence, comma-separated, e.g. `([A](#ref-a), [C](#ref-c))` — do not attach a separate citation to each clause of the same sentence.
+- Every source appears once in a bottom `## References` section as `- <a id="ref-a"></a>**[A]** [Source - Title](url)`, letters assigned in the order the sources are first cited in the post.
+- Multi-claim sentences first: when a single sentence makes more than one sourced claim, end it with one grouped citation `([A](#ref-a), [C](#ref-c))` — never one citation per clause. Every other sourced claim takes `[X](#ref-x)` immediately after it (descriptive link text allowed; the `#ref-x` anchor is not negotiable).
 - Never use bare URLs, footnote-style markers, or any other citation format; this convention is the only one used in the post.
 
 ## Audit report
 
 Write a detailed report to the user covering steps 3-9 (and the fact-check findings from step 1). Follow these rules:
 
-- The audit report's skeleton is numbered sections with lettered items: `1. <category>` -> `1.a <one finding>`, `1.b <one finding>`, `2. <category>` -> `2.a <one finding>`. Every finding is exactly one lettered item. Findings never appear as bare bullets or prose paragraphs.
+- Write the audit report as numbered sections with lettered items (`1. <category>` -> `1.a`, `1.b` findings). A reader must be able to say "item 2.b" and have it mean exactly one finding.
 - Include an example or concrete suggestion for each proposed fix.
 - Reference locations by describing them or quoting a snippet of the surrounding text. Never use line numbers — they go stale after every round of edits.
 - Report how each `> EDITOR:` directive was resolved — a resolution the author can't see is indistinguishable from one that never happened.
