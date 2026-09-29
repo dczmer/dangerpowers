@@ -27,5 +27,17 @@
     "models": [
       "kimi-code-plan-global/kimi-for-coding"
     ]
+  },
+  "pressure-test": {
+    "date": "2026-09-29",
+    "checksum": "sha256:6114061e0722b860fdc220958159641b3b73135e2913631e87ec2469f3b890f1",
+    "bulletproof": 2,
+    "no-failure": 2,
+    "unresolved": 0,
+    "voids": 0,
+    "model": null,
+    "variant": null,
+    "campaign": "campaign-2026-09-29",
+    "models": []
   }
 }
