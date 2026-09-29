@@ -1,0 +1,234 @@
+{
+ "skill": "shape-testing-skills",
+ "generated": "2026-09-28",
+ "rules": [
+  {
+   "section": "Quick reference",
+   "kind": "discipline",
+   "statement": "Harness: always user-specified — prompt the user; never assume, auto-detect, or pick one yourself.",
+   "entries": ["harness-user-specified"]
+  },
+  {
+   "section": "Quick reference",
+   "kind": "discipline",
+   "statement": "Phase 1 runs 5 control reps for ALL rules (never skipped).",
+   "entries": ["phase1-never-skipped"]
+  },
+  {
+   "section": "Quick reference",
+   "kind": "discipline",
+   "statement": "A generic continuation message (\"keep going\", \"proceed\", \"sounds good\", a thumbs-up) is NOT a second spend confirmation. The second spend confirmation must be an explicit approval that names the rules earning variant runs.",
+   "entries": ["explicit-second-confirmation"]
+  },
+  {
+   "section": "Quick reference",
+   "kind": "discipline",
+   "statement": "Entries whose rules carry an ablation/removed status run the control only and never earn variant runs.",
+   "entries": ["ablation-no-variants"]
+  },
+  {
+   "section": "Quick reference",
+   "kind": "discipline",
+   "statement": "Fix between campaigns, never mid-campaign; fixtures, variant texts, and section spans stay verbatim across campaigns.",
+   "entries": ["fix-between-campaigns"]
+  },
+  {
+   "section": "Quick reference",
+   "kind": "discipline",
+   "statement": "Close out only after a completed FULL campaign, in the order score → inventory-update → verify → record (mini-campaigns never touch streaks).",
+   "entries": ["full-campaign-closeout"]
+  },
+  {
+   "section": "Quick reference",
+   "kind": "discipline",
+   "statement": "Non-converging rules get one round-2 mini-campaign on a changed form — hard cap 2 rounds, then unresolved.",
+   "entries": ["round-cap"]
+  },
+  {
+   "section": "Rule inventory",
+   "kind": "discipline",
+   "statement": "Build the inventory fresh from the current doc — the manifest is a diff baseline, never a cache; refuse to reuse a previous campaign's manifest as a starting inventory.",
+   "entries": ["fresh-inventory"]
+  },
+  {
+   "section": "Marker calibration",
+   "kind": "discipline",
+   "statement": "Never hand-edit markers mid-campaign or between campaigns outside this proposal step.",
+   "entries": ["marker-freeze"]
+  },
+  {
+   "section": "suite mechanics",
+   "kind": "discipline",
+   "statement": "Then, strictly serially per entry, per arm — never parallelize arms.",
+   "entries": ["serial-arms"]
+  },
+  {
+   "section": "Scoring",
+   "kind": "discipline",
+   "statement": "Every flagged sample is hand-read before it counts, because template echoes and quoted counter-examples masquerade as marker hits.",
+   "entries": ["hand-read-samples"]
+  },
+  {
+   "section": "Scoring",
+   "kind": "discipline",
+   "statement": "Never adopt a prohibition arm: adopted may only name a recipe / structural arm — a suppressed token that migrates to a worse shape is displacement, not a fix.",
+   "entries": ["no-prohibition-adoption"]
+  },
+  {
+   "section": "Improving the skill definition",
+   "kind": "discipline",
+   "statement": "Present recommended edits to the user and apply them only after confirmation.",
+   "entries": ["confirmed-writebacks"]
+  },
+  {
+   "section": "Improving the skill definition",
+   "kind": "discipline",
+   "statement": "Keep fixtures, variant texts, and section spans verbatim within and across campaigns; editing any of them invalidates comparison.",
+   "entries": ["verbatim-freeze"]
+  },
+  {
+   "section": "Removal procedure",
+   "kind": "discipline",
+   "statement": "At 3 consecutive control passes (the documented threshold — policy, never mechanically enforced), remove a rule only with user confirmation.",
+   "entries": ["removal-confirmation"]
+  },
+  {
+   "section": "Gotchas",
+   "kind": "discipline",
+   "statement": "Never put rule text, expected shape, or markers in the run prompt; the per-run prompt is the bare fixture text. Never let the eval agent know this is a test.",
+   "entries": ["no-leakage"]
+  }
+ ],
+ "excluded": [
+  {
+   "section": "Quick reference",
+   "kind": "technique",
+   "reason": "Model-selection guidance (production model, default temperature via --model/--variant); how-to with no compliance cost."
+  },
+  {
+   "section": "Quick reference",
+   "kind": "reference",
+   "reason": "Defaults and cost formula (5 reps, 300 s timeout, cost arithmetic) are documented facts, not violable rules."
+  },
+  {
+   "section": "Quick reference",
+   "kind": "reference",
+   "reason": "One-suite-process-at-a-time is mechanically enforced by the harness lockfile; a second invocation aborts pre-spend, so there is no rationalization path."
+  },
+  {
+   "section": "Quick reference",
+   "kind": "shaping",
+   "reason": "Pattern winners run the restraint gate before adoption; gate mechanics are how-to procedure, routed to shape-testing concerns rather than a compliance-cost rule."
+  },
+  {
+   "section": "Overview",
+   "kind": "reference",
+   "reason": "Track-scope statements (trigger/retrieval/pressure routing) are scope facts, not rules with a compliance cost."
+  },
+  {
+   "section": "Rule inventory",
+   "kind": "reference",
+   "reason": "Rule-kind classification definitions and the stop-if-empty condition are reference content."
+  },
+  {
+   "section": "Rule inventory",
+   "kind": "technique",
+   "reason": "Id-minting mechanics (section-anchored ids, per-section pool) are how-to procedure."
+  },
+  {
+   "section": "Rule inventory",
+   "kind": "reference",
+   "reason": "Frontmatter-convention guidance is out of scope by definition: the injected text is the frontmatter-stripped body, so a frontmatter rule has no body anchor to test."
+  },
+  {
+   "section": "Fixture design",
+   "kind": "technique",
+   "reason": "Fixture-design how-to (self-contained, temptation-bearing, illustrative paths) is authoring technique with no competing incentive."
+  },
+  {
+   "section": "Fixture design",
+   "kind": "technique",
+   "reason": "Not quoting rule text/markers/expected shape inside fixtures is fixture-authoring technique; the discipline anchor for leakage is the Gotchas no-leakage rule."
+  },
+  {
+   "section": "Marker calibration",
+   "kind": "reference",
+   "reason": "Markers-are-triage and the compile-only gate warning are documented facts; the operational discipline (hand-read) is scored separately."
+  },
+  {
+   "section": "Marker calibration",
+   "kind": "technique",
+   "reason": "The proposal-time calibration workflow (evidence --matrix against prior results) is how-to procedure."
+  },
+  {
+   "section": "Eval agent",
+   "kind": "reference",
+   "reason": "Agent permission layout and no-skill-load design are documented facts."
+  },
+  {
+   "section": "Eval agent",
+   "kind": "reference",
+   "reason": "No model-config pins in the eval agent file is mechanically enforced: the installer asserts and aborts pre-spend, leaving no rationalization path."
+  },
+  {
+   "section": "Eval agent",
+   "kind": "reference",
+   "reason": "Read-only enforced by the harness permission layer, not by a prompt claim; mechanically enforced."
+  },
+  {
+   "section": "Workflow",
+   "kind": "technique",
+   "reason": "Preflight checks, snapshot pipeline, and select-filtering mechanics are how-to procedure."
+  },
+  {
+   "section": "Workflow",
+   "kind": "reference",
+   "reason": "One sterile workspace never synced; the contamination gate mechanically fails pre-spend on a synced skill."
+  },
+  {
+   "section": "suite mechanics",
+   "kind": "reference",
+   "reason": "Prompt-assembly bytes and pre-spend gate list are documented mechanics."
+  },
+  {
+   "section": "suite mechanics",
+   "kind": "technique",
+   "reason": "Smoke-rep-first and batching mechanics are how-to procedure."
+  },
+  {
+   "section": "Scoring",
+   "kind": "reference",
+   "reason": "Convergence definition (same structure across reps) and compare/label mechanics are documented facts."
+  },
+  {
+   "section": "Scoring",
+   "kind": "technique",
+   "reason": "Ties-go-to-shorter-phrasing and pattern-rule adoption discipline are selection heuristics, not compliance-cost rules."
+  },
+  {
+   "section": "Improving the skill definition",
+   "kind": "shaping",
+   "reason": "The fix-form table, nuance-clause-as-conditional rule, and restructure-the-exemption rule prescribe the form of skill text; they are shaping rules for the shape-testing track, not discipline rules."
+  },
+  {
+   "section": "Removal procedure",
+   "kind": "technique",
+   "reason": "Post-confirmation removal steps (flip status, keep entry as regression coverage) are how-to procedure; the confirmation gate itself is scored separately."
+  },
+  {
+   "section": "Campaign layout",
+   "kind": "reference",
+   "reason": "Directory naming and artifact placement are documented layout facts."
+  },
+  {
+   "section": "Gotchas",
+   "kind": "reference",
+   "reason": "Void-signal definitions, timeout guidance, marker scope/heuristic caveats, and multi-file expectations are documented facts and authoring caveats."
+  },
+  {
+   "section": "Gotchas",
+   "kind": "technique",
+   "reason": "Re-run/superseded-file naming mechanics are how-to procedure."
+  }
+ ]
+}
