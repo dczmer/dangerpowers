@@ -1,0 +1,187 @@
+[
+  {
+    "id": "scope-routing",
+    "query": "I'm preparing a shape-testing campaign for my skill. While I'm at it, also run shape scenarios to check whether the skill description fires on typical user queries, whether agents can find the documented facts, and include the frontmatter conventions (the YAML header rules) as rules to test. Set that up.",
+    "expect": [
+      "routes the trigger question to trigger-testing, not shape scenarios",
+      "routes the find-a-documented-fact question to retrieval-testing, not shape scenarios",
+      "excludes frontmatter-convention guidance from the rule inventory (out of scope; body-only spans)",
+      "records discipline rules as pressure-testing and reference facts as retrieval-testing, each with a routing reason"
+    ]
+  },
+  {
+    "id": "campaign-inputs",
+    "query": "Kick off a shape-testing campaign for my skill. Pick a harness for me, and pin gpt-5 in the evaluator agent file so the campaign measures that model. Go.",
+    "expect": [
+      "prompts for the harness instead of choosing one — the harness is always user-specified with no default",
+      "refuses to pin model/variant/temperature/top_p in the eval agent file",
+      "selects the model only through campaign --model/--variant flags at default temperature, with the production model"
+    ]
+  },
+  {
+    "id": "phases-spend-cost",
+    "query": "Plan my shape-testing campaign end to end. I have 3 failing shaping rules and 1 failing pattern rule, each with 3 wording variants; assume every pattern variant needs the restraint gate. Tell me the defaults, what runs in each phase, how the spend confirmations work — between phases I'll just say \"sounds good, keep going\" — and the total sample cost with the per-rule caps.",
+    "expect": [
+      "defaults are 5 reps per entry per arm and a 300 s per-run timeout",
+      "phase 1 runs 5 control reps for ALL rules and is never skipped; phase 2 runs variants (5 reps each) only for rules whose control exhibited the failure",
+      "\"sounds good, keep going\" is not a second spend confirmation — it must explicitly name the rules earning variant runs",
+      "total cost is 3×(5+15) + (5+15+10) = 90 samples, within the per-rule caps of 30 (pattern 40)"
+    ]
+  },
+  {
+    "id": "serialization-timeout",
+    "query": "My campaign is slow. Run the control and variant arms of each entry in parallel to halve wall time, run the restraint gate at the same time as the round-2 mini-campaign, and bump the per-run timeout to 600 s since reps keep timing out.",
+    "expect": [
+      "arms never parallelize — one entry, one arm at a time; only reps within one arm batch parallelize (at most 10 workers)",
+      "never run two suite invocations concurrently; the restraint gate and round-2 run serially (concurrent suites multiply latency into empty-answer timeout voids)",
+      "checks that no other suite is running before raising the timeout",
+      "a timeout is not a void signal — an abort after a complete inline answer still scores",
+      "the 300 s default is evidence-based: 53/70 empty-answer voids at 120 s vs 0/70 at 300 s"
+    ]
+  },
+  {
+    "id": "rule-classification",
+    "query": "Classify these rules from my skill for a shape campaign: (a) \"component styles must live in a CSS module, never inline styles\"; (b) \"when the user asks for a status update, reframe it as a handoff document with sections for blockers, next steps, and owners\" — note the handoff document does prescribe a layout; (c) \"always run the full test suite before committing even when the deadline is tight\"; (d) \"the API returns 429 with a Retry-After header in seconds\". Which get shape-tested?",
+    "expect": [
+      "(a) is shaping; (b) is pattern — classify by trigger structure, so a request-reframe stays pattern even though its output prescribes a layout",
+      "(c) is discipline (pressure-testing) and (d) is reference (retrieval-testing), recorded as excluded with routing reasons",
+      "only shaping and pattern rules are shape-tested; technique rules are excluded for lack of a competing shape"
+    ]
+  },
+  {
+    "id": "inventory-manifest",
+    "query": "I'm building the rule inventory for my skill across campaigns. How do I assign the rule ids, and how do I carry statuses forward when I regenerate the inventory next campaign? I was planning to just hand-number them.",
+    "expect": [
+      "drafts the inventory id-less and mints ids with the inventory-mint script; never hand-numbers",
+      "ids are section-anchored (R-<section-slug>-<nn>), numbered within each section, items first then excluded, from a pool that skips numbers already taken",
+      "regenerates against the previous canonical with --carry: surviving ids keep status/ablation_streak, removed items re-append verbatim, dropped items are not re-appended; re-minting an unchanged file is a byte-identical no-op",
+      "excluded rules are recorded only in the manifest's excluded list, each carrying its routing reason"
+    ]
+  },
+  {
+    "id": "entry-schema",
+    "query": "Write the entries.json for my two rules — \"no-inline-styles\" (shaping) and \"reframe-status-as-handoff\" (pattern) — each with two wording variants. Show me the full JSON.",
+    "expect": [
+      "each entry has exactly the keys id, rule, kind, section, fixtures, markers, restraint_markers, variants",
+      "fixtures always include application; counter-example is present exactly when kind is pattern",
+      "markers is a non-empty dict; restraint_markers appears exactly when kind is pattern and is forbidden otherwise",
+      "variants are 1–3 entries keyed v1..v3; the v0 control is implicit and never stored"
+    ]
+  },
+  {
+    "id": "fixture-design",
+    "query": "Review this fixture for my no-inline-styles rule and fix it: \"Create a PriceTag React component at src/components/PriceTag.tsx in our storefront repo. Per the project rule, never use inline styles. The price badge must darken on hover. The client demo is Friday so keep it quick.\"",
+    "expect": [
+      "makes the fixture self-contained — no real repo paths; every path illustrative",
+      "removes the quoted rule text — a fixture never quotes the rule, the markers, or the expected shape",
+      "keeps (or adds) a constraint the wrong shape cannot satisfy — the hover requirement forces the inline-style failure into the open",
+      "removes the deadline — never stack pressure into fixtures; the temptation must be structural"
+    ]
+  },
+  {
+    "id": "marker-calibration",
+    "query": "My \"inline style\" marker never fired during the campaign, and midway through I want to tweak the markers to match what the reps actually wrote. How should marker calibration work?",
+    "expect": [
+      "markers are line-regex triage calibrated before snapshot/spend — run every marker against prior campaigns' results JSONs or pilot reps (evidence --matrix)",
+      "requires every wrong-shape marker to fire on at least one known-bad sample and every right-shape/property marker to stay silent on known-good samples",
+      "never hand-edits markers mid-campaign; amendments happen only at proposal time and are then frozen with the fixtures"
+    ]
+  },
+  {
+    "id": "eval-agent-workspace",
+    "query": "Set up the eval environment for my shape campaign. The evaluator agent will need to load the skill from the workspace to read its rules, so sync the skill into the workspace first. Also, one rep tried to load a skill — what do I do with it?",
+    "expect": [
+      "the evaluator agent allows only read/grep/glob/list; every other tool (skill, edit, bash, task, …) is denied — it loads nothing",
+      "uses exactly one workspace, never synced; a synced skill trips the contamination gate — recreate the workspace, never copy the skill in to fix it",
+      "the conventions are injected per rep: 'Project conventions:' + the assembled arm body + 'Task:' + the bare fixture text — never rule text, markers, or expected shape",
+      "v0 removes the rule's section span together with exactly one following blank line; vN replaces the span with the variant text, verified before dispatch",
+      "a skill-load attempt is a void signal (skill-load-attempted): set the rep aside and re-run that arm before scoring"
+    ]
+  },
+  {
+    "id": "scoring-adoption",
+    "query": "Results are in. My wrong-shape marker fired on all 5 reps of v1, so I say we adopt v1 — it bans the word \"style\" outright. v2 ties with v3 on every metric but v3's wording is longer. Also, v2's property frequency exactly equals the control's. Confirm the adoption.",
+    "expect": [
+      "marker counts are triage, not convergence: reads the reps by hand — convergence is all reps producing the same structure; template echoes masquerade as marker hits",
+      "never adopts a prohibition arm even when it suppresses the banned token — a suppressed token migrating to a worse shape is displacement, not a fix",
+      "a candidate must strictly EXCEED the v0 control's property frequency; a tie means the wording is not binding",
+      "ties go to the shorter phrasing — so v2, not the longer v3"
+    ]
+  },
+  {
+    "id": "pattern-restraint",
+    "query": "My pattern variant v3 converged on the application fixture and beats the control. Adopt it. And what about guarding against it forcing the reframe onto every request it sees?",
+    "expect": [
+      "names the two signature pattern failures: silent non-application (detected by the with/without control comparison) and over-application (only exists with the guidance loaded)",
+      "before adopting, runs the restraint gate: 5 reps on the counter-example fixture scored against restraint_markers; counter-example fixtures need no control arm",
+      "an over-applying variant is disqualified — gates the next-best converging variant the same way",
+      "runs the gate only after the variants suite has fully exited, never concurrently with another suite"
+    ]
+  },
+  {
+    "id": "rounds-layout",
+    "query": "Where do the round-2 files go? Put them in a new top-level campaign-2026-09-28-2 dir since it's the second run today. Name the results file whatever the suite writes, and re-run into the same file if needed. Also: my rule still hasn't converged after round 2 — one more round on the same wording should do it.",
+    "expect": [
+      "the -n suffix counts FULL campaigns that day; round-2 and confirm rounds live in subdirectories of the run's campaign dir, never in top-level -n dirs",
+      "within a round dir the counted results file is always results.json; a superseded run is renamed results-superseded.json before re-running",
+      "a non-converging rule gets one round-2 mini-campaign on a CHANGED form (never recorded); hard cap 2 rounds, then unresolved — escalate instead of a third round on the same form",
+      "round-2 evidence merges with the main campaign's control only via labeled results (one --label per file), so round-2:v1 never pools with the main v1"
+    ]
+  },
+  {
+    "id": "closeout-record",
+    "query": "Campaign finished with mixed control outcomes. Walk me through closing it out — scoring, the inventory streaks, the consistency check, and recording — and I'll adjust the streak fields by hand to match how the campaign went.",
+    "expect": [
+      "closes out only the completed FULL campaign, in the order score → inventory-update → verify → record; mini-campaigns never touch streaks; cleanup uses --prefix shape-test",
+      "never hand-adjusts streaks: inventory-update is deterministic — ANY control-fail fails the rule, else ANY control-pass passes it, else untouched",
+      "a control pass auto-marks a status-less rule ablation/streak 0 or increments; a fail on an ablation rule clears its status (load-bearing); a fail on a removed rule resets its streak to 0 and reports a regression failure; a void control neither increments nor resets",
+      "verify runs all consistency groups and record proceeds only on exit 0, with one --results per results file plus --inventory"
+    ]
+  },
+  {
+    "id": "doc-edits",
+    "query": "My rule passed its control for the third straight campaign. Delete the rule text, prune its entry from the entries file, and reset its ablation streak to zero. Also, I adopted v2 last campaign — patch the entries file's section span now so next campaign's span check passes, and update the SKILL.md while you're at it.",
+    "expect": [
+      "removal happens only at 3 consecutive control passes and only with user confirmation",
+      "on removal: hand-edits the inventory item to status \"removed\" KEEPING the streak; keeps the entry as regression coverage (its span now occurs zero times, which the span check expects) — does not prune the entry or reset the streak",
+      "write-backs to the source SKILL.md happen only on explicit user confirmation, followed by a confirmation mini-campaign in a second campaign dir that is never recorded",
+      "post-write-back drift is expected: the canonical entries file is deliberately NOT updated; the next campaign re-anchors the edited span at its proposal step; never hand-patches spans to silence the check",
+      "fixes happen between campaigns, never mid-campaign; fixtures, variant texts, and section spans stay verbatim"
+    ]
+  },
+  {
+    "id": "fix-form",
+    "query": "For each campaign outcome, tell me the right fix form: (1) the control never exhibits the failure; (2) banning inline styles suppressed the token but failures moved to useState hover hacks; (3) agents keep omitting the Risks section from an artifact they otherwise complete; (4) the behavior should apply only when a brief file exists; (5) the 5 reps disagree on the shape; (6) two variants tie on every metric; (7) still no convergence after two rounds. And can I add \"except in code blocks\" to my line-length rule?",
+    "expect": [
+      "(1) author nothing and flag the rule for ablation re-check — never harden a phantom \"just in case\"",
+      "(2) use a positive recipe stating what the output IS, in order — never stack more prohibitions",
+      "(3) add a structural REQUIRED field or slot in the template the agent already fills — never prose reminders near the template",
+      "(4) write a conditional keyed to the observable predicate (\"if the brief exists, reference it\") — never an unconditional rule plus exemption clauses",
+      "(5) change the form, not more words — never append nuance clauses",
+      "(6) adopt the shorter phrasing — never merge the two",
+      "(7) escalate — restructure or enforce mechanically — never a third round on the same form",
+      "\"except in code blocks\" does not scope — the exemption still suppresses code blocks; restructure so the rule cannot reach the exempt part"
+    ]
+  },
+  {
+    "id": "report-proposal-format",
+    "query": "Write up my shape-testing campaign — both the pre-campaign proposal for the planned entries and the final report. Format them however reads best.",
+    "expect": [
+      "the report opens with `shape test: <skill> — <date>` followed by entries:/artifacts:/manifest: lines",
+      "every rule — including no-failure, unresolved, and void rules — gets its own block (heading, per-arm table, notes:, write-back: line, status/streak annotation), followed by no-failure (ablation review): and unresolved: index sections",
+      "the report quotes inventory-update's `regression failure:` lines verbatim in a regression failures: section, lists ablation candidates with streaks plus the 3-consecutive-control-passes removal note, and closes with `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)`",
+      "the proposal is one card per planned entry (heading, covers:, fixture:, markers:, variants:, why:; status/streak shown for statused entries) closed by coverage:/excluded:/cost: lines — nothing else precedes or wraps the cards"
+    ]
+  },
+  {
+    "id": "marker-gotchas",
+    "query": "My \"table\" marker fired inside the companion references doc where a table is the correct shape, my `<placeholder>` marker fired on the CLI's own --no-<name> syntax in every rep, and my decline marker written for \"violates\" caught only 1 of 5 declines. Are these real violations? Also, one rep returned only the component file but the recipe needs the component plus its CSS module — does it pass?",
+    "expect": [
+      "markers have no file scope — a line-regex fires across the whole answer, companion files included; multi-file entries need section-scoped hand-reads",
+      "convention-notation tokens trip bare <...> marker alternatives (~100% false positives on CLI fixtures); gate angle brackets behind strict template signals or drop the alternative",
+      "per-model phrasing drift defeats narrow markers — author markers for the semantic act and apply the same broadening to restraint_markers",
+      "heuristic markers are triage-only — never let a heuristic marker decide a --compare EXCEEDS verdict without a hand-read",
+      "a multi-file recipe needs all expected files in a rep — a rep returning only one block fails even if it looks right"
+    ]
+  }
+]

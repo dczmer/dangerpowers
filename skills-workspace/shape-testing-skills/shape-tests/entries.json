@@ -1,0 +1,162 @@
+[
+  {
+    "id": "fixture-design-constraints",
+    "rule": "R-fixture-design-01",
+    "kind": "shaping",
+    "section": "- Self-contained: no references to real files, repos, or context. Every path mentioned\n  is illustrative.\n- Never quote the rule text, the markers, or the expected shape \u2014 that tests following\n  directions, not shaping under a competing incentive.\n- Include at least one requirement the tempting wrong shape cannot satisfy, so the\n  failure is forced into the open. Example: a `PriceTag` component whose badge must\n  darken on hover \u2014 inline `style={{}}` cannot express hover, so the agent must either\n  write real CSS (right shape) or reach for an `onMouseEnter`/`useState` hack (worse\n  shape).\n- Don't stack pressure into fixtures (deadlines, sunk cost, authority). The temptation\n  here is structural.",
+    "fixtures": {
+      "application": "We are preparing a shape-testing campaign for an internal docs skill. One rule under test says that runbook pages must open with an Impact callout before any prose.\n\nYour job: write the temptation fixture for this entry - the self-contained task prompt we will hand verbatim to fresh evaluation agents to see whether they put the Impact callout in the wrong place. After the fixture, add one short sentence explaining why the fixture forces the failure into the open."
+    },
+    "markers": {
+      "quotes-rule-or-markers": "rule (under )?test says|the rule says|markers? (we|I) (check|score)|expected shape",
+      "references-real-files": "github\\.com|/home/|/Users/|our (internal )?repo",
+      "stacks-pressure": "deadline|ASAP|urgent|boss|manager|sunk cost|already spent"
+    },
+    "variants": {
+      "v1": "- Self-contained: no references to real files, repos, or context; every path mentioned is illustrative.\n- Never quote the rule text, the markers, or the expected shape - that tests following directions, not shaping under a competing incentive.\n- The fixture must include at least one requirement the tempting wrong shape cannot satisfy, so the failure is forced into the open. Example: a `PriceTag` component whose badge must darken on hover - inline `style={{}}` cannot express hover, so the agent must either write real CSS (right shape) or reach for an `onMouseEnter`/`useState` hack (worse shape).\n- No pressure in fixtures (no deadlines, sunk cost, or authority); the temptation is structural.",
+      "v2": "- Every fixture is self-contained: no references to real files, repos, or context; every path mentioned is illustrative, and the rule text, markers, and expected shape are never quoted.\n- Every fixture includes at least one requirement the tempting wrong shape cannot satisfy, so the failure is forced into the open. Example: a `PriceTag` component whose badge must darken on hover - inline `style={{}}` cannot express hover, so the agent must either write real CSS (right shape) or reach for an `onMouseEnter`/`useState` hack (worse shape).\n- No pressure in fixtures (no deadlines, sunk cost, or authority); the temptation is structural."
+    },
+    "why": "fixture constraints are phrased as scattered negative bullets; a structural restatement may bind better"
+  },
+  {
+    "id": "entries-json-schema",
+    "rule": "R-rule-inventory-01",
+    "kind": "shaping",
+    "section": "Every entry is a JSON object with exactly these keys: `id` (stable, never reused), `rule` (manifest id), `kind` (`shaping` or `pattern`), `section` (the rule's verbatim span from the skill body), `fixtures` (`application` always; `counter-example` exactly when kind is `pattern`), `markers` (non-empty dict of grep tokens for wrong and right shapes), `restraint_markers` (exactly when kind is `pattern`, forbidden otherwise), `variants` (1-3 entries keyed `v1`..`v3`; the v0 control is implicit and never stored).",
+    "fixtures": {
+      "application": "We are building the entries file for a shape campaign against an internal CLI skill. The manifest rule is R-output-table-01, kind: shaping, section span: \"- JSON output must render as a table when --format table is set\". The application fixture task text is: \"Add a --format table flag to the stats command.\" Markers: wrong shape - a raw JSON dump; right shape - a rendered table. Draft variants v1 - \"--format table renders a table\" - and v2 - \"when --format table is passed, output is a table with columns name and value\".\n\nWrite the complete entry JSON object for this rule, ready to be appended to entries.json."
+    },
+    "markers": {
+      "extra-keys": "\"(description|control|expected|notes|hypothesis)\"",
+      "right-keys": "\"(rule|section|fixtures|markers|variants)\""
+    },
+    "variants": {
+      "v1": "Every entry is a JSON object with exactly these keys: `id`, `rule`, `kind`, `section`, `fixtures`, `markers`, `restraint_markers`, `variants`. `fixtures` always carries `application`; `counter-example` appears exactly when `kind` is `pattern`. `variants` holds 1-3 entries keyed `v1`..`v3`; the v0 control is implicit and never stored.",
+      "v2": "Every entry has exactly these keys - `id` (stable, never reused), `rule` (manifest id), `kind`, `section` (verbatim span), `fixtures` (`application` always; `counter-example` iff `kind` is `pattern`), `markers` (non-empty), `restraint_markers` (pattern only), `variants` (1-3, keyed `v1`..`v3`; v0 implicit, never stored)."
+    },
+    "why": "the exact-keys schema is one dense run-on sentence; a key-per-clause restatement may bind better"
+  },
+  {
+    "id": "fix-form-matches-failure",
+    "rule": "R-improving-the-skill-definition-01",
+    "kind": "pattern",
+    "section": "Match the fix to the observed failure. The form that fixes one failure type backfires\non another.\n\n| Observed result | Right form | Never |\n|---|---|---|\n| Control never exhibits the failure | Author nothing; flag an existing rule for ablation re-check | Hardening a phantom \"just in case\" |\n| Prohibition suppresses the token but the failure migrates (inline styles banned \u2192 `useState` hover hacks) | Positive recipe: state what the output IS \u2014 its parts, in order | Stacking more prohibitions |\n| A required element is omitted from an artifact the agent already produces | Structural REQUIRED field or slot in the template it fills in | Prose reminders near the template |\n| Behavior should depend on a condition | Conditional keyed to an observable predicate (\"if the brief exists, reference it\") | Unconditional rule + exemption clauses |\n| Reps disagree on the shape (noisy) | Change the form, not more words | Appending nuance clauses (\"\u2026unless it matters\") |\n| Two variants tie on every metric | Adopt the shorter phrasing | Merging the two |\n| No convergence after 2 rounds | Escalate \u2014 restructure or enforce mechanically instead of prose | A third round on the same form |",
+    "fixtures": {
+      "application": "Shape campaign for an internal README skill just finished phase 1. The rule under test prescribed a Contributing section in every README. Without the rule in the injected conventions, all 5 control reps still produced a Contributing section - the failure never reproduced.\n\nWhat is your recommendation: keep the rule as-is, strengthen it, or something else? Give the recommendation and the exact wording you would put in the skill.",
+      "counter-example": "Shape campaign for an internal frontend skill: the rule banned inline styles. Control reps showed the failure (5/5 used inline styles). Variant v1, a prohibition rewording, suppressed style={{}} - but reps migrated to onMouseEnter + useState hover hacks.\n\nWhat fix do you recommend, and what wording would you use?"
+    },
+    "markers": {
+      "hardens-phantom": "strengthen|harden|emphasize|reinforce|tighten|add (a )?(reminder|note|warning)",
+      "right-fix": "ablation|no-failure|author nothing|remove|flag"
+    },
+    "restraint_markers": {
+      "over-applies-author-nothing": "ablation|author nothing|no-failure|keep (the rule|it) as-is"
+    },
+    "variants": {
+      "v1": "Match the fix to the observed failure. The form that fixes one failure type backfires on another.\n\n| Observed result | Right form |\n|---|---|\n| Control never exhibits the failure | Author nothing; flag an existing rule for ablation re-check |\n| Prohibition suppresses the token but the failure migrates | Positive recipe: state what the output IS - its parts, in order |\n| A required element is omitted from an artifact the agent already produces | Structural REQUIRED field or slot in the template it fills in |\n| Behavior should depend on a condition | Conditional keyed to an observable predicate |\n| Reps disagree on the shape (noisy) | Change the form, not more words |\n| Two variants tie on every metric | Adopt the shorter phrasing |\n| No convergence after 2 rounds | Escalate - restructure or enforce mechanically instead of prose |",
+      "v2": "Match the fix to the observed failure; the form that fixes one failure type backfires on another. When the control never exhibits the failure, author nothing and flag the rule for ablation re-check. When a prohibition suppresses the token but the failure migrates, write a positive recipe stating what the output IS - its parts, in order. When a required element is omitted from an artifact the agent already produces, add a structural REQUIRED field or slot in the template it fills in. When behavior should depend on a condition, write a conditional keyed to an observable predicate. When reps disagree on the shape, change the form, not the words. When two variants tie on every metric, adopt the shorter phrasing. When nothing converges after 2 rounds, escalate - restructure or enforce mechanically instead of prose."
+    },
+    "why": "the fix-form mapping is a table the model must transpose into action; a conditional-prose form may apply more reliably"
+  },
+  {
+    "id": "exception-as-conditional",
+    "rule": "R-improving-the-skill-definition-02",
+    "kind": "pattern",
+    "section": "- A nuance clause appended to a winning recipe degrades it \u2014 express a real exception\n  as its own conditional on an observable predicate, and test that as a new variant.",
+    "fixtures": {
+      "application": "Our docs skill's report rule was tuned last campaign and now reads well. A user raises a real exception: for one-shot audits the report is never delivered to a stakeholder, so the sign-off line makes no sense. Update the rule to handle this.",
+      "counter-example": "A teammate wants to add \"unless timing is tight\" to the rule that requires a summary table, just in case it matters someday. The team has never hit that case and there is no observable signal for \"timing is tight\". Should we add it, and what wording would you use?"
+    },
+    "markers": {
+      "nuance-clause": "\\bunless\\b|with the exception|however, when|nuance",
+      "own-conditional": "if the|when the|own conditional|observable predicate"
+    },
+    "restraint_markers": {
+      "invents-conditional": "unless|conditional|if timing"
+    },
+    "variants": {
+      "v1": "- Express a real exception to a winning recipe as its own conditional keyed to an observable predicate, and test that as a new variant; a nuance clause appended to the recipe degrades it.",
+      "v2": "- A nuance clause appended to a winning recipe degrades it - \"...unless timing is tight\" suppresses the summary table even when timing is not tight. Express a real exception as its own conditional keyed to an observable predicate (\"if the engagement is a one-shot audit, omit the sign-off line\") and test that as a new variant."
+    },
+    "why": "the negative-first phrasing leads with the anti-pattern; a positive recipe with a worked contrast may bind better"
+  },
+  {
+    "id": "exempt-by-restructure",
+    "rule": "R-improving-the-skill-definition-03",
+    "kind": "pattern",
+    "section": "- Exemption clauses do not scope (\"this limit doesn't apply to code blocks\" still\n  suppresses code blocks). If part of the output must be exempt, restructure so the\n  rule cannot reach it.",
+    "fixtures": {
+      "application": "Our incident-review skill requires every postmortem to stay under 60 lines. The raw timeline section of a real postmortem legitimately runs longer. Update the rule so the timeline fits.",
+      "counter-example": "Same 60-line postmortem rule. A teammate asks to exempt the action-items section even though every action item fits comfortably within the limit. Do we need a change?"
+    },
+    "markers": {
+      "exemption-clause": "doesn'?t apply|does not apply|exempt|waive|exception (for|to)",
+      "restructures": "separate file|linked file|moves? (it|the timeline|that part)|its own file"
+    },
+    "restraint_markers": {
+      "restructures-anyway": "exempt|doesn'?t apply|separate file|restructure"
+    },
+    "variants": {
+      "v1": "- If part of the output must be exempt from a rule, restructure so the rule cannot reach it (move that part to its own file the artifact links to). Exemption clauses do not scope: \"this limit doesn't apply to code blocks\" still suppresses code blocks.",
+      "v2": "- Exemption clauses do not scope - \"this limit doesn't apply to X\" still suppresses X. When part of the output must be exempt, restructure so the rule cannot reach it."
+    },
+    "why": "rule text leads with the anti-pattern; a restructure-first phrasing may produce the right shape more reliably"
+  },
+  {
+    "id": "proposal-card-format",
+    "rule": "R-campaign-layout-01",
+    "kind": "shaping",
+    "section": "Every pre-campaign plan is one self-contained card per planned entry, in this order: a heading line `## N. <entry-id> (<kind>)`; a `covers:` line naming the manifest rule id; a `fixture:` section with the full fixture text; a `markers:` list; a `variants:` list naming each arm and its full text; a `why:` line. A statused entry's card also shows its status and ablation_streak; removed entries stay in the proposal labeled regression coverage \u2014 never propose pruning them. After the cards, three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the cards.",
+    "fixtures": {
+      "application": "Plan the shape-testing campaign proposal for an internal API-docs skill. Two entries are ready.\n\nEntry api-table-entry (shaping) covers manifest rule R-table-order-01. Fixture: \"Document the GET /orders endpoint, including an errors table.\" Markers: wrong shape - errors table placed after the examples; right shape - errors table before the examples. Variants: v1 - \"The errors table precedes the examples section.\" v2 - \"Put the errors table before the examples; the examples follow it.\"\n\nEntry reframe-deprecated (pattern) covers manifest rule R-deprecation-reframe-01. Fixture: \"The user asks to remove the deprecated flag from the /orders endpoint.\" Counter-example fixture: \"The user asks to update the price of the /orders endpoint.\" Markers: wrong shape - the flag is deleted; right shape - the request is reframed as adding a migration note. Restraint markers: deprecation framing forced onto the price update. Variants: v1 - \"When a request asks to remove a deprecation flag, reframe it as adding a migration note instead.\" v2 - \"Deprecation-flag removals are reframed as migration notes.\"\n\nPresent the proposal to the user for approval."
+    },
+    "markers": {
+      "card-heading": "^## \\d+\\. \\S+ \\((shaping|pattern)\\)",
+      "card-lines": "^(covers|fixture|markers|variants|why):",
+      "closing-lines": "^(coverage|excluded|cost):"
+    },
+    "variants": {
+      "v1": "Every pre-campaign plan is one self-contained card per planned entry, in this order: a heading line `## N. <entry-id> (<kind>)`; a `covers:` line naming the manifest rule id; a `fixture:` section with the full fixture text; a `markers:` list; a `variants:` list naming each arm and its full text; a `why:` line. A statused entry's card also shows its status and ablation_streak; removed entries stay in the proposal labeled regression coverage - never propose pruning them. After the cards, exactly three closing lines - `coverage:`, `excluded:`, `cost:` - and nothing else precedes or wraps the cards.",
+      "v2": "Every pre-campaign plan is one self-contained card per planned entry, in this order:\n1. a heading line `## N. <entry-id> (<kind>)`\n2. a `covers:` line naming the manifest rule id\n3. a `fixture:` section with the full fixture text\n4. a `markers:` list\n5. a `variants:` list naming each arm and its full text\n6. a `why:` line\nA statused entry's card also shows its status and ablation_streak; removed entries stay in the proposal labeled regression coverage - never propose pruning them. After the cards, exactly three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the cards."
+    },
+    "why": "the card format is a single dense sentence; an enumerated form may bind better"
+  },
+  {
+    "id": "report-fixed-layout",
+    "rule": "R-campaign-layout-02",
+    "kind": "shaping",
+    "section": "Every campaign report opens with four lines \u2014 `shape test: <skill> \u2014 <date>`, `entries:`, `artifacts:`, `manifest:` \u2014 then one block per rule \u2014 **every** rule, including no-failure, unresolved, and void rules, gets its own `## <entry-id> (<kind>) \u2014 <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, a `write-back:` line \u2014 each block annotated with the entry's inventory status and ablation_streak; then `no-failure (ablation review):` and `unresolved:` sections \u2014 indexes listing those same rules, never substitutes for the per-rule blocks \u2014 where applicable; a `regression failures:` section quoting inventory-update's `regression failure:` lines verbatim (a control failure on a removed rule means the deletion may have been wrong \u2014 consider restoring); an `ablation candidates:` list with streaks and the threshold note: 3 consecutive control passes \u2192 recommend removal (the human flips status to `removed` and deletes the rule text \u2014 see Removal procedure; the threshold is documented policy, never mechanically enforced); and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line.",
+    "fixtures": {
+      "application": "Write the campaign report for the api-docs shape campaign.\n\nEntry api-table-entry (shaping): v0 showed the wrong shape in 5/5 reps (errors table after examples every time); v1 converged on the right shape 5/5; v2 right shape in 4/5 with one ambiguous rep. Adopted v1.\nEntry reframe-deprecated (pattern): control clean in 5/5 reps, no variant runs, restraint gate not applicable.\nInventory: no statused entries, no regression failures."
+    },
+    "markers": {
+      "opening-lines": "^(shape test:|entries:|artifacts:|manifest:)",
+      "rule-blocks": "^## \\S+ \\((shaping|pattern)\\) -",
+      "block-lines": "^(notes|write-back):",
+      "closing-sections": "(no-failure \\(ablation review\\):|regression failures:|ablation candidates:|^summary:)"
+    },
+    "variants": {
+      "v1": "Every campaign report opens with four lines - `shape test: <skill> - <date>`, `entries:`, `artifacts:`, `manifest:` - then one block per rule (every rule, including no-failure, unresolved, and void rules): a `## <entry-id> (<kind>) - <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, a `write-back:` line, each block annotated with the entry's inventory status and ablation_streak. After the blocks come, where applicable, `no-failure (ablation review):` and `unresolved:` index sections, a `regression failures:` section quoting inventory-update's lines verbatim, an `ablation candidates:` list with streaks and the 3-pass threshold note, and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line.",
+      "v2": "Every campaign report opens with four lines: `shape test: <skill> - <date>`, `entries:`, `artifacts:`, `manifest:`. Then one block per rule - every rule, including no-failure, unresolved, and void rules - each with a `## <entry-id> (<kind>) - <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, and a `write-back:` line, annotated with the entry's inventory status and ablation_streak. Closing sections, where applicable: `no-failure (ablation review):`, `unresolved:`, `regression failures:` (quoting inventory-update verbatim), `ablation candidates:` (with streaks and the 3-pass threshold note), and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line."
+    },
+    "why": "report spec is one very long sentence; a block-structured restatement may bind better"
+  },
+  {
+    "id": "scored-json-schema",
+    "rule": "R-campaign-layout-03",
+    "kind": "shaping",
+    "section": "scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern`, matching the results), `result` (one of `adopted`, `no-failure`, `unresolved`, `void`), `adopted_arm` (exactly when result is adopted; a non-v0 arm present in that entry's results), `restraint_gate` (`pass`/`fail`, exactly when kind is pattern and result is adopted; `null` otherwise), optional `marker_counts` and `notes`. Every entry id in the results is covered exactly once \u2014 a missing, duplicate, or unknown id fails `scored-check --track shape-test`.",
+    "fixtures": {
+      "application": "Scoring for the api-docs campaign is done. Entry api-table-entry (shaping) was adopted on arm v1. Entry reframe-deprecated (pattern) was no-failure (control clean; restraint gate not run). Write scored.json."
+    },
+    "markers": {
+      "right-keys": "\"(id|kind|result|adopted_arm|restraint_gate)\"",
+      "wrong-keys": "\"(verdict|outcome|score|passed)\""
+    },
+    "variants": {
+      "v1": "scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern`, matching the results), `result` (`adopted`, `no-failure`, `unresolved`, or `void`), `adopted_arm` (exactly when result is adopted; a non-v0 arm present in that entry's results), `restraint_gate` (`pass`/`fail`, exactly when kind is pattern and result is adopted; `null` otherwise), optional `marker_counts` and `notes`. Every entry id in the results is covered exactly once - a missing, duplicate, or unknown id fails `scored-check --track shape-test`.",
+      "v2": "scored.json holds one object per entry: `id`, `kind`, `result`, `adopted_arm` (adopted only), `restraint_gate` (pattern+adopted only, else `null`), optional `marker_counts`/`notes`. Every results id is covered exactly once."
+    },
+    "why": "the schema sentence is long; a compact field-list form may be easier to bind"
+  }
+]

@@ -154,7 +154,7 @@ The inventory is a `rules.json` file:
    dropped ablation or status-less items are NOT re-appended — the normal
    `deleted` diff bucket covers them.
 
-Every entry is a JSON object with exactly these keys: `id` (stable, never reused), `rule` (manifest id), `kind` (`shaping` or `pattern`), `section` (the rule's verbatim span from the skill body), `fixtures` (`application` always; `counter-example` exactly when kind is `pattern`), `markers` (non-empty dict of grep tokens for wrong and right shapes), `restraint_markers` (exactly when kind is `pattern`, forbidden otherwise), `variants` (1-3 entries keyed `v1`..`v3`; the v0 control is implicit and never stored).
+Every entry has exactly these keys — `id` (stable, never reused), `rule` (manifest id), `kind`, `section` (verbatim span), `fixtures` (`application` always; `counter-example` iff `kind` is `pattern`), `markers` (a non-empty dict mapping one marker name to one line-regex, covering wrong and right shapes), `restraint_markers` (pattern only), `variants` (1-3, keyed `v1`..`v3`; v0 implicit, never stored).
 
 ### Fixture design
 
@@ -563,9 +563,7 @@ Campaign rules:
   fails doc-drift, by design).
 - A nuance clause appended to a winning recipe degrades it — express a real exception
   as its own conditional on an observable predicate, and test that as a new variant.
-- Exemption clauses do not scope ("this limit doesn't apply to code blocks" still
-  suppresses code blocks). If part of the output must be exempt, restructure so the
-  rule cannot reach it.
+- If part of the output must be exempt from a rule, restructure so the rule cannot reach it (move that part to its own file the artifact links to). Exemption clauses do not scope: "this limit doesn't apply to code blocks" still suppresses code blocks.
 
 ## Removal procedure
 
@@ -624,9 +622,9 @@ and of `skill-body.txt` (the exact injected bytes) is taken at setup — the rec
 checksum reflects the unmodified source, with per-arm variant text pinned by the
 snapshotted `entries.json`.
 
-Every pre-campaign plan is one self-contained card per planned entry, in this order: a heading line `## N. <entry-id> (<kind>)`; a `covers:` line naming the manifest rule id; a `fixture:` section with the full fixture text; a `markers:` list; a `variants:` list naming each arm and its full text; a `why:` line. A statused entry's card also shows its status and ablation_streak; removed entries stay in the proposal labeled regression coverage — never propose pruning them. After the cards, three closing lines: `coverage:`, `excluded:`, `cost:`. Nothing else precedes or wraps the cards.
+Every pre-campaign plan is one self-contained card per planned entry, in this order: a heading line `## N. <entry-id> (<kind>)`; a `covers:` line naming the manifest rule id; a `fixture:` section with the full fixture text; a `markers:` list; a `variants:` list naming each arm and its full text; a `why:` line. A statused entry's card also shows its status and ablation_streak; removed entries stay in the proposal labeled regression coverage — never propose pruning them. After the cards, exactly three closing lines — `coverage:`, `excluded:`, `cost:` — and nothing else precedes or wraps the cards.
 
-Every campaign report opens with four lines — `shape test: <skill> — <date>`, `entries:`, `artifacts:`, `manifest:` — then one block per rule — **every** rule, including no-failure, unresolved, and void rules, gets its own `## <entry-id> (<kind>) — <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, a `write-back:` line — each block annotated with the entry's inventory status and ablation_streak; then `no-failure (ablation review):` and `unresolved:` sections — indexes listing those same rules, never substitutes for the per-rule blocks — where applicable; a `regression failures:` section quoting inventory-update's `regression failure:` lines verbatim (a control failure on a removed rule means the deletion may have been wrong — consider restoring); an `ablation candidates:` list with streaks and the threshold note: 3 consecutive control passes → recommend removal (the human flips status to `removed` and deletes the rule text — see Removal procedure; the threshold is documented policy, never mechanically enforced); and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line.
+Every campaign report opens with four lines: `shape test: <skill> — <date>`, `entries:`, `artifacts:`, `manifest:`. Then one block per rule — every rule, including no-failure, unresolved, and void rules — each with a `## <entry-id> (<kind>) — <verdict>` heading, a table with one row per arm (arm name, marker counts, shape across reps), a `notes:` line, and a `write-back:` line, annotated with the entry's inventory status and ablation_streak. Closing sections, where applicable: `no-failure (ablation review):`, `unresolved:`, `regression failures:` (quoting inventory-update verbatim), `ablation candidates:` (with streaks and the 3-pass threshold note), and a final `summary: A adopted / N no-failure / U unresolved / V void (<total> rules)` line.
 
 scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern`, matching the results), `result` (one of `adopted`, `no-failure`, `unresolved`, `void`), `adopted_arm` (exactly when result is adopted; a non-v0 arm present in that entry's results), `restraint_gate` (`pass`/`fail`, exactly when kind is pattern and result is adopted; `null` otherwise), optional `marker_counts` and `notes`. Every entry id in the results is covered exactly once — a missing, duplicate, or unknown id fails `scored-check --track shape-test`. Example:
 

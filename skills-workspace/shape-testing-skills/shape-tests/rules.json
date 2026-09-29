@@ -1,0 +1,364 @@
+{
+  "skill": "shape-testing-skills",
+  "generated": "2026-09-28",
+  "rules": [
+    {
+      "id": "R-fixture-design-01",
+      "section": "Fixture design",
+      "kind": "shaping",
+      "statement": "Fixtures are self-contained (no references to real files, repos, or context; every path illustrative), never quote the rule text, the markers, or the expected shape, include at least one requirement the tempting wrong shape cannot satisfy, and stack no pressure (deadlines, sunk cost, authority)",
+      "entries": [
+        "fixture-design-constraints"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-rule-inventory-01",
+      "section": "Rule inventory",
+      "kind": "shaping",
+      "statement": "Every entry is a JSON object with exactly these keys: id, rule, kind, section, fixtures, markers, restraint_markers, variants - the v0 control is implicit and never stored",
+      "entries": [
+        "entries-json-schema"
+      ]
+    },
+    {
+      "id": "R-improving-the-skill-definition-01",
+      "section": "Improving the skill definition",
+      "kind": "pattern",
+      "statement": "Match the fix to the observed failure: control clean means author nothing and flag ablation re-check; prohibition-with-migration means a positive recipe; omitted required element means a structural slot; conditional behavior means an observable-predicate conditional; noisy reps mean change the form; tied variants mean adopt the shorter phrasing; no convergence after 2 rounds means escalate",
+      "entries": [
+        "fix-form-matches-failure"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-improving-the-skill-definition-02",
+      "section": "Improving the skill definition",
+      "kind": "pattern",
+      "statement": "A real exception to a winning recipe is expressed as its own conditional keyed to an observable predicate and tested as a new variant - never as a nuance clause appended to the winning recipe",
+      "entries": [
+        "exception-as-conditional"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-improving-the-skill-definition-03",
+      "section": "Improving the skill definition",
+      "kind": "pattern",
+      "statement": "If part of the output must be exempt from a rule, restructure so the rule cannot reach it - exemption clauses do not scope",
+      "entries": [
+        "exempt-by-restructure"
+      ]
+    },
+    {
+      "id": "R-campaign-layout-01",
+      "section": "Campaign layout",
+      "kind": "shaping",
+      "statement": "Pre-campaign plan is one self-contained card per planned entry in a fixed order (## N. <entry-id> (<kind>); covers:; fixture:; markers:; variants:; why:), closed by coverage:/excluded:/cost: lines; nothing else precedes or wraps the cards",
+      "entries": [
+        "proposal-card-format"
+      ]
+    },
+    {
+      "id": "R-campaign-layout-02",
+      "section": "Campaign layout",
+      "kind": "shaping",
+      "statement": "Campaign report opens with four lines (shape test: <skill> - <date>, entries:, artifacts:, manifest:), one block per rule with a ## <entry-id> (<kind>) - <verdict> heading, a per-arm table, notes:/write-back: lines, then no-failure/unresolved/regression failures/ablation candidates sections and a final summary: line",
+      "entries": [
+        "report-fixed-layout"
+      ]
+    },
+    {
+      "id": "R-campaign-layout-03",
+      "section": "Campaign layout",
+      "kind": "shaping",
+      "statement": "scored.json holds one object per entry covered with id, kind, result, adopted_arm (adopted only), restraint_gate (pattern and adopted only, null otherwise), optional marker_counts and notes; every results id covered exactly once",
+      "entries": [
+        "scored-json-schema"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "routing wrong-track questions to the trigger/retrieval tracks is a compliance-cost rule; pressure-testing track, not shaping"
+    },
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "classification definitions (discipline/reference) with no artifact shape to violate"
+    },
+    {
+      "id": "R-overview-03",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "scoping fact about the harness: frontmatter rules have no anchor span, so they can never be entries"
+    },
+    {
+      "id": "R-overview-04",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "consume exit codes and JSON only, never parse prose stdout - a compliance-cost rule rationalized away under time pressure"
+    },
+    {
+      "id": "R-quick-reference-01",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "harness is always user-specified, never assumed or auto-detected - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-quick-reference-02",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "model selection only via campaign flags, never pinned in the eval agent file - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-quick-reference-03",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "documented defaults (5 reps, 300 s timeout) with no rule to violate"
+    },
+    {
+      "id": "R-quick-reference-04",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "phase structure with two explicit spend confirmations - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-quick-reference-05",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "pattern winners must pass the restraint gate before adoption - compliance-cost procedure; pressure-testing track"
+    },
+    {
+      "id": "R-quick-reference-06",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "round-2 hard cap of 2 then unresolved is documented policy, not a shape rule"
+    },
+    {
+      "id": "R-quick-reference-07",
+      "section": "Quick reference",
+      "kind": "reference",
+      "reason": "cost formula and per-rule caps are documented arithmetic, not a shape rule"
+    },
+    {
+      "id": "R-quick-reference-08",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "serialization (one entry one arm at a time, one suite at a time) is a compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-quick-reference-09",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "fix between campaigns, never mid-campaign - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-quick-reference-10",
+      "section": "Quick reference",
+      "kind": "discipline",
+      "reason": "close out only after a full campaign in the score-update-verify-record order - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "discipline",
+      "reason": "collect all inputs first and prompt for missing ones - compliance-cost procedure; pressure-testing track"
+    },
+    {
+      "id": "R-inputs-02",
+      "section": "Inputs",
+      "kind": "discipline",
+      "reason": "run the production model at default temperature and re-check on upgrades via ablation - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-rule-inventory-02",
+      "section": "Rule inventory",
+      "kind": "discipline",
+      "reason": "rebuild the inventory fresh and refuse to reuse a previous manifest - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-rule-inventory-03",
+      "section": "Rule inventory",
+      "kind": "reference",
+      "reason": "classification taxonomy definitions with no artifact shape"
+    },
+    {
+      "id": "R-rule-inventory-04",
+      "section": "Rule inventory",
+      "kind": "discipline",
+      "reason": "if no shaping/pattern rules exist, stop and report routings - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-rule-inventory-05",
+      "section": "Rule inventory",
+      "kind": "reference",
+      "reason": "rules.json file structure (skill, generated, rules, excluded) is a documented schema of the harness, not an agent-produced artifact shape under test"
+    },
+    {
+      "id": "R-rule-inventory-06",
+      "section": "Rule inventory",
+      "kind": "reference",
+      "reason": "section-anchored id numbering policy and per-section pools are documented conventions"
+    },
+    {
+      "id": "R-rule-inventory-07",
+      "section": "Rule inventory",
+      "kind": "technique",
+      "reason": "mint ids by running inventory-mint rather than assigning by hand - how-to guidance with no competing shape"
+    },
+    {
+      "id": "R-marker-calibration-01",
+      "section": "Marker calibration",
+      "kind": "discipline",
+      "reason": "amend markers only at proposal time, never hand-edit mid-campaign - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-marker-calibration-02",
+      "section": "Marker calibration",
+      "kind": "technique",
+      "reason": "calibration procedure (run evidence --matrix against prior results, require wrong markers fire and right markers stay silent) is how-to guidance"
+    },
+    {
+      "id": "R-eval-agent-01",
+      "section": "Eval agent",
+      "kind": "reference",
+      "reason": "documented agent restrictions: read quartet allowed, everything else denied, one workspace, prompt construction - harness facts with no rule to violate"
+    },
+    {
+      "id": "R-eval-agent-02",
+      "section": "Eval agent",
+      "kind": "discipline",
+      "reason": "the eval workspace is never synced - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "the 19-step workflow is how-to procedure; individual embedded rules are classified in their own sections"
+    },
+    {
+      "id": "R-suite-mechanics-01",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "pre-spend gates, arm assembly, injection, batching, and the results JSON schema describe harness behavior - documented facts"
+    },
+    {
+      "id": "R-suite-mechanics-02",
+      "section": "suite mechanics",
+      "kind": "reference",
+      "reason": "void signal definitions (skill-load-attempted, empty-answer, read-outside-workspace; timeout separate) are documented facts"
+    },
+    {
+      "id": "R-scoring-01",
+      "section": "Scoring",
+      "kind": "discipline",
+      "reason": "grep is triage not verdict; hand-read every flagged sample and judge convergence by reading reps - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-scoring-02",
+      "section": "Scoring",
+      "kind": "discipline",
+      "reason": "never adopt a prohibition arm; adopted may only name a recipe/structural arm - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-scoring-03",
+      "section": "Scoring",
+      "kind": "discipline",
+      "reason": "adoption discipline (ties to the shorter phrasing, restraint gate before adopting pattern variants, adopt the converging variant that beats the control) - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-scoring-04",
+      "section": "Scoring",
+      "kind": "discipline",
+      "reason": "silent non-application detector: winner property frequency must strictly EXCEED the control, else change the form - compliance-cost scoring rule; pressure-testing track"
+    },
+    {
+      "id": "R-scoring-05",
+      "section": "Scoring",
+      "kind": "reference",
+      "reason": "scored result semantics doubling as control outcomes for close-out is a documented fact"
+    },
+    {
+      "id": "R-improving-the-skill-definition-04",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "present recommended edits to the user and apply only after confirmation - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-improving-the-skill-definition-05",
+      "section": "Improving the skill definition",
+      "kind": "discipline",
+      "reason": "keep fixtures, variant texts, and section spans verbatim within and across campaigns - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-removal-procedure-01",
+      "section": "Removal procedure",
+      "kind": "reference",
+      "reason": "3 consecutive control passes as the removal threshold is documented policy, never mechanically enforced"
+    },
+    {
+      "id": "R-removal-procedure-02",
+      "section": "Removal procedure",
+      "kind": "technique",
+      "reason": "removal steps (delete rule text, hand-flip status to removed keeping the streak, keep the entry as regression coverage) are how-to procedure"
+    },
+    {
+      "id": "R-removal-procedure-03",
+      "section": "Removal procedure",
+      "kind": "discipline",
+      "reason": "remove a rule only with user confirmation - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-campaign-layout-04",
+      "section": "Campaign layout",
+      "kind": "reference",
+      "reason": "directory tree, one-dir-per-full-run policy, and mini-campaign naming describe the persistent artifact layout managed by the driver and campaign-init - documented facts"
+    },
+    {
+      "id": "R-campaign-layout-05",
+      "section": "Campaign layout",
+      "kind": "discipline",
+      "reason": "campaign artifacts live in the persistent campaign dir, never inside the temp eval workspace - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "fixture temptation, marker file-scope, angle-bracket convention tokens, per-model phrasing drift, heuristic markers, and multi-file artifact gotchas are how-to measurement guidance with no competing shape"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never put rule text/expected shape/markers in the run prompt and never let the eval agent know it is a test - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "check void signals before scoring and re-run the arm; do not run two suites concurrently - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "session_id attribution in abort reporting is a documented fact"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "reason": "the checklist restates rules already classified above; no new rule"
+    }
+  ]
+}

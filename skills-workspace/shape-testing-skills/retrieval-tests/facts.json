@@ -1,0 +1,700 @@
+{
+  "skill": "shape-testing-skills",
+  "generated": "2026-09-28",
+  "facts": [
+    {
+      "id": "F-scope-rules-01",
+      "section": "Scope rules",
+      "statement": "Route trigger questions to the trigger-testing track and retrieval questions to the retrieval-testing track; run no shape scenarios for either.",
+      "entries": [
+        "scope-routing"
+      ]
+    },
+    {
+      "id": "F-scope-rules-02",
+      "section": "Scope rules",
+      "statement": "Route discipline rules to pressure-testing and reference facts to retrieval-testing; record both in the manifest as excluded entries with routing reasons.",
+      "entries": [
+        "scope-routing"
+      ]
+    },
+    {
+      "id": "F-scope-rules-03",
+      "section": "Scope rules",
+      "statement": "Frontmatter-convention guidance is always out of scope; the harness matches section spans against the body only.",
+      "entries": [
+        "scope-routing"
+      ]
+    },
+    {
+      "id": "F-quick-reference-01",
+      "section": "Quick reference",
+      "statement": "The harness is always user-specified — prompt for it; never assume, auto-detect, or pick one.",
+      "entries": [
+        "campaign-inputs"
+      ]
+    },
+    {
+      "id": "F-quick-reference-02",
+      "section": "Quick reference",
+      "statement": "Defaults: 5 reps per entry per arm; 300 s per-run timeout.",
+      "entries": [
+        "phases-spend-cost"
+      ]
+    },
+    {
+      "id": "F-quick-reference-03",
+      "section": "Quick reference",
+      "statement": "Phase 1 runs 5 control reps for ALL rules and is never skipped; phase 2 runs variants (5 reps each) only for rules whose control exhibited the failure.",
+      "entries": [
+        "phases-spend-cost"
+      ]
+    },
+    {
+      "id": "F-quick-reference-04",
+      "section": "Quick reference",
+      "statement": "A generic continuation message is NOT a second spend confirmation; the second confirmation must explicitly name the rules earning variant runs.",
+      "entries": [
+        "phases-spend-cost"
+      ]
+    },
+    {
+      "id": "F-quick-reference-05",
+      "section": "Quick reference",
+      "statement": "Cost: 5 + 5×variants per failing rule; pattern +5 per gated variant, cap +10; per-rule cap 30 (pattern 40).",
+      "entries": [
+        "phases-spend-cost"
+      ]
+    },
+    {
+      "id": "F-quick-reference-06",
+      "section": "Quick reference",
+      "statement": "Serialize: one entry, one arm at a time; only reps within one arm batch parallelize.",
+      "entries": [
+        "serialization-timeout"
+      ]
+    },
+    {
+      "id": "F-quick-reference-07",
+      "section": "Quick reference",
+      "statement": "One suite process at a time for the whole campaign; the suite holds a machine-wide lockfile and a second invocation aborts pre-spend.",
+      "entries": [
+        "serialization-timeout"
+      ]
+    },
+    {
+      "id": "F-quick-reference-08",
+      "section": "Quick reference",
+      "statement": "Non-converging rules get one round-2 mini-campaign on a changed form; hard cap 2 rounds, then unresolved.",
+      "entries": [
+        "rounds-layout"
+      ]
+    },
+    {
+      "id": "F-quick-reference-09",
+      "section": "Quick reference",
+      "statement": "Close out only after a completed FULL campaign, in the order score → inventory-update → verify → record.",
+      "entries": [
+        "closeout-record"
+      ]
+    },
+    {
+      "id": "F-quick-reference-10",
+      "section": "Quick reference",
+      "statement": "Mini-campaigns never touch streaks; cleanup uses --prefix shape-test.",
+      "entries": [
+        "closeout-record"
+      ]
+    },
+    {
+      "id": "F-quick-reference-11",
+      "section": "Quick reference",
+      "statement": "Fix between campaigns, never mid-campaign; fixtures, variant texts, and section spans stay verbatim across campaigns.",
+      "entries": [
+        "doc-edits"
+      ]
+    },
+    {
+      "id": "F-inputs-01",
+      "section": "Inputs",
+      "statement": "Never pin model/variant/temperature/top_p in the eval agent file; the installer asserts none exist and aborts pre-spend.",
+      "entries": [
+        "campaign-inputs"
+      ]
+    },
+    {
+      "id": "F-inputs-02",
+      "section": "Inputs",
+      "statement": "Campaign --model/--variant flags are the only model-selection path; run the model that consumes the skill in production, at default temperature.",
+      "entries": [
+        "campaign-inputs"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-01",
+      "section": "Rule inventory",
+      "statement": "Classify every body rule as shaping, pattern, discipline, reference, or technique; only shaping and pattern are in scope; technique is excluded (no competing shape).",
+      "entries": [
+        "rule-classification"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-02",
+      "section": "Rule inventory",
+      "statement": "Classify by the rule's trigger structure, never the artifact layout: a rule that reframes a request is a pattern rule even when the reframed output prescribes a layout.",
+      "entries": [
+        "rule-classification"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-03",
+      "section": "Rule inventory",
+      "statement": "If no shaping or pattern rules exist, stop and report the routings; run no campaign.",
+      "entries": [
+        "rule-classification"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-04",
+      "section": "Rule inventory",
+      "statement": "The manifest holds skill, generated, rules, and excluded; excluded rules live only in the manifest and every excluded rule carries its routing reason.",
+      "entries": [
+        "inventory-manifest"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-05",
+      "section": "Rule inventory",
+      "statement": "Draft the inventory id-less and mint ids with inventory-mint; never assign ids by hand.",
+      "entries": [
+        "inventory-manifest"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-06",
+      "section": "Rule inventory",
+      "statement": "Re-minting an unchanged inventory file is a byte-identical no-op.",
+      "entries": [
+        "inventory-manifest"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-07",
+      "section": "Rule inventory",
+      "statement": "Regenerate against the previous canonical with --carry: surviving ids keep status/ablation_streak; removed items re-append verbatim; dropped items are not re-appended.",
+      "entries": [
+        "inventory-manifest"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-08",
+      "section": "Rule inventory",
+      "statement": "Rule ids are section-anchored R-<section-slug>-<nn>, numbered within their section, items first then excluded, from one shared pool that skips numbers already taken.",
+      "entries": [
+        "inventory-manifest"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-09",
+      "section": "Rule inventory",
+      "statement": "Every entry has exactly the keys id, rule, kind, section, fixtures, markers, restraint_markers, variants.",
+      "entries": [
+        "entry-schema"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-10",
+      "section": "Rule inventory",
+      "statement": "fixtures always include application; counter-example is present exactly when kind is pattern.",
+      "entries": [
+        "entry-schema"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-11",
+      "section": "Rule inventory",
+      "statement": "markers is a non-empty dict; restraint_markers appears exactly when kind is pattern and is forbidden otherwise.",
+      "entries": [
+        "entry-schema"
+      ]
+    },
+    {
+      "id": "F-rule-inventory-12",
+      "section": "Rule inventory",
+      "statement": "variants holds 1–3 entries keyed v1..v3; the v0 control is implicit and never stored.",
+      "entries": [
+        "entry-schema"
+      ]
+    },
+    {
+      "id": "F-fixture-design-01",
+      "section": "Fixture design",
+      "statement": "Fixtures are self-contained: no references to real files, repos, or context; every path mentioned is illustrative.",
+      "entries": [
+        "fixture-design"
+      ]
+    },
+    {
+      "id": "F-fixture-design-02",
+      "section": "Fixture design",
+      "statement": "Never quote the rule text, the markers, or the expected shape in a fixture.",
+      "entries": [
+        "fixture-design"
+      ]
+    },
+    {
+      "id": "F-fixture-design-03",
+      "section": "Fixture design",
+      "statement": "Include at least one requirement the tempting wrong shape cannot satisfy, forcing the failure into the open.",
+      "entries": [
+        "fixture-design"
+      ]
+    },
+    {
+      "id": "F-fixture-design-04",
+      "section": "Fixture design",
+      "statement": "Never stack pressure into fixtures (deadlines, sunk cost, authority); the temptation is structural.",
+      "entries": [
+        "fixture-design"
+      ]
+    },
+    {
+      "id": "F-marker-calibration-01",
+      "section": "Marker calibration",
+      "statement": "Markers are line-regex triage authored once per campaign; the harness gate is compile-only.",
+      "entries": [
+        "marker-calibration"
+      ]
+    },
+    {
+      "id": "F-marker-calibration-02",
+      "section": "Marker calibration",
+      "statement": "Calibrate markers before snapshot/spend: run every marker against prior campaigns' results JSONs or pilot reps via evidence --matrix.",
+      "entries": [
+        "marker-calibration"
+      ]
+    },
+    {
+      "id": "F-marker-calibration-03",
+      "section": "Marker calibration",
+      "statement": "Require every wrong-shape marker to fire on at least one known-bad sample and every right-shape/property marker to stay silent on known-good samples.",
+      "entries": [
+        "marker-calibration"
+      ]
+    },
+    {
+      "id": "F-marker-calibration-04",
+      "section": "Marker calibration",
+      "statement": "Never hand-edit markers mid-campaign or between campaigns outside the proposal step; freeze markers with the fixtures for the campaign.",
+      "entries": [
+        "marker-calibration"
+      ]
+    },
+    {
+      "id": "F-eval-agent-01",
+      "section": "Eval agent",
+      "statement": "The evaluator agent allows only read/grep/glob/list; skill, edit, bash, task, todowrite, webfetch, websearch, question, and external_directory are denied.",
+      "entries": [
+        "eval-agent-workspace"
+      ]
+    },
+    {
+      "id": "F-eval-agent-02",
+      "section": "Eval agent",
+      "statement": "Use exactly one eval workspace, initialized --prefix shape-test and never synced; a synced skill trips the contamination gate — recreate the workspace, never copy the skill in.",
+      "entries": [
+        "eval-agent-workspace"
+      ]
+    },
+    {
+      "id": "F-eval-agent-03",
+      "section": "Eval agent",
+      "statement": "The per-run prompt is 'Project conventions:' + the assembled arm body + 'Task:' + the bare fixture text — never rule text, markers, or expected shape.",
+      "entries": [
+        "eval-agent-workspace"
+      ]
+    },
+    {
+      "id": "F-eval-agent-04",
+      "section": "Eval agent",
+      "statement": "Any skill-load attempt is a void signal (skill-load-attempted); set the rep aside and re-run that arm before scoring.",
+      "entries": [
+        "eval-agent-workspace"
+      ]
+    },
+    {
+      "id": "F-suite-mechanics-01",
+      "section": "suite mechanics",
+      "statement": "v0 removes the rule's section span together with exactly one following blank line; vN replaces the span with the variant text; the assembly is verified before dispatch.",
+      "entries": [
+        "eval-agent-workspace"
+      ]
+    },
+    {
+      "id": "F-suite-mechanics-02",
+      "section": "suite mechanics",
+      "statement": "Run a smoke rep first, then parallel batches of at most 10 workers.",
+      "entries": [
+        "serialization-timeout"
+      ]
+    },
+    {
+      "id": "F-suite-mechanics-03",
+      "section": "suite mechanics",
+      "statement": "Void signals are skill-load-attempted, empty-answer, and read-outside-workspace; timeout is a separate boolean field, NOT a void signal — an abort after a complete inline answer still scores.",
+      "entries": [
+        "serialization-timeout"
+      ]
+    },
+    {
+      "id": "F-scoring-01",
+      "section": "Scoring",
+      "statement": "Convergence means all reps produce the same structure, established by reading the reps — never by marker counts alone; grep is triage, not verdict.",
+      "entries": [
+        "scoring-adoption"
+      ]
+    },
+    {
+      "id": "F-scoring-02",
+      "section": "Scoring",
+      "statement": "Never adopt a prohibition arm: adopted may only name a recipe/structural arm; a suppressed token migrating to a worse shape is displacement, not a fix.",
+      "entries": [
+        "scoring-adoption"
+      ]
+    },
+    {
+      "id": "F-scoring-03",
+      "section": "Scoring",
+      "statement": "A --compare candidate must strictly EXCEED the v0 control's per-marker property frequency; a tie is does-not-exceed — read the script's verdict, never hand-compare frequencies.",
+      "entries": [
+        "scoring-adoption"
+      ]
+    },
+    {
+      "id": "F-scoring-04",
+      "section": "Scoring",
+      "statement": "Ties between variants go to the shorter phrasing.",
+      "entries": [
+        "scoring-adoption"
+      ]
+    },
+    {
+      "id": "F-scoring-05",
+      "section": "Scoring",
+      "statement": "Pattern rules fail by silent non-application (detected by the with/without control comparison) or over-application (exists only with the guidance loaded).",
+      "entries": [
+        "pattern-restraint"
+      ]
+    },
+    {
+      "id": "F-scoring-06",
+      "section": "Scoring",
+      "statement": "Pattern winners pass a restraint gate before adoption: 5 reps on the counter-example fixture scored against restraint_markers; counter-example fixtures need no control arm.",
+      "entries": [
+        "pattern-restraint"
+      ]
+    },
+    {
+      "id": "F-scoring-07",
+      "section": "Scoring",
+      "statement": "A variant that over-applies is disqualified; gate the next-best converging variant the same way.",
+      "entries": [
+        "pattern-restraint"
+      ]
+    },
+    {
+      "id": "F-scoring-08",
+      "section": "Scoring",
+      "statement": "Run the restraint gate only after the variants suite has fully exited; never concurrently with any other suite invocation.",
+      "entries": [
+        "pattern-restraint"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-01",
+      "section": "Improving the skill definition",
+      "statement": "Control never exhibits the failure → author nothing; flag the rule for ablation re-check; never harden a phantom just in case.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-02",
+      "section": "Improving the skill definition",
+      "statement": "Prohibition suppresses the token but the failure migrates → positive recipe stating what the output IS, its parts in order; never stack more prohibitions.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-03",
+      "section": "Improving the skill definition",
+      "statement": "A required element is omitted from an artifact the agent already produces → structural REQUIRED field or slot in the template; never prose reminders near the template.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-04",
+      "section": "Improving the skill definition",
+      "statement": "Behavior should depend on a condition → conditional keyed to an observable predicate; never an unconditional rule plus exemption clauses.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-05",
+      "section": "Improving the skill definition",
+      "statement": "Reps disagree on the shape → change the form, not more words; never append nuance clauses.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-06",
+      "section": "Improving the skill definition",
+      "statement": "Two variants tie on every metric → adopt the shorter phrasing; never merge the two.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-07",
+      "section": "Improving the skill definition",
+      "statement": "No convergence after 2 rounds → escalate (restructure or enforce mechanically); never a third round on the same form.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-08",
+      "section": "Improving the skill definition",
+      "statement": "Exemption clauses do not scope — 'this limit doesn't apply to code blocks' still suppresses code blocks; restructure so the rule cannot reach the exempt part.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-improving-the-skill-definition-09",
+      "section": "Improving the skill definition",
+      "statement": "A nuance clause appended to a winning recipe degrades it; express a real exception as its own conditional on an observable predicate and test it as a new variant.",
+      "entries": [
+        "fix-form"
+      ]
+    },
+    {
+      "id": "F-removal-procedure-01",
+      "section": "Removal procedure",
+      "statement": "Remove a rule only at 3 consecutive control passes (documented threshold) and only with user confirmation.",
+      "entries": [
+        "doc-edits"
+      ]
+    },
+    {
+      "id": "F-removal-procedure-02",
+      "section": "Removal procedure",
+      "statement": "On removal: delete the rule text, hand-edit the inventory item to status removed KEEPING the streak, and keep the entry as regression coverage (span occurs zero times; v0 only).",
+      "entries": [
+        "doc-edits"
+      ]
+    },
+    {
+      "id": "F-campaign-layout-01",
+      "section": "Campaign layout",
+      "statement": "The -n suffix counts FULL campaigns that day; round-2 and confirm mini-campaigns live in subdirectories of the run's campaign dir, never in top-level -n dirs.",
+      "entries": [
+        "rounds-layout"
+      ]
+    },
+    {
+      "id": "F-campaign-layout-02",
+      "section": "Campaign layout",
+      "statement": "Within a mini-campaign round dir the counted results file is always results.json; rename a superseded run to results-superseded.json (then -2, …) before re-running.",
+      "entries": [
+        "rounds-layout"
+      ]
+    },
+    {
+      "id": "F-campaign-layout-03",
+      "section": "Campaign layout",
+      "statement": "The campaign report opens with 'shape test: <skill> — <date>', then entries:/artifacts:/manifest: lines.",
+      "entries": [
+        "report-proposal-format"
+      ]
+    },
+    {
+      "id": "F-campaign-layout-04",
+      "section": "Campaign layout",
+      "statement": "Every rule — no-failure, unresolved, and void included — gets its own report block with a per-arm table, notes:, write-back: line, and status/streak annotation; no-failure and unresolved index sections follow.",
+      "entries": [
+        "report-proposal-format"
+      ]
+    },
+    {
+      "id": "F-campaign-layout-05",
+      "section": "Campaign layout",
+      "statement": "The report quotes inventory-update's 'regression failure:' lines verbatim, lists ablation candidates with streaks plus the 3-pass removal note, and closes with 'summary: A adopted / N no-failure / U unresolved / V void (<total> rules)'.",
+      "entries": [
+        "report-proposal-format"
+      ]
+    },
+    {
+      "id": "F-campaign-layout-06",
+      "section": "Campaign layout",
+      "statement": "The pre-campaign proposal is one card per planned entry (heading, covers:, fixture:, markers:, variants:, why:; status/streak for statused entries) closed by coverage:/excluded:/cost: lines — nothing else precedes or wraps the cards.",
+      "entries": [
+        "report-proposal-format"
+      ]
+    },
+    {
+      "id": "F-workflow-01",
+      "section": "Workflow",
+      "statement": "Round-2 evidence merges with the main campaign's control only via labeled results — one --label per --results — so round-2:v1 never pools with the main v1; unlabeled cross-directory merges are rejected.",
+      "entries": [
+        "rounds-layout"
+      ]
+    },
+    {
+      "id": "F-workflow-02",
+      "section": "Workflow",
+      "statement": "inventory-update is deterministic: ANY control-fail fails the rule; elif ANY control-pass passes it; else (all void / no scored rows) untouched; never hand-edit streaks.",
+      "entries": [
+        "closeout-record"
+      ]
+    },
+    {
+      "id": "F-workflow-03",
+      "section": "Workflow",
+      "statement": "A control pass auto-marks a status-less rule ablation/streak 0 or increments the streak; a fail on an ablation rule clears status+streak (load-bearing); a fail on a removed rule resets the streak to 0 and prints a regression failure; a void control neither increments nor resets.",
+      "entries": [
+        "closeout-record"
+      ]
+    },
+    {
+      "id": "F-workflow-04",
+      "section": "Workflow",
+      "statement": "verify runs all consistency groups (byte-identical snapshots, manifest↔entries wiring, skill-body/spans, results coverage, scored↔results, record preflight); record only on exit 0, with one --results per results file plus --inventory.",
+      "entries": [
+        "closeout-record"
+      ]
+    },
+    {
+      "id": "F-workflow-05",
+      "section": "Workflow",
+      "statement": "Write-backs to the source SKILL.md happen only on explicit user confirmation, followed by a confirmation mini-campaign in a second campaign dir that is never recorded.",
+      "entries": [
+        "doc-edits"
+      ]
+    },
+    {
+      "id": "F-workflow-06",
+      "section": "Workflow",
+      "statement": "Post-write-back canonical drift is expected: the canonical entries.json is deliberately NOT updated; the next campaign re-anchors the edited span at its proposal step; never hand-patch spans to silence the check.",
+      "entries": [
+        "doc-edits"
+      ]
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "statement": "Markers have no file scope — a line-regex fires across the whole answer, companion files included; multi-file entries require section-scoped hand-reads.",
+      "entries": [
+        "marker-gotchas"
+      ]
+    },
+    {
+      "id": "F-gotchas-02",
+      "section": "Gotchas",
+      "statement": "Convention-notation tokens trip bare <...> marker alternatives (~100% false positives on CLI fixtures); gate angle brackets behind strict template signals ({{, REPLACE_ME, TODO, PLACEHOLDER, <insert, YOUR_*) or drop the alternative.",
+      "entries": [
+        "marker-gotchas"
+      ]
+    },
+    {
+      "id": "F-gotchas-03",
+      "section": "Gotchas",
+      "statement": "Per-model phrasing drift defeats narrow markers; author markers for the semantic act and apply the same broadening to restraint_markers.",
+      "entries": [
+        "marker-gotchas"
+      ]
+    },
+    {
+      "id": "F-gotchas-04",
+      "section": "Gotchas",
+      "statement": "Heuristic markers are triage-only; never let a heuristic marker decide a --compare EXCEEDS verdict without a hand-read.",
+      "entries": [
+        "marker-gotchas"
+      ]
+    },
+    {
+      "id": "F-gotchas-05",
+      "section": "Gotchas",
+      "statement": "Multi-file artifacts need all expected files; a rep returning only one block fails even if it looks right.",
+      "entries": [
+        "marker-gotchas"
+      ]
+    },
+    {
+      "id": "F-gotchas-06",
+      "section": "Gotchas",
+      "statement": "A fixture with no temptation proves nothing — if every arm scores clean, suspect the fixture before declaring victory.",
+      "entries": [
+        "fixture-design"
+      ]
+    },
+    {
+      "id": "F-gotchas-07",
+      "section": "Gotchas",
+      "statement": "Timeout voids are not always agent defects: concurrent suites multiply per-rep latency into empty-answer voids; check no other suite is running before raising --timeout; run suites serially across processes.",
+      "entries": [
+        "serialization-timeout"
+      ]
+    },
+    {
+      "id": "F-gotchas-08",
+      "section": "Gotchas",
+      "statement": "The 300 s default is evidence-based: 53/70 empty-answer voids at 120 s vs 0/70 at 300 s (2026-09-22).",
+      "entries": [
+        "serialization-timeout"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-overview-01",
+      "section": "Overview",
+      "reason": "Motivational framing ('shape tests are unit tests for wording', 'cheap, fresh-context samples') — rationale, not an output-changing statement.",
+      "entries": []
+    },
+    {
+      "id": "F-suite-mechanics-04",
+      "section": "suite mechanics",
+      "reason": "Per-run record fields and the config block layout — harness-internal record format; no agent decision depends on it.",
+      "entries": []
+    },
+    {
+      "id": "F-suite-mechanics-05",
+      "section": "suite mechanics",
+      "reason": "Pre-spend gate enumeration — harness-enforced pre-spend aborts; nothing for an agent to decide.",
+      "entries": []
+    },
+    {
+      "id": "F-gotchas-09",
+      "section": "Gotchas",
+      "reason": "2026-09-22 incident narratives (22-vs-11 marker conflation; 4/5 voided gate reps) — illustrative anecdotes; the thresholds they motivate are kept as facts.",
+      "entries": []
+    },
+    {
+      "id": "F-quick-reference-12",
+      "section": "Quick reference",
+      "reason": "Worked cost example '3×(5+15)+(5+15+10)=90' — illustrative example of the kept cost formula.",
+      "entries": []
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "Checklist items — restatements of kept facts.",
+      "entries": []
+    }
+  ]
+}
