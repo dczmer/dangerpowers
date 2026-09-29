@@ -1,0 +1,202 @@
+{
+  "skill": "trigger-testing-skills",
+  "generated": "2026-09-29",
+  "rules": [
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "pattern",
+      "statement": "Asked to reuse, fold, or train on sealed queries — even directly — refuse, say why (a reused or trained-on sealed query is contaminated and can no longer sanity-check anything), and do the compliant thing instead: generate 3 fresh should-trigger queries written to the new campaign's sealed-pool.json",
+      "entries": [
+        "sealed-pool-fresh-invariant"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "statement": "The campaign report is a fixed line protocol: header line with campaign/harness/model/variant, artifacts line, split line, per-iteration lines with score and pass/fail/void counts plus failure-categories and one failure-evidence line per failed run, winner block with the verbatim description, validate line with overfit warning, sanity line, manifest line, suspect-queries block only when flagged, closing write-back question; conditional blocks appear only under their stated conditions",
+      "entries": [
+        "trigger-report-format"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "discipline",
+      "reason": "consume exit codes and JSON only, never parse prose stdout - compliance-cost rule rationalized away under time pressure; pressure-testing track"
+    },
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "the skill contributes judgment while mechanical work lives in shared harness scripts (scripts-do / consumption-rule / manual-debugging bullets) - documented harness facts"
+    },
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "discipline",
+      "reason": "the harness is user-specified and never auto-detected or guessed - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-inputs-02",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "skill name/path resolution, source-root derivation, and the built-in-cannot-be-tested stop are how-to input-collection guidance with no competing artifact shape"
+    },
+    {
+      "id": "R-inputs-03",
+      "section": "Inputs",
+      "kind": "reference",
+      "reason": "input defaults (reps 3, timeout 30s, max-iterations 3 hard cap, train-frac 0.6, default queries path) are documented defaults with no rule to violate"
+    },
+    {
+      "id": "R-campaign-directory-01",
+      "section": "Campaign directory",
+      "kind": "technique",
+      "reason": "campaign dir creation via campaign-init, same-day suffixes, and the persistent-record rationale are how-to procedure"
+    },
+    {
+      "id": "R-campaign-directory-02",
+      "section": "Campaign directory",
+      "kind": "discipline",
+      "reason": "campaign artifacts live under the source root, never inside the temp eval workspace (sterility of the testbed) - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "planned-spend report with explicit user confirmation before the first eval run - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "queries file must exist, else offer to generate and get user review before anything is saved - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "preflight, workspace sync/status, split, sealed-pool generation, iteration-loop, winner-selection, and validate mechanics (steps 2-4, 6 setup, 7a-7b, 8-9) are how-to procedure"
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "early exit only on a perfect train round, never on a good-enough majority - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "sanity failure stops everything: no write-back offer, never restart the loop, never train on sealed-pool queries - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "write-back confirmation definition with the rationalization table (praise, emoji, silence are not confirmation; re-ask instead of editing) - canonical rationalization-under-pressure structure; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "discipline",
+      "reason": "record only when write-back was applied or the winner is the source description; never record a declined write-back or a failed campaign - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-workflow-09",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "temp-workspace cleanup on completion / keeping it on abort with paths printed is how-to procedure"
+    },
+    {
+      "id": "R-query-design-conventions-01",
+      "section": "Query-design conventions",
+      "kind": "technique",
+      "reason": "query-design axes (formality, explicitness, detail, complexity), near-miss negatives, and self-containedness are how-to guidance with no competing artifact shape"
+    },
+    {
+      "id": "R-failure-analysis-01",
+      "section": "Failure analysis",
+      "kind": "technique",
+      "reason": "evidence extraction via evaluator.py evidence and the failure-category table are how-to procedure"
+    },
+    {
+      "id": "R-failure-analysis-02",
+      "section": "Failure analysis",
+      "kind": "discipline",
+      "reason": "every category needs a cited phrase from the run's reasoning; never invent reasoning; empty-reasoning runs are marked low-confidence - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-failure-analysis-03",
+      "section": "Failure analysis",
+      "kind": "discipline",
+      "reason": "check timeouts before analyzing; a setup-suspect flag stops the iteration loop; suspect queries are reported, not fixed mid-campaign - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-description-revision-mechanics-01",
+      "section": "Description revision mechanics",
+      "kind": "discipline",
+      "reason": "mid-campaign the source file is never edited, even when the user asks directly and provides replacement text - canonical rationalization-under-pressure structure; pressure-testing track"
+    },
+    {
+      "id": "R-description-revision-mechanics-02",
+      "section": "Description revision mechanics",
+      "kind": "technique",
+      "reason": "stub rewrite mechanics (whole stub file, same name field, frontmatter only, no body) and per-iteration description copies are how-to procedure"
+    },
+    {
+      "id": "R-error-handling-01",
+      "section": "Error handling",
+      "kind": "discipline",
+      "reason": "abort semantics everywhere: stop immediately, apply nothing, retry nothing, keep the workspace - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-error-handling-02",
+      "section": "Error handling",
+      "kind": "discipline",
+      "reason": "suite-lockfile exit means wait and re-run, not a campaign abort - compliance-cost rule; pressure-testing track"
+    },
+    {
+      "id": "R-error-handling-03",
+      "section": "Error handling",
+      "kind": "reference",
+      "reason": "all-void rounds are broken conditions (abort) while an all-void sanity is inconclusive - documented policy facts"
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never run reps as the default agent and never re-add --auto; an agent-fallback warning aborts the campaign - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "never fabricate workspace files for a query and never rewrite a query to make it pass; keep queries verbatim across the campaign - compliance-cost rules; pressure-testing track"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "session tracing (SQLite DB location, global namespace), opencode single-arg quoting, and reasoning:0 caveats are documented harness facts"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "the manifest is written only by evaluator.py record after a resolved write-back decision, overwrites only its own track key, and hashes the frontmatter block only - documented facts"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "reason": "the checklist restates rules already classified above; no new rule"
+    }
+  ]
+}
