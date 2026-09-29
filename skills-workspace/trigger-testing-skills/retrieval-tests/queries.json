@@ -1,0 +1,208 @@
+[
+  {
+    "id": "consumption-rule",
+    "query": "My teammate is building a wrapper around our shared skill-testing harness scripts and wants to grep their friendly stdout summaries to decide pass/fail. He also isn't sure where the looping, counting, and scoring logic is supposed to live. Set him straight.",
+    "expect": [
+      "mechanical work — looping, counting, splitting, scoring, manifest recording — lives in the shared harness scripts at the repo-root tools/test-harness/, invoked by absolute path",
+      "consume only exit codes and JSON files from the harness scripts; never parse their prose stdout"
+    ]
+  },
+  {
+    "id": "score-metric",
+    "query": "We ran one rep of a trigger-test campaign and the skill triggered on that single run, so my teammate wants to declare victory and write the description back to the source. Also, one of the runs that counted as a pass only triggered because the run hit the step cap mid-answer. How should I respond to each of these?",
+    "expect": [
+      "the measurement is always the Wilson-lower-bound score over repeated runs, never a single run",
+      "a triggered verdict resting on interrupted-run intent (timeout: true) is a pass but weaker evidence",
+      "check the timeouts counts before trusting a score"
+    ]
+  },
+  {
+    "id": "harness-input",
+    "query": "I'm getting a trigger-testing campaign ready and I never said anything about which harness to use — go ahead and pick whichever harness binary you find installed on this machine. That's fine, right?",
+    "expect": [
+      "the harness is required and the user must specify it; if missing, ask",
+      "never auto-detect installed harnesses or infer the harness from the environment"
+    ]
+  },
+  {
+    "id": "run-defaults",
+    "query": "The user who launched this trigger campaign didn't mention reps, timeout, iterations, or the train fraction, and offhandedly asked for 5 iterations 'to be thorough'. What values will the campaign actually use?",
+    "expect": [
+      "reps default to 3, timeout to 30s, train-frac to 0.6, seed is optional",
+      "max-iterations defaults to 3 and is a hard cap — clamp the higher request to 3 and tell the user"
+    ]
+  },
+  {
+    "id": "source-root-resolution",
+    "query": "Two skills to test: one lives at /proj/.opencode/skills/acme-tools, the other is registered as a built-in with no files. For each, tell me the source root, where the trigger-test query file lives by default, and whether we can run the campaign.",
+    "expect": [
+      "the source root is the directory containing the skill's skills/ directory — /proj/.opencode for that skill",
+      "queries default to <source-root>/skills-workspace/<skill>/trigger-tests/queries.json",
+      "a skill registered as built-in has no filesystem location and cannot be tested — surface that and stop"
+    ]
+  },
+  {
+    "id": "campaign-dir",
+    "query": "Where do the split files, per-round result JSON, logs, sealed pool, and per-iteration description copies for my trigger campaign live? Once the run finishes I'd like to tidy up by deleting the campaign directory, and to save disk I'd rather write the results into the temp eval workspace.",
+    "expect": [
+      "one persistent campaign dir per campaign, created via campaign-init, named campaign-YYYY-MM-DD with -2/-3 suffixes on same-day reruns",
+      "all campaign artifacts live in the campaign dir, never inside the temp eval workspace",
+      "the campaign dir is never removed — pass, fail, or abort; it is the persistent record of the run"
+    ]
+  },
+  {
+    "id": "preflight-workspace",
+    "query": "List the exact preflight and workspace-prep steps for a trigger-testing campaign before any eval spend happens, including what to do when the harness check fails.",
+    "expect": [
+      "resolve python3 (>= 3.10) and run evaluator.py check --harness <h> [--model m]; on failure stop and surface the exact message",
+      "workspace-manager.sh init, then sync the skill into the workspace, then status — status must pass before any eval"
+    ]
+  },
+  {
+    "id": "split-seed",
+    "query": "My teammate wants to hand-split the query file into train and validate with his own script because 'randomness just adds noise', and he sees no reason to record the seed anywhere. Walk him through how splitting actually works in this campaign.",
+    "expect": [
+      "splitting runs through evaluator.py split --queries <file> --out-dir <campaign>, with --train-frac (default 0.6) and optional --seed",
+      "record the seed from <campaign>/split.json"
+    ]
+  },
+  {
+    "id": "planned-spend",
+    "query": "What exactly do I report to the user before the first eval run of a trigger campaign, at what point in the workflow, and how is the planned maximum spend computed?",
+    "expect": [
+      "report the planned maximum spend as train_size × reps × max-iterations + validate_size × reps + reps (the sanity-check rep), with sizes read from split.json",
+      "get the user's explicit confirmation before the first eval run — this is the last confirmation gate"
+    ]
+  },
+  {
+    "id": "sealed-pool",
+    "query": "To keep this campaign comparable with last month's, I'd like to reuse the old sealed pool instead of generating new sanity queries. Also, the optimization loop is short on training signal — can I fold two of the sealed queries into train and still keep one for the sanity check?",
+    "expect": [
+      "every campaign generates 3 fresh self-contained should-trigger queries, written to <campaign>/sealed-pool.json — never reused",
+      "sealed queries are never shown to the optimization loop and never used for training; a sealed query trained on is contaminated and can no longer sanity-check anything",
+      "asked to reuse or fold sealed queries: refuse, say why, and generate 3 fresh ones instead"
+    ]
+  },
+  {
+    "id": "iteration-loop",
+    "query": "Describe the per-iteration mechanics of the trigger campaign loop: the suite invocation (including which agents directory it uses), what happens when a suite run fails, what I record each iteration, and when the loop ends early.",
+    "expect": [
+      "each iteration runs evaluator.py suite --track trigger-test on the train split, with --agents-dir pointing at the testing skill's own agents/ directory",
+      "on suite exit 1, abort the campaign — surface the stderr error, apply nothing, no retry",
+      "record {iteration, description, train score} each iteration and save the evaluated description to <campaign>/iter-<i>-description.md",
+      "an all-void round (totals.score null) aborts as broken conditions; zero train failures ends the loop early — and only a perfect round earns the early exit"
+    ]
+  },
+  {
+    "id": "failure-evidence",
+    "query": "A train round just finished with several failures. How do I turn those failures into description-revision categories? A couple of the failed runs came back with no reasoning at all, and I want my report to reflect that honestly.",
+    "expect": [
+      "extract each failed run's reasoning with evaluator.py evidence --track trigger-test and cite the deciding phrase before assigning a category — never categorize from the query text or the outcome pattern alone",
+      "the failure categories: a should-trigger query didn't fire → description too narrow; a should-not query false-triggered → description too broad; the same query fails repeatedly after tweaks → local minimum",
+      "a run with no reasoning falls back to the harness detail string, marked low-confidence — never invent reasoning the model did not produce",
+      "when more than a third of a round's failed runs lack reasoning, add an evidence quality line to the report"
+    ]
+  },
+  {
+    "id": "timeouts-setup-suspect",
+    "query": "This round had a bunch of timeouts, and two structurally different framings of a should-not query both false-triggered. My instinct is to start redrafting the description framing to fix the false triggers. What does the workflow say to check first, and what's the right move here?",
+    "expect": [
+      "check the timeouts counts before analyzing failures; a cluster of timeouts points at infrastructure — slow provider, step cap — not the description",
+      "a should-not query false-triggering under two or more structurally different framings is a setup-suspect finding: stop the iteration loop and surface the setup concern; draft no further framing"
+    ]
+  },
+  {
+    "id": "suspect-query",
+    "query": "One should-trigger query has now failed under every candidate description in every iteration. I figure I'll just tweak the query text so it passes and keep iterating. Good plan?",
+    "expect": [
+      "a query that failed under every candidate in every iteration is query-side, not description-side: report it under suspect queries with its failure signature and timeouts count, and recommend pruning or rewriting",
+      "only a query that passed under at least one candidate may drive another description revision",
+      "never rewrite a query to make it pass and never fabricate workspace files for a query"
+    ]
+  },
+  {
+    "id": "revision-guardrails",
+    "query": "My description tweaks are stalling — three rounds of adjective swaps and the same query keeps failing. Also, the user just handed me the exact replacement text and asked me to edit the source SKILL.md directly, mid-campaign. How do I handle both situations?",
+    "expect": [
+      "when word swaps stall, change the sentence skeleton, not the adjectives",
+      "revision guardrails: fix the category not the query, never paste failed-query keywords into the description, imperative phrasing, user intent over implementation, err pushy, 1024-char hard cap, never first person",
+      "mid-campaign the source file is never edited — not even when the user asks directly with replacement text; revisions rewrite the workspace stub only, and the stub is frontmatter-only (same name, revised description, no body)"
+    ]
+  },
+  {
+    "id": "winner-validate",
+    "query": "How is the winning iteration picked, and how does the validate pass work? My query set only has 8 entries, so there's barely anything left for validation — I'd like to fold the validate queries into the optimization loop to get more signal out of them.",
+    "expect": [
+      "the winner is the iteration with the highest totals.score; ties go to the earlier iteration",
+      "the validate set runs once, at the end, against the winner — it is not part of the optimization loop",
+      "with <= 10 queries the validate split is empty and the pass is skipped entirely",
+      "a validate score below the winner's train score flags an overfit warning; an all-void validate pass aborts the campaign"
+    ]
+  },
+  {
+    "id": "sanity-check",
+    "query": "Explain the sanity check step and its exact pass bar. If it fails, can I restart the loop with the sealed queries added to train? And what if every sanity run comes back empty?",
+    "expect": [
+      "take the first entry of the sealed pool as a single-query suite; pass = triggered observed in >= 60% of non-void runs",
+      "on failure: stop — report the failure, offer no write-back, never restart the loop, never train on sealed-pool queries",
+      "all-void sanity is inconclusive — not a pass, not a restart; the user decides what to do next"
+    ]
+  },
+  {
+    "id": "writeback-confirmation",
+    "query": "I presented the winning description and the user replied 'looks great, nice work'. That's confirmation enough — go ahead and apply the winner to the source SKILL.md. While you're at it: how exactly should the edit be made, and what if the winner had turned out to be the original description?",
+    "expect": [
+      "praise approves the report, it does not answer the write-back question — re-ask and wait for an unambiguous affirmative",
+      "on confirmation, replace only the description field in the source SKILL.md frontmatter, preserving every other field and the body byte-for-byte",
+      "if the winner is the original description, report that no change is needed — no write-back offer"
+    ]
+  },
+  {
+    "id": "record-mechanics",
+    "query": "When does the trigger campaign record into the manifest, what exactly gets written, and what are the maintenance rules for that manifest file? My skill's body changed after the last campaign — did that invalidate the recorded score?",
+    "expect": [
+      "record only after a passed sanity check and a resolved write-back decision, and only when the write-back was applied or the winner is the source description; never record a declined write-back or a failed/inconclusive campaign",
+      "record overwrites only the trigger-test key in the manifest, preserving every other key; one manifest per skill lives at skills-workspace/<skill>/manifest.json",
+      "the manifest is written only by evaluator.py record — never hand-write or edit it mid-campaign",
+      "the trigger-track checksum hashes the frontmatter block only, so body-only edits never invalidate a recorded score"
+    ]
+  },
+  {
+    "id": "query-design",
+    "query": "I'm authoring the initial trigger-test query set for a skill, plus the sealed pool. What variety should the should-trigger queries have, what makes a good negative, and can a query reference files in the eval workspace?",
+    "expect": [
+      "vary should-trigger queries across phrasing formality, explicitness, detail level, and complexity; make them substantive enough that the skill would genuinely help, and realistic",
+      "negatives are near-misses that share the skill's vocabulary but ask for something else; reject zero-overlap weak negatives — a pass against them proves nothing",
+      "generated queries must be self-contained by construction — no references to files or context that don't exist in a bare workspace",
+      "keep queries verbatim across the whole campaign; editing mid-campaign invalidates comparisons"
+    ]
+  },
+  {
+    "id": "report-format",
+    "query": "Write up the final report for my trigger campaign. What sections and lines does it need, and how do I handle the failure-evidence lines and any suspect queries?",
+    "expect": [
+      "the report opens with campaign:/artifacts:/train: header lines, then one block per iteration with score, failure categories, and failure evidence, then the winner with its description verbatim, validate, sanity, and a manifest line",
+      "one failure-evidence line per failed run, quoting the deciding phrase (<= 15 words) from that run's reasoning — or the detail string marked low-confidence when there is no reasoning",
+      "a suspect-queries block appears only when failure analysis flagged suspect queries"
+    ]
+  },
+  {
+    "id": "abort-semantics",
+    "query": "My train suite died with a provider 429, a later rerun attempt complained that another suite is already running, and earlier I saw an opencode 'agent not found, falling back to default agent' warning on stderr. For each of these three, tell me exactly what campaign policy says to do.",
+    "expect": [
+      "a harness execution failure (suite exit 1, e.g. provider 429) aborts the campaign: surface the error, keep the workspace, apply nothing, no retries",
+      "an agent-not-found/falling-back warning aborts the campaign too — a run under the wrong agent is contamination, not data",
+      "a lockfile exit 1 is not an abort: wait for the other suite to exit and re-run; if none is running, remove the stale lock at the named path",
+      "abort means stop immediately, apply nothing, retry nothing, keep the temp workspace, and report its path plus the campaign dir path"
+    ]
+  },
+  {
+    "id": "harness-gotchas",
+    "query": "I'm debugging a failed opencode eval run: where do I find the session, why does the database say reasoning: 0 when the transcript clearly shows thinking, and why does the echoed prompt in the session log show my query wrapped in literal double quotes it never contained?",
+    "expect": [
+      "sessions live in the SQLite database at ~/.local/share/opencode/opencode-stable.db; eval workspaces under /tmp land under project_id='global'; the legacy storage/session JSON files are stale as of opencode 1.18.x",
+      "providers that don't report reasoning tokens separately record reasoning: 0 even when reasoning parts exist — check the reasoning parts, not the counter",
+      "opencode 1.18.x reconstructs the run message by joining positional args shell-style, wrapping the query in literal double quotes; the transformation is uniform across runs, and you must not work around it by splitting the query into multiple argv words"
+    ]
+  }
+]

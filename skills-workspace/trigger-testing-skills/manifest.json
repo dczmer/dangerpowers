@@ -1,0 +1,42 @@
+{
+  "skill": "trigger-testing-skills",
+  "retrieval-test": {
+    "date": "2026-09-29",
+    "checksum": "sha256:351bd7b91313f4bebfc5465d23f1efec139fdb9b4d7a787424bb1de2abc03841",
+    "passes": 23,
+    "fails": 0,
+    "gaps": 0,
+    "voids": 0,
+    "model": "kimi-code-plan-global/kimi-for-coding",
+    "variant": null,
+    "ablations": 1,
+    "campaign": "campaign-2026-09-29",
+    "models": [
+      "kimi-code-plan-global/kimi-for-coding"
+    ]
+  },
+  "shape-test": {
+    "date": "2026-09-29",
+    "checksum": "sha256:351bd7b91313f4bebfc5465d23f1efec139fdb9b4d7a787424bb1de2abc03841",
+    "adopted": 1,
+    "no-failure": 1,
+    "unresolved": 0,
+    "voids": 0,
+    "model": null,
+    "variant": null,
+    "campaign": "campaign-2026-09-29",
+    "models": []
+  },
+  "pressure-test": {
+    "date": "2026-09-29",
+    "checksum": "sha256:204427dccad3722d7035d3409bb35e9428b417e98ce22e10d6aa5c928ab28e1b",
+    "bulletproof": 5,
+    "no-failure": 5,
+    "unresolved": 0,
+    "voids": 0,
+    "model": null,
+    "variant": null,
+    "campaign": "campaign-2026-09-29",
+    "models": []
+  }
+}

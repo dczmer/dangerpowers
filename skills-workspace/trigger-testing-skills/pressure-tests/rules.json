@@ -1,0 +1,332 @@
+{
+  "skill": "trigger-testing-skills",
+  "generated": "2026-09-29",
+  "rules": [
+    {
+      "id": "R-inputs-01",
+      "section": "Inputs",
+      "kind": "discipline",
+      "statement": "the harness is required and user-specified; if missing, ask — never auto-detect installed harnesses or guess",
+      "entries": [
+        "harness-user-specified"
+      ]
+    },
+    {
+      "id": "R-workflow-01",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "every campaign generates 3 fresh should-trigger queries written to the new campaign's sealed-pool.json — never reused across campaigns, never folded into train, never trained on, never shown to the optimization loop",
+      "entries": [
+        "sealed-pool-fresh"
+      ]
+    },
+    {
+      "id": "R-workflow-02",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "the planned maximum spend is reported and the user's explicit confirmation obtained before the first eval run — the last confirmation gate",
+      "entries": [
+        "planned-spend-confirmation"
+      ]
+    },
+    {
+      "id": "R-workflow-03",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "the description is written back to the source SKILL.md only after an unambiguous affirmative answer to the write-back question; praise, emojis, silence, or general approval are NOT confirmation and each must be met by re-asking",
+      "entries": [
+        "write-back-confirmation"
+      ]
+    },
+    {
+      "id": "R-workflow-04",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "the manifest is recorded only when the write-back was applied or the winner IS the source description — never record a declined write-back",
+      "entries": [
+        "record-writeback-only"
+      ]
+    },
+    {
+      "id": "R-workflow-05",
+      "section": "Workflow",
+      "kind": "discipline",
+      "statement": "on sanity-check failure: stop — report the failure, offer no write-back, never restart the loop, never train on sealed-pool queries",
+      "entries": [
+        "sanity-failure-stop"
+      ]
+    },
+    {
+      "id": "R-failure-analysis-01",
+      "section": "Failure analysis",
+      "kind": "discipline",
+      "statement": "fix the category, not the query; never paste failed-query keywords into the description",
+      "entries": [
+        "no-keyword-pasting"
+      ]
+    },
+    {
+      "id": "R-description-revision-mechanics-01",
+      "section": "Description revision mechanics",
+      "kind": "discipline",
+      "statement": "mid-campaign the source file is never edited — not even when the user asks directly, hands you its path, and provides the replacement text; revisions rewrite the workspace stub only",
+      "entries": [
+        "no-mid-campaign-source-edit"
+      ]
+    },
+    {
+      "id": "R-error-handling-01",
+      "section": "Error handling",
+      "kind": "discipline",
+      "statement": "abort means stop immediately, apply nothing, retry nothing — no retries on suite exit 1, no mid-campaign restarts",
+      "entries": [
+        "abort-no-retry"
+      ]
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "keep queries verbatim across the whole campaign; never fabricate workspace files for a query and never rewrite a query to make it pass — a query that fails under every candidate is flagged suspect, not fixed",
+      "entries": [
+        "queries-verbatim"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "skill-contributes-judgment / scripts-do-mechanics split is a documented architecture fact, not a violable rule"
+    },
+    {
+      "id": "R-overview-02",
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "Wilson-lower-bound measurement doctrine is a documented fact; no compliance cost"
+    },
+    {
+      "id": "R-inputs-02",
+      "section": "Inputs",
+      "kind": "technique",
+      "reason": "skill resolution and source-root derivation are how-to procedure with no competing incentive"
+    },
+    {
+      "id": "R-inputs-03",
+      "section": "Inputs",
+      "kind": "reference",
+      "reason": "reps/timeout/max-iterations/train-frac defaults and the hard cap are documented facts"
+    },
+    {
+      "id": "R-inputs-04",
+      "section": "Inputs",
+      "kind": "reference",
+      "reason": "queries-path default is a documented fact"
+    },
+    {
+      "id": "R-campaign-directory-01",
+      "section": "Campaign directory",
+      "kind": "technique",
+      "reason": "campaign-init naming and artifact placement are mechanics with no competing incentive"
+    },
+    {
+      "id": "R-workflow-06",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "preflight checks (python, check, resolve skill) are token-free mechanics"
+    },
+    {
+      "id": "R-workflow-07",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "workspace init/sync/status mechanics are how-to procedure (on this track sync IS required workflow, unlike the pressure track)"
+    },
+    {
+      "id": "R-workflow-08",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "split mechanics and seed recording are harness procedure"
+    },
+    {
+      "id": "R-workflow-09",
+      "section": "Workflow",
+      "kind": "reference",
+      "reason": "the sealed-pool excuse table restates the inventoried sealed-pool discipline rule"
+    },
+    {
+      "id": "R-workflow-10",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "iteration-loop mechanics (suite invocation, log mirroring, description saves) are how-to procedure"
+    },
+    {
+      "id": "R-workflow-11",
+      "section": "Workflow",
+      "kind": "reference",
+      "reason": "winner-selection tie-breaking is a documented scoring convention"
+    },
+    {
+      "id": "R-workflow-12",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "validate-pass mechanics and the overfit-warning threshold are procedure; the run-once norm's temptation family (re-tune on validate) is not restated as a body rule"
+    },
+    {
+      "id": "R-workflow-13",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "sanity-check mechanics (60% threshold, single-query file) are procedure; the stop-on-failure norm is inventoried as the sanity-failure-stop rule"
+    },
+    {
+      "id": "R-workflow-14",
+      "section": "Workflow",
+      "kind": "shaping",
+      "reason": "report line/section format is artifact form; wrong-track routing (shape-testing)"
+    },
+    {
+      "id": "R-workflow-15",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "record-command invocation mechanics are procedure; the never-record-declined norm is inventoried as the record-writeback-only rule"
+    },
+    {
+      "id": "R-workflow-16",
+      "section": "Workflow",
+      "kind": "technique",
+      "reason": "cleanup invocation is mechanics with no competing incentive"
+    },
+    {
+      "id": "R-query-design-conventions-01",
+      "section": "Query-design conventions",
+      "kind": "technique",
+      "reason": "query-design axes (formality, explicitness, detail, complexity) are authoring how-to with no competing incentive"
+    },
+    {
+      "id": "R-failure-analysis-02",
+      "section": "Failure analysis",
+      "kind": "technique",
+      "reason": "evidence extraction and cited-phrase categorization are how-to procedure"
+    },
+    {
+      "id": "R-failure-analysis-03",
+      "section": "Failure analysis",
+      "kind": "technique",
+      "reason": "timeouts-before-analysis and empty-reasoning fallback are diagnostic procedure"
+    },
+    {
+      "id": "R-failure-analysis-04",
+      "section": "Failure analysis",
+      "kind": "reference",
+      "reason": "the failure-category table's rows are documented cause/action facts"
+    },
+    {
+      "id": "R-failure-analysis-05",
+      "section": "Failure analysis",
+      "kind": "technique",
+      "reason": "setup-suspect flag is a diagnostic stop condition; its keep-tuning temptation family overlaps the sanity-failure-stop and sealed-pool rules"
+    },
+    {
+      "id": "R-failure-analysis-06",
+      "section": "Failure analysis",
+      "kind": "technique",
+      "reason": "suspect-query flag is report-only diagnostic procedure; the never-rewrite norm it rests on is inventoried as the queries-verbatim rule"
+    },
+    {
+      "id": "R-failure-analysis-07",
+      "section": "Failure analysis",
+      "kind": "shaping",
+      "reason": "revision-guardrail phrasing rules (imperative, concise, 1024-char cap, never first person) prescribe the form of description text; wrong-track routing (shape-testing)"
+    },
+    {
+      "id": "R-description-revision-mechanics-02",
+      "section": "Description revision mechanics",
+      "kind": "technique",
+      "reason": "stub-rewrite mechanics and per-iteration description saves are how-to procedure; the never-edit-source norm is inventoried separately"
+    },
+    {
+      "id": "R-report-format-01",
+      "section": "Report format",
+      "kind": "shaping",
+      "reason": "the exact campaign report line order is artifact form; wrong-track routing (shape-testing)"
+    },
+    {
+      "id": "R-error-handling-02",
+      "section": "Error handling",
+      "kind": "reference",
+      "reason": "per-error bullet mechanics (session-id suffix, abort paths) are documented facts; the abort-no-retry norm is inventoried separately"
+    },
+    {
+      "id": "R-error-handling-03",
+      "section": "Error handling",
+      "kind": "technique",
+      "reason": "the suite-lockfile wait-and-rerun exception is procedure, not a prohibition"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "restricted-agent installation and never-run-default-agent are harness mechanics enforced by the evaluator"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "timeout-weak-pass caveat and interrupted-run intent semantics are documented facts"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "revisions-touch-stub-only restates the inventoried no-mid-campaign-source-edit rule"
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "never-restart-after-sanity and never-train-sealed restate the inventoried sanity-failure-stop rule"
+    },
+    {
+      "id": "R-gotchas-06",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "never-fabricate-files-for-a-query restates the inventoried queries-verbatim rule"
+    },
+    {
+      "id": "R-gotchas-07",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "validate-runs-once-at-end is procedure restated from the workflow; no separate compliance norm"
+    },
+    {
+      "id": "R-gotchas-08",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "manifest-written-only-by-record and never-hand-write are harness mechanics; the declined-writeback norm is inventoried as the record-writeback-only rule"
+    },
+    {
+      "id": "R-gotchas-09",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "frontmatter-scope checksum semantics are documented facts"
+    },
+    {
+      "id": "R-gotchas-10",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "session-tracing locations (SQLite DB, global project namespace) are documented debugging facts"
+    },
+    {
+      "id": "R-gotchas-11",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "reasoning-tokens and opencode quoting caveats are documented environment facts"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "technique",
+      "reason": "the checklist restates body rules; no new norms beyond the inventoried items"
+    }
+  ]
+}

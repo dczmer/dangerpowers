@@ -117,29 +117,7 @@ Mid-campaign the source file is never edited — not even when the user asks dir
 
 ## Report format
 
-```
-campaign: writing-skills   harness: opencode   model: <m>   variant: <v>
-artifacts: skills-workspace/writing-skills/trigger-tests/campaign-2026-09-02/
-train: 9 queries   validate: 7 queries   reps: 3   seed: 42   iterations run: 2 of 3
-
-iter 1: train score 0.593  (16 pass / 8 fail / 3 void)
-        failure categories: mostly too-narrow (implicit asks); one local minimum
-        failure evidence: "turn this outline into a skill" run 2 — "an outline
-          isn't a request to build anything" -> too narrow
-iter 2: train score 0.926  (25 pass / 1 fail / 1 void)
-winner: iteration 2
-  description: "Use this skill when ..."
-validate: score 0.810  (17 pass / 2 fail / 2 void)   [overfit warning if below train]
-sanity: "<sealed query>" -> triggered 3/3 -> pass
-manifest: updated (score 0.810, sha256:d034c1…)
-suspect queries: "turn this outline into a skill" — failed under all candidates in
-  all iterations (timeouts: 2); likely query-side, consider pruning or rewriting
-
-The winning description differs from the source. Apply it to
-skills/writing-skills/SKILL.md? [awaiting confirmation]
-```
-
-The `suspect queries` block appears only when failure analysis flagged any. There is one `failure evidence:` line per failed run, quoting the deciding phrase (≤ 15 words) from that run's reasoning — or, when the run carried no reasoning, the harness `detail` string suffixed `(low confidence — no reasoning)`; iterations with zero failures omit the line. The `evidence quality:` line appears only when more than a third of a round's failed runs lacked reasoning. The `manifest:` line reads `updated (...)` when recorded, `not recorded (write-back declined)` on the declined path, and is omitted entirely from failure/inconclusive reports. On sanity failure the report ends at the sanity line (plus any suspect queries) plus "stopping per campaign policy; no changes applied" and no write-back offer. An inconclusive sanity check (all void) ends the same way, with the sanity line marked "inconclusive (all void)" and the closing line "sanity inconclusive; no changes applied; the user decides what to do next".
+Every campaign report is exactly these lines, in order: `campaign: <skill>   harness: <h>   model: <m>   variant: <v>`; `artifacts: <campaign dir>`; `train: <n> queries   validate: <n> queries   reps: <r>   seed: <s>   iterations run: <i> of <max>`; per iteration `iter <i>: train score <s>  (<p> pass / <f> fail / <v> void)` with a `failure categories:` line and one `failure evidence:` line per failed run (deciding phrase ≤ 15 words + `-> <category>`); `winner: iteration <i>` plus an indented `description: "<winner>"` line; `validate: score <s>  (...)  [overfit warning if below train]`; `sanity: "<query>" -> triggered <k>/<n> -> pass`; `manifest: updated (score <s>, sha256:<hash>)` or `not recorded (write-back declined)`; `suspect queries:` only when flagged; then the closing write-back question `The winning description differs from the source. Apply it to <path>? [awaiting confirmation]` — on sanity failure the report ends `stopping per campaign policy; no changes applied`, on an all-void sanity `sanity inconclusive; no changes applied; the user decides what to do next`.
 
 ## Error handling
 

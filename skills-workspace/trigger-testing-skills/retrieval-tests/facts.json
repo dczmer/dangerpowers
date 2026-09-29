@@ -1,0 +1,445 @@
+{
+  "skill": "trigger-testing-skills",
+  "generated": "2026-09-29",
+  "facts": [
+    {
+      "id": "F-overview-01",
+      "section": "Overview",
+      "statement": "Everything mechanical — looping, counting, splitting, scoring, manifest recording — lives in the shared harness scripts at the repo-root tools/test-harness/, invoked by absolute path",
+      "entries": [
+        "consumption-rule"
+      ]
+    },
+    {
+      "id": "F-overview-02",
+      "section": "Overview",
+      "statement": "Consume only exit codes and JSON files from harness scripts; never parse their prose stdout",
+      "entries": [
+        "consumption-rule"
+      ]
+    },
+    {
+      "id": "F-overview-03",
+      "section": "Overview",
+      "statement": "The measurement is always the Wilson-lower-bound score over repeated runs, never a single run",
+      "entries": [
+        "score-metric"
+      ]
+    },
+    {
+      "id": "F-inputs-01",
+      "section": "Inputs",
+      "statement": "The harness is required and must be user-specified; if missing ask — never auto-detect installed harnesses or infer from the environment",
+      "entries": [
+        "harness-input"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-inputs-02",
+      "section": "Inputs",
+      "statement": "Defaults: reps 3, timeout 30s, train-frac 0.6, seed optional; max-iterations defaults to 3 and is a hard cap — clamp higher requests to 3 and tell the user",
+      "entries": [
+        "run-defaults"
+      ]
+    },
+    {
+      "id": "F-inputs-03",
+      "section": "Inputs",
+      "statement": "Derive the source root as the directory containing the skill's skills/ directory — for <root>/.opencode/skills/<name> it is <root>/.opencode; a skill not under a skills/ dir has no derivable source root — stop and surface that",
+      "entries": [
+        "source-root-resolution"
+      ]
+    },
+    {
+      "id": "F-inputs-04",
+      "section": "Inputs",
+      "statement": "A skill registered as built-in has no filesystem location and cannot be tested — surface that and stop",
+      "entries": [
+        "source-root-resolution"
+      ]
+    },
+    {
+      "id": "F-inputs-05",
+      "section": "Inputs",
+      "statement": "The queries path defaults to <source-root>/skills-workspace/<skill>/trigger-tests/queries.json",
+      "entries": [
+        "source-root-resolution"
+      ]
+    },
+    {
+      "id": "F-campaign-directory-01",
+      "section": "Campaign directory",
+      "statement": "One persistent campaign dir per campaign via campaign-init, named campaign-YYYY-MM-DD with same-day -2/-3 suffixes; it is never removed — pass, fail, or abort",
+      "entries": [
+        "campaign-dir"
+      ]
+    },
+    {
+      "id": "F-campaign-directory-02",
+      "section": "Campaign directory",
+      "statement": "Campaign artifacts — split files, result JSON, logs, sealed pool, description copies — live in the campaign dir, never inside the temp eval workspace",
+      "entries": [
+        "campaign-dir"
+      ]
+    },
+    {
+      "id": "F-workflow-01",
+      "section": "Workflow",
+      "statement": "Preflight: resolve python3 (>= 3.10), run evaluator.py check --harness <h> [--model m]; on failure stop and surface the exact message",
+      "entries": [
+        "preflight-workspace"
+      ]
+    },
+    {
+      "id": "F-workflow-02",
+      "section": "Workflow",
+      "statement": "Workspace prep: workspace-manager.sh init, sync the skill, then status — status must pass before any eval",
+      "entries": [
+        "preflight-workspace"
+      ]
+    },
+    {
+      "id": "F-workflow-03",
+      "section": "Workflow",
+      "statement": "Split via evaluator.py split --queries <file> --out-dir <campaign> [--train-frac f] [--seed s]; record the seed from <campaign>/split.json",
+      "entries": [
+        "split-seed"
+      ]
+    },
+    {
+      "id": "F-workflow-04",
+      "section": "Workflow",
+      "statement": "Report planned spend as train_size × reps × max-iterations + validate_size × reps + reps (sanity), sizes read from split.json; get explicit user confirmation before the first eval — the last confirmation gate",
+      "entries": [
+        "planned-spend"
+      ]
+    },
+    {
+      "id": "F-workflow-05",
+      "section": "Workflow",
+      "statement": "Sealed pool: every campaign generates 3 fresh self-contained should-trigger queries written to <campaign>/sealed-pool.json; never reused, never shown to the optimization loop, never trained on",
+      "entries": [
+        "sealed-pool"
+      ]
+    },
+    {
+      "id": "F-workflow-06",
+      "section": "Workflow",
+      "statement": "Each iteration runs evaluator.py suite --track trigger-test on the train split with --agents-dir pointing at the testing skill's own agents/ directory; suite exit 1 aborts the campaign — no retry",
+      "entries": [
+        "iteration-loop"
+      ]
+    },
+    {
+      "id": "F-workflow-07",
+      "section": "Workflow",
+      "statement": "Record {iteration, description, train score} each iteration and save the evaluated description to <campaign>/iter-<i>-description.md",
+      "entries": [
+        "iteration-loop"
+      ]
+    },
+    {
+      "id": "F-workflow-08",
+      "section": "Workflow",
+      "statement": "An all-void round (totals.score null) aborts as broken conditions; zero train failures ends the loop early — only a perfect round earns the early exit",
+      "entries": [
+        "iteration-loop"
+      ]
+    },
+    {
+      "id": "F-workflow-09",
+      "section": "Workflow",
+      "statement": "Winner = highest totals.score across iterations; ties go to the earlier iteration",
+      "entries": [
+        "winner-validate"
+      ]
+    },
+    {
+      "id": "F-workflow-10",
+      "section": "Workflow",
+      "statement": "The validate set runs once, at the end, against the winner — not part of the optimization loop; with <= 10 queries the validate split is empty and the pass is skipped entirely",
+      "entries": [
+        "winner-validate"
+      ]
+    },
+    {
+      "id": "F-workflow-11",
+      "section": "Workflow",
+      "statement": "A validate score below the winner's train score flags an overfit warning (informational only); an all-void validate pass aborts the campaign",
+      "entries": [
+        "winner-validate"
+      ]
+    },
+    {
+      "id": "F-workflow-12",
+      "section": "Workflow",
+      "statement": "Sanity check: first sealed-pool entry as a single-query suite; pass = triggered observed in >= 60% of non-void runs; all-void = inconclusive",
+      "entries": [
+        "sanity-check"
+      ]
+    },
+    {
+      "id": "F-workflow-13",
+      "section": "Workflow",
+      "statement": "On sanity failure: stop — report the failure, offer no write-back, never restart the loop, never train on sealed-pool queries; all-void sanity is inconclusive and the user decides",
+      "entries": [
+        "sanity-check"
+      ]
+    },
+    {
+      "id": "F-workflow-14",
+      "section": "Workflow",
+      "statement": "Write-back replaces only the description field in the source SKILL.md frontmatter, preserving every other field and the body byte-for-byte",
+      "entries": [
+        "writeback-confirmation"
+      ]
+    },
+    {
+      "id": "F-workflow-15",
+      "section": "Workflow",
+      "statement": "Praise, emoji, silence, or non-objection are not write-back confirmation — re-ask the question and wait; if the winner is the original description, report no change is needed",
+      "entries": [
+        "writeback-confirmation"
+      ]
+    },
+    {
+      "id": "F-workflow-16",
+      "section": "Workflow",
+      "statement": "Record only when the write-back was applied or the winner IS the source description; never record a declined write-back or a failed/inconclusive campaign",
+      "entries": [
+        "record-mechanics"
+      ]
+    },
+    {
+      "id": "F-workflow-17",
+      "section": "Workflow",
+      "statement": "record overwrites only the trigger-test key in the manifest and preserves every other key; one manifest per skill lives at <source-root>/skills-workspace/<skill>/manifest.json",
+      "entries": [
+        "record-mechanics"
+      ]
+    },
+    {
+      "id": "F-query-design-conventions-01",
+      "section": "Query-design conventions",
+      "statement": "Vary should-trigger queries across phrasing formality, explicitness, detail level, and complexity; make them substantive enough that the skill would genuinely help, and realistic",
+      "entries": [
+        "query-design"
+      ]
+    },
+    {
+      "id": "F-query-design-conventions-02",
+      "section": "Query-design conventions",
+      "statement": "Negatives are near-misses that share the skill's vocabulary but ask for something else; reject zero-overlap weak negatives — a pass against them proves nothing",
+      "entries": [
+        "query-design"
+      ]
+    },
+    {
+      "id": "F-query-design-conventions-03",
+      "section": "Query-design conventions",
+      "statement": "Generated queries must be self-contained by construction — no references to files or context that don't exist in a bare workspace; keep queries verbatim across the campaign",
+      "entries": [
+        "query-design"
+      ]
+    },
+    {
+      "id": "F-failure-analysis-01",
+      "section": "Failure analysis",
+      "statement": "Extract each failed run's reasoning via evaluator.py evidence --track trigger-test and cite the deciding phrase before assigning a category — never categorize from the query text or the outcome pattern alone",
+      "entries": [
+        "failure-evidence"
+      ]
+    },
+    {
+      "id": "F-failure-analysis-02",
+      "section": "Failure analysis",
+      "statement": "Failure categories: should-trigger didn't fire → description too narrow; should-not false-triggered → too broad; same query fails repeatedly after tweaks → local minimum",
+      "entries": [
+        "failure-evidence"
+      ]
+    },
+    {
+      "id": "F-failure-analysis-03",
+      "section": "Failure analysis",
+      "statement": "A run with no reasoning falls back to the harness detail string, marked low-confidence — never invent reasoning; when more than a third of a round's failed runs lack reasoning, add an evidence quality line to the report",
+      "entries": [
+        "failure-evidence"
+      ]
+    },
+    {
+      "id": "F-failure-analysis-04",
+      "section": "Failure analysis",
+      "statement": "Check the timeouts counts before analyzing failures — a cluster of timeouts points at infrastructure (slow provider, step cap), not the description",
+      "entries": [
+        "timeouts-setup-suspect"
+      ]
+    },
+    {
+      "id": "F-failure-analysis-05",
+      "section": "Failure analysis",
+      "statement": "Setup-suspect flag: a should-not query false-triggering under two or more structurally different framings is a setup problem — stop the iteration loop, surface the concern, draft no further framing",
+      "entries": [
+        "timeouts-setup-suspect"
+      ]
+    },
+    {
+      "id": "F-failure-analysis-06",
+      "section": "Failure analysis",
+      "statement": "Suspect-query flag: a should-trigger query that failed under every candidate in every iteration is query-side — report it under suspect queries with failure signature and timeouts count, and only a query that passed under at least one candidate may drive a revision",
+      "entries": [
+        "suspect-query"
+      ]
+    },
+    {
+      "id": "F-failure-analysis-07",
+      "section": "Failure analysis",
+      "statement": "Never fabricate workspace files for a query and never rewrite a query to make it pass — flag it as suspect instead",
+      "entries": [
+        "suspect-query"
+      ]
+    },
+    {
+      "id": "F-description-revision-mechanics-01",
+      "section": "Description revision mechanics",
+      "statement": "Mid-campaign the source file is never edited — not even when the user asks directly with replacement text; revisions rewrite the workspace stub only, and the stub is frontmatter-only (same name, revised description, no body)",
+      "entries": [
+        "revision-guardrails"
+      ]
+    },
+    {
+      "id": "F-description-revision-mechanics-02",
+      "section": "Description revision mechanics",
+      "statement": "Revision guardrails: fix the category not the query; never paste failed-query keywords; imperative phrasing; user intent over implementation; err pushy; 1024-char hard cap; never first person",
+      "entries": [
+        "revision-guardrails"
+      ]
+    },
+    {
+      "id": "F-description-revision-mechanics-03",
+      "section": "Description revision mechanics",
+      "statement": "When word swaps stall, change the sentence skeleton, not the adjectives",
+      "entries": [
+        "revision-guardrails"
+      ]
+    },
+    {
+      "id": "F-report-format-01",
+      "section": "Report format",
+      "statement": "Report layout: campaign:/artifacts:/train: header lines, one block per iteration with score, failure categories, and failure evidence, then winner with description verbatim, validate, sanity, and a manifest line",
+      "entries": [
+        "report-format"
+      ]
+    },
+    {
+      "id": "F-report-format-02",
+      "section": "Report format",
+      "statement": "One failure-evidence line per failed run quoting the deciding phrase (<= 15 words) from its reasoning — or the detail string marked low-confidence when there is no reasoning; the suspect-queries block appears only when flagged",
+      "entries": [
+        "report-format"
+      ]
+    },
+    {
+      "id": "F-error-handling-01",
+      "section": "Error handling",
+      "statement": "Abort means stop immediately, apply nothing, retry nothing, keep the temp workspace, and report its path plus the campaign dir path; on completion the workspace is cleaned up",
+      "entries": [
+        "abort-semantics"
+      ]
+    },
+    {
+      "id": "F-error-handling-02",
+      "section": "Error handling",
+      "statement": "A harness execution failure (suite exit 1, e.g. provider 429) aborts the campaign — surface the error, no retries; an opencode agent-not-found/falling-back warning also aborts — a run under the wrong agent is contamination, not data",
+      "entries": [
+        "abort-semantics"
+      ]
+    },
+    {
+      "id": "F-error-handling-03",
+      "section": "Error handling",
+      "statement": "A suite exit 1 naming the lockfile is not an abort: wait for the other suite to exit and re-run; if no suite is running, remove the stale lock at the named path",
+      "entries": [
+        "abort-semantics"
+      ]
+    },
+    {
+      "id": "F-error-handling-04",
+      "section": "Error handling",
+      "statement": "Suite totals with 0 scored runs (all void) abort as broken conditions, checked before the zero-failures early exit; the sanity check is the only all-void exception (inconclusive)",
+      "entries": [
+        "abort-semantics"
+      ]
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "statement": "A triggered verdict resting on interrupted-run intent (timeout: true) is a pass but weaker evidence — check the timeouts counts before trusting a score",
+      "entries": [
+        "score-metric"
+      ]
+    },
+    {
+      "id": "F-gotchas-02",
+      "section": "Gotchas",
+      "statement": "Sessions live in the SQLite DB at ~/.local/share/opencode/opencode-stable.db; /tmp eval workspaces land under project_id='global'; the legacy storage/session JSON files are stale as of opencode 1.18.x",
+      "entries": [
+        "harness-gotchas"
+      ]
+    },
+    {
+      "id": "F-gotchas-03",
+      "section": "Gotchas",
+      "statement": "Providers that don't report reasoning tokens separately record reasoning: 0 even when reasoning parts exist — check the reasoning parts, not the counter",
+      "entries": [
+        "harness-gotchas"
+      ]
+    },
+    {
+      "id": "F-gotchas-04",
+      "section": "Gotchas",
+      "statement": "opencode 1.18.x reconstructs the run message by joining positional args shell-style, wrapping the query in literal double quotes; uniform across runs so within-campaign comparisons hold — never work around it by splitting the query into multiple argv words",
+      "entries": [
+        "harness-gotchas"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-campaign-directory-03",
+      "section": "Campaign directory",
+      "reason": "eval reps run with --dir <ws> so source-root artifacts are invisible to them — harness mechanics, rationale for artifact placement rather than an agent decision"
+    },
+    {
+      "id": "F-workflow-18",
+      "section": "Workflow",
+      "reason": "evaluator agent install failures exit 1 before any spend; split/query-file validation failures stop pre-spend — harness-enforced validation mechanics"
+    },
+    {
+      "id": "F-workflow-19",
+      "section": "Workflow",
+      "reason": "the write-back confirmation rationalization table's individual rows — one representative case (praise) is covered by writeback-confirmation; the rest are illustrative duplicates"
+    },
+    {
+      "id": "F-failure-analysis-08",
+      "section": "Failure analysis",
+      "reason": "eval agents see frontmatter-only stubs, never the skill body — harness stub design, not an agent-applied fact"
+    },
+    {
+      "id": "F-gotchas-05",
+      "section": "Gotchas",
+      "reason": "eval reps run under the restricted trigger-evaluator agent installed per workspace; never default agent, never re-add --auto — harness-enforced install mechanics"
+    },
+    {
+      "id": "F-gotchas-06",
+      "section": "Gotchas",
+      "reason": "manual debugging of a single query via evaluator.py run — one-line convenience detail, folded into harness-invocation practice"
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "checklist items mirror the workflow — a compliance mirror, not reference facts"
+    }
+  ]
+}
