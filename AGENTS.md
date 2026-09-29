@@ -34,16 +34,8 @@ dangerpowers/
 │       ├── references/        # reference docs (some skills)
 │       └── agents/            # supporting agent configs/schemas (some skills)
 ├── skills-workspace/          # per-skill test artifacts (e.g. trigger-tests/queries.json);
-                               # campaign dirs (campaign-YYYY-MM-DD[-N]/) are untracked — never commit them
-├── tools/test-harness/      # shared headless eval-harness scripts for the
-│                            # trigger/retrieval/shape/pressure testing skills
-│                            # (evaluator.py: CLI parsers, generic drivers,
-│                            # record, inventory; workspace-manager.sh; src/:
-│                            # strategies.py, common.py shared campaign primitives,
-│                            # tracks/: one module per track (trigger/retrieval/
-│                            # shape/pressure) + track.py base class + registry
-│                            # tests/: per-module test files, discovery via
-│                            # `uv run python -m unittest discover -s tools/test-harness/tests -t tools/test-harness`)
+├── tools/test-harness/        # shared headless eval-harness scripts for the
+│                              # trigger/retrieval/shape/pressure testing skills
 ├── docs/                      # documentation and deep-dives (index: docs/README.md)
 ├── agents/                    # custom opencode agent definitions (*.md)
 ├── plugins/                   # opencode plugin (opencode-plugin.ts) registering skills/ + agents/ via config hook
