@@ -26,5 +26,17 @@
     "variant": null,
     "campaign": "campaign-2026-09-29",
     "models": []
+  },
+  "pressure-test": {
+    "date": "2026-09-29",
+    "checksum": "sha256:204427dccad3722d7035d3409bb35e9428b417e98ce22e10d6aa5c928ab28e1b",
+    "bulletproof": 5,
+    "no-failure": 5,
+    "unresolved": 0,
+    "voids": 0,
+    "model": null,
+    "variant": null,
+    "campaign": "campaign-2026-09-29",
+    "models": []
   }
 }
