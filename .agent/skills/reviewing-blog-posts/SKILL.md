@@ -15,7 +15,7 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
 ## Workflow
 
 1. **Fact-check.**
-   - Verify every claim using web search and other documents in the repository. A claim that matches the repository's documents can still be wrong — externally verifiable claims also need an external source.
+   - Verify every claim using web search and other documents in the repository, including any reference documents provided alongside the draft. A claim that matches the repository's documents can still be wrong — externally verifiable claims also need an external source.
    - Cite a source for each important claim, using the citation and linking convention below.
 2. **Fix spelling, grammar, and capitalization.** Edit the post in place. Use the Oxford comma in every list of three or more items (write "a, b, and c", never "a, b and c"), and use MLA-style title casing for section headers. This is the only audit category applied directly; everything else goes in the report.
 3. **Audit structure and ambiguity.** Flag structural problems and statements with ambiguous subjects or referents.
@@ -36,8 +36,7 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
 Follow the house style used in the `docs/writing-skills/part-*/README.md` files, exactly and consistently:
 
 - List every source in a `## References` section at the bottom of the post. Assign each source a letter key, in order of first citation, as a list entry of the form `- <a id="ref-a"></a>**[A]** [Source - Title](url)` (for example, `- <a id="ref-b"></a>**[B]** [Anthropic - Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)`).
-- Cite inline as `[A](#ref-a)` immediately after the claim it supports. Use descriptive link text when it reads more naturally, e.g. `[Anthropic's skill-authoring guide](#ref-a)` — the anchor target must always be the reference's `#ref-x` anchor.
-- Cite multiple sources grouped in one pair of parentheses, comma-separated, e.g. `([A](#ref-a), [C](#ref-c))`.
+- Cite inline as `[A](#ref-a)` immediately after the claim it supports. Use descriptive link text when it reads more naturally, e.g. `[Anthropic's skill-authoring guide](#ref-a)` — the anchor target must always be the reference's `#ref-x` anchor. When a single sentence carries several sourced claims, cite them all in one pair of parentheses at the end of that sentence, comma-separated, e.g. `([A](#ref-a), [C](#ref-c))` — do not attach a separate citation to each clause of the same sentence.
 - Never use bare URLs, footnote-style markers, or any other citation format; this convention is the only one used in the post.
 
 ## Audit report

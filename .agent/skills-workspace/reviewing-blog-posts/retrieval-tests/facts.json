@@ -1,0 +1,206 @@
+{
+  "skill": "reviewing-blog-posts",
+  "generated": "2026-09-29",
+  "facts": [
+    {
+      "id": "F-workflow-01",
+      "section": "Workflow",
+      "statement": "verify every claim with web search and repository documents; a claim matching repository documents can still be wrong and externally verifiable claims need an external source",
+      "entries": [
+        "external-verification"
+      ]
+    },
+    {
+      "id": "F-workflow-02",
+      "section": "Workflow",
+      "statement": "cite a source for each important claim using the citation and linking convention",
+      "entries": [
+        "citation-house-style"
+      ]
+    },
+    {
+      "id": "F-workflow-03",
+      "section": "Workflow",
+      "statement": "apply only spelling, grammar, and capitalization fixes directly in place; everything else goes in the audit report",
+      "entries": [
+        "copyedit-oxford-mla"
+      ]
+    },
+    {
+      "id": "F-workflow-04",
+      "section": "Workflow",
+      "statement": "use the Oxford comma in every list of three or more items",
+      "entries": [
+        "copyedit-oxford-mla"
+      ]
+    },
+    {
+      "id": "F-workflow-05",
+      "section": "Workflow",
+      "statement": "use MLA-style title casing for section headers",
+      "entries": [
+        "copyedit-oxford-mla"
+      ]
+    },
+    {
+      "id": "F-workflow-06",
+      "section": "Workflow",
+      "statement": "flag structural problems and statements with ambiguous subjects or referents",
+      "entries": [
+        "audit-report-shape"
+      ]
+    },
+    {
+      "id": "F-workflow-07",
+      "section": "Workflow",
+      "statement": "propose illustrations and analogies to explain complex concepts",
+      "entries": [
+        "audit-report-shape"
+      ]
+    },
+    {
+      "id": "F-workflow-08",
+      "section": "Workflow",
+      "statement": "example proposals are 'Bad / Good / Why' blocks with a one-sentence caption under each version",
+      "entries": [
+        "audit-report-shape"
+      ]
+    },
+    {
+      "id": "F-workflow-09",
+      "section": "Workflow",
+      "statement": "propose a call-out quote for the start of every section, one per section with none skipped, a one-sentence quote distilling the section's central thesis",
+      "entries": [
+        "callout-quotes-all-sections"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-workflow-10",
+      "section": "Workflow",
+      "statement": "repetition is acceptable only when the concept is important enough, relevant in each section where it appears, and worded differently each time; evaluate every occurrence against all three criteria separately",
+      "entries": [
+        "repetition-three-criteria"
+      ]
+    },
+    {
+      "id": "F-workflow-11",
+      "section": "Workflow",
+      "statement": "any line starting with '> EDITOR:' is a direct request from the author; resolve each one and remove or rewrite the marker line",
+      "entries": [
+        "editor-lines-resolved"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-workflow-12",
+      "section": "Workflow",
+      "statement": "flag any link not written as [label](url)",
+      "entries": [
+        "markdown-links-code-lines"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-workflow-13",
+      "section": "Workflow",
+      "statement": "flag any multi-line code block with lines longer than 80 characters; the 80-character limit applies to code blocks only, not blockquotes or other preformatted elements",
+      "entries": [
+        "markdown-links-code-lines"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-citation-and-linking-convention-01",
+      "section": "Citation and linking convention",
+      "statement": "list every source in a '## References' section at the bottom with letter keys in order of first citation, each entry of the form '- <a id=\"ref-a\"></a>**[A]** [Source - Title](url)'",
+      "entries": [
+        "citation-house-style"
+      ]
+    },
+    {
+      "id": "F-citation-and-linking-convention-02",
+      "section": "Citation and linking convention",
+      "statement": "cite inline as '[A](#ref-a)' immediately after the claim it supports; descriptive link text allowed but the anchor target must always be the reference's '#ref-x' anchor",
+      "entries": [
+        "citation-house-style"
+      ]
+    },
+    {
+      "id": "F-citation-and-linking-convention-03",
+      "section": "Citation and linking convention",
+      "statement": "cite multiple sources grouped in one pair of parentheses, comma-separated",
+      "entries": [
+        "citation-house-style"
+      ]
+    },
+    {
+      "id": "F-citation-and-linking-convention-04",
+      "section": "Citation and linking convention",
+      "statement": "never use bare URLs, footnote-style markers, or any other citation format",
+      "entries": [
+        "citation-house-style"
+      ]
+    },
+    {
+      "id": "F-audit-report-01",
+      "section": "Audit report",
+      "statement": "the report skeleton is numbered sections with lettered items (1. category -> 1.a finding); every finding is exactly one lettered item, never bare bullets or prose paragraphs",
+      "entries": [
+        "audit-report-shape"
+      ]
+    },
+    {
+      "id": "F-audit-report-02",
+      "section": "Audit report",
+      "statement": "include an example or concrete suggestion for each proposed fix",
+      "entries": [
+        "audit-report-shape"
+      ]
+    },
+    {
+      "id": "F-audit-report-03",
+      "section": "Audit report",
+      "statement": "reference locations by describing them or quoting a snippet of surrounding text, never line numbers",
+      "entries": [
+        "audit-report-shape"
+      ]
+    },
+    {
+      "id": "F-audit-report-04",
+      "section": "Audit report",
+      "statement": "report how each '> EDITOR:' directive was resolved",
+      "entries": [
+        "editor-lines-resolved"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-overview-01",
+      "section": "Overview",
+      "reason": "engagement-without-dilution goal is a rationale, not a testable directive"
+    },
+    {
+      "id": "F-workflow-14",
+      "section": "Workflow",
+      "reason": "step ordering (fact-check first, copyedit second) is workflow sequencing, not a separable output-shaping fact"
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "reason": "all three gotchas restate Workflow facts already inventoried (direct-edit scope, external verification, repetition)"
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "checklist items restate the body facts already inventoried"
+    }
+  ]
+}
