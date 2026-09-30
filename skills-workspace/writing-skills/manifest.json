@@ -1,13 +1,16 @@
 {
   "skill": "writing-skills",
   "trigger-test": {
-    "date": "2026-09-23",
+    "date": "2026-09-30",
     "checksum": "sha256:70dcce3b0954be33d8328761356b6da80fa1fdc14172e5dfbbf97b4a630d8a0c",
-    "score": 0.7733018341376452,
-    "campaign": "campaign-2026-09-23",
-    "model": "llama.cpp/gemma-4-26B-A4B",
+    "score": 0.8156763396284354,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
     "variant": null,
-    "models": ["llama.cpp/gemma-4-26B-A4B"]
+    "campaign": "campaign-2026-09-30",
+    "models": [
+      "llama.cpp/gemma-4-26B-A4B",
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
   },
   "retrieval-test": {
     "date": "2026-09-23",
@@ -19,7 +22,9 @@
     "campaign": "campaign-2026-09-23",
     "model": "llama.cpp/gemma-4-26B-A4B",
     "variant": null,
-    "models": ["llama.cpp/gemma-4-26B-A4B"]
+    "models": [
+      "llama.cpp/gemma-4-26B-A4B"
+    ]
   },
   "shape-test": {
     "date": "2026-09-23",
@@ -31,7 +36,9 @@
     "campaign": "campaign-2026-09-23",
     "model": "llama.cpp/gemma-4-26B-A4B",
     "variant": null,
-    "models": ["llama.cpp/gemma-4-26B-A4B"]
+    "models": [
+      "llama.cpp/gemma-4-26B-A4B"
+    ]
   },
   "pressure-test": {
     "date": "2026-09-23",
@@ -43,6 +50,8 @@
     "campaign": "campaign-2026-09-23",
     "model": "llama.cpp/gemma-4-26B-A4B",
     "variant": null,
-    "models": ["llama.cpp/gemma-4-26B-A4B"]
+    "models": [
+      "llama.cpp/gemma-4-26B-A4B"
+    ]
   }
 }

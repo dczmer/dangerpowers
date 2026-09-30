@@ -481,7 +481,10 @@ def cmd_record(args: argparse.Namespace) -> int:
     variant attribution plus a cumulative deduped `models` list: dir
     scope derives model/variant from the --results files' config blocks
     (first file wins; drift across files warns on stderr), frontmatter
-    scope takes the --model/--variant passthrough flags. With
+    scope requires the --model passthrough flag (the trigger envelope
+    carries model top-level rather than in a config block, so
+    --score-from cannot supply attribution — without the flag a record
+    would silently write model: null); --variant stays optional. With
     --scope dir --inventory, the entry's `ablations` count is derived
     from the inventory (items currently carrying a status). Without
     --date, a --campaign value named like a campaign dir
@@ -512,6 +515,13 @@ def cmd_record(args: argparse.Namespace) -> int:
             return _err("--score is required with --scope frontmatter")
         if _any_counts_given(args):
             return _err("counts are only valid with --scope dir")
+        if getattr(args, "model", None) is None:
+            return _err(
+                "--model is required with --scope frontmatter: the "
+                "frontmatter scope has no results config to derive it "
+                "from, and a record without it would silently write "
+                "model: null"
+            )
         if not skill_path.is_file():
             return _err(
                 f"--scope frontmatter expects a SKILL.md file: {skill_path}"
@@ -1706,8 +1716,8 @@ def main() -> int:
     )
     record.add_argument(
         "--model",
-        help="model attribution passthrough (--scope frontmatter only; "
-        "dir scope derives it from --results)",
+        help="model attribution passthrough (required with --scope "
+        "frontmatter; dir scope derives it from --results)",
     )
     record.add_argument(
         "--variant",

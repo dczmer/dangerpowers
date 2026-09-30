@@ -149,7 +149,7 @@ class RecordTests(unittest.TestCase):
             skill_path=str(self.skill_md),
             manifest=str(self.manifest),
             score=0.81,
-            model=None,
+            model="m1",
             variant=None,
             campaign="campaign-2026-09-02",
             date=None,
@@ -178,9 +178,18 @@ class RecordTests(unittest.TestCase):
         )
         self.assertEqual(entry["score"], 0.81)
         self.assertEqual(entry["campaign"], "campaign-2026-09-02")
-        self.assertIsNone(entry["model"])
+        self.assertEqual(entry["model"], "m1")
         self.assertIsNone(entry["variant"])
-        self.assertEqual(entry["models"], [])
+        self.assertEqual(entry["models"], ["m1"])
+
+    def test_missing_model_refused_untouched(self):
+        # Frontmatter scope has no results config to derive model from;
+        # without the --model flag a record would silently write
+        # model: null (the gap that produced the 2026-09-30
+        # writing-skills manifest), so it must refuse instead.
+        rc = self._record(model=None)
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
 
     def test_checksum_is_frontmatter_sha256(self):
         self._record()
@@ -751,7 +760,7 @@ class RecordScoreFromTests(unittest.TestCase):
             no_failure=None,
             unresolved=None,
             results=None,
-            model=None,
+            model="m1",
             variant=None,
             inventory=None,
             campaign="campaign-2026-09-02",
@@ -780,6 +789,19 @@ class RecordScoreFromTests(unittest.TestCase):
         assert expected is not None  # narrowing for the type checker
         self.assertEqual(entry["score"], expected)
         self.assertEqual(entry["campaign"], "campaign-2026-09-02")
+
+    def test_score_from_does_not_supply_model_attribution(self):
+        # --score-from contributes the score only. The trigger
+        # envelope carries model top-level, not in a config block, so
+        # even with a results file present the --model flag is the
+        # sole attribution channel — omitting it must refuse, not
+        # silently write model: null.
+        self._write_results(
+            [{"passed": 1, "failed": 0, "void": 0, "model": "m9"}]
+        )
+        rc, _out = self._record(model=None)
+        self.assertEqual(rc, 1)
+        self.assertFalse(self.manifest.exists())
 
     def test_score_from_works_on_validate_less_file(self):
         # The documented fallback: no validate split, so the driver
