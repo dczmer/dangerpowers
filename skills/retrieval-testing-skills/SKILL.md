@@ -26,7 +26,7 @@ Staging, capture, validation, and manifest recording live in `tools/test-harness
 Collect all inputs before starting. Prompt the user for any that are missing.
 
 - **Skill name or path** — the reference skill under test. Accept either a path or a bare name: a path is used directly; a name is resolved against the known skills roots. From the resolved location, derive the **source root**: the directory containing the `skills/` directory the skill lives in — not necessarily the repo root (for `<root>/.opencode/skills/<name>`, the source root is `<root>/.opencode`). The harness measures the bytes on disk, so whether the driving session can load the skill is irrelevant.
-- **Harness** — required, user-specified (e.g. `opencode`). It selects the eval strategy: the binary, the agent-file suffix, and the install location. There is no default.
+- **Harness** — required, user-specified (e.g. `opencode`, `pi`). It selects the eval strategy: the binary, the agent-file suffix, and how agents are installed (opencode: copied into the workspace agent dir; pi: translated into run flags). There is no default.
 - **Queries file** — path to a populated `queries.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/queries.json`, so test artifacts live next to the skill under test, wherever it is registered.
 - **Facts manifest** — path to the persisted fact inventory, `facts.json`. Default convention: `<source-root>/skills-workspace/<skill>/retrieval-tests/facts.json`, next to the queries file (see Fact inventory).
 - **Model / variant** — optional passthroughs to the harness run, and the only model-selection path: the eval agents pin no model config, so sweeps measure what they claim.
@@ -123,12 +123,12 @@ Eval runs execute under two restricted agent definitions in this skill's
 `agents/` directory, installed into each eval workspace by the harness
 before the first run:
 
-- `retrieval-evaluator.opencode.md` (skill arm) — `skill: allow`;
+- `retrieval-evaluator.<harness>.md` (skill arm) — exposes the workspace skill (opencode: `skill: allow` permission; pi: the strategy passes `--skill <stub>`);
   read/grep/glob/list allowed; edit, bash, task, todowrite, webfetch,
   websearch, question denied. The install step substitutes
   `{{SKILL_NAME}}` with the skill under test; the per-run prompt is the
   bare query — the measured query never names the skill.
-- `retrieval-control.opencode.md` (control arm) — identical except
+- `retrieval-control.<harness>.md` (control arm) — identical except
   `skill: deny`; runs in the control workspace, which never contains the
   skill, and answers from its own knowledge.
 
@@ -374,6 +374,7 @@ Score each entry with: result (pass/fail/gap/void); classification (findability|
 - A control pass is a flag, not a verdict: one clean baseline answer doesn't prove redundancy — `inventory-update` tracks the streak, and removal takes 3 consecutive passes plus user confirmation.
 - Don't stack pressure or obstacles into retrieval queries — that's the discipline track. Plain, realistic tasks only.
 - Every run in `results.json` carries its headless `session_id` (shown by `evidence --track retrieval-test`), and harness-abort error lines end with `[session <id>]` when the harness emitted one before failing — include it when reporting an abort so the failed session can be inspected.
+- Harness `pi`: `--model` must be an exact `provider/id` (pi resolves model patterns fuzzily; `check` enforces exactness against `pi --list-models`), and `--variant` values are pi thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 
 ## Checklist
 

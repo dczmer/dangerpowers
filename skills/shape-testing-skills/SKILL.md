@@ -193,7 +193,7 @@ campaigns outside this proposal step.
 
 ## Eval agent
 
-All arms run under one restricted agent, `agents/shape-evaluator.opencode.md`,
+All arms run under one restricted agent, `agents/shape-evaluator.<harness>.md`,
 installed into the eval workspace by the harness before the first run: the read quartet
 (`read`/`grep`/`glob`/`list`) allowed; everything else (`skill`, `edit`, `bash`,
 `task`, `todowrite`, `webfetch`, `websearch`, `question`, `external_directory`)
@@ -687,6 +687,7 @@ scored.json holds one object per entry covered: `id`, `kind` (`shaping`/`pattern
   `evidence --track shape-test`), and harness-abort error lines end with `[session <id>]` when the
   harness emitted one before failing — include it when reporting an abort so the failed
   session can be inspected.
+- Harness `pi`: `--model` must be an exact `provider/id` (pi resolves model patterns fuzzily; `check` enforces exactness against `pi --list-models`), and `--variant` values are pi thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 
 ## Checklist
 
