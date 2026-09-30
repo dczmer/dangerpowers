@@ -1,0 +1,9 @@
+{
+  "bashAllow": [
+    "uv run *",
+    "python3 *",
+    "npm run *"
+  ],
+  "externalAllow": [
+  ]
+}
