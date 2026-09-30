@@ -478,6 +478,648 @@ class CheckHarnessTests(unittest.TestCase):
         self.assertNotIn("ok: model", out)
 
 
+PI_JSONL = "\n".join(
+    json.dumps(e)
+    for e in [
+        {
+            "type": "session",
+            "version": 3,
+            "id": "abc-123",
+            "timestamp": "2026-09-30T21:14:21.285Z",
+            "cwd": "/tmp/ws",
+        },
+        {"type": "agent_start"},
+        {
+            "type": "message_end",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": "q"}],
+            },
+        },
+        {
+            "type": "message_end",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "thinking",
+                        "thinking": "I should load the skill",
+                    },
+                    {"type": "toolCall", "id": "t1", "name": "read"},
+                ],
+            },
+        },
+        {
+            "type": "tool_execution_start",
+            "toolCallId": "t1",
+            "toolName": "read",
+            "args": {"path": "/tmp/ws/.agents/skills/echo-skill/SKILL.md"},
+        },
+        {
+            "type": "tool_execution_end",
+            "toolCallId": "t1",
+            "toolName": "read",
+            "result": {"content": [{"type": "text", "text": "..."}]},
+            "isError": False,
+        },
+        {
+            "type": "message_end",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "loaded skill: echo-skill"}
+                ],
+                "stopReason": "stop",
+            },
+        },
+        {"type": "agent_end", "messages": [], "willRetry": False},
+        {"type": "agent_settled"},
+    ]
+)
+
+PI_SKILL = "echo-skill"
+
+
+def pi_tool_events(
+    tool: str, args: dict, *, is_error: bool = False, tcid: str = "t1"
+) -> str:
+    """A correlated tool_execution_start/end pair as pi JSONL."""
+    return "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "tool_execution_start",
+                    "toolCallId": tcid,
+                    "toolName": tool,
+                    "args": args,
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "tool_execution_end",
+                    "toolCallId": tcid,
+                    "toolName": tool,
+                    "isError": is_error,
+                }
+            ),
+        ]
+    )
+
+
+def pi_text_event(text: str) -> str:
+    return json.dumps(
+        {
+            "type": "message_end",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": text}],
+            },
+        }
+    )
+
+
+class ParsePiAgentTests(unittest.TestCase):
+    def _parse(self, text: str):
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            try:
+                return strategies.parse_pi_agent(text, "agent.pi.md"), None
+            except SystemExit as e:
+                return None, (e, buf.getvalue())
+
+    def test_full_frontmatter(self):
+        cfg, err = self._parse(
+            "---\n"
+            "name: retrieval-evaluator\n"
+            "tools: read,grep,find,ls\n"
+            "steps: 30\n"
+            "skill: allow\n"
+            "---\n"
+            "# Agent\n"
+            "Body text.\n"
+        )
+        self.assertIsNone(err)
+        assert cfg is not None
+        self.assertEqual(cfg["tools"], ["read", "grep", "find", "ls"])
+        self.assertEqual(cfg["steps"], 30)
+        self.assertEqual(cfg["skill"], "allow")
+        self.assertEqual(cfg["body"], "# Agent\nBody text.\n")
+
+    def test_defaults(self):
+        # No tools: line -> [] (= --no-tools); no steps: -> 0 (no cap);
+        # no skill: -> deny.
+        cfg, err = self._parse("---\nname: a\n---\nBody\n")
+        self.assertIsNone(err)
+        assert cfg is not None
+        self.assertEqual(cfg["tools"], [])
+        self.assertEqual(cfg["steps"], 0)
+        self.assertEqual(cfg["skill"], "deny")
+        self.assertEqual(cfg["body"], "Body\n")
+
+    def test_unknown_tool_exits(self):
+        _, err = self._parse("---\nname: a\ntools: read,webfetch\n---\nBody\n")
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("unknown pi tool(s): webfetch", msg)
+
+    def test_non_int_steps_exits(self):
+        _, err = self._parse("---\nname: a\nsteps: many\n---\nBody\n")
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("steps must be an int >= 0", msg)
+
+    def test_empty_body_exits(self):
+        _, err = self._parse("---\nname: a\n---\n\n")
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("empty body", msg)
+
+
+class PiInstallTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.agents_dir = self.root / "agents"
+        self.agents_dir.mkdir()
+        self.workspace = self.root / "ws"
+        self.workspace.mkdir()
+        self.strategy = strategies.PiStrategy()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_agent(self, base: str, extra: str = "") -> Path:
+        f = self.agents_dir / f"{base}.pi.md"
+        f.write_text(
+            "---\n"
+            f"name: {base}\n"
+            f"{extra}"
+            "---\n"
+            "# Agent\n"
+            "Load {{SKILL_NAME}} first.\n"
+        )
+        return f
+
+    def test_materialize_holds_config_and_writes_nothing(self):
+        self._write_agent("trigger-evaluator", "tools: read\nsteps: 3\n")
+        name = self.strategy.install(
+            self.workspace, self.agents_dir, "trigger-evaluator"
+        )
+        self.assertEqual(name, "trigger-evaluator")
+        cfg = self.strategy._agent_config("trigger-evaluator")
+        self.assertEqual(cfg["tools"], ["read"])
+        self.assertEqual(cfg["steps"], 3)
+        self.assertIn("Load {{SKILL_NAME}} first.", cfg["body"])
+        # pi agents are flag-translated, never installed as files.
+        self.assertEqual(list(self.workspace.rglob("*")), [])
+
+    def test_skill_name_substitution_lands_in_held_body(self):
+        self._write_agent("retrieval-evaluator", "skill: allow\n")
+        self.strategy.install(
+            self.workspace,
+            self.agents_dir,
+            "retrieval-evaluator",
+            skill_name="my-skill",
+        )
+        cfg = self.strategy._agent_config("retrieval-evaluator")
+        self.assertIn("Load my-skill first.", cfg["body"])
+        self.assertNotIn("{{SKILL_NAME}}", cfg["body"])
+
+    def test_name_mismatch_exits(self):
+        f = self.agents_dir / "trigger-evaluator.pi.md"
+        f.write_text("---\nname: other-agent\n---\nBody\n")
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            with self.assertRaises(SystemExit) as ctx:
+                self.strategy.install(
+                    self.workspace, self.agents_dir, "trigger-evaluator"
+                )
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertIn(
+            "does not match expected 'trigger-evaluator'", buf.getvalue()
+        )
+
+    def test_model_pin_exits(self):
+        self._write_agent("trigger-evaluator", "model: gpt-1\n")
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            with self.assertRaises(SystemExit) as ctx:
+                self.strategy.install(
+                    self.workspace, self.agents_dir, "trigger-evaluator"
+                )
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertIn("pins model config", buf.getvalue())
+
+    def test_missing_file_exits(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            with self.assertRaises(SystemExit) as ctx:
+                self.strategy.install(
+                    self.workspace, self.agents_dir, "no-such-agent"
+                )
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertIn("evaluator agent file missing", buf.getvalue())
+
+
+class PiBuildCmdTests(unittest.TestCase):
+    def setUp(self):
+        self.strategy = strategies.PiStrategy()
+        self.workspace = Path("/tmp/fake-ws")
+
+    def _install(self, extra: str = "") -> None:
+        self.strategy.materialize_agent(
+            self.workspace,
+            "trigger-evaluator",
+            "---\nname: trigger-evaluator\n"
+            f"{extra}"
+            "---\n# Agent\nDo the report.\n",
+        )
+
+    def _cmd(self, **kwargs) -> list[str]:
+        defaults = {
+            "workspace": self.workspace,
+            "agent": "trigger-evaluator",
+            "query": "q",
+            "model": None,
+            "effort": None,
+            "skill": None,
+            "session": None,
+        }
+        defaults.update(kwargs)
+        return self.strategy.build_cmd(**defaults)
+
+    def test_base_flag_shape(self):
+        self._install()
+        cmd = self._cmd()
+        self.assertEqual(cmd[0], "pi")
+        idx = cmd.index("--system-prompt")
+        self.assertEqual(cmd[idx + 1], "# Agent\nDo the report.\n")
+        self.assertIn("--mode", cmd)
+        self.assertEqual(cmd[cmd.index("--mode") + 1], "json")
+        self.assertIn("--no-extensions", cmd)
+        idx = cmd.index("-e")
+        self.assertEqual(cmd[idx + 1], str(strategies.GUARD_EXTENSION))
+        self.assertIn("--no-context-files", cmd)
+        self.assertIn("--no-prompt-templates", cmd)
+        self.assertIn("--no-skills", cmd)
+
+    def test_tools_allowlist_vs_no_tools(self):
+        self._install("tools: read,grep,find,ls\n")
+        cmd = self._cmd()
+        idx = cmd.index("--tools")
+        self.assertEqual(cmd[idx + 1], "read,grep,find,ls")
+        self.assertNotIn("--no-tools", cmd)
+        self._install()  # no tools: line
+        cmd = self._cmd()
+        self.assertIn("--no-tools", cmd)
+        self.assertNotIn("--tools", cmd)
+
+    def test_skill_flag_only_for_allow(self):
+        self._install("skill: allow\n")
+        cmd = self._cmd(skill=PI_SKILL)
+        idx = cmd.index("--skill")
+        self.assertEqual(
+            cmd[idx + 1],
+            str(self.workspace / ".agents" / "skills" / PI_SKILL),
+        )
+        self._install()  # skill: deny default
+        self.assertNotIn("--skill", self._cmd(skill=PI_SKILL))
+
+    def test_skill_allow_without_run_skill_raises(self):
+        self._install("skill: allow\n")
+        with self.assertRaises(strategies.HarnessExecutionError):
+            self._cmd(skill=None)
+
+    def test_session_model_effort_insertion(self):
+        self._install()
+        cmd = self._cmd(
+            model="llama-cpp/gemma-4-26B-A4B",
+            effort="high",
+            session="sess-42",
+        )
+        idx = cmd.index("--session")
+        self.assertEqual(cmd[idx + 1], "sess-42")
+        idx = cmd.index("--model")
+        self.assertEqual(cmd[idx + 1], "llama-cpp/gemma-4-26B-A4B")
+        idx = cmd.index("--thinking")
+        self.assertEqual(cmd[idx + 1], "high")
+
+    def test_double_dash_separator_before_query(self):
+        self._install()
+        cmd = self._cmd(query="-looks-like-a-flag")
+        self.assertEqual(cmd[-2], "--")
+        self.assertEqual(cmd[-1], "-looks-like-a-flag")
+
+    def test_run_cwd_is_workspace(self):
+        self.assertEqual(self.strategy.run_cwd(self.workspace), "/tmp/fake-ws")
+
+    def test_build_env_sets_guard_vars(self):
+        self._install("steps: 3\n")
+        env = self.strategy.build_env(self.workspace, "trigger-evaluator")
+        assert env is not None
+        self.assertEqual(env["EVAL_WS_ROOT"], str(self.workspace.resolve()))
+        self.assertEqual(env["EVAL_MAX_TOOL_CALLS"], "3")
+
+    def test_uninstalled_agent_raises(self):
+        with self.assertRaises(strategies.HarnessExecutionError) as ctx:
+            self._cmd()
+        self.assertIn("was not installed", str(ctx.exception))
+
+
+class PiParseStreamTests(unittest.TestCase):
+    def _parse(self, stdout: str, skill=PI_SKILL) -> strategies.EventStream:
+        return strategies.PiStrategy.parse_stream(stdout, skill)
+
+    def test_session_header_id(self):
+        ev = self._parse(PI_JSONL)
+        self.assertEqual(ev.session_id, "abc-123")
+
+    def test_thinking_and_text_accumulation(self):
+        ev = self._parse(PI_JSONL)
+        self.assertEqual(ev.reasoning_parts, ["I should load the skill"])
+        self.assertEqual(ev.answer_parts, ["loaded skill: echo-skill"])
+
+    def test_report_regexes(self):
+        ev = self._parse(PI_JSONL)
+        self.assertEqual(ev.report_loaded, PI_SKILL)
+        ev = self._parse(pi_text_event("No skill matched the query."))
+        self.assertTrue(ev.report_no_match)
+
+    def test_completed_load(self):
+        ev = self._parse(PI_JSONL)
+        self.assertTrue(ev.completed_load)
+        self.assertFalse(ev.attempted_load)
+        self.assertEqual(
+            ev.skill_loads,
+            [{"name": PI_SKILL, "status": "completed"}],
+        )
+
+    def test_attempted_load_on_error(self):
+        stdout = pi_tool_events(
+            "read",
+            {"path": f"/tmp/ws/.agents/skills/{PI_SKILL}/SKILL.md"},
+            is_error=True,
+        )
+        ev = self._parse(stdout)
+        self.assertTrue(ev.attempted_load)
+        self.assertFalse(ev.completed_load)
+        self.assertEqual(
+            ev.skill_loads, [{"name": PI_SKILL, "status": "error"}]
+        )
+
+    def test_attempted_load_via_dangling_start(self):
+        # Timeout partial stream: the read started but never ended.
+        dangling = json.dumps(
+            {
+                "type": "tool_execution_start",
+                "toolCallId": "t9",
+                "toolName": "read",
+                "args": {
+                    "path": f"/tmp/ws/.agents/skills/{PI_SKILL}/SKILL.md"
+                },
+            }
+        )
+        ev = self._parse(dangling)
+        self.assertTrue(ev.attempted_load)
+        self.assertFalse(ev.completed_load)
+
+    def test_other_skill_read(self):
+        stdout = pi_tool_events(
+            "read", {"path": "/tmp/ws/.agents/skills/other-skill/SKILL.md"}
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(ev.other_skill, "other-skill")
+        self.assertEqual(
+            ev.skill_loads, [{"name": "other-skill", "status": "completed"}]
+        )
+        self.assertFalse(ev.completed_load)
+        self.assertFalse(ev.attempted_load)
+
+    def test_non_skill_tool_calls(self):
+        stdout = "\n".join(
+            [
+                pi_tool_events("read", {"path": "/tmp/ws/README.md"}),
+                pi_tool_events("grep", {"pattern": "retry"}, tcid="t2"),
+                pi_tool_events("find", {"path": "/tmp/ws/src"}, tcid="t3"),
+                pi_tool_events("ls", {"path": "/tmp/ws"}, tcid="t4"),
+            ]
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(
+            ev.tool_calls,
+            [
+                {"tool": "read", "target": "/tmp/ws/README.md"},
+                {"tool": "grep", "target": "retry"},
+                {"tool": "find", "target": "/tmp/ws/src"},
+                {"tool": "ls", "target": "/tmp/ws"},
+            ],
+        )
+        self.assertEqual(ev.skill_loads, [])
+
+    def test_auto_retry_end_sets_error(self):
+        stdout = json.dumps(
+            {"type": "auto_retry_end", "success": False, "finalError": "429"}
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(ev.error_message, "429")
+
+    def test_message_update_error_sets_error(self):
+        stdout = json.dumps(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "error", "error": "boom"},
+            }
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(ev.error_message, "boom")
+
+    def test_garbage_lines_skipped_and_parseable_counts(self):
+        stdout = "garbage\n" + PI_JSONL + "\nnot json either"
+        ev = self._parse(stdout)
+        self.assertEqual(ev.parseable, 9)
+
+
+class PiExecuteTests(unittest.TestCase):
+    def setUp(self):
+        self.strategy = strategies.PiStrategy(timeout=5)
+        self.workspace = Path("/tmp/fake-ws")
+        self.strategy.materialize_agent(
+            self.workspace,
+            "trigger-evaluator",
+            "---\nname: trigger-evaluator\n---\n# Agent\nReport.\n",
+        )
+
+    def _proc(
+        self, returncode: int = 0, stdout: str = PI_JSONL, stderr: str = ""
+    ) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout=stdout, stderr=stderr
+        )
+
+    def test_timeout_returns_partial_stream(self):
+        # Lines through tool_execution_start only: the read dangles.
+        partial = "\n".join(PI_JSONL.splitlines()[:5])
+        err = subprocess.TimeoutExpired(cmd=["pi"], timeout=5, output=partial)
+        with mock.patch.object(strategies.subprocess, "run", side_effect=err):
+            ev, timed_out = self.strategy.execute(
+                self.workspace, "trigger-evaluator", "q", skill=PI_SKILL
+            )
+        self.assertTrue(timed_out)
+        self.assertTrue(ev.attempted_load)  # dangling read = partial load
+        self.assertEqual(ev.session_id, "abc-123")
+
+    def test_nonzero_exit_raises_with_session_id(self):
+        proc = self._proc(returncode=1, stderr="boom")
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            with self.assertRaises(strategies.HarnessExecutionError) as ctx:
+                self.strategy.execute(
+                    self.workspace, "trigger-evaluator", "q", skill=PI_SKILL
+                )
+        self.assertIn("exit 1", str(ctx.exception))
+        self.assertEqual(ctx.exception.session_id, "abc-123")
+
+    def test_zero_parseable_events_raises(self):
+        proc = self._proc(stdout="not json\n")
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            with self.assertRaises(strategies.HarnessExecutionError) as ctx:
+                self.strategy.execute(
+                    self.workspace, "trigger-evaluator", "q", skill=PI_SKILL
+                )
+        self.assertIn("no parseable events", str(ctx.exception))
+
+    def test_classify_completed_load_is_triggered(self):
+        proc = self._proc()
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            verdict = self.strategy.evaluate(PI_SKILL, "q", self.workspace)
+        self.assertEqual(verdict.outcome, "triggered")
+        self.assertEqual(verdict.session_id, "abc-123")
+
+    def test_classify_no_match_report_is_not_triggered(self):
+        stdout = pi_text_event("no skill matched")
+        proc = self._proc(stdout=stdout)
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            verdict = self.strategy.evaluate(PI_SKILL, "q", self.workspace)
+        self.assertEqual(verdict.outcome, "not-triggered")
+        self.assertEqual(verdict.detail, "agent reported no skill matched")
+
+
+class PiCheckModelTests(unittest.TestCase):
+    LIST_MODELS_STDOUT = (
+        "PROVIDER MODEL ID\n"
+        "llama-cpp gemma-4-26B-A4B\n"
+        "anthropic claude-sonnet-4-5\n"
+    )
+
+    def _proc(
+        self,
+        returncode: int = 0,
+        stdout: str = LIST_MODELS_STDOUT,
+        stderr: str = "",
+    ) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout=stdout, stderr=stderr
+        )
+
+    def _check(self, model: str, proc: subprocess.CompletedProcess):
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ) as run_mock:
+            result = strategies.PiStrategy.check_model(model)
+        return result, run_mock
+
+    def test_exact_provider_id_accepted(self):
+        result, run_mock = self._check(
+            "llama-cpp/gemma-4-26B-A4B", self._proc()
+        )
+        self.assertIsNone(result)
+        self.assertEqual(run_mock.call_args.args[0], ["pi", "--list-models"])
+
+    def test_bare_id_rejected(self):
+        result, _ = self._check("gemma-4-26B-A4B", self._proc())
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("exact provider/id", result)
+
+    def test_unknown_pair_rejected(self):
+        result, _ = self._check("llama-cpp/nope", self._proc())
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("model 'llama-cpp/nope' not found", result)
+        self.assertIn("2 available", result)
+
+    def test_pi_offline_env_passed(self):
+        _, run_mock = self._check("llama-cpp/gemma-4-26B-A4B", self._proc())
+        env = run_mock.call_args.kwargs["env"]
+        self.assertEqual(env["PI_OFFLINE"], "1")
+
+    def test_list_models_nonzero_exit(self):
+        proc = self._proc(returncode=1, stderr="auth expired")
+        result, _ = self._check("llama-cpp/gemma-4-26B-A4B", proc)
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("exited 1", result)
+
+    def test_list_models_empty_output(self):
+        result, _ = self._check(
+            "llama-cpp/gemma-4-26B-A4B", self._proc(stdout="header only\n")
+        )
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("printed no models", result)
+
+
+class PiCheckVersionTests(unittest.TestCase):
+    def _check(self, stdout: str):
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=stdout, stderr=""
+        )
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            return strategies.PiStrategy.check_version()
+
+    def test_below_floor_warns(self):
+        result = self._check("0.99.0\n")
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("below the tested floor 0.99.1", result)
+
+    def test_at_floor_is_silent(self):
+        self.assertIsNone(self._check("0.99.1\n"))
+
+    def test_unparseable_is_silent(self):
+        self.assertIsNone(self._check("dev-main\n"))
+
+
+class RegistryTests(unittest.TestCase):
+    def test_registry_keys(self):
+        self.assertEqual(set(strategies.STRATEGIES), {"opencode", "pi"})
+
+    def test_resolve_pi(self):
+        self.assertIs(strategies.resolve_strategy("pi"), strategies.PiStrategy)
+
+    def test_unsupported_message_names_both(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            with self.assertRaises(SystemExit) as ctx:
+                strategies.resolve_strategy("nope")
+        self.assertEqual(ctx.exception.code, 1)
+        err = buf.getvalue()
+        self.assertIn("opencode", err)
+        self.assertIn("pi", err)
+
+
 class GrammarGateTests(unittest.TestCase):
     def test_strategies_py_parses_with_py310_grammar(self):
         src = Path(strategies.__file__).read_text()
