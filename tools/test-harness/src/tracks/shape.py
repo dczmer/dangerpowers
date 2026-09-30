@@ -70,7 +70,7 @@ def load_shape_entries(path: Path) -> list[dict]:
 def check_span_uniqueness(
     entries: list[dict], body: str, removed: set[str] | None = None
 ) -> list[str]:
-    """The verbatim section-span assertion (BUGS.md B7): every entry's
+    """The verbatim section-span assertion: every entry's
     section span must occur exactly once in the body bytes — except a
     REMOVED entry (regression coverage for an already-deleted rule),
     whose span must occur ZERO times. Returns one error string per
@@ -721,7 +721,7 @@ class ShapeTrack(Track):
         contamination. Returns the validated entries, or an int rc with the
         exact error already printed. The merged-parser flag requirement,
         the historical 5-reps default, and the shared DEFAULT_TIMEOUT
-        (300 s; BUGS.md B3) are applied here (Q7a)."""
+        (300 s) are applied here."""
         _required(args, self, "workspace", "entries", "skill_file", "arms")
         if args.reps is None:
             args.reps = 5
