@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "main": "plugins/opencode-plugin.ts",
+  "pi": {
+    "skills": ["./skills"]
+  },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
