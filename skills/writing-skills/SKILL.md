@@ -85,7 +85,6 @@ skills/
 - Use scripts for fully deterministic processes. Scripts handle their own error cases instead of failing back to the agent. No magic constants — justify every number in the script.
 - Keep SKILL.md concise — every token competes with conversation context. Reference `--help` instead of documenting flags; cross-reference other skills by name (`**REQUIRED SUB-SKILL:** use <name>`) instead of repeating their content.
 - Show one complete, filled-in example, not several mediocre ones. No multi-language versions, no fill-in-the-blank templates.
-- A procedure that branches or exits early includes a decision diagram: a fenced code block tagged `mermaid` containing `flowchart TD`, with one node per step, one diamond per branch, and one terminal node per early exit.
 - When editing an existing skill, read it fully first.
 - Don't assume a skill that works on a large model works on a small one; spell out instructions a frontier model could follow implicitly.
 
@@ -123,7 +122,6 @@ Create a todo for each item.
 **Body:**
 - [ ] Overview states the core principle in 1-2 sentences
 - [ ] One complete example; no multi-language dilution
-- [ ] Flowchart only if a decision is non-obvious
 - [ ] Supporting files only for heavy reference or tools, one level deep
 - [ ] Concise: no repeated content, no obvious explanations, flags deferred to `--help`
 - [ ] Ends with a checklist or verification procedure
