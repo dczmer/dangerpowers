@@ -18,8 +18,8 @@ ablation/regression status fields).
 Per-track campaign behavior lives behind the Track interface in
 src/tracks/; shared campaign primitives (rep batching, evidence
 extraction, scored validation) live in src/common.py. Harness specifics
-live in the strategy registry in src/strategies.py; only opencode is
-implemented.
+live in the strategy registry in src/strategies.py; opencode and pi
+are implemented.
 """
 
 import argparse
@@ -83,7 +83,13 @@ def _suite_lock_path() -> Path:
     state = os.environ.get(
         "XDG_STATE_HOME", str(Path.home() / ".local" / "state")
     )
-    return Path(state) / "opencode-test-harness" / "suite.lock"
+    # One shared lock across harnesses (D10): the common multi-harness
+    # case is comparing the SAME endpoint, and the tooling never sees
+    # the endpoint URL. Users with genuinely separate endpoints point
+    # EVALUATOR_SUITE_LOCK at per-side paths. The pre-pi path
+    # ("opencode-test-harness") is abandoned; a stale lock there is
+    # harmless.
+    return Path(state) / "skill-test-harness" / "suite.lock"
 
 
 @contextlib.contextmanager
