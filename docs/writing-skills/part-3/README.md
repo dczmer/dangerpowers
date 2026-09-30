@@ -302,7 +302,7 @@ These body testing processes are turning out to be quite complicated and require
 
 > Agents cave to pressure the way people do; bulletproofing is pre-answering every excuse before it's invented.
 
-**This type of test is for hardening skills against [_rationalization_](../part-1/rationalization-and-non-determinism.md).**
+**This type of test is for hardening skills against [_rationalization_](../part-0/README.md).**
 
 I put this section last, after the other two types of test, because you should run these tests last. Changes to wording from the previous two types of tests can have a cascading effect on discipline rules.
 
