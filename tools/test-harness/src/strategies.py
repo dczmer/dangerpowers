@@ -3,12 +3,13 @@
 
 Defines the verdict vocabulary (Verdict, EventStream, HarnessExecutionError),
 the harness-neutral signal classification (classify), the EvalStrategy
-protocol, and the strategy registry. Only opencode is implemented.
+protocol, and the strategy registry. opencode and pi are implemented.
 
 Imported by evaluator.py; nothing here imports evaluator.
 """
 
 import json
+import os  # noqa: F401  # used by the pi strategy (added in Phase 2)
 import re
 import shutil
 import subprocess
@@ -288,6 +289,7 @@ class EvalStrategy:
     binary: str  # CLI binary name, used by the preflight check
     harness: str  # also the agent-file suffix, e.g. "opencode"
     agent_install_dir: str  # workspace-relative, e.g. ".opencode/agent"
+    agent_name: str  # trigger-track eval agent base name
 
     def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         self.timeout = timeout
@@ -326,13 +328,20 @@ class EvalStrategy:
         text = source.read_text()
         if skill_name is not None:
             text = text.replace("{{SKILL_NAME}}", skill_name)
+        self.materialize_agent(workspace, base, text)
+        return base
+
+    def materialize_agent(self, workspace: Path, base: str, text: str) -> None:
+        """Make the agent usable by execute(). Default: copy the file
+        into the harness's workspace agent dir (opencode). pi overrides
+        this: its agent config is flag-translated and held in-process —
+        pi has no agent files or --agent flag."""
         dest = workspace / self.agent_install_dir / f"{base}.md"
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text)
         except OSError as e:
             _fail(f"could not install evaluator agent to {dest}: {e}")
-        return base
 
     @staticmethod
     def parse_stream(stdout: str, skill: str | None) -> EventStream:
@@ -345,6 +354,40 @@ class EvalStrategy:
         a no-op for strategies with no model enumeration; overrides use
         the harness CLI (see OpencodeStrategy)."""
         return None
+
+    @classmethod
+    def check_version(cls) -> str | None:
+        """Optional harness-version advisory: return a warning string
+        or None. Default no-op (opencode pins nothing)."""
+        return None
+
+    def build_cmd(
+        self,
+        workspace: Path,
+        agent: str,
+        query: str,
+        model: str | None,
+        effort: str | None,
+        skill: str | None,
+        session: str | None,
+    ) -> list[str]:
+        """The harness argv for one eval run. Subclasses implement."""
+        raise NotImplementedError
+
+    def run_cwd(self, workspace: Path) -> str | None:
+        """subprocess cwd for the run; None keeps the evaluator's cwd
+        (opencode anchors with --dir instead)."""
+        return None
+
+    def build_env(self, workspace: Path, agent: str) -> dict | None:
+        """subprocess env for the run; None inherits the evaluator's
+        environment (opencode needs nothing)."""
+        return None
+
+    def check_stderr(self, stderr: str) -> None:
+        """Post-run stderr inspection: raise HarnessExecutionError on
+        silent-contamination signals. Default no-op (opencode overrides
+        with the agent-fallback rejection)."""
 
     def execute(
         self,
@@ -360,25 +403,9 @@ class EvalStrategy:
         Timeout yields a partial stream, never an exception.
         HarnessExecutionError = operational failure, never a verdict.
         session resumes an existing harness session (pressure-meta)."""
-        cmd = [
-            self.binary,
-            "run",
-            "--pure",
-            "--thinking",
-            "--format",
-            "json",
-            "--dir",
-            str(workspace),
-            "--agent",
-            agent,
-        ]
-        if session is not None:
-            cmd += ["--session", session]
-        if model is not None:
-            cmd += ["--model", model]
-        if effort is not None:
-            cmd += ["--variant", effort]
-        cmd.append(query)
+        cmd = self.build_cmd(
+            workspace, agent, query, model, effort, skill, session
+        )
         try:
             proc = subprocess.run(
                 cmd,
@@ -386,6 +413,8 @@ class EvalStrategy:
                 text=True,
                 timeout=self.timeout,
                 check=False,
+                cwd=self.run_cwd(workspace),
+                env=self.build_env(workspace, agent),
             )
         except FileNotFoundError:
             raise HarnessExecutionError(
@@ -393,7 +422,7 @@ class EvalStrategy:
             )
         except subprocess.TimeoutExpired as e:
             return self.parse_stream(_as_text(e.stdout), skill), True
-        _reject_agent_fallback(proc.stderr)
+        self.check_stderr(proc.stderr)
         ev = self.parse_stream(proc.stdout, skill)
         if ev.error_message is not None:
             raise HarnessExecutionError(
@@ -416,9 +445,19 @@ class EvalStrategy:
         model: str | None = None,
         effort: str | None = None,
     ) -> Verdict:
-        """One headless trigger evaluation: execute then classify.
-        Subclasses implement."""
-        raise NotImplementedError
+        """One headless trigger evaluation: execute under the
+        trigger-evaluator agent, then classify; a timeout yields the
+        interrupted-run classification."""
+        ev, timed_out = self.execute(
+            workspace, self.agent_name, query, model, effort, skill=skill
+        )
+        if timed_out:
+            return classify(
+                ev,
+                skill,
+                interrupted_cause=f"timeout after {self.timeout}s",
+            )
+        return classify(ev, skill)
 
 
 class OpencodeStrategy(EvalStrategy):
@@ -500,26 +539,39 @@ class OpencodeStrategy(EvalStrategy):
                     ev.error_message = message
         return ev
 
-    def evaluate(
+    def build_cmd(
         self,
-        skill: str,
-        query: str,
         workspace: Path,
-        model: str | None = None,
-        effort: str | None = None,
-    ) -> Verdict:
-        """execute under the trigger-evaluator agent, then classify; a
-        timeout yields the interrupted-run classification."""
-        ev, timed_out = self.execute(
-            workspace, self.agent_name, query, model, effort, skill=skill
-        )
-        if timed_out:
-            return classify(
-                ev,
-                skill,
-                interrupted_cause=f"timeout after {self.timeout}s",
-            )
-        return classify(ev, skill)
+        agent: str,
+        query: str,
+        model: str | None,
+        effort: str | None,
+        skill: str | None,
+        session: str | None,
+    ) -> list[str]:
+        cmd = [
+            self.binary,
+            "run",
+            "--pure",
+            "--thinking",
+            "--format",
+            "json",
+            "--dir",
+            str(workspace),
+            "--agent",
+            agent,
+        ]
+        if session is not None:
+            cmd += ["--session", session]
+        if model is not None:
+            cmd += ["--model", model]
+        if effort is not None:
+            cmd += ["--variant", effort]
+        cmd.append(query)
+        return cmd
+
+    def check_stderr(self, stderr: str) -> None:
+        _reject_agent_fallback(stderr)
 
     @classmethod
     def check_model(cls, model: str) -> str | None:
