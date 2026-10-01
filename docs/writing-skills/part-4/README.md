@@ -111,14 +111,42 @@ but DSPy can do a lot more than that (check out the docs). i'm particularly inte
 
 > EDITOR: example of the DSPy implementation of a scoring method for a trigger test (https://dspy.ai/current/getting-started/metrics/)
 
-TODO: GEPA
+## Off-the-Shelf Solutions
 
-## Off-the-Shelf Solutions and Quorum
+I found a lot of interesting tools and frameworks for optimizing AI systems, but many were specific to optimizing agents or full-stack AI applications. However, I did find a few that are worth consideration.
 
-TODO: superpowers-eval
+### GEPA (or DSPy + GEPA)
 
-TODO: hosted platform for running your evals across multiple models and providers; reminds me of a browserstack/sauce labs for ai agent skill evals.
+- a generalized framework for optimizing any prompt
+- reads full transcripts, tool calls, chain of thought and reasoning
+- a judge llm analyzes the prompt and results against a scoring critera
+- mutates the prompt and evaluates the results until budget exceeded
+- the preto part: keeps a pool of the top performing mutations, rather than just the best scoring prompt. the best prompt that emerges early in optimization may have a limited performance ceiling - it stops improving because the optimizer keeps trying to optimize that form instead of taking a step back and trying a different approach. the preto frontier is a pool of the best performing versions so the optimizer can explore these other approaches instead of getting painted into a corner with the first candidate
+- claims 90% cheaper because you can optimize queries against cheap / local models
+- it's faster that fine-tuning or RL
+- DSPy provides a GEPA module. write scoring functions (which can call a judge llm and/or verify deterministically) and it will auto-optimize your prompt.
+- also provided as an agent skill you can use to optimize anything
+- optimizes an entire skill based on the end-product, where we test rule by rule individually
+- our testing skills use a disciplined editing approach (fix must match form/category), where GEPA allows free-form rewrites and mutations
+
+### Microsoft SkillOpt
+
+- another approach to optimizing skills without changing weights
+- runs an eval in a "forward" pass, uses a separate _optimizer model_ in a "backward" pass to reflect on the results, and then updates the prompt applying patterns to preserve or correct behavior.
+- uses a strict train/validate process, like we did with the trigger testing skill (but didn't apply to our other test skills)
+- optimizes end-task success, where we decompose a skill rule b rule and test them indivdiually
+- like GEPA, it aims to be generic. for example, we use a rationalization table as a mitigation for failing pressure test scenarios, where GEPA and SkillOpts would automatically use a rationalization table in response to observing rationalization in a trace.
+
+### Trace2Skill
+
+- optimizes human-written skills, or creates new skills from evaluation traces from an LLM response
+- point it at your traces/transcripts and your existing skill definition
 
 ## References
 
 - <a id="ref-i"></a>**[I]** [Google DeepMind - Don't Ship Skills Without Evals](https://youtu.be/0vphxNt4wyk?si=j9E5D7a-scWELD6_)
+- dspy https://dspy.ai/current/getting-started/program-dont-prompt/
+- GEPA https://github.com/gepa-ai/gepa
+- GEPA https://arxiv.org/html/2507.19457v2
+- https://www.microsoft.com/en-us/research/blog/skillopt-agent-skills-as-trainable-parameters/
+- https://github.com/Qwen-Applications/Trace2Skill
