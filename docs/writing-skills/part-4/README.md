@@ -113,34 +113,41 @@ but DSPy can do a lot more than that (check out the docs). i'm particularly inte
 
 ## Off-the-Shelf Solutions
 
-I found a lot of interesting tools and frameworks for optimizing AI systems, but many were specific to optimizing agents or full-stack AI applications. However, I did find a few that are worth consideration.
+I found a lot of interesting tools and frameworks for optimizing AI systems, but most were specific to optimizing agents or full-stack AI applications, not about testing and verify skills. I did find a few interesting things to consider, but they fall into the category of skill generators or optimizers, where ours is a self-optimizing verifier.
+
+The three testing skills we created in this series (pressure, retrieval, shape) decompose a skill into individual rules and facts, classify each one by type, and run a purpose-built campaign per rule. We use control arms to verify the rule is actually needed, run each test with fresh-context, execute them with a restricted headless agent, and score them against explicit expectations. Fixes are disciplined, not free-form: the edit has to match the observed failure category (a rationalization table for pressure failures, a positive recipe for shape failures, doc edits for retrieval failures). And the whole thing exists to produce _verdicts_ - bulletproof, no-failure, flag-for-ablation - not just a better skill.
 
 ### GEPA (or DSPy + GEPA)
 
-- a generalized framework for optimizing any prompt
-- reads full transcripts, tool calls, chain of thought and reasoning
-- a judge llm analyzes the prompt and results against a scoring critera
-- mutates the prompt and evaluates the results until budget exceeded
-- the preto part: keeps a pool of the top performing mutations, rather than just the best scoring prompt. the best prompt that emerges early in optimization may have a limited performance ceiling - it stops improving because the optimizer keeps trying to optimize that form instead of taking a step back and trying a different approach. the preto frontier is a pool of the best performing versions so the optimizer can explore these other approaches instead of getting painted into a corner with the first candidate
-- claims 90% cheaper because you can optimize queries against cheap / local models
-- it's faster that fine-tuning or RL
-- DSPy provides a GEPA module. write scoring functions (which can call a judge llm and/or verify deterministically) and it will auto-optimize your prompt.
-- also provided as an agent skill you can use to optimize anything
-- optimizes an entire skill based on the end-product, where we test rule by rule individually
-- our testing skills use a disciplined editing approach (fix must match form/category), where GEPA allows free-form rewrites and mutations
+GEPA (Genetic-Pareto) is a generalized reflective prompt optimizer - an evolutionary optimizer for any text component of an AI system, whether that's a prompt, a skill, a code file, or a config. You give it a candidate text and a scoring metric, it runs the system, reads the full execution traces (tool calls, reasoning, error messages), and uses a judge LLM to reflect on _why_ the candidate failed and propose targeted mutations. Repeat until the budget is exhausted.
+
+The "Pareto" part is the clever bit: instead of only keeping the single best-scoring candidate, GEPA keeps a pool of the top-performing mutations across different task instances. The best prompt that emerges early in optimization may have a limited performance ceiling - the optimizer keeps polishing that one form instead of stepping back and trying a different approach entirely. The Pareto frontier keeps those alternative lineages alive so the search doesn't get painted into a corner by the first strong candidate.
+
+the paper reports beating reinforcement learning (GRPO) by ~10% on average while using up to 35x fewer rollouts. Since you can optimize against cheap or local models, the whole process is supposedly much cheaper than fine-tuning. It's available as a standalone library, as a DSPy module (write scoring functions - which can call a judge LLM or verify things deterministically - and it auto-optimizes your prompt), and even packaged as an agent skill you can use to optimize anything.
+
+Compared to our approach, the reflection loop is essentially what we do manually: read the transcript, diagnose the failure, edit the skill, re-run. The metric plays the role of our expectation rubrics.
+
+GEPA optimizes the whole skill (or prompt or other artifact) against end-task success. It's mutations are free-form rewrites, where our fixes are constrained to match the failure category - and that constraint is load-bearing, because we know from testing that the wrong form of fix backfires (prohibitions cause failure migration, nuance clauses add noise).
+
+GEPA has no equivalent of our control arms and ablation flags: it will happily keep optimizing a rule that never mattered, because it has no concept of "this rule is unnecessary, delete it." GEPA is an optimizer that produces a mutated artifact, our harness is a test suite that produces verdicts. Those are different outputs.
+
+Verdict: the most promising of the three as a foundation for a better harness, mainly because the architecture is exactly the inversion I argued for above - a deterministic program driving the loop, calling the LLM only for judgment and mutation. I could see GEPA automating the REFACTOR loop of a pressure campaign or the variant search of a shape campaign. But the campaign design - rule classification, control arms, per-rule verdicts, ablation - would still be ours to build on top.
 
 ### Microsoft SkillOpt
 
-- another approach to optimizing skills without changing weights
-- runs an eval in a "forward" pass, uses a separate _optimizer model_ in a "backward" pass to reflect on the results, and then updates the prompt applying patterns to preserve or correct behavior.
-- uses a strict train/validate process, like we did with the trigger testing skill (but didn't apply to our other test skills)
-- optimizes end-task success, where we decompose a skill rule b rule and test them indivdiually
-- like GEPA, it aims to be generic. for example, we use a rationalization table as a mitigation for failing pressure test scenarios, where GEPA and SkillOpts would automatically use a rationalization table in response to observing rationalization in a trace.
+SkillOpt is Microsoft's take on the same idea. A target model executes tasks in a "forward" pass, a separate _optimizer model_ reflects on the resulting trajectories in a "backward" pass and proposes edits to the skill, then a validation gate decides whether to keep the candidate. It borrows the whole ML training discipline - epochs, batch sizes, learning rates, strict train/validation splits - and applies it to a markdown document instead of weights. The output is a deployable `best_skill.md`.
+
+Of the three, this one is closest in spirit to our approach: it optimizes skill documents specifically (not arbitrary prompts), and the train/validate split mirrors what we did in the trigger-testing skill (though we never applied that discipline to the other test tracks). But the core differences are the same as GEPA's. SkillOpt optimizes end-task success of the whole skill, where we test rule by rule. And where our process applies a fixed mitigation matched to the failure category - a rationalization table for a pressure failure, a positive recipe for a shape failure - SkillOpt's optimizer model invents its own edits from whatever it observes in the trajectory. It would probably converge on something like a rationalization table after seeing rationalization in a trace, but as an emergent edit, not as a disciplined response with a known reason behind it.
+
+Verdict: SkillOpt is a skill _training_ framework, not a testing framework - it assumes you already have tasks and a metric, and you just want the skill to get better at them. If the goal is "make the agent better at X," it's a strong option. If the goal is "prove which rules in this skill actually bind, and which can be deleted," it doesn't answer that question at all.
 
 ### Trace2Skill
 
-- optimizes human-written skills, or creates new skills from evaluation traces from an LLM response
-- point it at your traces/transcripts and your existing skill definition
+Trace2Skill, from the Qwen team, goes in a different direction: it _authors_ skills from execution traces. You point it at a pool of agent trajectories - and optionally an existing skill definition - and multiple analyst agents process the traces in parallel, proposing patches that a consolidation step merges into a unified, conflict-free skill directory. It supports two modes: "deepening" an existing human-written skill with lessons distilled from real runs, and creating entirely new skills from scratch.
+
+It consumes the same raw material our harness produces - transcripts of agents succeeding and failing - but runs the pipeline in the opposite direction. We start from a hand-authored skill and measure whether its rules bind, Trace2Skill starts from observed behavior and induces what the rules should have been. There are no control groups, no per-rule verdicts, no pressure scenarios, because it isn't measuring compliance at all - it's mining experience for content.
+
+Verdict: Authoring and maintaining skill content is the step _before_ our harness becomes relevant, and distilling production traces into skill updates is a genuinely useful capability - especially for the autonomous-agent scenario where you want skills to keep pace with real-world usage. I could imagine using Trace2Skill to draft or enrich a skill, then running our campaigns to verify the result. But it's a generator, not a verifier, and it's not a foundation for a better test harness.
 
 ## References
 
