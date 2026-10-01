@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["plugins/**/*.ts"]
+  "include": ["plugins/**/*.ts", "tools/test-harness/pi-eval-guard.ts", "tools/test-harness/pi-eval-guard.d.ts"]
 }

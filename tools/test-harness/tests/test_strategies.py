@@ -630,6 +630,22 @@ class ParsePiAgentTests(unittest.TestCase):
         self.assertEqual(e.code, 1)
         self.assertIn("steps must be an int >= 0", msg)
 
+    def test_steps_space_before_colon_accepted(self):
+        cfg, err = self._parse("---\nname: a\nsteps : 3\n---\nBody\n")
+        self.assertIsNone(err)
+        assert cfg is not None
+        self.assertEqual(cfg["steps"], 3)
+
+    def test_bad_skill_value_exits(self):
+        # A typo'd skill: value must fail pre-spend, not silently deny:
+        # a mistyped 'allow' would run the whole skill arm control-
+        # equivalent.
+        _, err = self._parse("---\nname: a\nskill: allowed\n---\nBody\n")
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("skill must be 'allow' or 'deny'", msg)
+
     def test_empty_body_exits(self):
         _, err = self._parse("---\nname: a\n---\n\n")
         assert err is not None
@@ -813,8 +829,14 @@ class PiBuildCmdTests(unittest.TestCase):
         self.assertEqual(cmd[-2], "--")
         self.assertEqual(cmd[-1], "-looks-like-a-flag")
 
-    def test_run_cwd_is_workspace(self):
-        self.assertEqual(self.strategy.run_cwd(self.workspace), "/tmp/fake-ws")
+    def test_run_cwd_is_resolved_workspace(self):
+        # run_cwd resolves, matching build_env's EVAL_WS_ROOT, so the
+        # guard's root-prefix check holds where the workspace path
+        # traverses a symlink.
+        self.assertEqual(
+            self.strategy.run_cwd(self.workspace),
+            str(self.workspace.resolve()),
+        )
 
     def test_build_env_sets_guard_vars(self):
         self._install("steps: 3\n")
@@ -1070,9 +1092,26 @@ class PiCheckModelTests(unittest.TestCase):
         assert result is not None
         self.assertIn("exited 1", result)
 
+    def test_headerless_list_still_parses(self):
+        # The header row is skipped by name, not position, so a pi that
+        # drops the header doesn't shift every row into the void.
+        stdout = "llama-cpp gemma-4-26B-A4B\n" "anthropic claude-sonnet-4-5\n"
+        result, _ = self._check(
+            "llama-cpp/gemma-4-26B-A4B", self._proc(stdout=stdout)
+        )
+        self.assertIsNone(result)
+
+    def test_multiword_model_id_accepted(self):
+        # Everything after the provider token joins into the id.
+        stdout = "llama-cpp my model v2\n"
+        result, _ = self._check(
+            "llama-cpp/my model v2", self._proc(stdout=stdout)
+        )
+        self.assertIsNone(result)
+
     def test_list_models_empty_output(self):
         result, _ = self._check(
-            "llama-cpp/gemma-4-26B-A4B", self._proc(stdout="header only\n")
+            "llama-cpp/gemma-4-26B-A4B", self._proc(stdout="\n")
         )
         self.assertIsNotNone(result)
         assert result is not None

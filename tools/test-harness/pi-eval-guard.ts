@@ -20,6 +20,11 @@
  * guard covers path-carrying tools (read/grep/find/ls); bash is never
  * in an eval agent's allowlist, so command-line escape is structurally
  * impossible.
+ *
+ * The extension API types come from the ambient stub
+ * pi-eval-guard.d.ts beside this file (the real package ships inside
+ * pi, not in this repo); both files are covered by `npm run
+ * typecheck`.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -27,7 +32,7 @@ export default function (pi: ExtensionAPI) {
 	const root = process.env.EVAL_WS_ROOT ?? "";
 	const maxCalls = Number(process.env.EVAL_MAX_TOOL_CALLS ?? "0");
 	let calls = 0;
-	pi.on("tool_call", async (event: any) => {
+	pi.on("tool_call", async (event) => {
 		calls++;
 		if (maxCalls > 0 && calls > maxCalls) {
 			return {
@@ -35,8 +40,8 @@ export default function (pi: ExtensionAPI) {
 				reason: `tool-call cap reached (${maxCalls})`,
 			};
 		}
-		const input = event.input ?? {};
-		const target = input.path ?? input.pattern ?? "";
+		const input: Record<string, unknown> = event.input ?? {};
+		const target: unknown = input.path ?? input.pattern ?? "";
 		if (
 			root &&
 			typeof target === "string" &&

@@ -648,12 +648,20 @@ def parse_pi_agent(text: str, source: str) -> dict:
                     f"{', '.join(sorted(PI_TOOL_NAMES))})"
                 )
         if re.match(r"^steps\s*:", line):
-            m = re.match(r"^steps:\s*(\d+)\s*$", line)
+            m = re.match(r"^steps\s*:\s*(\d+)\s*$", line)
             if m is None:
-                _fail(f"agent file {source}: steps must be an int >= 0")
+                _fail(
+                    f"agent file {source}: steps must be an int >= 0 "
+                    f"(got: {line.strip()})"
+                )
             steps = int(m.group(1))
-        m = re.match(r"^skill:\s*(allow|deny)\s*$", line)
-        if m:
+        if re.match(r"^skill\s*:", line):
+            m = re.match(r"^skill:\s*(allow|deny)\s*$", line)
+            if m is None:
+                _fail(
+                    f"agent file {source}: skill must be 'allow' or "
+                    f"'deny' (got: {line.strip()})"
+                )
             skill = m.group(1)
         i += 1
     body = "".join(lines[i + 1 :]) if i < len(lines) else ""
@@ -755,7 +763,11 @@ class PiStrategy(EvalStrategy):
         return cmd
 
     def run_cwd(self, workspace: Path) -> str | None:
-        return str(workspace)
+        # Resolved, matching build_env's EVAL_WS_ROOT: a model-built
+        # absolute path under the workspace must satisfy the guard's
+        # root-prefix check even where the workspace path traverses a
+        # symlink (e.g. macOS /tmp -> /private/tmp).
+        return str(Path(workspace).resolve())
 
     def build_env(self, workspace: Path, agent: str) -> dict | None:
         cfg = self._agent_config(agent)
@@ -913,10 +925,15 @@ class PiStrategy(EvalStrategy):
                 f"{proc.returncode}: {proc.stderr.strip()[:300]}"
             )
         ids = set()
-        for line in proc.stdout.splitlines()[1:]:  # header row
+        for line in proc.stdout.splitlines():
             parts = line.split()
-            if len(parts) >= 2:
-                ids.add(f"{parts[0]}/{parts[1]}")
+            # Skip the header row by name, not position, so a future pi
+            # that drops the header still parses. Everything after the
+            # provider token joins into the id, tolerating multi-word
+            # model ids.
+            if len(parts) < 2 or parts[0].lower() == "provider":
+                continue
+            ids.add(f"{parts[0]}/{' '.join(parts[1:])}")
         if not ids:
             return f"'{cls.binary} --list-models' printed no models"
         if model not in ids:
