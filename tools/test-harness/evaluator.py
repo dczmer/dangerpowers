@@ -18,8 +18,8 @@ ablation/regression status fields).
 Per-track campaign behavior lives behind the Track interface in
 src/tracks/; shared campaign primitives (rep batching, evidence
 extraction, scored validation) live in src/common.py. Harness specifics
-live in the strategy registry in src/strategies.py; only opencode is
-implemented.
+live in the strategy registry in src/strategies.py; opencode and pi
+are implemented.
 """
 
 import argparse
@@ -67,7 +67,7 @@ from src.tracks import (
 )
 
 # --------------------------------------------------------------------------
-# Cross-process suite serialization (BUGS.md B5)
+# Cross-process suite serialization
 
 
 def _suite_lock_path() -> Path:
@@ -83,7 +83,13 @@ def _suite_lock_path() -> Path:
     state = os.environ.get(
         "XDG_STATE_HOME", str(Path.home() / ".local" / "state")
     )
-    return Path(state) / "opencode-test-harness" / "suite.lock"
+    # One shared lock across harnesses (D10): the common multi-harness
+    # case is comparing the SAME endpoint, and the tooling never sees
+    # the endpoint URL. Users with genuinely separate endpoints point
+    # EVALUATOR_SUITE_LOCK at per-side paths. The pre-pi path
+    # ("opencode-test-harness") is abandoned; a stale lock there is
+    # harmless.
+    return Path(state) / "skill-test-harness" / "suite.lock"
 
 
 @contextlib.contextmanager
@@ -108,7 +114,7 @@ def _suite_lock() -> Iterator[None]:
             + (f" ({holder})" if holder else "")
             + "; concurrent suites multiply per-rep latency into "
             "empty-answer timeout voids that misattribute as agent "
-            "defects (BUGS.md B5). Wait for it to exit; if no suite is "
+            "defects. Wait for it to exit; if no suite is "
             f"running, remove the stale lock: {path}"
         )
     try:
@@ -125,7 +131,7 @@ def _suite_lock() -> Iterator[None]:
 def cmd_check(args: argparse.Namespace) -> int:
     """The check command: harness binary (+ model when given) preflight,
     or — with --entries/--skill-file — the shape track's proposal-time
-    section-span check (BUGS.md B7): every entry's span must occur
+    section-span check: every entry's span must occur
     verbatim exactly once in the skill body BEFORE the campaign dir,
     snapshots, and proposal are built. Span mode never touches the
     harness, so --harness is required only for the preflight form."""
@@ -189,7 +195,7 @@ def _write_out(out: Path, text: str) -> int | None:
 
 
 def cmd_select(args: argparse.Namespace) -> int:
-    """The select command (BUGS.md B8): filter an entries/queries/
+    """The select command: filter an entries/queries/
     scenarios file to the entries --ids names, for the campaign subsets
     (entries-failing, entries-restraint, round-2) the driver used to
     hand-build. Pure filtering: envelope validation only (load_entries'
@@ -475,7 +481,10 @@ def cmd_record(args: argparse.Namespace) -> int:
     variant attribution plus a cumulative deduped `models` list: dir
     scope derives model/variant from the --results files' config blocks
     (first file wins; drift across files warns on stderr), frontmatter
-    scope takes the --model/--variant passthrough flags. With
+    scope requires the --model passthrough flag (the trigger envelope
+    carries model top-level rather than in a config block, so
+    --score-from cannot supply attribution — without the flag a record
+    would silently write model: null); --variant stays optional. With
     --scope dir --inventory, the entry's `ablations` count is derived
     from the inventory (items currently carrying a status). Without
     --date, a --campaign value named like a campaign dir
@@ -506,6 +515,13 @@ def cmd_record(args: argparse.Namespace) -> int:
             return _err("--score is required with --scope frontmatter")
         if _any_counts_given(args):
             return _err("counts are only valid with --scope dir")
+        if getattr(args, "model", None) is None:
+            return _err(
+                "--model is required with --scope frontmatter: the "
+                "frontmatter scope has no results config to derive it "
+                "from, and a record without it would silently write "
+                "model: null"
+            )
         if not skill_path.is_file():
             return _err(
                 f"--scope frontmatter expects a SKILL.md file: {skill_path}"
@@ -799,7 +815,7 @@ def cmd_meta(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------
-# End-of-campaign verification (BUGS.md B9)
+# End-of-campaign verification
 
 # Per-track campaign-input loaders for verify: the schema validation the
 # suite ran pre-spend, re-run on the canonical files at record time.
@@ -1011,7 +1027,7 @@ def _verify_skill_body_checks(
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
-    """The verify command (BUGS.md B9): the end-of-campaign consistency
+    """The verify command: the end-of-campaign consistency
     proof that gates `record`. Four check groups, all always run — the
     failures are repaired in batches, so a failing group never hides a
     later one: (1) snapshot byte-identity and artifact placement; (2)
@@ -1575,7 +1591,7 @@ def main() -> int:
 
     check = sub.add_parser("check")
     # Not argparse-required: the --entries/--skill-file span-check mode
-    # (BUGS.md B7) never touches the harness. cmd_check enforces the
+    # never touches the harness. cmd_check enforces the
     # pairing gates.
     check.add_argument("--harness")
     check.add_argument(
@@ -1615,7 +1631,7 @@ def main() -> int:
     select = sub.add_parser(
         "select",
         help="filter an entries/queries/scenarios file to a subset of "
-        "ids, preserving input document order (BUGS.md B8)",
+        "ids, preserving input document order",
     )
     select.add_argument("--entries", required=True)
     select.add_argument("--ids", required=True)
@@ -1700,8 +1716,8 @@ def main() -> int:
     )
     record.add_argument(
         "--model",
-        help="model attribution passthrough (--scope frontmatter only; "
-        "dir scope derives it from --results)",
+        help="model attribution passthrough (required with --scope "
+        "frontmatter; dir scope derives it from --results)",
     )
     record.add_argument(
         "--variant",
@@ -1779,7 +1795,7 @@ def main() -> int:
         help="end-of-campaign consistency proof gating record: snapshot "
         "byte-identity, manifest<->entries wiring, skill-body/span "
         "checks, and scored<->results consistency with the record "
-        "preflight (BUGS.md B9)",
+        "preflight",
     )
     verify.add_argument(
         "--track",

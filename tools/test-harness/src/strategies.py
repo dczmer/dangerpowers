@@ -3,12 +3,13 @@
 
 Defines the verdict vocabulary (Verdict, EventStream, HarnessExecutionError),
 the harness-neutral signal classification (classify), the EvalStrategy
-protocol, and the strategy registry. Only opencode is implemented.
+protocol, and the strategy registry. opencode and pi are implemented.
 
 Imported by evaluator.py; nothing here imports evaluator.
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -288,6 +289,7 @@ class EvalStrategy:
     binary: str  # CLI binary name, used by the preflight check
     harness: str  # also the agent-file suffix, e.g. "opencode"
     agent_install_dir: str  # workspace-relative, e.g. ".opencode/agent"
+    agent_name: str  # trigger-track eval agent base name
 
     def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         self.timeout = timeout
@@ -326,13 +328,20 @@ class EvalStrategy:
         text = source.read_text()
         if skill_name is not None:
             text = text.replace("{{SKILL_NAME}}", skill_name)
+        self.materialize_agent(workspace, base, text)
+        return base
+
+    def materialize_agent(self, workspace: Path, base: str, text: str) -> None:
+        """Make the agent usable by execute(). Default: copy the file
+        into the harness's workspace agent dir (opencode). pi overrides
+        this: its agent config is flag-translated and held in-process —
+        pi has no agent files or --agent flag."""
         dest = workspace / self.agent_install_dir / f"{base}.md"
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text)
         except OSError as e:
             _fail(f"could not install evaluator agent to {dest}: {e}")
-        return base
 
     @staticmethod
     def parse_stream(stdout: str, skill: str | None) -> EventStream:
@@ -345,6 +354,40 @@ class EvalStrategy:
         a no-op for strategies with no model enumeration; overrides use
         the harness CLI (see OpencodeStrategy)."""
         return None
+
+    @classmethod
+    def check_version(cls) -> str | None:
+        """Optional harness-version advisory: return a warning string
+        or None. Default no-op (opencode pins nothing)."""
+        return None
+
+    def build_cmd(
+        self,
+        workspace: Path,
+        agent: str,
+        query: str,
+        model: str | None,
+        effort: str | None,
+        skill: str | None,
+        session: str | None,
+    ) -> list[str]:
+        """The harness argv for one eval run. Subclasses implement."""
+        raise NotImplementedError
+
+    def run_cwd(self, workspace: Path) -> str | None:
+        """subprocess cwd for the run; None keeps the evaluator's cwd
+        (opencode anchors with --dir instead)."""
+        return None
+
+    def build_env(self, workspace: Path, agent: str) -> dict | None:
+        """subprocess env for the run; None inherits the evaluator's
+        environment (opencode needs nothing)."""
+        return None
+
+    def check_stderr(self, stderr: str) -> None:
+        """Post-run stderr inspection: raise HarnessExecutionError on
+        silent-contamination signals. Default no-op (opencode overrides
+        with the agent-fallback rejection)."""
 
     def execute(
         self,
@@ -360,25 +403,9 @@ class EvalStrategy:
         Timeout yields a partial stream, never an exception.
         HarnessExecutionError = operational failure, never a verdict.
         session resumes an existing harness session (pressure-meta)."""
-        cmd = [
-            self.binary,
-            "run",
-            "--pure",
-            "--thinking",
-            "--format",
-            "json",
-            "--dir",
-            str(workspace),
-            "--agent",
-            agent,
-        ]
-        if session is not None:
-            cmd += ["--session", session]
-        if model is not None:
-            cmd += ["--model", model]
-        if effort is not None:
-            cmd += ["--variant", effort]
-        cmd.append(query)
+        cmd = self.build_cmd(
+            workspace, agent, query, model, effort, skill, session
+        )
         try:
             proc = subprocess.run(
                 cmd,
@@ -386,6 +413,8 @@ class EvalStrategy:
                 text=True,
                 timeout=self.timeout,
                 check=False,
+                cwd=self.run_cwd(workspace),
+                env=self.build_env(workspace, agent),
             )
         except FileNotFoundError:
             raise HarnessExecutionError(
@@ -393,7 +422,7 @@ class EvalStrategy:
             )
         except subprocess.TimeoutExpired as e:
             return self.parse_stream(_as_text(e.stdout), skill), True
-        _reject_agent_fallback(proc.stderr)
+        self.check_stderr(proc.stderr)
         ev = self.parse_stream(proc.stdout, skill)
         if ev.error_message is not None:
             raise HarnessExecutionError(
@@ -416,9 +445,19 @@ class EvalStrategy:
         model: str | None = None,
         effort: str | None = None,
     ) -> Verdict:
-        """One headless trigger evaluation: execute then classify.
-        Subclasses implement."""
-        raise NotImplementedError
+        """One headless trigger evaluation: execute under the
+        trigger-evaluator agent, then classify; a timeout yields the
+        interrupted-run classification."""
+        ev, timed_out = self.execute(
+            workspace, self.agent_name, query, model, effort, skill=skill
+        )
+        if timed_out:
+            return classify(
+                ev,
+                skill,
+                interrupted_cause=f"timeout after {self.timeout}s",
+            )
+        return classify(ev, skill)
 
 
 class OpencodeStrategy(EvalStrategy):
@@ -500,26 +539,39 @@ class OpencodeStrategy(EvalStrategy):
                     ev.error_message = message
         return ev
 
-    def evaluate(
+    def build_cmd(
         self,
-        skill: str,
-        query: str,
         workspace: Path,
-        model: str | None = None,
-        effort: str | None = None,
-    ) -> Verdict:
-        """execute under the trigger-evaluator agent, then classify; a
-        timeout yields the interrupted-run classification."""
-        ev, timed_out = self.execute(
-            workspace, self.agent_name, query, model, effort, skill=skill
-        )
-        if timed_out:
-            return classify(
-                ev,
-                skill,
-                interrupted_cause=f"timeout after {self.timeout}s",
-            )
-        return classify(ev, skill)
+        agent: str,
+        query: str,
+        model: str | None,
+        effort: str | None,
+        skill: str | None,
+        session: str | None,
+    ) -> list[str]:
+        cmd = [
+            self.binary,
+            "run",
+            "--pure",
+            "--thinking",
+            "--format",
+            "json",
+            "--dir",
+            str(workspace),
+            "--agent",
+            agent,
+        ]
+        if session is not None:
+            cmd += ["--session", session]
+        if model is not None:
+            cmd += ["--model", model]
+        if effort is not None:
+            cmd += ["--variant", effort]
+        cmd.append(query)
+        return cmd
+
+    def check_stderr(self, stderr: str) -> None:
+        _reject_agent_fallback(stderr)
 
     @classmethod
     def check_model(cls, model: str) -> str | None:
@@ -555,7 +607,376 @@ class OpencodeStrategy(EvalStrategy):
         return None
 
 
-STRATEGIES: dict[str, type[EvalStrategy]] = {"opencode": OpencodeStrategy}
+# --------------------------------------------------------------------------
+# pi strategy
+
+
+PI_TOOL_NAMES = frozenset(
+    {"read", "bash", "edit", "write", "grep", "find", "ls"}
+)
+
+# The guard extension shipped beside this file; loaded explicitly with
+# -e, which pi honors even under --no-extensions.
+GUARD_EXTENSION = Path(__file__).resolve().parent.parent / ("pi-eval-guard.ts")
+
+
+def parse_pi_agent(text: str, source: str) -> dict:
+    """Parse a .pi.md eval-agent document (frontmatter + body).
+
+    Returns {"tools": list[str], "steps": int, "skill": "allow"|"deny",
+    "body": str}. Exits 1 with an exact message on any violation —
+    install-time is pre-spend. Stdlib line-scan, same discipline as
+    scan_agent_frontmatter (no pyyaml). tools: is a comma-separated
+    allowlist of pi built-in tool names (empty = --no-tools); steps: is
+    the guard's tool-call cap (0 = no cap); skill: allow|deny selects
+    whether the workspace skill is advertised via --skill."""
+    lines = text.splitlines(keepends=True)
+    tools: list[str] = []
+    steps = 0
+    skill = "deny"
+    i = 1  # caller guarantees lines[0] == "---" (scan ran first)
+    while i < len(lines) and lines[i].rstrip("\n") != "---":
+        line = lines[i].rstrip("\n")
+        m = re.match(r"^tools:\s*(.*)$", line)
+        if m:
+            tools = [t.strip() for t in m.group(1).split(",") if t.strip()]
+            unknown = [t for t in tools if t not in PI_TOOL_NAMES]
+            if unknown:
+                _fail(
+                    f"agent file {source}: unknown pi tool(s): "
+                    f"{', '.join(unknown)} (known: "
+                    f"{', '.join(sorted(PI_TOOL_NAMES))})"
+                )
+        if re.match(r"^steps\s*:", line):
+            m = re.match(r"^steps\s*:\s*(\d+)\s*$", line)
+            if m is None:
+                _fail(
+                    f"agent file {source}: steps must be an int >= 0 "
+                    f"(got: {line.strip()})"
+                )
+            steps = int(m.group(1))
+        if re.match(r"^skill\s*:", line):
+            m = re.match(r"^skill:\s*(allow|deny)\s*$", line)
+            if m is None:
+                _fail(
+                    f"agent file {source}: skill must be 'allow' or "
+                    f"'deny' (got: {line.strip()})"
+                )
+            skill = m.group(1)
+        i += 1
+    body = "".join(lines[i + 1 :]) if i < len(lines) else ""
+    if not body.strip():
+        _fail(
+            f"agent file {source}: empty body (the body is the eval "
+            "agent's system prompt)"
+        )
+    return {"tools": tools, "steps": steps, "skill": skill, "body": body}
+
+
+def _pi_skill_md(path: str, skill: str) -> bool:
+    """True when a read-tool path is exactly the target skill's stub:
+    <anything>/.agents/skills/<skill>/SKILL.md (normalized separators).
+    The pi system prompt advertises skills by absolute location inside
+    the workspace's .agents/skills tree, and the agent bodies mandate
+    absolute paths, so a normalized suffix match is precise."""
+    return os.path.normpath(path).endswith(
+        os.path.normpath(f"/.agents/skills/{skill}/SKILL.md")
+    )
+
+
+class PiStrategy(EvalStrategy):
+    """pi harness: agents are translated into CLI flags (--system-prompt
+    + --tools allowlist + guard env), never installed as files — pi has
+    no --agent concept. Skill loading in pi IS reading SKILL.md, so the
+    trigger signal is a successful read of the stub (D3)."""
+
+    binary = "pi"
+    harness = "pi"
+    agent_install_dir = ""  # unused: materialize_agent holds config
+    agent_name = "trigger-evaluator"
+    MIN_VERSION = (0, 99, 1)  # the probed floor (D6)
+
+    def __init__(self, timeout: int = DEFAULT_TIMEOUT):
+        super().__init__(timeout)
+        self._agents: dict[str, dict] = {}
+
+    def materialize_agent(self, workspace: Path, base: str, text: str) -> None:
+        self._agents[base] = parse_pi_agent(text, f"{base}.pi.md")
+
+    def _agent_config(self, agent: str) -> dict:
+        cfg = self._agents.get(agent)
+        if cfg is None:
+            raise HarnessExecutionError(
+                f"agent '{agent}' was not installed (pi strategy holds "
+                "agent config in-process; install runs before execute)"
+            )
+        return cfg
+
+    def build_cmd(
+        self,
+        workspace: Path,
+        agent: str,
+        query: str,
+        model: str | None,
+        effort: str | None,
+        skill: str | None,
+        session: str | None,
+    ) -> list[str]:
+        cfg = self._agent_config(agent)
+        cmd = [
+            self.binary,
+            "--mode",
+            "json",
+            "--system-prompt",
+            cfg["body"],
+            "--no-extensions",
+            "-e",
+            str(GUARD_EXTENSION),
+            "--no-context-files",
+            "--no-prompt-templates",
+        ]
+        if cfg["tools"]:
+            cmd += ["--tools", ",".join(cfg["tools"])]
+        else:
+            cmd += ["--no-tools"]
+        cmd.append("--no-skills")
+        if cfg["skill"] == "allow":
+            if not skill:
+                raise HarnessExecutionError(
+                    f"agent '{agent}' has skill: allow but no skill was "
+                    "named for this run"
+                )
+            cmd += [
+                "--skill",
+                str(Path(workspace) / ".agents" / "skills" / skill),
+            ]
+        if session is not None:
+            cmd += ["--session", session]
+        if model is not None:
+            cmd += ["--model", model]
+        if effort is not None:
+            cmd += ["--thinking", effort]
+        # -- : end option parsing so a query starting with '-' or '@'
+        # can never be read as a flag. (pi still treats post--- tokens
+        # as messages; see review point R7 for the '@' caveat.)
+        cmd += ["--", query]
+        return cmd
+
+    def run_cwd(self, workspace: Path) -> str | None:
+        # Resolved, matching build_env's EVAL_WS_ROOT: a model-built
+        # absolute path under the workspace must satisfy the guard's
+        # root-prefix check even where the workspace path traverses a
+        # symlink (e.g. macOS /tmp -> /private/tmp).
+        return str(Path(workspace).resolve())
+
+    def build_env(self, workspace: Path, agent: str) -> dict | None:
+        cfg = self._agent_config(agent)
+        env = dict(os.environ)
+        env["EVAL_WS_ROOT"] = str(Path(workspace).resolve())
+        env["EVAL_MAX_TOOL_CALLS"] = str(cfg["steps"])
+        return env
+
+    @staticmethod
+    def parse_stream(stdout: str, skill: str | None) -> EventStream:
+        """Normalize pi's `--mode json` JSONL into an EventStream.
+        message_end carries the authoritative content blocks (thinking,
+        text); tool_execution_start/end correlate by toolCallId (end
+        events carry no args); a read of the target stub with
+        isError=false is the completed load (D3)."""
+        ev = EventStream()
+        pending: dict[str, tuple[str, dict]] = {}
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            ev.parseable += 1
+            etype = event.get("type")
+            if etype == "session":
+                if not ev.session_id and isinstance(event.get("id"), str):
+                    ev.session_id = event["id"]
+            elif etype == "message_end":
+                msg = event.get("message")
+                if not isinstance(msg, dict) or msg.get("role") != (
+                    "assistant"
+                ):
+                    continue
+                content = msg.get("content")
+                if not isinstance(content, list):
+                    continue
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    btype = block.get("type")
+                    if btype == "thinking":
+                        text = block.get("thinking")
+                        if isinstance(text, str):
+                            ev.reasoning_parts.append(text)
+                    elif btype == "text":
+                        text = block.get("text")
+                        if not isinstance(text, str):
+                            continue
+                        ev.answer_parts.append(text)
+                        m = REPORT_LOADED_RE.search(text)
+                        if m and ev.report_loaded is None:
+                            ev.report_loaded = m.group(1)
+                        if REPORT_NO_MATCH_RE.search(text):
+                            ev.report_no_match = True
+            elif etype == "tool_execution_start":
+                tcid = event.get("toolCallId")
+                if isinstance(tcid, str):
+                    args = event.get("args")
+                    pending[tcid] = (
+                        event.get("toolName") or "",
+                        args if isinstance(args, dict) else {},
+                    )
+            elif etype == "tool_execution_end":
+                tcid = event.get("toolCallId")
+                tool, args = pending.pop(
+                    tcid, (event.get("toolName") or "", {})
+                )
+                is_error = bool(event.get("isError"))
+                path = args.get("path")
+                if tool == "read" and isinstance(path, str) and path:
+                    if skill and _pi_skill_md(path, skill):
+                        ev.skill_loads.append(
+                            {
+                                "name": skill,
+                                "status": (
+                                    "error" if is_error else "completed"
+                                ),
+                            }
+                        )
+                        if is_error:
+                            ev.attempted_load = True
+                        else:
+                            ev.completed_load = True
+                    elif os.path.normpath(path).endswith(
+                        os.path.normpath("/SKILL.md")
+                    ) and "/.agents/skills/" in os.path.normpath(path):
+                        name = (
+                            os.path.normpath(path)
+                            .split("/.agents/skills/")[1]
+                            .split("/", 1)[0]
+                        )
+                        ev.skill_loads.append(
+                            {
+                                "name": name,
+                                "status": (
+                                    "error" if is_error else "completed"
+                                ),
+                            }
+                        )
+                        if ev.other_skill is None:
+                            ev.other_skill = name
+                    else:
+                        ev.tool_calls.append({"tool": tool, "target": path})
+                elif tool in ("grep", "find", "ls"):
+                    target = args.get("path") or args.get("pattern") or ""
+                    ev.tool_calls.append({"tool": tool, "target": target})
+            elif etype == "auto_retry_end":
+                if event.get("success") is False and ev.error_message is None:
+                    ev.error_message = str(
+                        event.get("finalError") or "provider retry exhausted"
+                    )
+            elif etype == "message_update":
+                sub = event.get("assistantMessageEvent")
+                if (
+                    isinstance(sub, dict)
+                    and sub.get("type") == "error"
+                    and ev.error_message is None
+                ):
+                    ev.error_message = str(
+                        sub.get("error")
+                        or sub.get("reason")
+                        or "provider stream error"
+                    )
+        # A read of the target that started but never ended (timeout
+        # partial stream) is an attempted load — the opencode
+        # "tool_use with a non-completed status" equivalent.
+        for tool, args in pending.values():
+            if tool == "read" and skill:
+                path = args.get("path")
+                if isinstance(path, str) and _pi_skill_md(path, skill):
+                    ev.attempted_load = True
+        return ev
+
+    @classmethod
+    def check_model(cls, model: str) -> str | None:
+        """Exact provider/id match against `pi --list-models` (offline;
+        the cached catalog is enough — probe-verified 0.5 s). pi's
+        --model resolves patterns fuzzily, so the exact-pair
+        requirement is what keeps a typo from silently running the
+        wrong model (D5)."""
+        env = dict(os.environ, PI_OFFLINE="1")
+        try:
+            proc = subprocess.run(
+                [cls.binary, "--list-models"],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+        except FileNotFoundError:
+            return f"harness CLI '{cls.binary}' not found on PATH"
+        if proc.returncode != 0:
+            return (
+                f"'{cls.binary} --list-models' exited "
+                f"{proc.returncode}: {proc.stderr.strip()[:300]}"
+            )
+        ids = set()
+        for line in proc.stdout.splitlines():
+            parts = line.split()
+            # Skip the header row by name, not position, so a future pi
+            # that drops the header still parses. Everything after the
+            # provider token joins into the id, tolerating multi-word
+            # model ids.
+            if len(parts) < 2 or parts[0].lower() == "provider":
+                continue
+            ids.add(f"{parts[0]}/{' '.join(parts[1:])}")
+        if not ids:
+            return f"'{cls.binary} --list-models' printed no models"
+        if model not in ids:
+            return (
+                f"model '{model}' not found via '{cls.binary} "
+                f"--list-models' ({len(ids)} available); pi requires an "
+                "exact provider/id value"
+            )
+        return None
+
+    @classmethod
+    def check_version(cls) -> str | None:
+        """Warn-only floor check (D6): pi is pre-1.0 and the skills-
+        section behavior this strategy depends on was verified at
+        MIN_VERSION and at main."""
+        try:
+            proc = subprocess.run(
+                [cls.binary, "--version"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            return None  # the which() preflight reports the miss
+        m = re.match(r"^(\d+)\.(\d+)\.(\d+)", proc.stdout.strip())
+        if m is None:
+            return None  # unparseable: no opinion
+        version = tuple(int(g) for g in m.groups())
+        if version < cls.MIN_VERSION:
+            floor = ".".join(str(n) for n in cls.MIN_VERSION)
+            return (
+                f"harness 'pi' version {proc.stdout.strip()} is below "
+                f"the tested floor {floor}; the pi strategy was probe-"
+                "verified at the floor — upgrade pi or proceed with "
+                "caution"
+            )
+        return None
+
+
+STRATEGIES: dict[str, type[EvalStrategy]] = {
+    "opencode": OpencodeStrategy,
+    "pi": PiStrategy,
+}
 
 
 def resolve_strategy(name: str) -> type[EvalStrategy]:
@@ -591,6 +1012,9 @@ def check_harness(
         f"ok: harness '{name}' available "
         f"({strategy_cls.binary}: {resolved})"
     )
+    warning = strategy_cls.check_version()
+    if warning is not None:
+        print(f"warning: {warning}", file=sys.stderr)
     if model is None:
         return
     problem = strategy_cls.check_model(model)

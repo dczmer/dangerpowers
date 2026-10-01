@@ -204,7 +204,7 @@ and regenerate `rules.json` via `inventory-mint`.
 ## Eval agent
 
 All arms run under one restricted agent,
-`agents/pressure-evaluator.opencode.md`, installed by the harness before the
+`agents/pressure-evaluator.<harness>.md`, installed by the harness before the
 first run. Its answer contract: choose exactly one listed option, reason in
 2-3 sentences, end the turn. Permissions: the read quartet
 (`read`/`grep`/`glob`/`list`) allowed; everything else (`skill`, `edit`,
@@ -692,10 +692,11 @@ act only with user confirmation:
   skill in to "fix" it. `sync`/`status` are not part of this track at all.
 - `--session` resume must use the same `--model`/`--variant` as the original
   run (documented, not mechanically enforceable). Composition of `--session`
-  with `--pure`/`--dir`/`--agent` in headless mode is the one mechanic that
+  in headless mode (opencode: `--pure`/`--dir`/`--agent`; pi: `--system-prompt`/`--tools`/workspace cwd plus the shipped guard extension) is the one mechanic that
   can still surprise: if resume proves unusable, the documented fallback is
   re-dispatch with the original transcript embedded in the prompt — it
   changes only `meta --track pressure-test`, nothing else.
+- Meta on harness `pi`: session resume (`--session <id>`) runs from the same workspace cwd and is probe-verified headless; sessions live under `~/.pi/agent/sessions/--<cwd-slug>--/`.
 - A violating rep with an empty `session_id` cannot be resumed: note `meta
   unavailable` in the report, not an error.
 - `void` is a harness/agent problem — never a rule finding. Every red rep
@@ -732,6 +733,7 @@ act only with user confirmation:
   `skills-workspace/<s>/manifest.json` — never `rules.json`. The inventory
   path is only `verify`'s `--manifest` argument; pointing record at it
   silently writes the `pressure-test` key into the inventory file.
+- Harness `pi`: `--model` must be an exact `provider/id` (pi resolves model patterns fuzzily; `check` enforces exactness against `pi --list-models`), and `--variant` values are pi thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 
 ## Checklist
 

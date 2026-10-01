@@ -290,7 +290,7 @@ class PressureTrack(Track):
         contamination. Returns the validated entries, or an int rc with the
         exact error already printed. The merged-parser flag requirement,
         the historical 5-reps default, and the shared DEFAULT_TIMEOUT
-        (300 s; BUGS.md B3) are applied here (Q7a)."""
+        (300 s;) are applied here."""
         _required(args, self, "workspace", "scenarios", "arm")
         if args.reps is None:
             args.reps = 5
