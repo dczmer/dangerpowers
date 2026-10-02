@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, NoReturn
@@ -973,9 +974,378 @@ class PiStrategy(EvalStrategy):
         return None
 
 
+# --------------------------------------------------------------------------
+# claude strategy
+
+CLAUDE_TOOL_NAMES = frozenset(
+    {"Read", "Bash", "Edit", "Write", "Grep", "Glob", "WebFetch", "Skill"}
+)
+
+
+def parse_claude_agent(text: str, source: str) -> dict:
+    """Parse a .claude.md eval-agent document (frontmatter + body).
+
+    Returns {"tools": list[str], "steps": int, "skill": "allow"|"deny",
+    "description": str, "body": str}. Exits 1 with an exact message on
+    any violation — install-time is pre-spend. Stdlib line-scan, same
+    discipline as scan_agent_frontmatter/parse_pi_agent (no pyyaml).
+    tools: is a comma-separated allowlist of Claude Code built-in tool
+    names (empty = --tools ""); steps: is the guard hook's tool-call cap
+    (0 = no cap); skill: allow|deny selects whether the Skill tool is
+    advertised (--disallowedTools Skill when deny)."""
+    lines = text.splitlines(keepends=True)
+    tools: list[str] = []
+    steps = 0
+    skill = "deny"
+    description = ""
+    i = 1  # caller guarantees lines[0] == "---" (scan ran first)
+    while i < len(lines) and lines[i].rstrip("\n") != "---":
+        line = lines[i].rstrip("\n")
+        m = re.match(r"^tools:\s*(.*)$", line)
+        if m:
+            tools = [t.strip() for t in m.group(1).split(",") if t.strip()]
+            unknown = [t for t in tools if t not in CLAUDE_TOOL_NAMES]
+            if unknown:
+                _fail(
+                    f"agent file {source}: unknown claude tool(s): "
+                    f"{', '.join(unknown)} (known: "
+                    f"{', '.join(sorted(CLAUDE_TOOL_NAMES))})"
+                )
+        if re.match(r"^steps\s*:", line):
+            m = re.match(r"^steps\s*:\s*(\d+)\s*$", line)
+            if m is None:
+                _fail(
+                    f"agent file {source}: steps must be an int >= 0 "
+                    f"(got: {line.strip()})"
+                )
+            steps = int(m.group(1))
+        if re.match(r"^skill\s*:", line):
+            m = re.match(r"^skill:\s*(allow|deny)\s*$", line)
+            if m is None:
+                _fail(
+                    f"agent file {source}: skill must be 'allow' or "
+                    f"'deny' (got: {line.strip()})"
+                )
+            skill = m.group(1)
+        m = re.match(r"^description:\s*(.*)$", line)
+        if m:
+            description = m.group(1).strip()
+        i += 1
+    body = "".join(lines[i + 1 :]) if i < len(lines) else ""
+    if not body.strip():
+        _fail(
+            f"agent file {source}: empty body (the body is the eval "
+            "agent's system prompt)"
+        )
+    if not description:
+        _fail(
+            f"agent file {source}: missing 'description:' (required by "
+            "--agents)"
+        )
+    return {
+        "tools": tools,
+        "steps": steps,
+        "skill": skill,
+        "description": description,
+        "body": body,
+    }
+
+
+class ClaudeStrategy(EvalStrategy):
+    """Claude Code harness: agents are translated into an inline
+    --agents JSON object plus --restricted/--tools/--disallowedTools —
+    Claude Code has no on-disk agent-file concept exposed to --print, so
+    (like pi) agent config is held in-process rather than materialized
+    as files. Skill loading is a dedicated `Skill` tool whose paired
+    tool_use_result carries an explicit success flag — the cleanest
+    completed-load signal of the three strategies."""
+
+    binary = "claude"
+    harness = "claude"
+    agent_install_dir = ""  # unused: materialize_agent holds config
+    agent_name = "trigger-evaluator"
+    MIN_VERSION = (2, 1, 283)  # the probed floor
+
+    def __init__(self, timeout: int = DEFAULT_TIMEOUT):
+        super().__init__(timeout)
+        self._agents: dict[str, dict] = {}
+
+    def materialize_agent(self, workspace: Path, base: str, text: str) -> None:
+        self._agents[base] = parse_claude_agent(text, f"{base}.claude.md")
+
+    def _agent_config(self, agent: str) -> dict:
+        cfg = self._agents.get(agent)
+        if cfg is None:
+            raise HarnessExecutionError(
+                f"agent '{agent}' was not installed (claude strategy holds "
+                "agent config in-process; install runs before execute)"
+            )
+        return cfg
+
+    def _guard_settings_path(self, workspace: Path, steps: int) -> Path | None:
+        """Write a per-workspace --settings file wiring the PreToolUse
+        step-cap hook; None when the agent sets steps: 0 (no cap)."""
+        if steps <= 0:
+            return None
+        guard = Path(__file__).resolve().parent.parent / "claude-eval-guard.py"
+        settings = workspace / ".claude-eval-settings.json"
+        settings.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": f"python3 {guard}",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+        return settings
+
+    def build_cmd(
+        self,
+        workspace: Path,
+        agent: str,
+        query: str,
+        model: str | None,
+        effort: str | None,
+        skill: str | None,
+        session: str | None,
+    ) -> list[str]:
+        cfg = self._agent_config(agent)
+        agents_json = json.dumps(
+            {agent: {"description": cfg["description"], "prompt": cfg["body"]}}
+        )
+        cmd = [
+            self.binary,
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--restricted",
+            "--setting-sources",
+            "",
+            "--agent",
+            agent,
+            "--agents",
+            agents_json,
+        ]
+        cmd += ["--tools", ",".join(cfg["tools"]) if cfg["tools"] else ""]
+        if cfg["skill"] == "deny":
+            cmd += ["--disallowedTools", "Skill"]
+        guard_settings = self._guard_settings_path(workspace, cfg["steps"])
+        if guard_settings is not None:
+            cmd += ["--settings", str(guard_settings)]
+        if session is not None:
+            cmd += ["--resume", session]
+        if model is not None:
+            cmd += ["--model", model]
+        if effort is not None:
+            cmd += ["--effort", effort]
+        cmd += ["--", query]
+        return cmd
+
+    def run_cwd(self, workspace: Path) -> str | None:
+        return str(Path(workspace).resolve())
+
+    def build_env(self, workspace: Path, agent: str) -> dict | None:
+        cfg = self._agent_config(agent)
+        env = dict(os.environ)
+        env["EVAL_MAX_TOOL_CALLS"] = str(cfg["steps"])
+        # One counter file per execute() call, not per workspace: reps
+        # run concurrently in threads (run_rep_batched), so a shared
+        # counter would double-count across reps.
+        counter = workspace / f".claude-eval-counter-{uuid.uuid4().hex}"
+        env["CLAUDE_EVAL_COUNTER_FILE"] = str(counter)
+        return env
+
+    def check_stderr(self, stderr: str) -> None:
+        low = stderr.lower()
+        if "plugin" in low and "loaded" in low:
+            raise HarnessExecutionError(
+                f"harness loaded ambient plugins despite --restricted "
+                f"(evaluator isolation broken): {stderr.strip()[:300]}"
+            )
+
+    @staticmethod
+    def parse_stream(stdout: str, skill: str | None) -> EventStream:
+        """Normalize claude's `--output-format stream-json` NDJSON into
+        an EventStream. Skill tool_use/tool_result pairs correlate by
+        tool_use_id (result arrives on a LATER `user` event, not inline
+        on the tool_use block) — same two-pass shape as PiStrategy's
+        toolCallId correlation."""
+        ev = EventStream()
+        # tool_use_id -> (tool name, Skill target or None)
+        pending: dict[str, tuple[str, str | None]] = {}
+        for line in stdout.splitlines():
+            try:
+                event_ = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            ev.parseable += 1
+            etype = event_.get("type")
+            if etype == "system" and event_.get("subtype") == "init":
+                sid = event_.get("session_id")
+                if not ev.session_id and isinstance(sid, str):
+                    ev.session_id = sid
+            elif etype == "assistant":
+                msg = event_.get("message", {})
+                for block in msg.get("content", []):
+                    if not isinstance(block, dict):
+                        continue
+                    btype = block.get("type")
+                    if btype == "thinking":
+                        text = block.get("thinking")
+                        if isinstance(text, str) and text:
+                            ev.reasoning_parts.append(text)
+                    elif btype == "text":
+                        text = block.get("text")
+                        if isinstance(text, str):
+                            ev.answer_parts.append(text)
+                            m = REPORT_LOADED_RE.search(text)
+                            if m and ev.report_loaded is None:
+                                ev.report_loaded = m.group(1)
+                            if REPORT_NO_MATCH_RE.search(text):
+                                ev.report_no_match = True
+                    elif btype == "tool_use":
+                        tcid = block.get("id")
+                        name = block.get("name")
+                        target = None
+                        if name == "Skill":
+                            target = (block.get("input") or {}).get("skill")
+                            if target is not None and target != skill:
+                                if ev.other_skill is None:
+                                    ev.other_skill = target
+                        if isinstance(tcid, str) and isinstance(name, str):
+                            pending[tcid] = (name, target)
+                        if name in ("Read", "Grep", "Glob", "Bash"):
+                            inp = block.get("input") or {}
+                            ev.tool_calls.append(
+                                {
+                                    "tool": name,
+                                    "target": inp.get("file_path")
+                                    or inp.get("path")
+                                    or inp.get("pattern")
+                                    or "",
+                                }
+                            )
+            elif etype == "user":
+                msg = event_.get("message", {})
+                for block in msg.get("content", []):
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") != "tool_result":
+                        continue
+                    tcid = block.get("tool_use_id")
+                    pending_entry = (
+                        pending.pop(tcid, None)
+                        if isinstance(tcid, str)
+                        else None
+                    )
+                    tool = pending_entry[0] if pending_entry else None
+                    if tool != "Skill":
+                        continue
+                    result = event_.get("tool_use_result") or {}
+                    name = result.get("commandName")
+                    success = bool(result.get("success"))
+                    is_error = bool(block.get("is_error"))
+                    ev.skill_loads.append(
+                        {
+                            "name": name,
+                            "status": (
+                                "completed"
+                                if success and not is_error
+                                else "error"
+                            ),
+                        }
+                    )
+                    if name == skill:
+                        if success and not is_error:
+                            ev.completed_load = True
+                        else:
+                            ev.attempted_load = True
+                    elif is_error:
+                        ev.denied_tool_attempts.append(
+                            {"tool": "Skill", "target": name or ""}
+                        )
+            elif etype == "result":
+                if ev.error_message is None and event_.get("is_error"):
+                    ev.error_message = str(
+                        event_.get("result")
+                        or "claude reported an error result"
+                    )
+        # A Skill call that started but never got a paired result
+        # (timeout partial stream) is an attempted load.
+        for tool, target in pending.values():
+            if tool == "Skill" and target == skill:
+                ev.attempted_load = True
+        return ev
+
+    @classmethod
+    def check_model(cls, model: str) -> str | None:
+        """Soft check only: claude has no model-listing subcommand
+        (`claude models` just prompts the LLM in text — probe-verified).
+        Accepts the known alias/full-id set from the system prompt;
+        anything else is let through for the smoke rep to catch, same
+        honesty standard as a documented gap, not a silent guess."""
+        known = {
+            "sonnet",
+            "opus",
+            "fable",
+            "haiku",
+            "claude-sonnet-5",
+            "claude-opus-5-5",
+            "claude-fable-5-1",
+            "claude-haiku-4-5-20251001",
+        }
+        if model in known:
+            return None
+        if re.match(r"^(claude-|us\.anthropic\.|eu\.anthropic\.)", model):
+            return None
+        return (
+            f"model '{model}' not recognized against the known claude "
+            "alias/id set (no live enumeration exists; this is a soft "
+            "check — if the id is valid, the smoke rep will confirm it)"
+        )
+
+    @classmethod
+    def check_version(cls) -> str | None:
+        try:
+            proc = subprocess.run(
+                [cls.binary, "--version"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            return None
+        m = re.match(r"^(\d+)\.(\d+)\.(\d+)", proc.stdout.strip())
+        if m is None:
+            return None
+        version = tuple(int(g) for g in m.groups())
+        if version < cls.MIN_VERSION:
+            floor = ".".join(str(n) for n in cls.MIN_VERSION)
+            return (
+                f"harness 'claude' version {proc.stdout.strip()} is below "
+                f"the tested floor {floor}; the claude strategy was probe-"
+                "verified at the floor — upgrade claude or proceed with "
+                "caution"
+            )
+        return None
+
+
 STRATEGIES: dict[str, type[EvalStrategy]] = {
     "opencode": OpencodeStrategy,
     "pi": PiStrategy,
+    "claude": ClaudeStrategy,
 }
 
 

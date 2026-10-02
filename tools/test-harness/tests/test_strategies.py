@@ -1143,10 +1143,17 @@ class PiCheckVersionTests(unittest.TestCase):
 
 class RegistryTests(unittest.TestCase):
     def test_registry_keys(self):
-        self.assertEqual(set(strategies.STRATEGIES), {"opencode", "pi"})
+        self.assertEqual(
+            set(strategies.STRATEGIES), {"opencode", "pi", "claude"}
+        )
 
     def test_resolve_pi(self):
         self.assertIs(strategies.resolve_strategy("pi"), strategies.PiStrategy)
+
+    def test_resolve_claude(self):
+        self.assertIs(
+            strategies.resolve_strategy("claude"), strategies.ClaudeStrategy
+        )
 
     def test_unsupported_message_names_both(self):
         buf = io.StringIO()
@@ -1157,6 +1164,449 @@ class RegistryTests(unittest.TestCase):
         err = buf.getvalue()
         self.assertIn("opencode", err)
         self.assertIn("pi", err)
+
+
+CLAUDE_SKILL = "echo-skill"
+
+
+def claude_assistant_event(content: list[dict]) -> dict:
+    return {
+        "type": "assistant",
+        "message": {"role": "assistant", "content": content},
+    }
+
+
+def claude_user_tool_result(
+    tcid: str,
+    *,
+    command_name: str,
+    success: bool = True,
+    is_error: bool = False,
+) -> dict:
+    return {
+        "type": "user",
+        "message": {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": tcid,
+                    "is_error": is_error,
+                }
+            ],
+        },
+        "tool_use_result": {
+            "commandName": command_name,
+            "success": success,
+        },
+    }
+
+
+CLAUDE_NDJSON = "\n".join(
+    json.dumps(e)
+    for e in [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "claude-sess-1",
+        },
+        claude_assistant_event(
+            [
+                {"type": "thinking", "thinking": "I should load the skill"},
+                {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "Skill",
+                    "input": {"skill": CLAUDE_SKILL},
+                },
+            ]
+        ),
+        claude_user_tool_result(
+            "t1", command_name=CLAUDE_SKILL, success=True, is_error=False
+        ),
+        claude_assistant_event(
+            [{"type": "text", "text": "loaded skill: echo-skill"}]
+        ),
+        {"type": "result", "is_error": False, "result": "ok"},
+    ]
+)
+
+
+class ParseClaudeAgentTests(unittest.TestCase):
+    def _parse(self, text: str):
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            try:
+                return (
+                    strategies.parse_claude_agent(text, "agent.claude.md"),
+                    None,
+                )
+            except SystemExit as e:
+                return None, (e, buf.getvalue())
+
+    def test_full_frontmatter(self):
+        cfg, err = self._parse(
+            "---\n"
+            "name: retrieval-evaluator\n"
+            "description: Does the thing.\n"
+            "tools: Read,Grep,Skill\n"
+            "steps: 30\n"
+            "skill: allow\n"
+            "---\n"
+            "# Agent\n"
+            "Body text.\n"
+        )
+        self.assertIsNone(err)
+        assert cfg is not None
+        self.assertEqual(cfg["tools"], ["Read", "Grep", "Skill"])
+        self.assertEqual(cfg["steps"], 30)
+        self.assertEqual(cfg["skill"], "allow")
+        self.assertEqual(cfg["description"], "Does the thing.")
+        self.assertEqual(cfg["body"], "# Agent\nBody text.\n")
+
+    def test_defaults(self):
+        cfg, err = self._parse("---\nname: a\ndescription: d\n---\nBody\n")
+        self.assertIsNone(err)
+        assert cfg is not None
+        self.assertEqual(cfg["tools"], [])
+        self.assertEqual(cfg["steps"], 0)
+        self.assertEqual(cfg["skill"], "deny")
+        self.assertEqual(cfg["body"], "Body\n")
+
+    def test_unknown_tool_exits(self):
+        _, err = self._parse(
+            "---\nname: a\ndescription: d\ntools: Read,ls\n---\nBody\n"
+        )
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("unknown claude tool(s): ls", msg)
+
+    def test_non_int_steps_exits(self):
+        _, err = self._parse(
+            "---\nname: a\ndescription: d\nsteps: many\n---\nBody\n"
+        )
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("steps must be an int >= 0", msg)
+
+    def test_bad_skill_value_exits(self):
+        _, err = self._parse(
+            "---\nname: a\ndescription: d\nskill: allowed\n---\nBody\n"
+        )
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("skill must be 'allow' or 'deny'", msg)
+
+    def test_empty_body_exits(self):
+        _, err = self._parse("---\nname: a\ndescription: d\n---\n\n")
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("empty body", msg)
+
+    def test_missing_description_exits(self):
+        _, err = self._parse("---\nname: a\n---\nBody\n")
+        assert err is not None
+        e, msg = err
+        self.assertEqual(e.code, 1)
+        self.assertIn("missing 'description:'", msg)
+
+
+class ClaudeBuildCmdTests(unittest.TestCase):
+    def setUp(self):
+        self.strategy = strategies.ClaudeStrategy()
+        self.workspace = Path(tempfile.mkdtemp())
+
+    def _install(self, extra: str = "") -> None:
+        self.strategy.materialize_agent(
+            self.workspace,
+            "trigger-evaluator",
+            "---\nname: trigger-evaluator\n"
+            "description: Does the thing.\n"
+            f"{extra}"
+            "---\n# Agent\nDo the report.\n",
+        )
+
+    def _cmd(self, **kwargs) -> list[str]:
+        defaults = {
+            "workspace": self.workspace,
+            "agent": "trigger-evaluator",
+            "query": "q",
+            "model": None,
+            "effort": None,
+            "skill": None,
+            "session": None,
+        }
+        defaults.update(kwargs)
+        return self.strategy.build_cmd(**defaults)
+
+    def test_base_flag_shape(self):
+        self._install()
+        cmd = self._cmd()
+        self.assertEqual(cmd[0], "claude")
+        self.assertIn("--restricted", cmd)
+        idx = cmd.index("--setting-sources")
+        self.assertEqual(cmd[idx + 1], "")
+        idx = cmd.index("--agent")
+        self.assertEqual(cmd[idx + 1], "trigger-evaluator")
+        idx = cmd.index("--agents")
+        agents = json.loads(cmd[idx + 1])
+        self.assertEqual(
+            agents["trigger-evaluator"],
+            {
+                "description": "Does the thing.",
+                "prompt": "# Agent\nDo the report.\n",
+            },
+        )
+
+    def test_tools_allowlist_vs_empty(self):
+        self._install("tools: Read,Grep\n")
+        cmd = self._cmd()
+        idx = cmd.index("--tools")
+        self.assertEqual(cmd[idx + 1], "Read,Grep")
+        self._install()  # no tools: line
+        cmd = self._cmd()
+        idx = cmd.index("--tools")
+        self.assertEqual(cmd[idx + 1], "")
+
+    def test_skill_deny_adds_disallowed(self):
+        self._install()  # skill: deny default
+        cmd = self._cmd()
+        idx = cmd.index("--disallowedTools")
+        self.assertEqual(cmd[idx + 1], "Skill")
+
+    def test_skill_allow_omits_disallowed(self):
+        self._install("skill: allow\n")
+        cmd = self._cmd()
+        self.assertNotIn("--disallowedTools", cmd)
+
+    def test_steps_adds_settings_guard(self):
+        self._install("steps: 3\n")
+        cmd = self._cmd()
+        self.assertIn("--settings", cmd)
+        idx = cmd.index("--settings")
+        settings_path = Path(cmd[idx + 1])
+        self.assertTrue(settings_path.exists())
+        data = json.loads(settings_path.read_text())
+        self.assertIn("PreToolUse", data["hooks"])
+
+    def test_zero_steps_omits_settings_guard(self):
+        self._install()  # steps default 0
+        cmd = self._cmd()
+        self.assertNotIn("--settings", cmd)
+
+    def test_session_model_effort_insertion(self):
+        self._install()
+        cmd = self._cmd(model="sonnet", effort="high", session="sess-42")
+        idx = cmd.index("--resume")
+        self.assertEqual(cmd[idx + 1], "sess-42")
+        idx = cmd.index("--model")
+        self.assertEqual(cmd[idx + 1], "sonnet")
+        idx = cmd.index("--effort")
+        self.assertEqual(cmd[idx + 1], "high")
+
+    def test_double_dash_separator_before_query(self):
+        self._install()
+        cmd = self._cmd(query="-looks-like-a-flag")
+        self.assertEqual(cmd[-2], "--")
+        self.assertEqual(cmd[-1], "-looks-like-a-flag")
+
+    def test_run_cwd_is_resolved_workspace(self):
+        self.assertEqual(
+            self.strategy.run_cwd(self.workspace),
+            str(self.workspace.resolve()),
+        )
+
+    def test_build_env_sets_guard_vars(self):
+        self._install("steps: 3\n")
+        env = self.strategy.build_env(self.workspace, "trigger-evaluator")
+        assert env is not None
+        self.assertEqual(env["EVAL_MAX_TOOL_CALLS"], "3")
+        self.assertIn("CLAUDE_EVAL_COUNTER_FILE", env)
+
+    def test_uninstalled_agent_raises(self):
+        with self.assertRaises(strategies.HarnessExecutionError) as ctx:
+            self._cmd()
+        self.assertIn("was not installed", str(ctx.exception))
+
+
+class ClaudeParseStreamTests(unittest.TestCase):
+    def _parse(
+        self, stdout: str, skill=CLAUDE_SKILL
+    ) -> strategies.EventStream:
+        return strategies.ClaudeStrategy.parse_stream(stdout, skill)
+
+    def test_session_header_id(self):
+        ev = self._parse(CLAUDE_NDJSON)
+        self.assertEqual(ev.session_id, "claude-sess-1")
+
+    def test_thinking_and_text_accumulation(self):
+        ev = self._parse(CLAUDE_NDJSON)
+        self.assertEqual(ev.reasoning_parts, ["I should load the skill"])
+        self.assertEqual(ev.answer_parts, ["loaded skill: echo-skill"])
+
+    def test_report_regex(self):
+        ev = self._parse(CLAUDE_NDJSON)
+        self.assertEqual(ev.report_loaded, CLAUDE_SKILL)
+
+    def test_completed_load(self):
+        ev = self._parse(CLAUDE_NDJSON)
+        self.assertTrue(ev.completed_load)
+        self.assertFalse(ev.attempted_load)
+        self.assertEqual(
+            ev.skill_loads,
+            [{"name": CLAUDE_SKILL, "status": "completed"}],
+        )
+
+    def test_attempted_load_on_error(self):
+        stdout = "\n".join(
+            json.dumps(e)
+            for e in [
+                claude_assistant_event(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "Skill",
+                            "input": {"skill": CLAUDE_SKILL},
+                        }
+                    ]
+                ),
+                claude_user_tool_result(
+                    "t1",
+                    command_name=CLAUDE_SKILL,
+                    success=False,
+                    is_error=True,
+                ),
+            ]
+        )
+        ev = self._parse(stdout)
+        self.assertTrue(ev.attempted_load)
+        self.assertFalse(ev.completed_load)
+        self.assertEqual(
+            ev.skill_loads, [{"name": CLAUDE_SKILL, "status": "error"}]
+        )
+
+    def test_attempted_load_via_dangling_tool_use(self):
+        # Timeout partial stream: the Skill call started but no paired
+        # tool_result ever arrived.
+        dangling = json.dumps(
+            claude_assistant_event(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "t9",
+                        "name": "Skill",
+                        "input": {"skill": CLAUDE_SKILL},
+                    }
+                ]
+            )
+        )
+        ev = self._parse(dangling)
+        self.assertTrue(ev.attempted_load)
+        self.assertFalse(ev.completed_load)
+
+    def test_other_skill_load(self):
+        stdout = json.dumps(
+            claude_assistant_event(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "Skill",
+                        "input": {"skill": "other-skill"},
+                    }
+                ]
+            )
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(ev.other_skill, "other-skill")
+
+    def test_non_skill_tool_calls(self):
+        stdout = json.dumps(
+            claude_assistant_event(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "Read",
+                        "input": {"file_path": "/tmp/ws/README.md"},
+                    }
+                ]
+            )
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(
+            ev.tool_calls,
+            [{"tool": "Read", "target": "/tmp/ws/README.md"}],
+        )
+        self.assertEqual(ev.skill_loads, [])
+
+    def test_result_error_sets_error_message(self):
+        stdout = json.dumps(
+            {"type": "result", "is_error": True, "result": "boom"}
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(ev.error_message, "boom")
+
+    def test_garbage_lines_skipped_and_parseable_counts(self):
+        stdout = "garbage\n" + CLAUDE_NDJSON + "\nnot json either"
+        ev = self._parse(stdout)
+        self.assertEqual(ev.parseable, 5)
+
+
+class ClaudeCheckModelTests(unittest.TestCase):
+    def test_known_alias_accepted(self):
+        self.assertIsNone(strategies.ClaudeStrategy.check_model("sonnet"))
+
+    def test_known_full_id_accepted(self):
+        self.assertIsNone(
+            strategies.ClaudeStrategy.check_model("claude-sonnet-5")
+        )
+
+    def test_claude_prefixed_id_accepted(self):
+        self.assertIsNone(
+            strategies.ClaudeStrategy.check_model("claude-opus-9-9")
+        )
+
+    def test_bedrock_prefixed_id_accepted(self):
+        self.assertIsNone(
+            strategies.ClaudeStrategy.check_model(
+                "us.anthropic.claude-sonnet-5"
+            )
+        )
+
+    def test_unknown_model_rejected(self):
+        result = strategies.ClaudeStrategy.check_model("gpt-4")
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("not recognized", result)
+
+
+class ClaudeCheckVersionTests(unittest.TestCase):
+    def _check(self, stdout: str):
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=stdout, stderr=""
+        )
+        with mock.patch.object(
+            strategies.subprocess, "run", return_value=proc
+        ):
+            return strategies.ClaudeStrategy.check_version()
+
+    def test_below_floor_warns(self):
+        result = self._check("2.1.282 (Claude Code)\n")
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertIn("below the tested floor 2.1.283", result)
+
+    def test_at_floor_is_silent(self):
+        self.assertIsNone(self._check("2.1.283 (Claude Code)\n"))
+
+    def test_unparseable_is_silent(self):
+        self.assertIsNone(self._check("dev-main\n"))
 
 
 class GrammarGateTests(unittest.TestCase):

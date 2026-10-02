@@ -51,7 +51,7 @@ cmd_init() {
   esac
   local ws
   ws="$(mktemp -d "/tmp/${prefix}.XXXXXXXXXX")"
-  mkdir -p "$ws/.agents/skills"
+  mkdir -p "$ws/.agents/skills" "$ws/.claude/skills"
   printf '%s\n' "$ws"
 }
 
