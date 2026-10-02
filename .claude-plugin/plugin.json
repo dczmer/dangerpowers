@@ -1,0 +1,6 @@
+{
+  "name": "dangerpowers",
+  "version": "0.1.0",
+  "description": "Dangerpowers skill/agent/command library for Claude Code.",
+  "author": { "name": "Dave Czmer" }
+}

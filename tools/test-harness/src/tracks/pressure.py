@@ -20,7 +20,12 @@ from src.common import (
     run_rep_batched,
     validate_eval_agent,
 )
-from src.strategies import DEFAULT_TIMEOUT, EvalStrategy, HarnessExecutionError
+from src.strategies import (
+    DEFAULT_TIMEOUT,
+    EvalStrategy,
+    HarnessExecutionError,
+    skill_dest_root,
+)
 from src.tracks.track import Track, _required
 
 # Track constants: the pressure track runs one arm per invocation and
@@ -336,7 +341,7 @@ class PressureTrack(Track):
         out = Path(args.out)
         if not out.parent.is_dir():
             _fail(f"output directory does not exist: {out.parent}")
-        if (ws / ".agents" / "skills" / args.skill).exists():
+        if (ws / skill_dest_root(args.harness) / args.skill).exists():
             _fail(
                 f"workspace contains skill '{args.skill}' — this track "
                 "injects the skill body into prompts and never syncs; "
