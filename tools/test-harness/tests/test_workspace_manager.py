@@ -266,6 +266,83 @@ class FullSyncStatusTests(unittest.TestCase):
         self.assertIn("out of date", proc.stderr)
 
 
+class DestRootTests(unittest.TestCase):
+    """--dest-root lets sync/status target .claude/skills (claude
+    harness) instead of the default .agents/skills — same workspace,
+    different harness-owned subtree."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        tmp = Path(self._tmp.name)
+        self.source = tmp / "repo-root"
+        self.ws = tmp / "ws"
+        (self.ws / ".claude" / "skills").mkdir(parents=True)
+        self.skill = "demo-skill"
+
+    def sync(self, *extra):
+        return run_wm(
+            "sync",
+            "--skill",
+            self.skill,
+            "--source",
+            str(self.source),
+            "--workspace",
+            str(self.ws),
+            "--dest-root",
+            ".claude/skills",
+            *extra,
+        )
+
+    def status(self, *extra):
+        return run_wm(
+            "status",
+            "--skill",
+            self.skill,
+            "--source",
+            str(self.source),
+            "--workspace",
+            str(self.ws),
+            "--dest-root",
+            ".claude/skills",
+            *extra,
+        )
+
+    def test_sync_writes_under_dest_root(self):
+        write_skill(self.source, self.skill)
+        proc = self.sync()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(
+            (self.ws / ".claude" / "skills" / self.skill / "SKILL.md").exists()
+        )
+        self.assertFalse(
+            (self.ws / ".agents" / "skills" / self.skill).exists()
+        )
+
+    def test_status_reads_dest_root(self):
+        write_skill(self.source, self.skill)
+        self.assertEqual(self.sync().returncode, 0)
+        proc = self.status()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("matches source", proc.stdout)
+
+    def test_status_missing_dest_root_dir_exits_1(self):
+        write_skill(self.source, self.skill)
+        proc = run_wm(
+            "status",
+            "--skill",
+            self.skill,
+            "--source",
+            str(self.source),
+            "--workspace",
+            str(self.ws),
+            "--dest-root",
+            ".nope/skills",
+        )
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("workspace is not initialized", proc.stderr)
+
+
 class SymlinkPolicyTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

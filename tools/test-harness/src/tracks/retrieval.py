@@ -22,7 +22,12 @@ from src.common import (
     run_rep_batched,
     validate_eval_agent,
 )
-from src.strategies import DEFAULT_TIMEOUT, EvalStrategy, HarnessExecutionError
+from src.strategies import (
+    DEFAULT_TIMEOUT,
+    EvalStrategy,
+    HarnessExecutionError,
+    skill_dest_root,
+)
 from src.tracks.track import Track, _required
 
 # Track constants: the retrieval track evaluates under
@@ -285,12 +290,13 @@ class RetrievalTrack(Track):
             return _err("--reps must be >= 1")
         if args.timeout < 1:
             return _err("--timeout must be >= 1")
-        if not (skill_ws / ".agents" / "skills" / args.skill).is_dir():
+        skill_dest = skill_dest_root(args.harness)
+        if not (skill_ws / skill_dest / args.skill).is_dir():
             _fail(
                 f"skill workspace has no synced skill '{args.skill}': run "
                 "workspace-manager.sh sync --full and status --full first"
             )
-        if (control_ws / ".agents" / "skills" / args.skill).exists():
+        if (control_ws / skill_dest / args.skill).exists():
             _fail(
                 f"control workspace contains skill '{args.skill}' — "
                 "baseline contamination; recreate the control workspace, "

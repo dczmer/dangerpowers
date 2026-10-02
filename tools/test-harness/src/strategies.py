@@ -1348,6 +1348,23 @@ STRATEGIES: dict[str, type[EvalStrategy]] = {
     "claude": ClaudeStrategy,
 }
 
+# workspace-relative dir a synced skill lives under, keyed by --harness
+# name (not strategy_cls: tests stand strategy_cls up as a bare factory
+# callable in pre-spend-gate fixtures, so the dest root is resolved from
+# the harness string instead). workspace-manager.sh sync/status write
+# here via --dest-root; the trigger/retrieval/shape/pressure tracks
+# check it before a run.
+SKILL_DEST_ROOTS: dict[str, str] = {
+    "opencode": ".agents/skills",
+    "pi": ".agents/skills",
+    "claude": ".claude/skills",
+}
+
+
+def skill_dest_root(harness: str) -> str:
+    """The workspace-relative skill directory for a harness name."""
+    return SKILL_DEST_ROOTS.get(harness, ".agents/skills")
+
 
 def resolve_strategy(name: str) -> type[EvalStrategy]:
     """The strategy class for a harness name; exits 1 on an unsupported

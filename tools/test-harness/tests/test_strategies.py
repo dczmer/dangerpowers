@@ -1166,6 +1166,22 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("pi", err)
 
 
+class SkillDestRootTests(unittest.TestCase):
+    def test_opencode_and_pi_share_agents_skills(self):
+        self.assertEqual(
+            strategies.skill_dest_root("opencode"), ".agents/skills"
+        )
+        self.assertEqual(strategies.skill_dest_root("pi"), ".agents/skills")
+
+    def test_claude_uses_dot_claude_skills(self):
+        self.assertEqual(
+            strategies.skill_dest_root("claude"), ".claude/skills"
+        )
+
+    def test_unknown_harness_falls_back_to_agents_skills(self):
+        self.assertEqual(strategies.skill_dest_root("nope"), ".agents/skills")
+
+
 CLAUDE_SKILL = "echo-skill"
 
 

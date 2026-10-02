@@ -7,11 +7,15 @@ usage:
   workspace-manager.sh init [--prefix NAME]
   workspace-manager.sh campaign-init --root DIR
   workspace-manager.sh sync --skill NAME --source DIR --workspace DIR [--full]
+      [--dest-root DIR]
   workspace-manager.sh status --skill NAME --source DIR --workspace DIR [--full]
+      [--dest-root DIR]
   workspace-manager.sh cleanup --workspace DIR [--prefix NAME]
 
 init    creates one campaign workspace under /tmp/<prefix>.XXXXXXXXXX
         (default prefix: trigger-test) and prints its path on stdout.
+        Pre-creates both .agents/skills (opencode/pi) and .claude/skills
+        (claude) so --dest-root can point sync/status at either.
 campaign-init creates one persistent campaign directory under --root, named
         campaign-YYYY-MM-DD (suffixed -2, -3, ... on same-day reruns), and
         prints its path on stdout.
@@ -19,10 +23,12 @@ sync    copies the source skill to the target workspace. Default: frontmatter
         stub only (trigger track). --full copies the entire skill directory
         (retrieval track), excluding __pycache__/ and *.pyc and rejecting
         unsafe symlinks. Run after every description change to sync the stub.
+        --dest-root DIR: workspace-relative skill directory (default:
+        .agents/skills; use .claude/skills for the claude harness).
 status  verifies the workspace is in a valid state and that the synced skill
         matches the current source. Default: frontmatter comparison.
         --full: recursive diff with the same exclusions as sync --full;
-        exit 1 on any difference.
+        exit 1 on any difference. --dest-root DIR: same meaning as sync's.
 cleanup removes the workspace; refuses paths outside /tmp/<prefix>.*
         (default prefix: trigger-test).
 EOF
@@ -78,13 +84,14 @@ cmd_campaign_init() {
 }
 
 cmd_sync() {
-  local skill="" ws="" source="" full=0
+  local skill="" ws="" source="" full=0 dest_root=".agents/skills"
   while [ $# -gt 0 ]; do
     case "$1" in
       --skill) skill="$2"; shift 2 ;;
       --workspace) ws="$2"; shift 2 ;;
       --source) source="$2"; shift 2 ;;
       --full) full=1; shift ;;
+      --dest-root) dest_root="$2"; shift 2 ;;
       *) usage ;;
     esac
   done
@@ -94,6 +101,7 @@ cmd_sync() {
   local src="$source/skills/$skill/SKILL.md"
   [ -f "$src" ] || { echo "error: missing SKILL.md: $src" >&2; exit 1; }
   local skill_dir="$source/skills/$skill"
+  local dest="$ws/$dest_root/$skill"
   if [ "$full" -eq 1 ]; then
     # Symlink policy — the dir hasher (evaluator.py record --scope dir)
     # applies the SAME policy so both agree on the file set:
@@ -111,49 +119,51 @@ cmd_sync() {
       [ -d "$target" ] && {
         echo "error: symlink to a directory: $link" >&2; exit 1; }
     done < <(find "$skill_dir" -type l)
-    rm -rf "$ws/.agents/skills/$skill"
-    mkdir -p "$ws/.agents/skills/$skill"
+    rm -rf "$dest"
+    mkdir -p "$dest"
     tar -cf - --exclude='__pycache__' --exclude='*.pyc' \
-        -C "$skill_dir" . | tar -xf - -C "$ws/.agents/skills/$skill"
+        -C "$skill_dir" . | tar -xf - -C "$dest"
   else
-    mkdir -p "$ws/.agents/skills/$skill"
-    if ! extract_frontmatter "$src" > "$ws/.agents/skills/$skill/SKILL.md"; then
+    mkdir -p "$dest"
+    if ! extract_frontmatter "$src" > "$dest/SKILL.md"; then
       echo "error: missing or unterminated frontmatter in $src" >&2; exit 1
     fi
   fi
-  grep -q "^name: $skill\$" "$ws/.agents/skills/$skill/SKILL.md" \
+  grep -q "^name: $skill\$" "$dest/SKILL.md" \
     || { echo "error: frontmatter name does not match directory in $src" >&2; exit 1; }
   echo "synced: $skill"
 }
 
 cmd_status() {
-  local skill="" ws="" source="" full=0
+  local skill="" ws="" source="" full=0 dest_root=".agents/skills"
   while [ $# -gt 0 ]; do
     case "$1" in
       --skill) skill="$2"; shift 2 ;;
       --workspace) ws="$2"; shift 2 ;;
       --source) source="$2"; shift 2 ;;
       --full) full=1; shift ;;
+      --dest-root) dest_root="$2"; shift 2 ;;
       *) usage ;;
     esac
   done
   [ -n "$skill" ] || { echo "error: --skill NAME is required" >&2; usage; }
   [ -n "$source" ] || { echo "error: --source DIR is required" >&2; usage; }
   [ -n "$ws" ] || { echo "error: --workspace DIR is required" >&2; usage; }
-  [ -d "$ws/.agents/skills" ] || { echo "error: workspace is not initialized: $ws" >&2; exit 1; }
+  [ -d "$ws/$dest_root" ] || { echo "error: workspace is not initialized: $ws" >&2; exit 1; }
   local src="$source/skills/$skill/SKILL.md"
-  local stub="$ws/.agents/skills/$skill/SKILL.md"
+  local dest="$ws/$dest_root/$skill"
+  local stub="$dest/SKILL.md"
   [ -f "$src" ] || { echo "error: missing SKILL.md: $src" >&2; exit 1; }
   [ -f "$stub" ] || { echo "error: skill stub not synced: $stub" >&2; exit 1; }
   local skill_dir="$source/skills/$skill"
   if [ "$full" -eq 1 ]; then
     if diff -r --exclude='__pycache__' --exclude='*.pyc' \
-         "$skill_dir" "$ws/.agents/skills/$skill" > /dev/null 2>&1; then
+         "$skill_dir" "$dest" > /dev/null 2>&1; then
       echo "ok: $skill full dir matches source"; exit 0
     fi
     echo "error: $skill full dir differs from source:" >&2
     diff -r --exclude='__pycache__' --exclude='*.pyc' \
-         "$skill_dir" "$ws/.agents/skills/$skill" >&2
+         "$skill_dir" "$dest" >&2
     exit 1
   fi
   local current

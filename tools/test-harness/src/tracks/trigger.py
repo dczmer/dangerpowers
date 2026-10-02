@@ -8,7 +8,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from src import common
-from src.strategies import EvalStrategy, Verdict, resolve_strategy
+from src.strategies import (
+    EvalStrategy,
+    Verdict,
+    resolve_strategy,
+    skill_dest_root,
+)
 from src.tracks.track import Track, _required
 
 TRIGGER_AGENT = "trigger-evaluator"
@@ -97,7 +102,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     """The single-query trigger probe: one case, N reps, printed report."""
     strategy_cls = resolve_strategy(args.harness)
     workspace = Path(args.workspace)
-    stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
+    stub = workspace / skill_dest_root(args.harness) / args.skill / "SKILL.md"
     if not stub.exists():
         print(
             f"error: skill stub not synced: {stub}; "
@@ -374,7 +379,9 @@ class TriggerTrack(Track):
             # are short single-shot loads under a restricted agent.
             args.timeout = 30
         workspace = Path(args.workspace)
-        stub = workspace / ".agents" / "skills" / args.skill / "SKILL.md"
+        stub = (
+            workspace / skill_dest_root(args.harness) / args.skill / "SKILL.md"
+        )
         if not stub.exists():
             print(
                 f"error: skill stub not synced: {stub}; "
