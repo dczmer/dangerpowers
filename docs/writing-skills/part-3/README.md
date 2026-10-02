@@ -579,6 +579,8 @@ I think I need to make a part 4 to talk about third-party solutions and services
 
 This might also be the time to look into things like LangChain, DSPy, and GEPA instead of implementing my own bulletproofing suite.
 
+[Writing Sills Deep Dive - Part 4: Revelations](../part-4/README.md)
+
 ## References
 
 - <a id="ref-a"></a>**[A]** [Superpowers - "writing-skills" skill](https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md)
