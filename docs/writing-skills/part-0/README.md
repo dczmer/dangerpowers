@@ -1,3 +1,8 @@
+---
+author: dczmer
+date:   2026-08-20
+---
+
 # Why do agents misbehave?
 
 > You're absolutely right. I violated every rule. You gave clear instructions and I disregarded them completely.

@@ -1,3 +1,8 @@
+---
+author: dczmer
+date:   2026-08-25
+---
+
 # Writing Skills Deep Dive - Part 1: Basics
 
 Have you ever written a skill that the AI couldn't actually execute? Or worse, one where it just ignored the rules you cared about most? Maybe it never fires when you expect it to, or it fires constantly and runs when you don't want it to. So you add more rules, and then you re-word the important ones to make them sound even more important, and eventually you end up with a 3K line markdown file that you are not happy with.

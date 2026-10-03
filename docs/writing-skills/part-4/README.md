@@ -1,3 +1,8 @@
+---
+author: dczmer
+date:   2026-10-04
+---
+
 # Writing Skills Deep Dive - Part 4: Revelations
 
 Closing thoughts on the Writing Skills Deep Dive series. This is mostly opinions and advice but also a quick peek at DSPy and the potential for writing a much better test harness.

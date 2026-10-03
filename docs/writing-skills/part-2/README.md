@@ -1,3 +1,8 @@
+---
+author: dczmer
+date:   2026-08-30
+---
+
 # Writing Skills Deep Dive - Part 2: Trigger Testing
 
 This is part 2 of "Writing Skills Deep Dive", continuing from [Writing Skills Deep Dive - Part 1: Basics](../part-1/README.md).
