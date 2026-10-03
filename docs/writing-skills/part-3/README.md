@@ -1,3 +1,8 @@
+---
+author: dczmer
+date:   2026-09-21
+---
+
 # "Bulletproofing" Skills
 
 Dissecting superpowers' "bulletproof" system to see how it works, and creating an objectively worse implementation of my own.

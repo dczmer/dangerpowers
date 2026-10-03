@@ -20,7 +20,7 @@ How do you write an effective skill? How do you harden skills so the agents don'
 
 ### Part 0: Why Do Agents Misbehave?
 
-[part-0/README.md](./writing-skills/part-0/README.md) — Notes on how LLMs and agentic coding assistants actually work: why inference is non-deterministic (sampling, floating-point math, batch-invariance), why large/conflicting context degrades performance and enables rationalization, how pressure causes agents to bypass rules, and ELI5 explanations of inference, harnesses, and agents.
+[part-0/README.md](./writing-skills/part-0/README.md) — Notes on how LLMs and agentic coding assistants actually work: why inference is non-deterministic, why large/conflicting context degrades performance and enables rationalization, how pressure causes agents to bypass rules, and ELI5 explanations of inference, harnesses, and agents.
 
 ### Part 1: Basics
 
