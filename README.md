@@ -1,10 +1,10 @@
 # dangerpowers
 
-> Actually, my name is Dave Powers. Danger is my middle name.
+> Actually, my name is Austin Powers. Danger is my middle name.
 
 ## Motivation
 
-This is intended to be a bespoke foundational, personal system and toolkit for agentic platforming. Similar in spirit to customizing your `vim` configuration, or your window manager, or your shell, etc. By putting everything together manually, I'm forced to learn every concept in detail.
+This is intended to be a bespoke foundational, personal system and toolkit for agentic engineering. Similar in spirit to customizing your `vim` configuration, or your window manager, or your shell, etc. By putting everything together manually, I'm forced to learn every concept in detail.
 
 I've also been writing about the concepts I've learned and applied along the way [in a series of blog-like documents](./docs/README.md). The main reason for writing these articles is to verify my own learning as I go. Trying to explain something concretely surfaces the areas where your mental model is weak or your domain knowledge is lacking. I can't say it makes me an industry expert, but it did a lot to refine my own mental models.
 
