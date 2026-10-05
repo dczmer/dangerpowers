@@ -1109,6 +1109,27 @@ class PiCheckModelTests(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    def test_columnar_list_parses_model_column_only(self):
+        # pi >= 0.99 prints context/max-out/thinking/images columns; the
+        # trailing columns must not join into the id.
+        stdout = (
+            "provider        model                context  max-out  "
+            "thinking  images\n"
+            "llama-cpp       gemma-4-26B-A4B      63.5K    32K      "
+            "yes       no\n"
+            "anthropic       claude-sonnet-4-5    200K     64K      "
+            "yes       no\n"
+        )
+        result, _ = self._check(
+            "llama-cpp/gemma-4-26B-A4B", self._proc(stdout=stdout)
+        )
+        self.assertIsNone(result)
+        result, _ = self._check(
+            "llama-cpp/gemma-4-26B-A4B 63.5K 32K yes no",
+            self._proc(stdout=stdout),
+        )
+        self.assertIsNotNone(result)
+
     def test_list_models_empty_output(self):
         result, _ = self._check(
             "llama-cpp/gemma-4-26B-A4B", self._proc(stdout="\n")

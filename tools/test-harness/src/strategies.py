@@ -926,15 +926,25 @@ class PiStrategy(EvalStrategy):
                 f"{proc.returncode}: {proc.stderr.strip()[:300]}"
             )
         ids = set()
+        # Columnar rows (pi >= 0.99): a header names the columns, so the
+        # model id is the single token in the model column; the context /
+        # max-out / thinking / images columns that follow are not part of
+        # the id. Headerless output keeps the join-all-tokens behavior so
+        # multi-word ids in an older pi still parse.
+        has_header = any(
+            (line.split() or [""])[0].lower() == "provider"
+            for line in proc.stdout.splitlines()
+        )
         for line in proc.stdout.splitlines():
             parts = line.split()
             # Skip the header row by name, not position, so a future pi
-            # that drops the header still parses. Everything after the
-            # provider token joins into the id, tolerating multi-word
-            # model ids.
+            # that drops the header still parses.
             if len(parts) < 2 or parts[0].lower() == "provider":
                 continue
-            ids.add(f"{parts[0]}/{' '.join(parts[1:])}")
+            if has_header:
+                ids.add(f"{parts[0]}/{parts[1]}")
+            else:
+                ids.add(f"{parts[0]}/{' '.join(parts[1:])}")
         if not ids:
             return f"'{cls.binary} --list-models' printed no models"
         if model not in ids:
