@@ -1,3 +1,46 @@
+Properties of a good prompt shaping system:
+- Cheap misalignment. State the interpretation before executing, so being wrong costs a sentence, not an implementation. Cost asymmetry is the core principle.
+- A decision boundary. Know when not to shape — already-specific requests, informational asks, and post-correction execution should bypass the loop entirely.
+- Grounding before proposing. Scan the environment for unstated constraints and reasonable defaults rather than interviewing the user about things the codebase already answers.
+- Explicit assumptions, elicited non-goals. Out-of-scope and assumptions are first-class fields, not afterthoughts.
+- A convergence artifact. The dialogue terminates in a copyable spec (goal / scope / assumptions / success criteria) that downstream artifacts can quote verbatim.
+- Executable verification. Success criteria resolve to a concrete check (test, command, assertion), and the loop terminates when the check passes — “tests are truth,” not belief.
+- Technique-to-model matching. Specificity, few-shot, CoT, decomposition are not universally good; they have context/latency costs and are model-specific. A good system selects techniques conditionally.
+- Iteration as measurement, not faith. You can’t reason your way to the right phrasing — prompts are brittle (word order, example ordering swing accuracy by tens of points), so shaping is a design loop with a control group, not a one-shot edit.
+
+for local/small models:
+- Few-shot exemplars — frontier models follow instructions zero-shot and mine your codebase for examples automatically; small models need the pattern demonstrated for format, tone, and task structure. This was “required practice” circa 2022 precisely because models were weaker.
+- Chain-of-thought prompting — frontier models now do this natively via proprietary reasoning pipelines; the explicit prompting technique is obsolete for them but measurably lifts small models with reasoning disabled (per the CoT paper: arithmetic, symbolic, commonsense tasks).
+- Aggressive decomposition / prompt chaining — small models fail on compound instructions; one task per prompt, outputs feeding the next.
+- Rigid format templates with slots/labels — small models drift from schemas; frontier models mostly don’t.
+- Self-consistency (N rollouts + majority vote) — compensates for unreliable single-pass reasoning.
+- Front-loaded, minimal context — context rot / lost-in-the-middle hits small windows and weaker attention harder.
+
+still useful for frontier models:
+- Specificity: task, format, length, audience, action verbs.
+- Context/grounding (RAG, gotchas, source docs) — hallucination mitigation is model-agnostic.
+- Decomposition of genuinely complex tasks, and iteration as a design loop.
+- Few-shot for novel formats or brand voice (situational, not default).
+- Verification/self-critique loops, though frontier models benefit more from mechanical checks than open-ended reflexion.
+
+mostly dead for frontier models:
+- role assignment/personas (largely irrelevant now)
+- zero-shot CoT triggers (“let’s think step by step” — reasoning is built in)
+
+--
+
+CoT and distilling:
+
+cot reasoning traces from frontier models are encrypted, and the client just hands the encrypted blocks back, along with the rest of the message, on each turn. what you read in the 'thinking' output is heavily summarized or redacted output that comes along with the response, separate from the encrypted blocks.
+
+the flaw: these encrypted blocks are fully compatible and interchangeable across sessions, users, and even different models from the same provider ecosystem. by extracting the thinking trace signatures from opus to haiku, and asking it to output it's own reasoning, haiku will effectively decode and print the encrypted thinking traces.
+
+this mostly works because models like haiku or gpt-5.6 luna are designed as fast, cost-effective tools and they do not have all the safeguards and refusal mechanics that the large models have (so probably this won't last forever).
+
+it also means that someone could get a hold of your session data and use the encrypted blocks to read your proprietary information from the traces.
+
+---
+
 # Proompting
 
 A presentation of common prompt-engineering conventions and advice, how they map to the concepts we covered when [writing and bulletproofing skills](../writing-skills/part-3/README.md), and analysis of the current state of prompt engineering.
