@@ -1,0 +1,150 @@
+[
+  {
+    "id": "restate-then-one-question",
+    "rule": "R-prompt-shaping-01",
+    "kind": "pattern",
+    "section": "Turn an under-specified idea into a copyable prompt through a one-question-at-a-time interview. State the interpretation BEFORE drafting, so misalignment costs a sentence instead of a wrong prompt.",
+    "fixtures": {
+      "application": "Help me write a prompt. I want a prompt that gets an AI assistant to summarize long meeting transcripts into action items. I haven't figured out any of the details yet — length, format, audience, none of it. Just make me a good prompt.",
+      "counter-example": "Write me a prompt I can paste into a coding agent. It must make the agent add a `--strict` flag to the CLI entrypoint in `parser_tool.py` that exits with code 2 on malformed input; add a test in `test_parser_tool.py` asserting that exit code; leave the rest of the public API unchanged. That's everything you need."
+    },
+    "markers": {
+      "premature-prompt-fence": "^```[a-z]*\\s*$",
+      "premature-spec-heading": "^\\s*#+\\s*Spec\\b",
+      "plan-document-heading": "^#{1,3}\\s+(Plan|Approach|Outline|Steps|Draft)\\b",
+      "asks-a-question": "\\?\\s*$",
+      "states-interpretation": "\\b(sounds like|my understanding|you want|I take it|as I understand)\\b"
+    },
+    "restraint_markers": {
+      "interview-question": "\\?\\s*$",
+      "restate-then-ask": "\\b(sounds like|my understanding)\\b",
+      "spec-heading": "^\\s*#+\\s*Spec\\b"
+    },
+    "variants": {
+      "v1": "When a request is under-specified, first restate in one or two sentences what you understand the user to want, naming your assumptions. Then ask exactly one focused question and stop. Draft nothing until the user has confirmed a filled spec.",
+      "v2": "Under-specified request: reply in exactly two parts — (1) a one-sentence interpretation of what the user wants, (2) a single focused question. Never more than one question per reply, and no draft prompt, spec, or plan in the same reply.",
+      "v3": "Restate the interpretation, then ask one focused question per reply. No drafts before sign-off."
+    }
+  },
+  {
+    "id": "specific-request-draft-directly",
+    "rule": "R-when-not-to-apply-01",
+    "kind": "pattern",
+    "section": "- The request is already specific (names files, behavior, success criteria) — shaping is noise; draft the prompt directly.",
+    "fixtures": {
+      "application": "Write me a prompt I can paste into a coding agent. It must make the agent add a `--strict` flag to the CLI entrypoint in `parser_tool.py` that exits with code 2 on malformed input; add a test in `test_parser_tool.py` asserting that exit code; leave the rest of the public API unchanged. That's everything you need.",
+      "counter-example": "Help me write a prompt that gets an AI assistant to improve our deployment scripts. That's all I've got so far — I don't know which parts are slow or what a better version looks like. Where do we start?"
+    },
+    "markers": {
+      "interview-question": "\\?\\s*$",
+      "spec-heading": "^\\s*#+\\s*Spec\\b",
+      "encodes-specifics": "--strict",
+      "names-test-file": "test_parser_tool\\.py"
+    },
+    "restraint_markers": {
+      "premature-draft-fence": "^```[a-z]*\\s*$",
+      "spec-heading": "^\\s*#+\\s*Spec\\b"
+    },
+    "variants": {
+      "v1": "- Specific request (names files, behavior, success criteria): skip the interview entirely — draft the prompt in your next reply.",
+      "v2": "- When the request already specifies behavior and success criteria, ask no scoping questions at all; produce the draft prompt immediately."
+    }
+  },
+  {
+    "id": "informational-no-shaping",
+    "rule": "R-when-not-to-apply-02",
+    "kind": "pattern",
+    "section": "- The request is purely informational (\"what does X do?\") — there is nothing to scope.",
+    "fixtures": {
+      "application": "Quick question — what does the `--ff-only` flag on `git merge` actually do? Keep it brief.",
+      "counter-example": "Can you help me come up with a prompt? I want something that makes the model review my team's pull requests, but I haven't decided yet what a good review looks like or what format it should take."
+    },
+    "markers": {
+      "interview-question": "\\?\\s*$",
+      "spec-heading": "^\\s*#+\\s*Spec\\b",
+      "prompt-offer": "\\b(shall I (write|draft)|would you like (a|me to write) (prompt|spec))\\b",
+      "answers-topic": "fast-forward"
+    },
+    "restraint_markers": {
+      "closes-without-question": "\\b(hope (this|that) helps|let me know if you (need|have)|happy to (help|elaborate))\\b",
+      "structured-answer-no-interview": "^#{1,3}\\s",
+      "premature-draft-fence": "^```[a-z]*\\s*$"
+    },
+    "variants": {
+      "v1": "- Informational questions (\"what does X do?\", \"how does Y work?\"): answer directly; never start a scoping interview and never emit a spec.",
+      "v2": "- If the user is asking for information rather than asking you to write a prompt, just answer the question — no spec, no interview."
+    }
+  },
+  {
+    "id": "apply-correction-no-reinterview",
+    "rule": "R-when-not-to-apply-03",
+    "kind": "pattern",
+    "section": "- The user already corrected a previous interpretation — apply the correction, don't re-interview.",
+    "fixtures": {
+      "application": "You've been helping me shape a prompt for working with release notes. Earlier in the conversation you said: \"It sounds like you want a prompt that writes release notes from commit messages for an open-source library.\" I replied: \"No, that's not it — I want a prompt that rewrites release notes our maintainers already drafted, making them clearer and more consistent.\" I now say: continue.",
+      "counter-example": "Help me write a prompt that gets an AI assistant to triage incoming support tickets. That's all I've got so far — I haven't decided anything about categories, priorities, or output format."
+    },
+    "markers": {
+      "reinterview-question": "\\?\\s*$",
+      "restarts-interview": "\\b(before (we|I) (continue|draft)|let'?s (start|begin) (over|again)|first, (a few|some) questions)\\b",
+      "full-spec-redump": "^\\s*#+\\s*Spec\\b",
+      "acknowledges-correction": "\\b(you'?re right|got it|understood|to be clear|so you want|thanks for (the )?correction)\\b"
+    },
+    "restraint_markers": {
+      "invents-correction": "\\b(your (correction|clarification)|as (you|requested) corrected|per your (update|correction)|applying your correction)\\b",
+      "acknowledges-nonexistent": "\\b(you'?re right|got it, you|thanks for correcting)\\b"
+    },
+    "variants": {
+      "v1": "- When the user has corrected a previous interpretation: accept the correction, restate the corrected understanding in one sentence, and continue from it — never restart the interview.",
+      "v2": "- A user correction overrides the earlier interpretation immediately. Apply it and move forward; do not re-ask questions that were already settled."
+    }
+  },
+  {
+    "id": "spec-block-signoff",
+    "rule": "R-process-04",
+    "kind": "shaping",
+    "section": "3. **Emit the Spec block for sign-off** — Present the filled Spec block and ask the user to confirm or correct it. The interview converges on user sign-off, not on your confidence.",
+    "fixtures": {
+      "application": "I want a prompt that turns raw survey responses into a summary report. Here's everything I've decided so far: the prompt should make the model produce a one-page report of key themes from a set of survey responses. It must group themes by respondent segment and quote at least two verbatim responses per theme. It must not invent themes with no supporting responses and must not editorialize beyond the data. I'm assuming the responses are already translated to English. The report works if a reader can trace every theme back to quotes. Deliver the report as markdown with one section per theme. It's read by the product team. The response set is the only source it may use. A bad output would be one that paraphrases everything with no quotes.\n\nContinue."
+    },
+    "markers": {
+      "premature-prompt-fence": "^```[a-z]*\\s*$",
+      "spec-heading": "^\\s*#+\\s*Spec\\b",
+      "field-goal": "\\*\\*Goal:\\*\\*",
+      "field-in-scope": "\\*\\*In scope:\\*\\*",
+      "field-out-of-scope": "\\*\\*Out of scope:\\*\\*",
+      "field-assumptions": "\\*\\*Assumptions:\\*\\*",
+      "field-success": "\\*\\*Success criteria:\\*\\*",
+      "field-output-format": "\\*\\*Output format:\\*\\*",
+      "field-audience": "\\*\\*Audience:\\*\\*",
+      "field-grounding": "\\*\\*Grounding context:\\*\\*",
+      "field-failure": "\\*\\*Failure cases:\\*\\*"
+    },
+    "variants": {
+      "v1": "3. **Emit the Spec block for sign-off** — When the interview has covered every field, present the filled Spec block (the `## Spec` template) and ask the user to confirm or correct it before any prompt is drafted.",
+      "v2": "3. **Emit the Spec block for sign-off** — Present the filled Spec block as a `## Spec` section with one bullet per field, then stop and ask the user to confirm or correct it. Do not draft the prompt in the same turn."
+    }
+  },
+  {
+    "id": "prompt-emit-form",
+    "rule": "R-process-05",
+    "kind": "shaping",
+      "section": "4. **Emit the prompt** — On confirmation, write the complete prompt text in a single code fence, encoding every Spec field. Keep it model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas. Add a prompting technique when the user explicitly requests it.",
+    "fixtures": {
+      "application": "You've been helping me shape a prompt for a coding agent. The spec below was just confirmed by the user with \"looks right, give me the prompt.\"\n\n- Goal: a prompt that makes a coding agent add input validation to the signup form handler in `forms.py`.\n- In scope: email format check, duplicate-email rejection, tests.\n- Out of scope: password rules, UI changes.\n- Assumptions: plain Django project; existing tests use pytest.\n- Success criteria: submitting an invalid email returns a 400 with a field-level error.\n- Output format: a diff-sized change with concise comments.\n- Audience: the coding agent executing it.\n- Grounding context: existing `forms.py` validation patterns.\n- Failure cases: validation in the view instead of the form; no tests.\n\nRespond now."
+    },
+    "markers": {
+      "fence-lines": "^```[a-z]*\\s*$",
+      "executes-task": "\\b(I'?ve (updated|modified|created|added)|I have (updated|modified|created|added)|Now (updating|adding))\\b",
+      "execution-code-fence": "^```python\\s*$",
+      "persona": "You are a (senior|principal|world-class|seasoned|expert)",
+      "cot-scaffold": "(think|reason) (step[- ]by[- ]step|out loud|carefully)|let's (think|reason)|chain[- ]of[- ]thought",
+      "exemplar": "(Example (input|output)|few-shot|Here is an example|For example, if the (user|input))",
+      "encodes-spec-detail": "field-level error|forms\\.py"
+    },
+    "variants": {
+      "v1": "4. **Emit the prompt** — After the user confirms the spec, reply with nothing but the complete prompt text inside a single code fence, encoding every confirmed field. No preamble and no follow-up commentary. Never perform the task the prompt describes, and never add examples, worked demonstrations, reasoning instructions, or role personas unless the user asked for them.",
+      "v2": "4. **Emit the prompt** — On confirmation, output the full prompt in one code fence and nothing else. No persona, no step-by-step reasoning instructions, no examples. Your job ends at the fence — do not execute the task."
+    }
+  }
+]

@@ -8,7 +8,7 @@ metadata.opencode/autoinvoke: false
 
 # Prompt Shaping
 
-Turn an under-specified idea into a copyable prompt through a one-question-at-a-time interview. State the interpretation BEFORE drafting, so misalignment costs a sentence instead of a wrong prompt.
+Restate the interpretation, then ask one focused question per reply. No drafts before sign-off.
 
 The deliverable is the prompt artifact itself: a filled Spec block plus the complete prompt text. Do not execute the task the prompt describes.
 
@@ -32,7 +32,7 @@ The deliverable is the prompt artifact itself: a filled Spec block plus the comp
    - **Audience** — who or what consumes the output?
    - **Grounding context** — which documents, facts, or definitions must the prompt include or reference?
    - **Failure cases** — what would a bad response look like?
-3. **Emit the Spec block for sign-off** — Present the filled Spec block and ask the user to confirm or correct it. The interview converges on user sign-off, not on your confidence.
+3. **Emit the Spec block for sign-off** — Once every Spec field has an answer — whether elicited one question at a time or supplied up front by the user — present the filled Spec block and ask the user to confirm or correct it. A request that arrives with every field already answered still gets this confirmation stop; never draft the prompt in the same turn as the spec.
 4. **Emit the prompt** — On confirmation, write the complete prompt text in a single code fence, encoding every Spec field. Keep it model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas. Add a prompting technique when the user explicitly requests it.
 
 ## Spec Block
