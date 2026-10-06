@@ -31,6 +31,8 @@ mostly dead for frontier models:
 
 CoT and distilling:
 
+https://arxiv.org/html/2608.09867v1
+
 cot reasoning traces from frontier models are encrypted, and the client just hands the encrypted blocks back, along with the rest of the message, on each turn. what you read in the 'thinking' output is heavily summarized or redacted output that comes along with the response, separate from the encrypted blocks.
 
 the flaw: these encrypted blocks are fully compatible and interchangeable across sessions, users, and even different models from the same provider ecosystem. by extracting the thinking trace signatures from opus to haiku, and asking it to output it's own reasoning, haiku will effectively decode and print the encrypted thinking traces.
