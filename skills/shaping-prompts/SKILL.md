@@ -1,5 +1,5 @@
 ---
-name: prompt-shaping
+name: shaping-prompts
 description: Use when a user asks for help turning a vague or under-specified idea, request, or task into a detailed prompt with concrete requirements and scope. Covers interviewing the user one question at a time and emitting a copyable spec and prompt text.
 disable-model-invocation: true
 metadata.opencode/slash: true

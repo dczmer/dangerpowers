@@ -138,7 +138,7 @@ Critical/skeptical angles (unique to Wikipedia — good for a "what nobody tells
 
 ## Prompt Shaping Skill
 
-One interesting idea I found while doing this research was the idea of a ["prompt shaping" skill](../../skills/prompt-shaping/SKILL.md): give the skill what you have so far and it will iteratively interview you about details until the resulting prompt matches some criteria for applying some of the techniques covered in this post.
+One interesting idea I found while doing this research was the idea of a ["prompt shaping" skill](../../skills/shaping-prompts/SKILL.md): give the skill what you have so far and it will iteratively interview you about details until the resulting prompt matches some criteria for applying some of the techniques covered in this post.
 
 TODO: compare rules across reference sources, refine skill. maybe mention positive examples.
 
