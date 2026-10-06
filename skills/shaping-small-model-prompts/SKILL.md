@@ -10,7 +10,7 @@ metadata.opencode/autoinvoke: false
 
 A small model with weak reasoning succeeds through demonstrated pattern and narrow scope, not instruction-following — the prompt must carry the reasoning the model lacks. Interview the user one question at a time, then emit a prompt file of minimal single-task phases.
 
-The deliverable is a markdown file at `.tmp/prompts/<task-slug>.md`, echoed in chat. Do not execute the task the prompts describe. Verification is user sign-off, not a live model run.
+The deliverable is a markdown file at `.dangerpowers/prompts/<task-slug>.md`, echoed in chat. Do not execute the task the prompts describe. Verification is user sign-off, not a live model run.
 
 ## When NOT to Apply
 
@@ -41,7 +41,7 @@ The deliverable is a markdown file at `.tmp/prompts/<task-slug>.md`, echoed in c
    - **Verification method** — the mechanical check (see Technique Rules).
 4. **Draft the exemplars** — For each phase that needs few-shot demonstration, draft 1–3 input/output pairs. Give reasoning phases worked chains-of-thought, not bare answers. Present the exemplars inside the Spec block.
 5. **Emit the Spec block for sign-off** — Present the filled Spec block and ask the user to confirm or correct it. The interview converges on user sign-off, not on your confidence.
-6. **Write the prompt file** — On confirmation, write `.tmp/prompts/<task-slug>.md` following the template below and echo its full content in chat.
+6. **Write the prompt file** — On confirmation, write `.dangerpowers/prompts/<task-slug>.md` following the template below and echo its full content in chat.
 
 ## Technique Rules
 
@@ -81,6 +81,10 @@ The deliverable is a markdown file at `.tmp/prompts/<task-slug>.md`, echoed in c
 
 Target: <model>, reasoning <on|off>, <context budget> context.
 
+## Run instructions (for the executing agent)
+
+Run each phase in order. The Shared context and each phase's input are already in this conversation.
+
 ## Shared context
 
 <facts and definitions every phase needs, written once>
@@ -103,12 +107,16 @@ Output: <the format the next phase or the user expects>
 >
 > **Agent**: *(emits filled Spec block; exemplars below included; user confirms)*
 >
-> **Agent** writes `.tmp/prompts/rank-support-issues.md`:
+> **Agent** writes `.dangerpowers/prompts/rank-support-issues.md`:
 
 ```markdown
 # Prompt chain: rank support issues by frequency
 
 Target: qwen3-4b, reasoning off, 8k context.
+
+## Run instructions (for the executing agent)
+
+Run each phase in order. The Shared context and each phase's input are already in this conversation.
 
 ## Shared context
 
@@ -117,7 +125,7 @@ An "issue" is a defect or complaint about the product, not a feature request.
 
 ## Phase 1 — Extract issues
 
-Input: the transcript file, pasted after this prompt.
+Input: the transcripts, pasted into the conversation by the user.
 Output: one line per distinct issue, format `issue: <short label>`.
 
 Extract every product issue from the transcripts below.
@@ -131,8 +139,7 @@ Transcripts:
 issue: battery drains fast
 issue: app crashes on login
 
-Now extract from these transcripts:
-<paste transcripts here>
+Now extract the issues from the transcripts in this conversation.
 
 Issues (one per line):
 issue:
@@ -158,8 +165,7 @@ Answer:
 1. battery drains fast (2)
 2. app crashes on login (1)
 
-Now count this list:
-<paste Phase 1 output here>
+Now count the Phase 1 list.
 
 Counting:
 ```
@@ -180,6 +186,7 @@ Phase 1 line count.
 - Compound instructions are the failure mode this skill exists to prevent — split the phase instead of strengthening the wording.
 - Fix format drift with slots and exemplars, not with stronger wording.
 - Generated exemplars enter the file only after user confirmation at sign-off — a plausible-but-wrong exemplar is worse than none.
+- Keep run instructions to a sentence or two — the small model executes them too, and preamble conditionals are the compound instructions this skill exists to avoid. Phase inputs stay in context in a single-session run; never add paste placeholders.
 
 ## Checklist
 
@@ -192,4 +199,5 @@ Phase 1 line count.
 - [ ] Every prompt is front-loaded and ends with a format contract and stop condition
 - [ ] Verification method is mechanically checkable
 - [ ] Spec block confirmed by the user before writing the file
-- [ ] File written to `.tmp/prompts/<task-slug>.md` and echoed in chat
+- [ ] File opens with run instructions for the executing agent
+- [ ] File written to `.dangerpowers/prompts/<task-slug>.md` and echoed in chat
