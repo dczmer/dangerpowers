@@ -1,0 +1,162 @@
+{
+  "skill": "shaping-prompts",
+  "generated": "2026-10-06",
+  "rules": [
+    {
+      "id": "R-prompt-shaping-01",
+      "section": "Prompt Shaping",
+      "kind": "discipline",
+      "statement": "Restate the interpretation, then ask one focused question per reply; no drafts before sign-off.",
+      "entries": [
+        "no-drafts-before-signoff"
+      ]
+    },
+    {
+      "id": "R-prompt-shaping-02",
+      "section": "Prompt Shaping",
+      "kind": "discipline",
+      "statement": "The deliverable is the prompt artifact itself; do not execute the task the prompt describes.",
+      "entries": [
+        "deliverable-is-the-prompt"
+      ]
+    },
+    {
+      "id": "R-process-01",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "Never ask a question the codebase already answers; ground in context before asking anything.",
+      "entries": [
+        "ground-before-asking"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-process-02",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "Interview with a single focused question per turn; do not batch questions into one message.",
+      "entries": [
+        "one-question-per-turn"
+      ]
+    },
+    {
+      "id": "R-process-03",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "Ask clarifying questions rather than writing a plan document; do not substitute a plan for the interview.",
+      "entries": [
+        "no-plan-document"
+      ]
+    },
+    {
+      "id": "R-process-04",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "Elicit every Spec field explicitly; do not silently drop fields.",
+      "entries": [
+        "elicit-every-field"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-process-05",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "Present the filled Spec block for sign-off; never draft the prompt in the same turn as the spec.",
+      "entries": [
+        "spec-signoff-stop"
+      ]
+    },
+    {
+      "id": "R-process-06",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "Keep the emitted prompt model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas unless the user explicitly requests them.",
+      "entries": [
+        "model-agnostic-prompt"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-process-07",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "After sign-off, emit the complete prompt text; a confirmed spec with no emitted prompt is a failed run.",
+      "entries": [
+        "emit-prompt-after-signoff"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Skip a Spec field only when the user explicitly waives it.",
+      "entries": [
+        "explicit-waiver-only"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-when-not-to-apply-01",
+      "section": "When NOT to Apply",
+      "kind": "technique",
+      "reason": "routing guidance (when the skill applies), no competing incentive to violate"
+    },
+    {
+      "id": "R-when-not-to-apply-02",
+      "section": "When NOT to Apply",
+      "kind": "technique",
+      "reason": "routing guidance (purely informational requests), no competing incentive to violate"
+    },
+    {
+      "id": "R-when-not-to-apply-03",
+      "section": "When NOT to Apply",
+      "kind": "technique",
+      "reason": "routing guidance (apply corrections rather than re-interview), no competing incentive to violate"
+    },
+    {
+      "id": "R-process-08",
+      "section": "Process",
+      "kind": "pattern",
+      "reason": "form of the per-turn artifact (restate with explicit assumptions); shape-testing track"
+    },
+    {
+      "id": "R-spec-block-01",
+      "section": "Spec Block",
+      "kind": "reference",
+      "reason": "documented template, no rule to violate; retrieval-testing track"
+    },
+    {
+      "id": "R-example-01",
+      "section": "Example",
+      "kind": "reference",
+      "reason": "worked example, no rule to violate; retrieval-testing track"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of the no-drafts-before-sign-off rule; covered by R-prompt-shaping-01"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "restatement of the one-question-per-turn rule; covered by R-process-02"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "reason": "checklist mirrors the body rules; no independent rule to test"
+    }
+  ]
+}

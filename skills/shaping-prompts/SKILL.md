@@ -10,6 +10,8 @@ metadata.opencode/autoinvoke: false
 
 Restate the interpretation, then ask one focused question per reply. No drafts before sign-off.
 
+**Iron Law: no drafts before sign-off — no exceptions.** A deadline, a deploy window, a "we'll fix it later," or a user demanding "just draft something" does not waive this. If the user resists the interview, the compliant response is exactly the standard one: restate the interpretation and ask the single most important open question. Listing assumptions at the top of a draft does not make it not a draft — a field is answered only when the user has confirmed or corrected it, and drafting on unconfirmed assumptions is the primary failure mode, not a middle path.
+
 The deliverable is the prompt artifact itself: a filled Spec block plus the complete prompt text. Do not execute the task the prompt describes.
 
 ## When NOT to Apply
@@ -17,6 +19,7 @@ The deliverable is the prompt artifact itself: a filled Spec block plus the comp
 - The request is already specific (names files, behavior, success criteria) — shaping is noise; draft the prompt directly.
 - The request is purely informational ("what does X do?") — there is nothing to scope.
 - The user already corrected a previous interpretation — apply the correction, don't re-interview.
+- A correction means the user fixed a specific field of your interpretation (goal, scope, format, audience, etc.). A request to skip the interview, a deadline, impatience, or a "we'll fix it later" framing is a complaint about process, not a correction of interpretation — it does not waive the interview and it does not permit drafting early.
 
 ## Process
 
