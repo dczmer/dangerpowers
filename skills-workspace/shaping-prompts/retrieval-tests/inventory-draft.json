@@ -1,0 +1,75 @@
+{
+  "skill": "shaping-prompts",
+  "facts": [
+    {
+      "section": "Process",
+      "statement": "Before asking anything, ground in context \u2014 scan the environment for patterns, integration points, and unstated constraints; never ask a question the codebase already answers \u2014 then restate the interpretation in natural language with assumptions explicit before drafting",
+      "entries": [
+        "restate-before-interview"
+      ]
+    },
+    {
+      "section": "Process",
+      "statement": "Interview with a single focused question per turn until every Spec field is answered; never batch questions into one message; ask clarifying questions rather than writing a plan document",
+      "entries": [
+        "restate-before-interview"
+      ]
+    },
+    {
+      "section": "Spec Block",
+      "statement": "The Spec block has exactly nine fields \u2014 Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases; skip a field only when the user explicitly waives it",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ]
+    },
+    {
+      "section": "Process",
+      "statement": "Present the filled Spec block and ask the user to confirm or correct it before drafting; the interview converges on user sign-off, not on agent confidence",
+      "entries": [
+        "nine-field-spec-and-prompt",
+        "already-specific-no-interview"
+      ]
+    },
+    {
+      "section": "Process",
+      "statement": "On confirmation, write the complete prompt text in a single code fence encoding every Spec field; the deliverable is the prompt artifact itself \u2014 do not execute the task the prompt describes",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ]
+    },
+    {
+      "section": "Process",
+      "statement": "Keep the prompt model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas; add a prompting technique only when the user explicitly requests it",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ]
+    },
+    {
+      "section": "When NOT to Apply",
+      "statement": "Do not shape when the request is already specific (names files, behavior, success criteria) \u2014 draft the prompt directly; when it is purely informational \u2014 nothing to scope; when the user already corrected a previous interpretation \u2014 apply the correction, don't re-interview",
+      "entries": [
+        "already-specific-no-interview",
+        "corrected-interpretation-no-reinterview"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "section": "frontmatter",
+      "reason": "frontmatter-convention guidance is always out of scope"
+    },
+    {
+      "section": "Example",
+      "reason": "illustrative example dialogue; mined for query material"
+    },
+    {
+      "section": "Gotchas",
+      "reason": "restatements of kept facts (announce-instead-of-ask, batching, emit-after-signoff, explicit-waiver)"
+    },
+    {
+      "section": "Checklist",
+      "reason": "restatements of kept facts"
+    }
+  ],
+  "generated": "2026-10-06"
+}

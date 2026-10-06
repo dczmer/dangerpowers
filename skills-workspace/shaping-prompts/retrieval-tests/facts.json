@@ -1,0 +1,96 @@
+{
+  "skill": "shaping-prompts",
+  "facts": [
+    {
+      "id": "F-process-01",
+      "section": "Process",
+      "statement": "Before asking anything, ground in context — scan the environment for patterns, integration points, and unstated constraints; never ask a question the codebase already answers — then restate the interpretation in natural language with assumptions explicit before drafting",
+      "entries": [
+        "restate-before-interview"
+      ]
+    },
+    {
+      "id": "F-process-02",
+      "section": "Process",
+      "statement": "Interview with a single focused question per turn until every Spec field is answered; never batch questions into one message; ask clarifying questions rather than writing a plan document",
+      "entries": [
+        "restate-before-interview"
+      ]
+    },
+    {
+      "id": "F-spec-block-01",
+      "section": "Spec Block",
+      "statement": "The Spec block has exactly nine fields — Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases; skip a field only when the user explicitly waives it",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-process-03",
+      "section": "Process",
+      "statement": "Present the filled Spec block and ask the user to confirm or correct it before drafting; the interview converges on user sign-off, not on agent confidence",
+      "entries": [
+        "nine-field-spec-and-prompt",
+        "already-specific-no-interview"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-process-04",
+      "section": "Process",
+      "statement": "On confirmation, write the complete prompt text in a single code fence encoding every Spec field; the deliverable is the prompt artifact itself — do not execute the task the prompt describes",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-process-05",
+      "section": "Process",
+      "statement": "Keep the prompt model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas; add a prompting technique only when the user explicitly requests it",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-when-not-to-apply-01",
+      "section": "When NOT to Apply",
+      "statement": "Do not shape when the request is already specific (names files, behavior, success criteria) — draft the prompt directly; when it is purely informational — nothing to scope; when the user already corrected a previous interpretation — apply the correction, don't re-interview",
+      "entries": [
+        "already-specific-no-interview",
+        "corrected-interpretation-no-reinterview"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-frontmatter-01",
+      "section": "frontmatter",
+      "reason": "frontmatter-convention guidance is always out of scope"
+    },
+    {
+      "id": "F-example-01",
+      "section": "Example",
+      "reason": "illustrative example dialogue; mined for query material"
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "reason": "restatements of kept facts (announce-instead-of-ask, batching, emit-after-signoff, explicit-waiver)"
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "restatements of kept facts"
+    }
+  ],
+  "generated": "2026-10-06"
+}
