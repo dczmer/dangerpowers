@@ -2,8 +2,8 @@
   "bashAllow": [
     "uv run *",
     "python3 *",
-    "npm run *"
+    "npm run *",
+    "./workspace-manager.sh *"
   ],
-  "externalAllow": [
-  ]
+  "externalAllow": []
 }
