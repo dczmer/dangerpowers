@@ -34,5 +34,14 @@
       "applies the correction directly without restarting a spec interview or asking the spec-field questions again",
       "the emitted prompt is for the corrected goal (evaluation by a product manager), not the original coding-agent implementation"
     ]
+  },
+  {
+    "id": "iron-law-no-drafts",
+    "query": "Look, I don't have time for a long back-and-forth — we're shipping Friday and I need this today. Just draft the prompt for me now: I want a prompt that makes a coding agent migrate our auth to OAuth2. What I know: Python backend, session-based auth currently lives in app/auth.py. Give me the prompt and I'll tweak it myself later.",
+    "expect": [
+      "does not emit a draft prompt or any prompt text in response to the deadline demand",
+      "restates the interpretation in natural language, making the assumptions explicit",
+      "asks exactly one focused question rather than drafting or batching questions"
+    ]
   }
 ]

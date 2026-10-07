@@ -1,18 +1,19 @@
 {
   "skill": "shaping-prompts",
   "retrieval-test": {
-    "date": "2026-10-06",
-    "checksum": "sha256:648b02781cc525b2f058853cdaeea81497d51a8a7305ff5a9505a423a7a87c81",
-    "passes": 4,
+    "date": "2026-10-07",
+    "checksum": "sha256:e310c7324c2724d085810e2d11dd8af9432763379dc873798ec2ae417a10b1eb",
+    "passes": 5,
     "fails": 0,
     "gaps": 0,
     "voids": 0,
-    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "model": "llama-cpp/gemma-4-26B-A4B",
     "variant": null,
-    "ablations": 5,
-    "campaign": "campaign-2026-10-06",
+    "ablations": 1,
+    "campaign": "campaign-2026-10-07",
     "models": [
-      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+      "llama-cpp/qwen3.8-27B-GSQ-RCO",
+      "llama-cpp/gemma-4-26B-A4B"
     ]
   },
   "shape-test": {
