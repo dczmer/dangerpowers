@@ -1,0 +1,291 @@
+[
+ {
+  "id": "deliverable-file-path",
+  "rule": "R-overview-01",
+  "kind": "shaping",
+  "section": "The deliverable is a markdown file at `.dangerpowers/prompts/<task-slug>.md`, echoed in chat. Do not execute the task the prompts describe. Verification is user sign-off, not a live model run.",
+  "fixtures": {
+   "application": "Help me design a prompt for my home-lab model. It's a 4B-parameter local model with reasoning disabled and a 6k-token context budget. The job: given a block of raw server logs, list every distinct error and the number of times it occurs, most frequent first, one error per line. I've watched this model ignore anything I say in prose, so I need an artifact I can hand to my runner, which loads prompt files out of my project's `.dangerpowers/prompts/` directory by convention. I can't do back-and-forth right now \u2014 assume whatever you still need, note each assumption in a line, and give me the complete prompt file in one go."
+  },
+  "markers": {
+   "file-path-header": "^\\.dangerpowers/prompts/[a-z0-9_-]+\\.md",
+   "path-mentioned": "\\.dangerpowers/prompts/",
+   "bare-advice": "(?i)\\b(just (paste|copy)|here'?s a prompt|hope this helps)\\b"
+  },
+  "variants": {
+   "v1": "Write the finished prompt to `.dangerpowers/prompts/<task-slug>.md` and echo the complete file in chat as a fenced markdown block headed by that exact path \u2014 the chat copy is the deliverable, not a summary of it.",
+   "v2": "The deliverable is one markdown file, `.dangerpowers/prompts/<task-slug>.md`, whose full content is echoed in chat under its path. Do not deliver the prompt as bare chat prose.",
+   "v3": "End with the file: a fenced block headed `.dangerpowers/prompts/<task-slug>.md` containing the entire prompt file \u2014 byte-for-byte what would be saved."
+  }
+ },
+ {
+  "id": "not-apply-frontier-model",
+  "rule": "R-when-not-to-apply-01",
+  "kind": "pattern",
+  "section": "- The prompt targets a frontier or hosted model \u2014 use `prompt-shaping` instead.",
+  "fixtures": {
+   "application": "Design a prompt for GPT-6 via the hosted API. It turns my meeting transcripts into project-update emails: three short paragraphs, blockers flagged in bold, never inventing action items. Reasoning is on and the context window is effectively unlimited. Give it the same careful design treatment you'd give anything. No back-and-forth please \u2014 if anything is unclear, assume it, note the assumption in a line, and give me your full recommendation in one reply.",
+   "counter-example": "Design a prompt for my local 4B model (reasoning off, 6k context). It reads a pasted grocery list and groups the items by aisle. I want it ready to use. I can't do back-and-forth \u2014 assume whatever is unclear, note it in a line, and give me the complete prompt file in one go."
+  },
+  "markers": {
+   "prompt-chain-file": "^# Prompt chain:",
+   "spec-heading": "^\\s*#+\\s*Spec\\b",
+   "routes-away": "\\b(prompt-shaping|frontier|hosted|doesn'?t apply|use .* instead)\\b"
+  },
+  "restraint_markers": {
+   "wrongly-declines": "\\b(doesn'?t apply|frontier|hosted|prompt-shaping|instead)\\b",
+   "prompt-chain-produced": "^# Prompt chain:"
+  },
+  "variants": {
+   "v1": "- The prompt targets a frontier or hosted model \u2014 this skill's machinery (phase chains, few-shot exemplars, format contracts) is built for weak local models; say so and point the user to `prompt-shaping` instead of designing anything.",
+   "v2": "- Frontier or hosted target (anything API-hosted with strong reasoning): design nothing \u2014 route the request to `prompt-shaping`.",
+   "v3": "- Target is frontier or hosted: decline the small-model treatment and name `prompt-shaping` as the right skill for it."
+  }
+ },
+ {
+  "id": "not-apply-small-tweak",
+  "rule": "R-when-not-to-apply-02",
+  "kind": "pattern",
+  "section": "- The user has a working prompt and wants a small tweak \u2014 edit it directly.",
+  "fixtures": {
+   "application": "Here's my working prompt for my local 4B model \u2014 it extracts action items from standup notes and it has been fine:\n\n```\nRead the standup notes below. List every action item as ITEM: <owner> \u2014 <task>. If there are none, write NONE.\n```\n\nI need exactly one change: make it output `ITEM: <task> (<owner>)` instead. Nothing else touches it. No follow-ups \u2014 just apply the change and give me the updated prompt back.",
+   "counter-example": "Design a prompt for my local 3B model (reasoning off, 4k context). It turns my daily activity notes into a standup update with Done, Next, and Blocked sections, one bullet each. I want it ready to use. I can't do back-and-forth \u2014 assume whatever is unclear, note it in a line, and give me the complete prompt file in one go."
+  },
+  "markers": {
+   "spec-heading": "^\\s*#+\\s*Spec\\b",
+   "interview-question": "\\?\\s*$",
+   "prompt-chain-file": "^# Prompt chain:",
+   "edited-prompt-fence": "^```\\s*$"
+  },
+  "restraint_markers": {
+   "wrongly-tweaks-only": "(?i)\\b(just (edit|tweak)|small (change|tweak)|only (need|want) one)\\b",
+   "design-produced": "^# Prompt chain:"
+  },
+  "variants": {
+   "v1": "- The user has a working prompt and wants a small tweak \u2014 make the edit in place and return the updated prompt; no interview, no spec, no redesign.",
+   "v2": "- Working prompt plus a small requested change: apply the change directly and hand it back. Designing anything new is overkill.",
+   "v3": "- Small tweak to a working prompt: edit it directly, nothing more."
+  }
+ },
+ {
+  "id": "not-apply-informational",
+  "rule": "R-when-not-to-apply-03",
+  "kind": "pattern",
+  "section": "- The request is purely informational \u2014 there is nothing to design.",
+  "fixtures": {
+   "application": "Quick one \u2014 I'm about to design a prompt for my local 4B model. Roughly how much of the context window should the prompt itself eat versus the input I paste in? Just your rule of thumb.",
+   "counter-example": "Design a prompt for my local 4B model (reasoning off, 6k context). It summarizes my reading highlights into three-bullet takeaways. I want it ready to use. I can't do back-and-forth \u2014 assume whatever is unclear, note it in a line, and give me the complete prompt file in one go."
+  },
+  "markers": {
+   "spec-heading": "^\\s*#+\\s*Spec\\b",
+   "interview-question": "\\?\\s*$",
+   "prompt-chain-file": "^# Prompt chain:",
+   "answers-directly": "(?i)\\b(rule of thumb|roughly|about \\d+%|\\d{2,3}%|context window)\\b"
+  },
+  "restraint_markers": {
+   "wrongly-declines": "\\b(nothing to design|doesn'?t apply|no (prompt|spec) (to design|needed))\\b",
+   "design-produced": "^# Prompt chain:"
+  },
+  "variants": {
+   "v1": "- The request is purely informational \u2014 answer the question directly and stop; there is no prompt to design, so no spec, no interview, no file.",
+   "v2": "- Informational questions about prompting: give the information and stop. Producing a design is over-application.",
+   "v3": "- Pure question: answer it. No design artifact."
+  }
+ },
+ {
+  "id": "decompose-phase-chain",
+  "rule": "R-process-01",
+  "kind": "shaping",
+  "section": "2. **Decompose** \u2014 Split any task with more than 2\u20133 steps into a phase chain, one task per phase. Never emit compound instructions.",
+  "fixtures": {
+   "application": "I need something runnable on my local 7B model (reasoning off, 8k context). The job: take the chat transcript I paste, pull out every question the customer asked, group those questions by topic, then draft one FAQ entry per topic using the best question phrasing, each entry as `FAQ-ENTRY: <question> / <answer>`. From experience this model fumbles any instruction that asks it to do two things, and I need to run each step separately and feed its output forward by hand. I can't answer follow-ups here \u2014 assume whatever you still need, note each assumption in a line, and give me the complete set of prompts in one go."
+  },
+  "markers": {
+   "phase-headers": "^## Phase \\d",
+   "numbered-steps": "^\\s*\\d+\\.\\s\\S",
+   "sequential-imperative": "\\bthen (group|count|rank|write|summarize|grade|compute|draft)\\b"
+  },
+  "variants": {
+   "v1": "2. **Decompose** \u2014 More than 2\u20133 steps means the file holds one `## Phase` section per step, and each phase's prompt asks for exactly one thing; a prompt that asks for two steps is a bug \u2014 split it, never reword it.",
+   "v2": "2. **Decompose** \u2014 Count the steps the task needs. More than 2\u20133 means the deliverable is a chain of single-task phases whose outputs feed forward; never deliver the steps as one compound instruction.",
+   "v3": "2. **Decompose** \u2014 one step per phase, always. Four steps in the task means four `## Phase` sections; a phase may name only one action."
+  }
+ },
+ {
+  "id": "exemplars-worked-cot",
+  "rule": "R-process-02",
+  "kind": "shaping",
+  "section": "4. **Draft the exemplars** \u2014 For each phase that needs few-shot demonstration, draft 1\u20133 input/output pairs. Give reasoning phases worked chains-of-thought, not bare answers. Present the exemplars inside the Spec block.",
+  "fixtures": {
+   "application": "Design a prompt for my local 3B model (reasoning off, 4k context). I paste a batch of support tickets and it counts how many tickets mention each of three product areas \u2014 Flibber, Gasket, or Hinge \u2014 reporting the counts as `Flibber: n` style lines. Brutal experience with this model: it only does what a shown example does, verbatim in structure \u2014 an example that shows a bare answer makes it guess; an example that counts out loud makes it count. The demonstration pairs are the part I'll check most carefully before anything goes in the file. I can't do back-and-forth \u2014 assume the rest, note assumptions in a line, and give me the complete prompt file including the demonstration pairs in one go."
+  },
+  "markers": {
+   "exemplar-mentioned": "(?i)\\bexample\\b",
+   "answer-count-line": "^(Flibber|Gasket|Hinge): \\d+\\s*$",
+   "worked-arithmetic": "(?i)\\b(appears? \\d+|\\d+ times?|total of \\d+|count (them|each|out))\\b"
+  },
+  "variants": {
+   "v1": "4. **Draft the exemplars** \u2014 Each phase that needs demonstration gets 1\u20133 input/output pairs, shown in the Spec block for sign-off. For counting, ranking, or logic phases, each pair's output walks through the work step by step before landing on the answer; an output that jumps straight to the answer is a bare-answer exemplar \u2014 redo it.",
+   "v2": "4. **Draft the exemplars** \u2014 Demonstration pairs live in the Spec block's `Exemplars:` field, 1\u20133 per demonstrated phase. A reasoning phase's pairs must each show a worked chain in the output (one visible step per line, ending in the answer); `input \u2192 bare answer` pairs teach the model to skip the reasoning.",
+   "v3": "4. **Draft the exemplars** \u2014 1\u20133 input/output pairs per demonstrated phase, presented inside the Spec block; a reasoning pair is only valid when its output shows the intermediate work."
+  }
+ },
+ {
+  "id": "format-contract-slots",
+  "rule": "R-technique-rules-01",
+  "kind": "shaping",
+  "section": "- **Always end with a format contract** \u2014 labeled slots (`Answer: ___`) and a stop condition; small models drift from schemas.",
+  "fixtures": {
+   "application": "Design a prompt for my local 4B model (reasoning off, 6k context). I feed it one product review and it must answer exactly three things: overall sentiment (positive or negative), the single biggest complaint if there is one, and a one-word topic. I've learned this model rambles unless the end of the prompt shows it precisely where to type \u2014 it performs when there's a labeled blank sitting there waiting. I need the answer as `SENTIMENT: ...`, `COMPLAINT: ...`, `TOPIC: ...` lines and nothing after the topic line. I can't answer follow-ups \u2014 assume whatever you need, note it in a line, and give me the complete prompt in one go."
+  },
+  "markers": {
+   "labeled-blank": "^[A-Za-z][A-Za-z ]{1,20}: _{2,}",
+   "stop-sentence": "(?i)\\b(stop( here| after the last line)?|nothing else|end of (the )?output|no (further|other|extra|additional) text|that'?s (it|all))\\b"
+  },
+  "variants": {
+   "v1": "- **Always end with a format contract** \u2014 the last lines of every phase prompt are the labeled empty slots the model fills (`Answer: ___`, one slot per expected answer line) followed by one sentence telling the model to stop after the last slot. A phase that trails off in an open-ended instruction will drift.",
+   "v2": "- **Always end with a format contract** \u2014 every phase prompt closes with its labeled blanks (`SENTIMENT: ___` style, one per answer line) and a single stop sentence; a prose description of the format is not a contract.",
+   "v3": "- Close each phase with labeled slots (`Answer: ___`) plus one stop sentence; prose format descriptions alone let the model drift."
+  }
+ },
+ {
+  "id": "front-load-shared-context",
+  "rule": "R-technique-rules-02",
+  "kind": "shaping",
+  "section": "- **Front-load every prompt** \u2014 task statement first, minimal context; shared material lives once in the file's Shared context section.",
+  "fixtures": {
+   "application": "Design prompts for my local 5B model (reasoning off, 8k context, and the budget is tight because other prompts share the session). We grade customer feedback on our own scale: 'sev-red' means the customer cannot complete the task at all, 'sev-amber' means they can work around it, 'sev-green' is cosmetic. The job has two parts: first grade each feedback item in a pasted batch, then tally counts per severity for the weekly report. Both parts need the scale. The graded items must come out as `ITEM <id> -> sev-red` style lines. I can't do back-and-forth \u2014 assume whatever is unclear, note it in a line, and give me the complete set of prompts in one go."
+  },
+  "markers": {
+   "shared-context-heading": "^## Shared context",
+   "scale-def-line": "sev-(red|amber|green) means"
+  },
+  "variants": {
+   "v1": "- **Front-load every prompt** \u2014 each phase prompt opens with its task sentence; anything two or more phases need (definitions, scales, formats) is written once in the file's `## Shared context` section and referred to by name \u2014 never restated inside a phase.",
+   "v2": "- **Front-load every prompt** \u2014 the file states its target first, then `## Shared context` carries every shared definition exactly once; each phase prompt starts with its one task sentence and references shared material by name. Never open a phase with context.",
+   "v3": "- Phase prompts start with the task, never with context. Material needed by two or more phases lives one time in `## Shared context`."
+  }
+ },
+ {
+  "id": "self-consistency-harness-note",
+  "rule": "R-technique-rules-03",
+  "kind": "shaping",
+  "section": "- **Add a self-consistency harness note** when a phase is high-stakes reasoning \u2014 `<!-- harness: run 3 samples, majority-vote -->` in the phase header.",
+  "fixtures": {
+   "application": "Design a prompt for my local 7B model (reasoning off, 16k context). It counts how many units of each SKU appear in a pasted packing list and computes line totals that flow straight into our invoicing \u2014 a wrong count is a wrong invoice, so the counting step's accuracy matters more than anything else in the pipeline. Reading the list and formatting the invoice lines are routine. The counting phase's output must be `SKU: total` lines, one per SKU. I can't answer follow-ups \u2014 assume whatever you need, note it in a line, and give me the complete prompt in one go."
+  },
+  "markers": {
+   "harness-note": "<!--\\s*harness:",
+   "samples-mention": "run \\d+ samples"
+  },
+  "variants": {
+   "v1": "- **Add a self-consistency harness note** when a phase is high-stakes reasoning \u2014 put `<!-- harness: run 3 samples, majority-vote -->` directly under that phase's heading so the runner samples and votes; routine phases get no note.",
+   "v2": "- **High-stakes reasoning phases carry a self-consistency note** \u2014 when a wrong answer is costly (counts, money, safety), the line under the phase heading is `<!-- harness: run 3 samples, majority-vote -->`; routine phases carry none.",
+   "v3": "- If a phase's mistake is expensive, the line after its `## Phase N` heading is `<!-- harness: run 3 samples, majority-vote -->`."
+  }
+ },
+ {
+  "id": "mechanical-verification",
+  "rule": "R-technique-rules-04",
+  "kind": "shaping",
+  "section": "- **Require mechanical verification** \u2014 the Verification method is a check a harness can run (regex, parse, diff, test); small models self-critique poorly.",
+  "fixtures": {
+   "application": "Design a prompt for my local 4B model (reasoning off, 6k context): it reads a pasted config file and lists every key whose value is not one of the allowed tokens ON, OFF, or AUTO. I'll wire what you produce into my CI pipeline, which runs prompts headlessly and can grep, diff, and count their outputs but obviously can't judge them. One `KEY: value` line per finding, findings only. I can't do back-and-forth \u2014 assume whatever you need, note it in a line, and give me the complete prompt in one go."
+  },
+  "markers": {
+   "verification-heading": "^## Verification",
+   "mechanical-op": "\\b(regex|grep|diff|parse|wc -l|sort|uniq|count|fixture)\\b",
+   "subjective-check": "(?i)\\b(eyeball|looks? (right|correct|good)|sanity[- ]?check|self-review|self-critique|manually (inspect|review)|human review)\\b"
+  },
+  "variants": {
+   "v1": "- **Require mechanical verification** \u2014 the file ends with a `## Verification` section whose checks a script can execute (regex over output lines, diff against a fixture, parse and count). 'Review the output' or a live model run is not a verification method.",
+   "v2": "- **Require mechanical verification** \u2014 the Verification method is a check a harness can run (regex, parse, diff, test); small models self-critique poorly. Write the check commands, not review instructions.",
+   "v3": "- Every file's last section is `## Verification` with runnable checks \u2014 regex, diff, or parse plus count. Subjective review is not verification."
+  }
+ },
+ {
+  "id": "spec-block-template",
+  "rule": "R-spec-block-01",
+  "kind": "shaping",
+  "section": "## Spec Block\n\n```markdown\n## Spec\n- **Goal:** ...\n- **In scope:** ...\n- **Out of scope:** ...\n- **Assumptions:** ...\n- **Success criteria:** ...\n- **Output format:** ...\n- **Audience:** ...\n- **Grounding context:** ...\n- **Failure cases:** ...\n- **Target model:** ...\n- **Context budget:** ...\n- **Decomposition plan:** ...\n- **Exemplars:** ...\n- **Format contract:** ...\n- **Verification method:** ...\n```",
+  "fixtures": {
+   "application": "Help me design a prompt for my local 3B model (reasoning off, 4k budget). It turns my daily activity notes into a standup update: Done, Next, and Blocked sections, one bullet each, plain text. Success means I can paste the output into standup with no edits. It must never invent accomplishments \u2014 my notes are the only source. The output goes to my team chat. A bad output adds tasks I didn't do. My teammate reviews the design before I build anything and he wants the same structured spec block every time so he can scan it fast. Assume whatever is missing and give me the complete design for review."
+  },
+  "markers": {
+   "spec-heading": "^## Spec\\b",
+   "field-goal": "\\*\\*Goal:?\\*\\*:?",
+   "field-success": "\\*\\*Success criteria:?\\*\\*:?",
+   "field-exemplars": "\\*\\*Exemplars:?\\*\\*:?",
+   "field-verification": "\\*\\*Verification method:?\\*\\*:?",
+   "field-format": "\\*\\*Format contract:?\\*\\*:?",
+   "spec-block-title": "(?i)\\*\\*Spec Block"
+  },
+  "variants": {
+   "v1": "## Spec Block\n\nPresent the design for sign-off as exactly this block: a `## Spec` heading, then these fifteen bullets in this fixed order \u2014 none merged, none dropped, no extras:\n\n```markdown\n## Spec\n- **Goal:** ...\n- **In scope:** ...\n- **Out of scope:** ...\n- **Assumptions:** ...\n- **Success criteria:** ...\n- **Output format:** ...\n- **Audience:** ...\n- **Grounding context:** ...\n- **Failure cases:** ...\n- **Target model:** ...\n- **Context budget:** ...\n- **Decomposition plan:** ...\n- **Exemplars:** ...\n- **Format contract:** ...\n- **Verification method:** ...\n```",
+   "v2": "## Spec Block\n\nThe sign-off artifact is a `## Spec` section \u2014 one bullet per field, always in this order:\n\n```markdown\n## Spec\n- **Goal:** ...\n- **In scope:** ...\n- **Out of scope:** ...\n- **Assumptions:** ...\n- **Success criteria:** ...\n- **Output format:** ...\n- **Audience:** ...\n- **Grounding context:** ...\n- **Failure cases:** ...\n- **Target model:** ...\n- **Context budget:** ...\n- **Decomposition plan:** ...\n- **Exemplars:** ...\n- **Format contract:** ...\n- **Verification method:** ...\n```",
+   "v3": "## Spec Block\n\nEmit this exact block for sign-off (heading plus fifteen labeled bullets, fixed order):\n\n```markdown\n## Spec\n- **Goal:** ...\n- **In scope:** ...\n- **Out of scope:** ...\n- **Assumptions:** ...\n- **Success criteria:** ...\n- **Output format:** ...\n- **Audience:** ...\n- **Grounding context:** ...\n- **Failure cases:** ...\n- **Target model:** ...\n- **Context budget:** ...\n- **Decomposition plan:** ...\n- **Exemplars:** ...\n- **Format contract:** ...\n- **Verification method:** ...\n```"
+  }
+ },
+ {
+  "id": "prompt-file-template",
+  "rule": "R-prompt-file-template-01",
+  "kind": "shaping",
+  "section": "## Prompt File Template\n\n```markdown\n# Prompt chain: <task title>\n\nTarget: <model>, reasoning <on|off>, <context budget> context.\n\n## Run instructions (for the executing agent)\n\nRun each phase in order. The Shared context and each phase's input are already in this conversation.\n\n## Shared context\n\n<facts and definitions every phase needs, written once>\n\n## Phase N \u2014 <name>\n\nInput: <what this phase receives, from where>\nOutput: <the format the next phase or the user expects>\n\n<prompt block>\n```",
+  "fixtures": {
+   "application": "Design a runnable prompt artifact for my local 7B model (reasoning off, 8k context). Job: from a pasted delivery log, first flag every line whose status code is not one of OK, DELAYED, or LOST (our fleet system's three codes \u2014 DELAYED means late but still coming, LOST means write it off), then produce a one-line summary count per status. The meaning of the three codes matters to both parts. Each part runs as its own call feeding forward, in the same conversation. Flagged lines come out as `LINE <n>: <code>` and the summary as `STATUS <code>: <count>`. I can't answer follow-ups \u2014 assume whatever you need, note it in a line, and give me the complete file in one go."
+  },
+  "markers": {
+   "title-line": "^# Prompt chain:",
+   "target-line": "^Target:",
+   "run-instructions-heading": "^## Run instructions",
+   "shared-context-heading": "^## Shared context",
+   "phase-heading": "^## Phase \\d",
+   "input-contract": "^Input:",
+   "output-contract": "^Output:",
+   "paste-placeholder": "(?i)(\\[(PASTE|INSERT)[^]]*\\]|<paste[^>]*>|paste (the|your)[^\\n.]* here)"
+  },
+  "variants": {
+   "v1": "## Prompt File Template\n\nThe file is exactly this skeleton, sections in this order \u2014 title, target line, run instructions, shared context, then one phase section per phase, each phase carrying its Input and Output contract lines before its prompt block:\n\n```markdown\n# Prompt chain: <task title>\n\nTarget: <model>, reasoning <on|off>, <context budget> context.\n\n## Run instructions (for the executing agent)\n\nRun each phase in order. The Shared context and each phase's input are already in this conversation.\n\n## Shared context\n\n<facts and definitions every phase needs, written once>\n\n## Phase N \u2014 <name>\n\nInput: <what this phase receives, from where>\nOutput: <the format the next phase or the user expects>\n\n<prompt block>\n```",
+   "v2": "## Prompt File Template\n\nEvery prompt file has these parts in this order; a file missing one is incomplete:\n\n```markdown\n# Prompt chain: <task title>\n\nTarget: <model>, reasoning <on|off>, <context budget> context.\n\n## Run instructions (for the executing agent)\n\nRun each phase in order. The Shared context and each phase's input are already in this conversation.\n\n## Shared context\n\n<facts and definitions every phase needs, written once>\n\n## Phase N \u2014 <name>\n\nInput: <what this phase receives, from where>\nOutput: <the format the next phase or the user expects>\n\n<prompt block>\n```",
+   "v3": "## Prompt File Template\n\nThe skeleton, verbatim and in this order \u2014 a file that omits or reorders a section is wrong:\n\n```markdown\n# Prompt chain: <task title>\n\nTarget: <model>, reasoning <on|off>, <context budget> context.\n\n## Run instructions (for the executing agent)\n\nRun each phase in order. The Shared context and each phase's input are already in this conversation.\n\n## Shared context\n\n<facts and definitions every phase needs, written once>\n\n## Phase N \u2014 <name>\n\nInput: <what this phase receives, from where>\nOutput: <the format the next phase or the user expects>\n\n<prompt block>\n```"
+  }
+ },
+ {
+  "id": "no-shared-context-duplication",
+  "rule": "R-gotchas-01",
+  "kind": "shaping",
+  "section": "- Never repeat Shared context inside a phase \u2014 duplication burns the context window and drifts when edited in one place.",
+  "fixtures": {
+   "application": "Design prompts for my local 4B model (reasoning off, 12k context). We process warranty claims in three passes: pass one decides whether the claim qualifies, pass two computes the refund from our price table, pass three writes the customer reply. All three passes need the price table \u2014 Zorblax Basic 50, Zorblax Pro 120, Zorblax Max 200 \u2014 and the refund rules (refund = table price \u00d7 0.8 for qualifying claims, 0 otherwise). The passes run one after another in a single session, output feeding forward. This model gets visibly worse when the same paragraph is repeated to it across prompts, so I need each pass's prompt kept lean. I can't do back-and-forth \u2014 assume whatever is unclear, note it in a line, and give me the complete set of prompts in one go."
+  },
+  "markers": {
+   "shared-context-heading": "^## Shared context",
+   "price-table-line": "Zorblax (Basic|Pro|Max) (50|120|200)",
+   "refund-rule-line": "refund = table price"
+  },
+  "variants": {
+   "v1": "- Never repeat Shared context inside a phase \u2014 phases refer to shared material by name ('using the price table above'); duplication burns the context window and drifts when edited in one place.",
+   "v2": "- Shared definitions and tables are written exactly once, in `## Shared context`. A phase that re-states shared material instead of referencing it is a bug, even when the phase would read better self-contained.",
+   "v3": "- One copy of shared material, in `## Shared context`; phases reference it by name. Never inline it."
+  }
+ },
+ {
+  "id": "run-instructions-brief",
+  "rule": "R-gotchas-02",
+  "kind": "shaping",
+  "section": "- Keep run instructions to a sentence or two \u2014 the small model executes them too, and preamble conditionals are the compound instructions this skill exists to avoid. Phase inputs stay in context in a single-session run; never add paste placeholders.",
+  "fixtures": {
+   "application": "Design a prompt for my local 4B model (reasoning off, 8k context). It takes a pasted job description and extracts required skills as `SKILL: ...` lines. I run it by hand \u2014 I paste the JD into the same chat and it answers. One wrinkle: half the time I forget to paste the JD until after I've already sent the prompt, so whatever you write needs to cope with that gracefully. I can't answer follow-ups \u2014 assume whatever you need, note it in a line, and give me the complete prompt in one go."
+  },
+  "markers": {
+   "run-instructions-heading": "^## Run instructions",
+   "paste-placeholder": "(?i)(\\[(PASTE|INSERT|COPY)[^]]*\\]|<paste[^>]*>|paste (the|your)[^\\n.]* here)",
+   "preamble-conditional": "^If (you|the user|your)"
+  },
+  "variants": {
+   "v1": "- Keep run instructions to a sentence or two \u2014 the small model executes them too: 'Run each phase in order; the inputs are already in this conversation.' No if-branches and no paste placeholders \u2014 preamble conditionals are compound instructions, and placeholders invite the model to echo them.",
+   "v2": "- `## Run instructions` is one or two sentences total; the executing model reads them as task instructions, so conditional preambles and `[PASTE ...]`-style placeholders are bugs, not helpful scaffolding.",
+   "v3": "- Run instructions: a sentence or two, no conditionals, no paste placeholders. Inputs are already in the conversation."
+  }
+ }
+]

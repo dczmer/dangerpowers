@@ -1,0 +1,18 @@
+{
+  "skill": "shaping-small-model-prompts",
+  "shape-test": {
+    "date": "2026-10-07",
+    "checksum": "sha256:0d9f80f96434437fe7d3191cac86c4aa1bec4cc57a2f36ca212889da625cda3a",
+    "adopted": 6,
+    "no-failure": 8,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/gemma-4-26B-A4B",
+    "variant": null,
+    "ablations": 8,
+    "campaign": "campaign-2026-10-07-2",
+    "models": [
+      "llama-cpp/gemma-4-26B-A4B"
+    ]
+  }
+}

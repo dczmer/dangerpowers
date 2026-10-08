@@ -10,12 +10,12 @@ metadata.opencode/autoinvoke: false
 
 A small model with weak reasoning succeeds through demonstrated pattern and narrow scope, not instruction-following — the prompt must carry the reasoning the model lacks. Interview the user one question at a time, then emit a prompt file of minimal single-task phases.
 
-The deliverable is a markdown file at `.dangerpowers/prompts/<task-slug>.md`, echoed in chat. Do not execute the task the prompts describe. Verification is user sign-off, not a live model run.
+The chat echo of the deliverable is two parts in this fixed order: the save path `.dangerpowers/prompts/<task-slug>.md` on its own line, then the complete file in a fenced markdown block. No prose before, between, or after. Do not execute the task the prompts describe. Verification is user sign-off, not a live model run.
 
 ## When NOT to Apply
 
-- The prompt targets a frontier or hosted model — use `prompt-shaping` instead.
-- The user has a working prompt and wants a small tweak — edit it directly.
+- Target is frontier or hosted: decline the small-model treatment and name `prompt-shaping` as the right skill for it.
+- Small tweak to a working prompt: edit it directly, nothing more.
 - The request is purely informational — there is nothing to design.
 
 ## Process
@@ -50,10 +50,12 @@ The deliverable is a markdown file at `.dangerpowers/prompts/<task-slug>.md`, ec
 - **Show worked chains-of-thought** in exemplars when the task is math, logic, or symbolic — the method is demonstration, not appending "think step by step".
 - **Always end with a format contract** — labeled slots (`Answer: ___`) and a stop condition; small models drift from schemas.
 - **Front-load every prompt** — task statement first, minimal context; shared material lives once in the file's Shared context section.
-- **Add a self-consistency harness note** when a phase is high-stakes reasoning — `<!-- harness: run 3 samples, majority-vote -->` in the phase header.
-- **Require mechanical verification** — the Verification method is a check a harness can run (regex, parse, diff, test); small models self-critique poorly.
+- **Add a self-consistency harness note** when a phase is high-stakes reasoning — put `<!-- harness: run 3 samples, majority-vote -->` directly under that phase's heading so the runner samples and votes; routine phases get no note.
+- Every file's last section is `## Verification` with runnable checks — regex, diff, or parse plus count. Subjective review is not verification.
 
 ## Spec Block
+
+Emit this exact block for sign-off (heading plus fifteen labeled bullets, fixed order):
 
 ```markdown
 ## Spec
