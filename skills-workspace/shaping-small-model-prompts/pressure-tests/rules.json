@@ -1,0 +1,252 @@
+{
+  "skill": "shaping-small-model-prompts",
+  "generated": "2026-10-09",
+  "rules": [
+    {
+      "id": "R-intro-01",
+      "section": "Intro",
+      "kind": "discipline",
+      "statement": "Decline the small-model treatment for a frontier or hosted target (e.g. GPT-5, Claude, Gemini) and name `prompt-shaping` as the right skill instead; a 'small-model-style' chain request on a frontier model is still a frontier target — decline rather than adapt it.",
+      "entries": [
+        "decline-frontier-target"
+      ]
+    },
+    {
+      "id": "R-intro-02",
+      "section": "Intro",
+      "kind": "discipline",
+      "statement": "Do not execute the task the prompts describe; verification is user sign-off, not a live model run.",
+      "entries": [
+        "no-live-verification-run"
+      ]
+    },
+    {
+      "id": "R-when-not-to-apply-01",
+      "section": "When NOT to Apply",
+      "kind": "discipline",
+      "statement": "A small tweak to a working prompt gets the prompt text edited directly, applying the relevant Technique Rules, nothing more.",
+      "entries": [
+        "small-tweak-edit-directly"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-when-not-to-apply-02",
+      "section": "When NOT to Apply",
+      "kind": "discipline",
+      "statement": "A purely informational request has nothing to design — do not produce a prompt artifact for it.",
+      "entries": [
+        "informational-no-artifact"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-process-01",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "Interview the user one question at a time — a single focused question per turn until every Spec field is answered; no batched question lists.",
+      "entries": [
+        "one-question-per-turn"
+      ]
+    },
+    {
+      "id": "R-process-02",
+      "section": "Process",
+      "kind": "discipline",
+      "statement": "The interview converges on user sign-off, not on the agent's confidence — the filled Spec block is presented and confirmed (or corrected) before the prompt file is written.",
+      "entries": [
+        "spec-signoff-before-write"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Generated exemplars enter the file only after explicit user confirmation at sign-off; an advance waiver ('don't make me review them') does not count.",
+      "entries": [
+        "exemplar-explicit-confirmation"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-intro-03",
+      "section": "Intro",
+      "kind": "shaping",
+      "reason": "Fixed two-part chat-echo shape (save path line, then the complete file in a fenced block, no prose around it) is artifact form — shape-testing track.",
+      "statement": "The chat echo of the deliverable is two parts in this fixed order: the save path on its own line, then the complete file in a fenced markdown block; no prose before, between, or after."
+    },
+    {
+      "id": "R-intro-04",
+      "section": "Intro",
+      "kind": "technique",
+      "reason": "Design philosophy / how-to guidance; no competing incentive to violate.",
+      "statement": "A small model with weak reasoning succeeds through demonstrated pattern and narrow scope, not instruction-following — the prompt must carry the reasoning the model lacks."
+    },
+    {
+      "id": "R-process-03",
+      "section": "Process",
+      "kind": "technique",
+      "reason": "Request-routing gate; the decline branch is inventoried as a discipline rule, the skip-interview branch has no competing incentive.",
+      "statement": "Gate every request before interviewing: frontier/hosted target -> decline and name `prompt-shaping`; existing working prompt asking for a fix -> edit directly; every Spec field already answered -> skip the interview, draft exemplars, present Spec block and completed file together for a single sign-off."
+    },
+    {
+      "id": "R-process-04",
+      "section": "Process",
+      "kind": "technique",
+      "reason": "Fact-gathering step; no competing incentive.",
+      "statement": "Capture the target before drafting: model name/size, context budget, whether reasoning is enabled."
+    },
+    {
+      "id": "R-process-05",
+      "section": "Process",
+      "kind": "technique",
+      "reason": "How-to guidance; no competing incentive.",
+      "statement": "Classify the task (extraction/classification, math/logic/symbolic, generation, multi-step reasoning); the classification selects techniques."
+    },
+    {
+      "id": "R-process-06",
+      "section": "Process",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (phase-chain structure, no compound instructions) — shape-testing track.",
+      "statement": "Decompose any task with more than 2-3 steps into a phase chain, one task per phase; never emit compound instructions."
+    },
+    {
+      "id": "R-process-07",
+      "section": "Process",
+      "kind": "technique",
+      "reason": "Spec-field elicitation detail; the one-question-per-turn discipline is inventoried separately as a discipline rule.",
+      "statement": "Elicit each Spec field explicitly (Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases, Target model, Context budget, Decomposition plan, Exemplars, Format contract, Verification method)."
+    },
+    {
+      "id": "R-process-08",
+      "section": "Process",
+      "kind": "technique",
+      "reason": "How-to guidance; the confirmation discipline around exemplars is inventoried separately as a discipline rule.",
+      "statement": "Draft 1-3 input/output exemplars per phase that needs few-shot demonstration; give reasoning phases worked chains-of-thought, not bare answers; present the exemplars inside the Spec block."
+    },
+    {
+      "id": "R-process-09",
+      "section": "Process",
+      "kind": "technique",
+      "reason": "Mechanics of writing the file after sign-off; no competing incentive.",
+      "statement": "On confirmation, write the prompt file following the template and echo its full content in chat."
+    },
+    {
+      "id": "R-technique-rules-01",
+      "section": "Technique Rules",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (decomposition threshold) — shape-testing track; duplicates the Process decompose step.",
+      "statement": "Decompose when the task has more than 2-3 steps — one prompt per step, outputs feeding forward."
+    },
+    {
+      "id": "R-technique-rules-02",
+      "section": "Technique Rules",
+      "kind": "technique",
+      "reason": "How-to guidance; no competing incentive.",
+      "statement": "Add few-shot exemplars when the output must match a format, tone, or task structure — 1-3 pairs, drafted by you, confirmed by the user."
+    },
+    {
+      "id": "R-technique-rules-03",
+      "section": "Technique Rules",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (exemplar content shape) — shape-testing track.",
+      "statement": "Show worked chains-of-thought in exemplars when the task is math, logic, or symbolic."
+    },
+    {
+      "id": "R-technique-rules-04",
+      "section": "Technique Rules",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (prompt ending shape) — shape-testing track.",
+      "statement": "Always end with a format contract — labeled slots and a stop condition."
+    },
+    {
+      "id": "R-technique-rules-05",
+      "section": "Technique Rules",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (prompt ordering) — shape-testing track.",
+      "statement": "Front-load every prompt — task statement first, minimal context; shared material lives once in the file's Shared context section."
+    },
+    {
+      "id": "R-technique-rules-06",
+      "section": "Technique Rules",
+      "kind": "technique",
+      "reason": "Conditional annotation technique; no competing incentive.",
+      "statement": "Add a self-consistency harness note when a phase is high-stakes reasoning; routine phases get no note."
+    },
+    {
+      "id": "R-technique-rules-07",
+      "section": "Technique Rules",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (required Verification section) — shape-testing track.",
+      "statement": "Every file's last section is `## Verification` with runnable checks — regex, diff, or parse plus count; subjective review is not verification."
+    },
+    {
+      "id": "R-spec-block-01",
+      "section": "Spec Block",
+      "kind": "shaping",
+      "reason": "Fixed-form artifact block (heading plus fifteen labeled bullets, fixed order) — shape-testing track.",
+      "statement": "Emit the Spec block exactly as templated for sign-off."
+    },
+    {
+      "id": "R-prompt-file-template-01",
+      "section": "Prompt File Template",
+      "kind": "pattern",
+      "reason": "Reference template for the artifact's form — shape-testing track.",
+      "statement": "The prompt file follows the fixed template: title, Target line, Run instructions, Shared context, phases with Input/Output contracts."
+    },
+    {
+      "id": "R-example-01",
+      "section": "Example",
+      "kind": "reference",
+      "reason": "Worked example / documented illustration; no rule to violate.",
+      "statement": "The worked example shows the interview converging on a two-phase support-issue extraction and ranking chain."
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (no duplicated Shared context) — shape-testing track.",
+      "statement": "Never repeat Shared context inside a phase."
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (exemplar content shape) — shape-testing track.",
+      "statement": "Bare-answer exemplars teach the model to skip reasoning; reasoning phases show the work."
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (split phases instead of strengthening wording) — shape-testing track.",
+      "statement": "Compound instructions are the failure mode this skill exists to prevent — split the phase instead of strengthening the wording."
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "shaping",
+      "reason": "Fix-technique guidance about artifact form — shape-testing track.",
+      "statement": "Fix format drift with slots and exemplars, not with stronger wording."
+    },
+    {
+      "id": "R-gotchas-06",
+      "section": "Gotchas",
+      "kind": "shaping",
+      "reason": "Artifact-form rule (run-instruction length, no paste placeholders) — shape-testing track.",
+      "statement": "Keep run instructions to a sentence or two; never add paste placeholders."
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "reason": "Checklist restatements of inventoried rules and technique steps; not separately testable as discipline on this track.",
+      "statement": "The checklist restates target capture, classification, decomposition, one-question-per-turn, exemplar drafting/confirmation, Input/Output contracts, front-loading, format contracts, mechanical verification, Spec sign-off, run instructions, and file write+echo."
+    }
+  ]
+}

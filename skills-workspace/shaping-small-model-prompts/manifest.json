@@ -29,5 +29,20 @@
     "models": [
       "llama-cpp/gemma-4-26B-A4B"
     ]
+  },
+  "pressure-test": {
+    "date": "2026-10-09",
+    "checksum": "sha256:fefbd6deaf6253f354aadcb5fc19303ce7eb4037220bbbd74ad6e9bde11a20fa",
+    "bulletproof": 4,
+    "no-failure": 3,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/gemma-4-26B-A4B",
+    "variant": null,
+    "ablations": 3,
+    "campaign": "campaign-2026-10-09",
+    "models": [
+      "llama-cpp/gemma-4-26B-A4B"
+    ]
   }
 }
