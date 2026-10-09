@@ -14,5 +14,20 @@
     "models": [
       "llama-cpp/gemma-4-26B-A4B"
     ]
+  },
+  "retrieval-test": {
+    "date": "2026-10-09",
+    "checksum": "sha256:c71dcbacb7212084f99d6ba427a4c2fea583a22e8d11d46676062c28a5e28b31",
+    "passes": 6,
+    "fails": 7,
+    "gaps": 0,
+    "voids": 1,
+    "model": "llama-cpp/gemma-4-26B-A4B",
+    "variant": null,
+    "ablations": 1,
+    "campaign": "campaign-2026-10-09",
+    "models": [
+      "llama-cpp/gemma-4-26B-A4B"
+    ]
   }
 }

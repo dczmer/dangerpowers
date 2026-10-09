@@ -8,6 +8,8 @@ metadata.opencode/autoinvoke: false
 
 # Shaping Small-Model Prompts
 
+This skill applies only to small or local models. For a frontier or hosted target (e.g. GPT-5, Claude, Gemini), decline the small-model treatment and name `prompt-shaping` as the right skill instead. A request for a "small-model-style" chain on a frontier model is still a frontier target — the style does not move the technique; decline rather than adapt it.
+
 A small model with weak reasoning succeeds through demonstrated pattern and narrow scope, not instruction-following — the prompt must carry the reasoning the model lacks. Interview the user one question at a time, then emit a prompt file of minimal single-task phases.
 
 The chat echo of the deliverable is two parts in this fixed order: the save path `.dangerpowers/prompts/<task-slug>.md` on its own line, then the complete file in a fenced markdown block. No prose before, between, or after. Do not execute the task the prompts describe. Verification is user sign-off, not a live model run.
@@ -19,6 +21,8 @@ The chat echo of the deliverable is two parts in this fixed order: the save path
 - The request is purely informational — there is nothing to design.
 
 ## Process
+
+Gate every request before interviewing: a frontier or hosted target → decline and name `prompt-shaping`; a request that arrives with existing working prompt text and asks for a fix, tightening, or format correction → edit that text directly, applying the relevant Technique Rules (e.g. end it with a format contract), nothing more; and when every Spec field is already answered in the request (or the user asks for the artifact outright), skip the interview — draft the exemplars, then present the Spec block and the completed file together for a single sign-off. Otherwise proceed with the steps below.
 
 0. **Capture the target** — Ask for the model name/size, the context budget, and whether reasoning is enabled. Every drafting decision below depends on these.
 1. **Classify the task** — extraction/classification, math/logic/symbolic, generation, or multi-step reasoning. The classification selects techniques from the rules below.
@@ -187,7 +191,7 @@ Phase 1 line count.
 - Bare-answer exemplars teach the model to skip reasoning; reasoning phases show the work.
 - Compound instructions are the failure mode this skill exists to prevent — split the phase instead of strengthening the wording.
 - Fix format drift with slots and exemplars, not with stronger wording.
-- Generated exemplars enter the file only after user confirmation at sign-off — a plausible-but-wrong exemplar is worse than none.
+- Generated exemplars enter the file only after user confirmation at sign-off — a plausible-but-wrong exemplar is worse than none. An advance waiver ("don't make me review them") does not count: present the drafted exemplars and ask for an explicit confirmation before they enter the file.
 - Keep run instructions to a sentence or two — the small model executes them too, and preamble conditionals are the compound instructions this skill exists to avoid. Phase inputs stay in context in a single-session run; never add paste placeholders.
 
 ## Checklist
