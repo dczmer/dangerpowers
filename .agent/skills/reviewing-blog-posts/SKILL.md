@@ -1,6 +1,6 @@
 ---
 name: reviewing-blog-posts
-description: Use when reviewing, editing, proofreading, or auditing a technical blog post or draft article — including when the user asks to fact-check claims, improve engagement, or resolve "editor" requests in a draft. Fact-checks every claim against web sources and repository documents, fixes spelling and grammar in place, and produces a numbered audit report of proposed structural and engagement improvements for incremental review.
+description: Use when reviewing, editing, proofreading, or auditing a technical blog post or draft article - including when the user asks to fact-check claims, improve engagement, or resolve "editor" requests in a draft. Fact-checks every claim against web sources and repository documents, fixes spelling and grammar in place, and produces a numbered audit report of proposed structural and engagement improvements for incremental review.
 disable-model-invocation: true
 metadata.opencode/slash: true
 metadata.opencode/autoinvoke: false
@@ -15,13 +15,13 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
 ## Workflow
 
 1. **Fact-check.**
-   - Verify every claim using web search and other documents in the repository, including any reference documents provided alongside the draft. A claim that matches the repository's documents can still be wrong — externally verifiable claims also need an external source.
+   - Verify every claim using web search and other documents in the repository, including any reference documents provided alongside the draft. A claim that matches the repository's documents can still be wrong - externally verifiable claims also need an external source.
    - Cite a source for each important claim, using the citation and linking convention below.
-2. **Fix spelling, grammar, and capitalization.** Edit the post in place. Use the Oxford comma in every list of three or more items (write "a, b, and c", never "a, b and c"), and use MLA-style title casing for section headers. This is the only audit category applied directly; everything else goes in the report.
+2. **Fix spelling, grammar, and punctuation.** Edit the post in place. Use the Oxford comma in every list of three or more items (write "a, b, and c", never "a, b and c"), and use MLA-style title casing for section headers. Replace every em dash (—) and en dash (–) in the draft with a regular hyphen (-). This is the only audit category applied directly; everything else goes in the report.
 3. **Audit structure and ambiguity.** Flag structural problems and statements with ambiguous subjects or referents.
 4. **Propose illustrations and analogies** to explain complex concepts.
 5. **Propose examples** for important concepts. Each example proposal is a 'Bad / Good / Why' block: the bad version, the good version beside it, and a one-sentence caption under each naming why it fails or works.
-6. **Propose a call-out quote for the start of every section.** The report has one 'Call-out quote' item per section of the post — no section skipped — each holding a one-sentence quote (paraphrase allowed) that distills that section's central thesis.
+6. **Propose a call-out quote for the start of every section.** The report has one 'Call-out quote' item per section of the post - no section skipped - each holding a one-sentence quote (paraphrase allowed) that distills that section's central thesis.
 7. **Audit repetition.** Repetition is acceptable only when all of these hold:
    - the concept is important enough to drill into the reader
    - it is relevant in each section where it appears
@@ -36,7 +36,7 @@ Act as an expert editor for technical blogs. Improve engagement without diluting
 Follow this house style, exactly and consistently:
 
 - Every source appears once in a bottom `## References` section as `- <a id="ref-a"></a>**[A]** [Source - Title](url)`, letters assigned in the order the sources are first cited in the post.
-- Multi-claim sentences first: when a single sentence makes more than one sourced claim, end it with one grouped citation `([A](#ref-a), [C](#ref-c))` — never one citation per clause. Every other sourced claim takes `[X](#ref-x)` immediately after it (descriptive link text allowed; the `#ref-x` anchor is not negotiable).
+- Multi-claim sentences first: when a single sentence makes more than one sourced claim, end it with one grouped citation `([[A]](#ref-a), [[C]](#ref-c))` - never one citation per clause. Every other sourced claim takes `[[X]](#ref-x)` immediately after it (descriptive link text allowed; the `#ref-x` anchor is not negotiable). In all cases the rendered link text shows the reference id wrapped in square brackets (e.g. `[F]`), never the bare id.
 - Never use bare URLs, footnote-style markers, or any other citation format; this convention is the only one used in the post.
 
 ## Audit report
@@ -45,19 +45,21 @@ Write a detailed report to the user covering steps 3-9 (and the fact-check findi
 
 - Write the audit report as numbered sections with lettered items (`1. <category>` -> `1.a`, `1.b` findings). A reader must be able to say "item 2.b" and have it mean exactly one finding.
 - Include an example or concrete suggestion for each proposed fix.
-- Reference locations by describing them or quoting a snippet of the surrounding text. Never use line numbers — they go stale after every round of edits.
-- Report how each `> EDITOR:` directive was resolved — a resolution the author can't see is indistinguishable from one that never happened.
+- Reference locations by describing them or quoting a snippet of the surrounding text. Never use line numbers - they go stale after every round of edits.
+- Never use an em dash (—) or en dash (–) in anything the skill writes: the audit report, proposed rewrites, examples, call-out quotes, or any other generated text. Use a regular hyphen (-) instead.
+- Report how each `> EDITOR:` directive was resolved - a resolution the author can't see is indistinguishable from one that never happened.
 
 ## Gotchas
 
 - Only spelling, grammar, and capitalization fixes are applied without asking. Applying audit findings before the user approves them discards the interactive workflow the report exists to support.
 - A fact that matches the repository's other documents can still be wrong; check external sources for externally verifiable claims.
-- Do not stop at the first instance of a repeated concept — evaluate every occurrence against the three repetition criteria separately.
+- Do not stop at the first instance of a repeated concept - evaluate every occurrence against the three repetition criteria separately.
 
 ## Checklist
 
 - [ ] Every important claim fact-checked and cited, with a "References" section at the bottom of the post following the citation and linking convention
 - [ ] Spelling, grammar, and capitalization fixed in place, with Oxford commas in all lists of three or more items and MLA-style title casing for section headers
+- [ ] Every em dash and en dash in the draft replaced with a regular hyphen, and no em dashes or en dashes in any skill-generated text
 - [ ] Audit report uses numbered/lettered items for incremental reference
 - [ ] Every proposed fix includes an example or concrete suggestion
 - [ ] All locations described by text snippet, never line numbers
