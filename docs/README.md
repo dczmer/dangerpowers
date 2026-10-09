@@ -50,3 +50,9 @@ Supplementary:
 ### Part 4: Revelations
 
 [part-4/README.md](./writing-skills/part-4/README.md) — **Writing Skills Deep Dive, Part 4: Revelations**. Closing thoughts and opinions: the case against auto-invoking skills, why non-deterministic application requires deterministic verification, optimizing skills for your actual target models, ablation and retirement of obsolete rules and evals, cost-control tips, a rant on markdown as a programming language, and a look at building a better eval harness with DSPy/GEPA plus off-the-shelf eval solutions.
+
+## Prompt Engineering
+
+By starting with skills, we began with a formal discipline - prompt engineering is essentially an informal subset of the things we already learned writing and bulletproofing skills. What is actually still useful for frontier models? Which "folk wisdom" tricks are obsolete, and which remain essential for small local models?
+
+[prompt-shaping/README.md](./prompt-shaping/README.md) - A presentation of common prompt-engineering conventions and advice: definitions, techniques that are still useful for frontier models, the small-model toolkit, mostly-obsolete superstitions, chain-of-thought reasoning and distillation attacks, prompt "shaping" as a gap-eliciting loop producing executable specs, and prompt composition/generation with DSPy/GEPA and prompt composition tools.
