@@ -51,7 +51,7 @@ dangerpowers/
 
 ## What burned us before
 
-- Past incident: a migration reported "completed" while 14% of rows were silently skipped. Verify row counts.
+- Example of the kind of entry that belongs here: a past incident where a migration reported "completed" while 14% of rows were silently skipped - the lesson to record is "verify row counts."
 
 ## Keep this file honest
 

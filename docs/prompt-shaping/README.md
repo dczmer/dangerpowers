@@ -35,9 +35,11 @@ While many practices are now unnecessary when working with large frontier models
 If you want to do something specific, you need to write a prompt that effectively instructs the AI to do it. That implies shaping and discipline rules, and they do apply here, but it's also largely about describing what you want effectively (remember our [shaping tests](../writing-skills/part-3/README.md)).
 
 **Bad:** "Add validation to the signup form."
+
 *Why it fails: the agent must guess which fields, rules, and error UX you want.*
 
 **Good:** "In `SignupForm.tsx`, validate email format and require passwords of 12+ chars with at least one digit; show inline errors under each field and disable submit until valid. Do not change the API schema."
+
 *Why it works: file, rules, output shape, and a non-goal - no decisions left to the agent.*
 
 Specificity in your prompts reduces ambiguity that requires implementing agents to make decisions and form assumptions, improves accuracy of the final product, and saves time - fixing something after the AI writes it is more expensive than properly forming the prompt first. But just like we discussed in [writing skill part 1](../writing-skills/part-1/README.md), you need to tailor the specificity to the task fragility - give freedom where there are multiple ways to the solution, be more specific when there is only one way to do it correctly.
@@ -72,9 +74,11 @@ Grounding is the process of supplying verified, factual information to the model
 Combining grounding with context engineering improves accuracy by ensuring the results are "grounded" in reality, relying more on "extrinsic" knowledge provided to the AI and not the "intrinsic" knowledge encoded in the model weights.
 
 **Bad:** "Write a migration for the users table."
+
 *Why it fails: the model invents a schema from its weights - hallucination by construction.*
 
 **Good:** "Here is the current `users` schema (pasted) and the target schema (pasted). Write the Alembic migration between them; verify with `alembic upgrade head` against the docker-compose test DB."
+
 *Why it works: the facts come from the repo instead of the weights, and the context contains exactly what the task needs - nothing else competing for attention.*
 
 #### Decomposition
@@ -128,9 +132,11 @@ quadrantChart
 ["Few-shotting"](#ref-g) is the process of including multiple examples of what you want in the prompt input. AI is good at detecting and matching patterns, and then copying them, so you can think of this like "training" the model to respond a certain way, without changing the weights.
 
 **Bad (zero-shot):** "Classify the sentiment of: 'The food was cold but the staff were lovely.'"
+
 *Why it fails: nothing pins the label set or output format, so the model may answer with a paragraph.*
 
 **Good:** "Classify sentiment as POS, NEG, or MIXED. 'Battery dies in an hour' → NEG. 'Great camera, terrible screen' → MIXED. 'Best purchase I've made' → POS. 'The food was cold but the staff were lovely' →"
+
 *Why it works: the exemplars demonstrate the exact label set and arrow format for the model to copy.*
 
 One specific application of the few-shot technique is "chain of thought" reasoning - by providing similar logic, math, or other reasoning-based problems to the AI, along with step-by-step "reasoning" that shows the work of how it should get to the final result, the AI will copy the pattern and produce emergent reasoning capabilities. This topic is pretty relevant and interesting, so it gets a dedicated section later in this document.
@@ -142,9 +148,11 @@ One specific application of the few-shot technique is "chain of thought" reasoni
 A verification loop is the prompt-engineering version of our skill-writing best practice of always including a verification checklist: it forces the AI to confirm the product is within the required parameters before declaring done. Deterministic verification (a test, a command, an assertion) is best; where no deterministic check exists, a separate LLM acting as judge is the fallback.
 
 **Bad:** "Refactor the parser to handle nested quotes."
+
 *Why it fails: "done" is whatever the agent says it is.*
 
 **Good:** "Refactor the parser to handle nested quotes. Done only when `pytest tests/test_parser.py -k quotes` passes - run it, show the output, and iterate until green."
+
 *Why it works: completion is a deterministic check, not the agent's judgment.*
 
 ### Useful for Local Models
@@ -214,9 +222,11 @@ Chain of thought reasoning is when the model breaks down a task step-by-step and
 Chain of thought prompting is a technique that was [first published in 2022](#ref-h), before models had built-in reasoning systems. By providing few-shot example 'queries' and the 'answers' that illustrate the step-by-step how the AI should arrive at the answer, the model effectively learns the pattern and applies that reasoning process while producing the answer to your actual query. This is reported to greatly increase accuracy when working with math, symbolic reasoning, logic, etc.
 
 **Bad:** "Q: A train travels 120 km in 1.5 hours, then 80 km in 45 minutes. What is its average speed?" *(asked bare, to a small model with reasoning disabled)*
+
 *Why it fails: the model jumps straight to an answer and often botches the unit conversion.*
 
 **Good:** prepend one exemplar - "Q: A car drives 100 km in 2 hours. Average speed? A: Let's work step by step. Total distance = 100 km. Total time = 2 h. Speed = 100 / 2 = 50 km/h." - then ask the train question.
+
 *Why it works: the exemplar demonstrates the decompose-and-convert pattern, which the model copies onto the new problem.*
 
 So if this is built into modern frontier models, is it still a useful technique to know about? Actually, yes. If you run a local model with reasoning disabled, you can simulate the reasoning process of a modern frontier model with just a prompt input. If you combine this with our prompt/skill optimization strategies, you can produce high-quality output rivaling what the frontier model can do.
@@ -281,13 +291,43 @@ When first starting to use AI, it doesn't take long before you start seeing patt
 
 There are also a lot of patterns and conventions for generalizing or optimizing prompts using tools or other software. These tools help you build or generate quality prompts or provide high-level interfaces for running some kind of optimization loop.
 
-I'm not going to mention any prompt generator tools here, because the point of this series is learning how to do this stuff "the hard way", but once you get to that point, then it might make sense to leverage a tool that can make your daily work easier or more efficient.
-
 One prompt generation tool I do want to mention is [DSPy](https://dspy.ai). It lets you write your prompts as Python code. Classes, variables, functions, etc., all carry some kind of metadata - from type, to the way things are named, to how they are composed, etc. That can all be leveraged to generate very precise queries, and the prompts produced are designed to be very effective across a wide variety of models and capabilities. But you don't have to just go with the default prompts it produces, it has built-in optimization processes you can use to test and fine-tune your prompt. It even has a module to implement optimization using [GEPA](https://dspy.ai/api/optimizers/GEPA/overview/).
+
+For example, this code:
+
+```python
+import dspy
+
+class Summarize(dspy.Signature):
+    """Summarize the article in one sentence."""
+
+    article: str = dspy.InputField()
+    summary: str = dspy.OutputField()
+
+predict = dspy.Predict(Summarize)
+predict(article=article)
+```
+
+Produces a prompt along these lines (simplified - the real thing also includes strict output-formatting instructions):
+
+```
+[[ ## task ## ]]
+Summarize the article in one sentence.
+
+[[ ## inputs ## ]]
+[[ ### article ### ]]
+{article}
+
+[[ ## outputs ## ]]
+[[ ### summary ### ]]
+{summary}
+```
+
+I'm not going to mention any other prompt generator tools here, because the point of this series is learning how to do this stuff "the hard way", but once you get to that point, then it might make sense to leverage a tool that can make your daily work easier or more efficient.
 
 The idea of a "prompt composer" is also interesting, as it sits somewhere between hand-written prompts and a full prompt generator tool. Select individual parts or clauses to construct a complex prompt from multiple fragments. I see there are quite a few tools out there: [Vapi](#ref-n), [SnapLogic](#ref-o), etc. But the general idea is so simple and straightforward, you can easily make your own tool and then start collecting prompt fragments that you repeatedly use.
 
-As an example, here is my hand-rolled "prompt fragments" extension for pi. One of the things I love about the pi coding agent is just how easy it is to extend and modify. This is not some revolutionary extension, it's just an example of a simple hack to make my life a little easier.
+As an example, here is my hand-rolled "prompt fragments" extension for [pi](https://pi.dev). One of the things I love about the [pi](https://pi.dev) coding agent is just how easy it is to extend and modify. This is not some revolutionary extension, it's just an example of a simple hack to make my life a little easier.
 
 1. Start with your basic prompt
 ![a basic prompt](./images/prompt-fragments-1.png)
