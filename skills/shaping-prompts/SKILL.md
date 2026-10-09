@@ -12,7 +12,7 @@ Restate the interpretation, then ask one focused question per reply. No drafts b
 
 **Iron Law: no drafts before sign-off — no exceptions.** A deadline, a deploy window, a "we'll fix it later," or a user demanding "just draft something" does not waive this. If the user resists the interview, the compliant response is exactly the standard one: restate the interpretation and ask the single most important open question. Listing assumptions at the top of a draft does not make it not a draft — a field is answered only when the user has confirmed or corrected it, and drafting on unconfirmed assumptions is the primary failure mode, not a middle path.
 
-The deliverable is the prompt artifact itself: a filled Spec block plus the complete prompt text. Do not execute the task the prompt describes.
+The deliverable is the prompt artifact itself: a filled Spec block plus the complete prompt text, saved to `.dangerpowers/prompts/<task-slug>.md` (slug derived from the task) and echoed in chat. Do not execute the task the prompt describes.
 
 ## When NOT to Apply
 
@@ -36,7 +36,7 @@ The deliverable is the prompt artifact itself: a filled Spec block plus the comp
    - **Grounding context** — which documents, facts, or definitions must the prompt include or reference?
    - **Failure cases** — what would a bad response look like?
 3. **Emit the Spec block for sign-off** — Once every Spec field has an answer — whether elicited one question at a time or supplied up front by the user — present the filled Spec block and ask the user to confirm or correct it. A request that arrives with every field already answered still gets this confirmation stop; never draft the prompt in the same turn as the spec.
-4. **Emit the prompt** — On confirmation, write the complete prompt text in a single code fence, encoding every Spec field. Keep it model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas. Add a prompting technique when the user explicitly requests it.
+4. **Emit the prompt** — On confirmation, write the complete prompt text to `.dangerpowers/prompts/<task-slug>.md`, encoding every Spec field, and echo the file content in a single code fence. Keep the prompt model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas. Add a prompting technique when the user explicitly requests it. When the user refines the prompt with additional changes, apply the changes and rewrite the file so the saved copy stays current.
 
 ## Spec Block
 
@@ -98,5 +98,6 @@ The deliverable is the prompt artifact itself: a filled Spec block plus the comp
 - [ ] Every Spec block field explicitly elicited or explicitly waived
 - [ ] Spec block confirmed by the user before drafting
 - [ ] Prompt emitted in a single code fence, encoding all confirmed fields
+- [ ] Prompt saved to `.dangerpowers/prompts/<task-slug>.md`; file rewritten on every refinement
 - [ ] No task execution; no plan document substituted for questions
 - [ ] Prompt contains no exemplars, CoT scaffolding, or personas beyond what the user explicitly requested
