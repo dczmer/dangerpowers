@@ -851,6 +851,73 @@ class PiBuildCmdTests(unittest.TestCase):
         self.assertIn("was not installed", str(ctx.exception))
 
 
+class PiSkillMdTests(unittest.TestCase):
+    """_pi_skill_md must accept workspace-relative stub reads, not just
+    absolute ones (campaign-2026-10-06: relative reads of
+    .agents/skills/<skill>/SKILL.md mis-signaled skill-not-loaded),
+    without letting look-alike prefixes match."""
+
+    def _m(self, path: str, skill: str = PI_SKILL) -> bool:
+        return strategies._pi_skill_md(path, skill)
+
+    def test_absolute_path(self):
+        self.assertTrue(self._m(f"/tmp/ws/.agents/skills/{PI_SKILL}/SKILL.md"))
+
+    def test_relative_exact(self):
+        self.assertTrue(self._m(f".agents/skills/{PI_SKILL}/SKILL.md"))
+
+    def test_dot_slash_relative(self):
+        self.assertTrue(self._m(f"./.agents/skills/{PI_SKILL}/SKILL.md"))
+
+    def test_nested_relative(self):
+        self.assertTrue(self._m(f"work/.agents/skills/{PI_SKILL}/SKILL.md"))
+
+    def test_non_stub_file_rejected(self):
+        self.assertFalse(self._m(f".agents/skills/{PI_SKILL}/references/x.md"))
+
+    def test_lookalike_prefix_rejected(self):
+        self.assertFalse(self._m(f"not-.agents/skills/{PI_SKILL}/SKILL.md"))
+
+    def test_other_skill_rejected(self):
+        self.assertFalse(self._m(".agents/skills/other/SKILL.md"))
+
+    def test_suffix_lookalike_skill_rejected(self):
+        self.assertFalse(self._m(".agents/skills/echo-skill-evil/SKILL.md"))
+
+
+class PiOtherSkillTests(unittest.TestCase):
+    """_pi_other_skill extracts the skill name from any stub read under
+    the workspace .agents/skills tree — absolute or relative — so a
+    control-arm agent loading a skill by relative path still trips the
+    control-loaded-skill signal."""
+
+    def _n(self, path: str):
+        return strategies._pi_other_skill(path)
+
+    def test_absolute(self):
+        self.assertEqual(
+            self._n("/tmp/ws/.agents/skills/other/SKILL.md"), "other"
+        )
+
+    def test_relative(self):
+        self.assertEqual(self._n(".agents/skills/other/SKILL.md"), "other")
+
+    def test_dot_slash_relative(self):
+        self.assertEqual(self._n("./.agents/skills/other/SKILL.md"), "other")
+
+    def test_lookalike_prefix_rejected(self):
+        self.assertIsNone(self._n("not-.agents/skills/other/SKILL.md"))
+
+    def test_non_stub_file_rejected(self):
+        self.assertIsNone(self._n(".agents/skills/other/references/x.md"))
+
+    def test_buried_skill_md_rejected(self):
+        self.assertIsNone(self._n(".agents/skills/other/docs/SKILL.md"))
+
+    def test_plain_file_rejected(self):
+        self.assertIsNone(self._n("/tmp/ws/README.md"))
+
+
 class PiParseStreamTests(unittest.TestCase):
     def _parse(self, stdout: str, skill=PI_SKILL) -> strategies.EventStream:
         return strategies.PiStrategy.parse_stream(stdout, skill)
@@ -872,6 +939,22 @@ class PiParseStreamTests(unittest.TestCase):
 
     def test_completed_load(self):
         ev = self._parse(PI_JSONL)
+        self.assertTrue(ev.completed_load)
+        self.assertFalse(ev.attempted_load)
+        self.assertEqual(
+            ev.skill_loads,
+            [{"name": PI_SKILL, "status": "completed"}],
+        )
+
+    def test_completed_load_via_relative_skill_read(self):
+        # Regression (campaign-2026-10-06): agents read the stub by a
+        # workspace-relative path; that read is a load, not a
+        # skill-not-loaded void.
+        stdout = PI_JSONL.replace(
+            f"/tmp/ws/.agents/skills/{PI_SKILL}/SKILL.md",
+            f".agents/skills/{PI_SKILL}/SKILL.md",
+        )
+        ev = self._parse(stdout)
         self.assertTrue(ev.completed_load)
         self.assertFalse(ev.attempted_load)
         self.assertEqual(
@@ -917,6 +1000,22 @@ class PiParseStreamTests(unittest.TestCase):
         self.assertEqual(
             ev.skill_loads, [{"name": "other-skill", "status": "completed"}]
         )
+        self.assertFalse(ev.completed_load)
+        self.assertFalse(ev.attempted_load)
+
+    def test_other_skill_read_relative(self):
+        # Same defect class as the relative target-skill read: a
+        # control agent loading a skill by workspace-relative path must
+        # still surface as an other-skill load, not a plain tool call.
+        stdout = pi_tool_events(
+            "read", {"path": ".agents/skills/other-skill/SKILL.md"}
+        )
+        ev = self._parse(stdout)
+        self.assertEqual(ev.other_skill, "other-skill")
+        self.assertEqual(
+            ev.skill_loads, [{"name": "other-skill", "status": "completed"}]
+        )
+        self.assertEqual(ev.tool_calls, [])
         self.assertFalse(ev.completed_load)
         self.assertFalse(ev.attempted_load)
 

@@ -1,0 +1,177 @@
+{
+ "skill": "shaping-small-model-prompts",
+ "generated": "2026-10-07",
+ "rules": [
+  {
+   "section": "Overview",
+   "kind": "shaping",
+   "statement": "The deliverable is a markdown file at `.dangerpowers/prompts/<task-slug>.md`, echoed in chat. (Restated in Process step 6: write the file on confirmation and echo its full content in chat.)",
+   "entries": ["deliverable-file-path"]
+  },
+  {
+   "section": "When NOT to Apply",
+   "kind": "pattern",
+   "statement": "- The prompt targets a frontier or hosted model — use `prompt-shaping` instead.",
+   "entries": ["not-apply-frontier-model"]
+  },
+  {
+   "section": "When NOT to Apply",
+   "kind": "pattern",
+   "statement": "- The user has a working prompt and wants a small tweak — edit it directly.",
+   "entries": ["not-apply-small-tweak"]
+  },
+  {
+   "section": "When NOT to Apply",
+   "kind": "pattern",
+   "statement": "- The request is purely informational — there is nothing to design.",
+   "entries": ["not-apply-informational"]
+  },
+  {
+   "section": "Process",
+   "kind": "shaping",
+   "statement": "2. Decompose — Split any task with more than 2–3 steps into a phase chain, one task per phase. Never emit compound instructions. (Restated in Technique Rules: Decompose when the task has more than 2–3 steps; and in Gotchas: compound instructions are the failure mode — split the phase instead of strengthening the wording.)",
+   "entries": ["decompose-phase-chain"]
+  },
+  {
+   "section": "Process",
+   "kind": "shaping",
+   "statement": "4. Draft the exemplars — For each phase that needs few-shot demonstration, draft 1–3 input/output pairs. Give reasoning phases worked chains-of-thought, not bare answers. Present the exemplars inside the Spec block. (Restated in Technique Rules: show worked chains-of-thought in exemplars when the task is math, logic, or symbolic; and in Gotchas: bare-answer exemplars teach the model to skip reasoning.)",
+   "entries": ["exemplars-worked-cot"]
+  },
+  {
+   "section": "Technique Rules",
+   "kind": "shaping",
+   "statement": "- Always end with a format contract — labeled slots (`Answer: ___`) and a stop condition; small models drift from schemas. (Reinforced in Gotchas: fix format drift with slots and exemplars, not with stronger wording.)",
+   "entries": ["format-contract-slots"]
+  },
+  {
+   "section": "Technique Rules",
+   "kind": "shaping",
+   "statement": "- Front-load every prompt — task statement first, minimal context; shared material lives once in the file's Shared context section.",
+   "entries": ["front-load-shared-context"]
+  },
+  {
+   "section": "Technique Rules",
+   "kind": "shaping",
+   "statement": "- Add a self-consistency harness note when a phase is high-stakes reasoning — `<!-- harness: run 3 samples, majority-vote -->` in the phase header.",
+   "entries": ["self-consistency-harness-note"]
+  },
+  {
+   "section": "Technique Rules",
+   "kind": "shaping",
+   "statement": "- Require mechanical verification — the Verification method is a check a harness can run (regex, parse, diff, test); small models self-critique poorly. (Anchored in the intro: verification is user sign-off, not a live model run.)",
+   "entries": ["mechanical-verification"]
+  },
+  {
+   "section": "Spec Block",
+   "kind": "shaping",
+   "statement": "The sign-off artifact is the Spec block: a `## Spec` heading followed by fifteen bold-labeled fields in fixed order (Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases, Target model, Context budget, Decomposition plan, Exemplars, Format contract, Verification method). (Field source: Process step 3's elicit-each-field list; presentation step: Process step 5.)",
+   "entries": ["spec-block-template"]
+  },
+  {
+   "section": "Prompt File Template",
+   "kind": "shaping",
+   "statement": "The prompt file follows a fixed skeleton: `# Prompt chain: <task title>` title, a `Target:` line (model, reasoning on/off, context budget), `## Run instructions (for the executing agent)`, `## Shared context`, then one `## Phase N — <name>` section per phase, each carrying `Input:` and `Output:` contract lines before its prompt block.",
+   "entries": ["prompt-file-template"]
+  },
+  {
+   "section": "Gotchas",
+   "kind": "shaping",
+   "statement": "- Never repeat Shared context inside a phase — duplication burns the context window and drifts when edited in one place.",
+   "entries": ["no-shared-context-duplication"]
+  },
+  {
+   "section": "Gotchas",
+   "kind": "shaping",
+   "statement": "- Keep run instructions to a sentence or two — the small model executes them too, and preamble conditionals are the compound instructions this skill exists to avoid. Phase inputs stay in context in a single-session run; never add paste placeholders.",
+   "entries": ["run-instructions-brief"]
+  }
+ ],
+ "excluded": [
+  {
+   "section": "Overview",
+   "kind": "discipline",
+   "reason": "Interview discipline (one question at a time) is a compliance-cost rule the agent rationalizes under pressure; routed to the pressure-testing track. The phase-shape half of the sentence is covered by the decompose rule."
+  },
+  {
+   "section": "Overview",
+   "kind": "discipline",
+   "reason": "Boundary rule skipped under pressure (the agent is tempted to execute or live-test the task it just designed); routed to the pressure-testing track."
+  },
+  {
+   "section": "Overview",
+   "kind": "discipline",
+   "reason": "Compliance-cost boundary — the agent is tempted to run a live model pass as verification; routed to the pressure-testing track. The artifact-side constraint (the Verification section's form) is covered by the mechanical-verification rule."
+  },
+  {
+   "section": "Process",
+   "kind": "discipline",
+   "reason": "Capture-the-target (ask for model, context budget, reasoning) is a compliance-cost interview step skipped under pressure; routed to the pressure-testing track."
+  },
+  {
+   "section": "Process",
+   "kind": "technique",
+   "reason": "Task classification is how-to guidance that selects techniques; it produces no competing artifact shape."
+  },
+  {
+   "section": "Process",
+   "kind": "discipline",
+   "reason": "One-question-at-a-time interviewing is a compliance-cost discipline rule; routed to the pressure-testing track. Its field list is reference content feeding the Spec Block template rule."
+  },
+  {
+   "section": "Process",
+   "kind": "discipline",
+   "reason": "Sign-off confirmation is a compliance-cost step skipped under pressure; routed to the pressure-testing track. The shape of the artifact it presents is covered by the Spec Block template rule."
+  },
+  {
+   "section": "Process",
+   "kind": "reference",
+   "reason": "Process pointer whose shape content is fully covered by the deliverable-file-path rule (write + echo) and the prompt-file-template rule (following the template); no distinct rule left to test."
+  },
+  {
+   "section": "Technique Rules",
+   "kind": "reference",
+   "reason": "Restatement of the decompose rule already inventoried from Process step 2; one entry covers the shape."
+  },
+  {
+   "section": "Technique Rules",
+   "kind": "technique",
+   "reason": "Few-shot exemplars as a conditional technique selection is how-to guidance; no competing artifact shape distinct from the exemplars-worked-cot rule."
+  },
+  {
+   "section": "Technique Rules",
+   "kind": "reference",
+   "reason": "Restatement of the worked-chains-of-thought requirement already inventoried from Process step 4; one entry covers the shape."
+  },
+  {
+   "section": "Example",
+   "kind": "reference",
+   "reason": "Worked example demonstrating the rules; no imperative of its own."
+  },
+  {
+   "section": "Gotchas",
+   "kind": "reference",
+   "reason": "Restatement of the worked-chains-of-thought requirement covered by the exemplars-worked-cot rule."
+  },
+  {
+   "section": "Gotchas",
+   "kind": "reference",
+   "reason": "Restatement of the decompose rule covered by the decompose-phase-chain entry."
+  },
+  {
+   "section": "Gotchas",
+   "kind": "technique",
+   "reason": "How-to guidance for fixing drift (slots and exemplars rather than stronger wording); no competing artifact shape."
+  },
+  {
+   "section": "Gotchas",
+   "kind": "discipline",
+   "reason": "User-confirmation gate for generated exemplars is a compliance-cost rule skipped under pressure; routed to the pressure-testing track."
+  },
+  {
+   "section": "Checklist",
+   "kind": "reference",
+   "reason": "Checklist restates the rules above as a verification list; no new rule to violate."
+  }
+ ]
+}

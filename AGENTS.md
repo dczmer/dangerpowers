@@ -48,3 +48,11 @@ dangerpowers/
 ├── flake.nix / flake.lock / .envrc  # Nix dev environment
 └── pyproject.toml / uv.lock / .venv # Python environment (skill development tooling)
 ```
+
+## What burned us before
+
+- Example of the kind of entry that belongs here: a past incident where a migration reported "completed" while 14% of rows were silently skipped - the lesson to record is "verify row counts."
+
+## Keep this file honest
+
+- When you get corrected, add the lesson to this file (update AGENTS.md) so the next session starts ahead.

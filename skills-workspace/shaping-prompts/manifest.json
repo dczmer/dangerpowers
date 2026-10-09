@@ -1,0 +1,49 @@
+{
+  "skill": "shaping-prompts",
+  "retrieval-test": {
+    "date": "2026-10-07",
+    "checksum": "sha256:e310c7324c2724d085810e2d11dd8af9432763379dc873798ec2ae417a10b1eb",
+    "passes": 5,
+    "fails": 0,
+    "gaps": 0,
+    "voids": 0,
+    "model": "llama-cpp/gemma-4-26B-A4B",
+    "variant": null,
+    "ablations": 1,
+    "campaign": "campaign-2026-10-07",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO",
+      "llama-cpp/gemma-4-26B-A4B"
+    ]
+  },
+  "shape-test": {
+    "date": "2026-10-06",
+    "checksum": "sha256:648b02781cc525b2f058853cdaeea81497d51a8a7305ff5a9505a423a7a87c81",
+    "adopted": 2,
+    "no-failure": 4,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "ablations": 4,
+    "campaign": "campaign-2026-10-06",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  },
+  "pressure-test": {
+    "date": "2026-10-06",
+    "checksum": "sha256:f283e0e5041e364f69bb67dc26046c55cc73408cae1adcebc9e6fc5a5878cf71",
+    "bulletproof": 5,
+    "no-failure": 5,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "ablations": 5,
+    "campaign": "campaign-2026-10-06",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  }
+}

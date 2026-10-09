@@ -1,0 +1,116 @@
+{
+  "skill": "shaping-prompts",
+  "generated": "2026-10-06",
+  "rules": [
+    {
+      "section": "Prompt Shaping",
+      "kind": "pattern",
+      "statement": "Turn an under-specified idea into a copyable prompt through a one-question-at-a-time interview. State the interpretation BEFORE drafting, so misalignment costs a sentence instead of a wrong prompt.",
+      "entries": ["restate-then-one-question"]
+    },
+    {
+      "section": "Prompt Shaping",
+      "kind": "shaping",
+      "statement": "The deliverable is the prompt artifact itself: a filled Spec block plus the complete prompt text. Do not execute the task the prompt describes.",
+      "entries": ["prompt-emit-form"]
+    },
+    {
+      "section": "When NOT to Apply",
+      "kind": "pattern",
+      "statement": "- The request is already specific (names files, behavior, success criteria) — shaping is noise; draft the prompt directly.",
+      "entries": ["specific-request-draft-directly"]
+    },
+    {
+      "section": "When NOT to Apply",
+      "kind": "pattern",
+      "statement": "- The request is purely informational (\"what does X do?\") — there is nothing to scope.",
+      "entries": ["informational-no-shaping"]
+    },
+    {
+      "section": "When NOT to Apply",
+      "kind": "pattern",
+      "statement": "- The user already corrected a previous interpretation — apply the correction, don't re-interview.",
+      "entries": ["apply-correction-no-reinterview"]
+    },
+    {
+      "section": "Process",
+      "kind": "pattern",
+      "statement": "1. **Restate in natural language** — Articulate what you understand the user wants, making assumptions explicit.",
+      "entries": ["restate-then-one-question"]
+    },
+    {
+      "section": "Process",
+      "kind": "pattern",
+      "statement": "2. **Interview one question at a time** — Ask a single focused question per turn until every Spec field below is answered. Ask clarifying questions rather than writing a plan document; shaping is about aligning with the user, not deferring work.",
+      "entries": ["restate-then-one-question"]
+    },
+    {
+      "section": "Process",
+      "kind": "shaping",
+      "statement": "Elicit each field explicitly: Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases.",
+      "entries": ["spec-block-signoff"]
+    },
+    {
+      "section": "Process",
+      "kind": "shaping",
+      "statement": "3. **Emit the Spec block for sign-off** — Present the filled Spec block and ask the user to confirm or correct it. The interview converges on user sign-off, not on your confidence.",
+      "entries": ["spec-block-signoff"]
+    },
+    {
+      "section": "Process",
+      "kind": "shaping",
+      "statement": "4. **Emit the prompt** — On confirmation, write the complete prompt text in a single code fence, encoding every Spec field. Keep it model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas. Add a prompting technique when the user explicitly requests it.",
+      "entries": ["prompt-emit-form"]
+    },
+    {
+      "section": "Spec Block",
+      "kind": "shaping",
+      "statement": "The Spec block is a markdown template with a '## Spec' heading and nine bold-labeled fields in fixed order: Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases.",
+      "entries": ["spec-block-signoff"]
+    },
+    {
+      "section": "Gotchas",
+      "kind": "pattern",
+      "statement": "- Announcing what you are about to build instead of asking is the primary failure mode — state an interpretation and ask, never draft first and ask later.",
+      "entries": ["restate-then-one-question"]
+    },
+    {
+      "section": "Gotchas",
+      "kind": "pattern",
+      "statement": "- Batching all nine questions into one message reads as a form, not an interview; users half-answer. One question per turn.",
+      "entries": ["restate-then-one-question"]
+    },
+    {
+      "section": "Gotchas",
+      "kind": "shaping",
+      "statement": "- A confirmed spec with no emitted prompt is a failed run — always close with the code-fenced prompt after sign-off.",
+      "entries": ["prompt-emit-form"]
+    }
+  ],
+  "excluded": [
+    {
+      "section": "Process",
+      "kind": "discipline",
+      "reason": "Step 0 'Ground in context — scan the environment... never ask a question the codebase already answers' is a compliance-cost discipline rule (rationalized away under pressure) — routed to the pressure-testing track; it is also untestable on this track because the sterile eval workspace contains no codebase to scan.",
+      "statement": "0. **Ground in context** — Before asking anything, scan the environment for existing patterns that inform reasonable defaults, what the prompt must integrate with, and constraints the user didn't state but likely expects. Never ask a question the codebase already answers."
+    },
+    {
+      "section": "Gotchas",
+      "kind": "discipline",
+      "reason": "'Skip a field only when the user explicitly waives it' is a compliance-cost discipline rule the agent rationalizes away under time pressure — routed to the pressure-testing track, not shaping.",
+      "statement": "- Skip a field only when the user explicitly waives it; silently dropped fields produce silently wrong prompts."
+    },
+    {
+      "section": "Example",
+      "kind": "reference",
+      "reason": "Worked example of the process in action; a documented illustration with no rule to violate — reference content.",
+      "statement": "## Example (the caching conversation transcript)"
+    },
+    {
+      "section": "Checklist",
+      "kind": "reference",
+      "reason": "Checklist recaps rules already inventoried in other sections; it introduces no new rule to violate — reference content.",
+      "statement": "## Checklist (recap of the Process and Gotchas rules)"
+    }
+  ]
+}

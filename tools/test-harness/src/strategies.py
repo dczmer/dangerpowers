@@ -678,11 +678,33 @@ def _pi_skill_md(path: str, skill: str) -> bool:
     """True when a read-tool path is exactly the target skill's stub:
     <anything>/.agents/skills/<skill>/SKILL.md (normalized separators).
     The pi system prompt advertises skills by absolute location inside
-    the workspace's .agents/skills tree, and the agent bodies mandate
-    absolute paths, so a normalized suffix match is precise."""
-    return os.path.normpath(path).endswith(
-        os.path.normpath(f"/.agents/skills/{skill}/SKILL.md")
+    the workspace's .agents/skills tree, but agents also read the stub
+    by a workspace-relative path — those reads are a load too
+    (campaign-2026-10-06: relative reads mis-signaled skill-not-loaded
+    on 3 of 4 skill runs). Match both, requiring a path boundary so a
+    look-alike prefix ('not-.agents/...') can't satisfy the tail."""
+    tail = os.path.normpath(f".agents/skills/{skill}/SKILL.md")
+    normalized = os.path.normpath(path)
+    return normalized.endswith(tail) and (
+        len(normalized) == len(tail) or normalized[-len(tail) - 1] == os.sep
     )
+
+
+def _pi_other_skill(path: str) -> str | None:
+    """Skill name when a read-tool path is exactly some skill's stub
+    (.../.agents/skills/<name>/SKILL.md), else None. Accepts absolute
+    and workspace-relative paths, with the same boundary discipline as
+    _pi_skill_md — a look-alike directory ('not-.agents/...') or a
+    SKILL.md buried deeper in a skill dir is not a stub read."""
+    parts = os.path.normpath(path).split(os.sep)
+    for i, part in enumerate(parts[:-3]):
+        if (
+            part == ".agents"
+            and parts[i + 1] == "skills"
+            and parts[i + 3] == "SKILL.md"
+        ):
+            return parts[i + 2] or None
+    return None
 
 
 class PiStrategy(EvalStrategy):
@@ -852,14 +874,7 @@ class PiStrategy(EvalStrategy):
                             ev.attempted_load = True
                         else:
                             ev.completed_load = True
-                    elif os.path.normpath(path).endswith(
-                        os.path.normpath("/SKILL.md")
-                    ) and "/.agents/skills/" in os.path.normpath(path):
-                        name = (
-                            os.path.normpath(path)
-                            .split("/.agents/skills/")[1]
-                            .split("/", 1)[0]
-                        )
+                    elif (name := _pi_other_skill(path)) is not None:
                         ev.skill_loads.append(
                             {
                                 "name": name,

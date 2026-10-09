@@ -1,0 +1,98 @@
+{
+ "skill": "shaping-prompts",
+ "generated": "2026-10-06",
+ "rules": [
+  {
+   "id": "R-prompt-shaping-01",
+   "section": "Prompt Shaping",
+   "kind": "pattern",
+   "statement": "Turn an under-specified idea into a copyable prompt through a one-question-at-a-time interview; state the interpretation BEFORE drafting, so misalignment costs a sentence instead of a wrong prompt. (Restated in Process steps 1-2: restate in natural language with assumptions explicit, then a single focused question per turn, clarifying questions rather than a plan document; and in the Gotchas: announcing-instead-of-asking is the primary failure mode, and batching all nine questions into one message reads as a form.)",
+   "entries": [
+    "restate-then-one-question"
+   ]
+  },
+  {
+   "id": "R-when-not-to-apply-01",
+   "section": "When NOT to Apply",
+   "kind": "pattern",
+   "statement": "- The request is already specific (names files, behavior, success criteria) — shaping is noise; draft the prompt directly.",
+   "entries": [
+    "specific-request-draft-directly"
+   ],
+   "status": "ablation",
+   "ablation_streak": 0
+  },
+  {
+   "id": "R-when-not-to-apply-02",
+   "section": "When NOT to Apply",
+   "kind": "pattern",
+   "statement": "- The request is purely informational (\"what does X do?\") — there is nothing to scope.",
+   "entries": [
+    "informational-no-shaping"
+   ],
+   "status": "ablation",
+   "ablation_streak": 0
+  },
+  {
+   "id": "R-when-not-to-apply-03",
+   "section": "When NOT to Apply",
+   "kind": "pattern",
+   "statement": "- The user already corrected a previous interpretation — apply the correction, don't re-interview.",
+   "entries": [
+    "apply-correction-no-reinterview"
+   ],
+   "status": "ablation",
+   "ablation_streak": 0
+  },
+  {
+   "id": "R-process-04",
+   "section": "Process",
+   "kind": "shaping",
+   "statement": "Emit the Spec block for sign-off: when the interview has covered every field, present the filled Spec block - a '## Spec' heading with nine bold-labeled fields in fixed order (Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases) - and ask the user to confirm or correct it; the interview converges on user sign-off, not on your confidence. (The Spec Block section is the template for this artifact; Process step 2's 'Elicit each field explicitly' list is the field source.)",
+   "entries": [
+    "spec-block-signoff"
+   ]
+  },
+  {
+   "id": "R-process-05",
+   "section": "Process",
+   "kind": "shaping",
+   "statement": "Emit the prompt on confirmation: write the complete prompt text in a single code fence, encoding every Spec field; the deliverable is the prompt artifact itself - never execute the task the prompt describes (stated in the intro paragraph); keep it model-agnostic, omitting few-shot exemplars, chain-of-thought scaffolding, and role personas unless the user explicitly requests a technique; a confirmed spec with no emitted prompt is a failed run (Gotcha). The prompt is always emitted after sign-off, in one fence.",
+   "entries": [
+    "prompt-emit-form"
+   ],
+   "status": "ablation",
+   "ablation_streak": 0
+  }
+ ],
+ "excluded": [
+  {
+   "id": "R-process-06",
+   "section": "Process",
+   "kind": "discipline",
+   "reason": "Step 0 'Ground in context — scan the environment... never ask a question the codebase already answers' is a compliance-cost discipline rule (rationalized away under pressure) — routed to the pressure-testing track; it is also untestable on this track because the sterile eval workspace contains no codebase to scan.",
+   "statement": "0. **Ground in context** — Before asking anything, scan the environment for existing patterns that inform reasonable defaults, what the prompt must integrate with, and constraints the user didn't state but likely expects. Never ask a question the codebase already answers."
+  },
+  {
+   "id": "R-gotchas-04",
+   "section": "Gotchas",
+   "kind": "discipline",
+   "reason": "'Skip a field only when the user explicitly waives it' is a compliance-cost discipline rule the agent rationalizes away under time pressure — routed to the pressure-testing track, not shaping.",
+   "statement": "- Skip a field only when the user explicitly waives it; silently dropped fields produce silently wrong prompts."
+  },
+  {
+   "id": "R-example-01",
+   "section": "Example",
+   "kind": "reference",
+   "reason": "Worked example of the process in action; a documented illustration with no rule to violate — reference content.",
+   "statement": "## Example (the caching conversation transcript)"
+  },
+  {
+   "id": "R-checklist-01",
+   "section": "Checklist",
+   "kind": "reference",
+   "reason": "Checklist recaps rules already inventoried in other sections; it introduces no new rule to violate — reference content.",
+   "statement": "## Checklist (recap of the Process and Gotchas rules)"
+  }
+ ]
+}

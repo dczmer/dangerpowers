@@ -1,0 +1,48 @@
+{
+  "skill": "shaping-small-model-prompts",
+  "shape-test": {
+    "date": "2026-10-07",
+    "checksum": "sha256:0d9f80f96434437fe7d3191cac86c4aa1bec4cc57a2f36ca212889da625cda3a",
+    "adopted": 6,
+    "no-failure": 8,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/gemma-4-26B-A4B",
+    "variant": null,
+    "ablations": 8,
+    "campaign": "campaign-2026-10-07-2",
+    "models": [
+      "llama-cpp/gemma-4-26B-A4B"
+    ]
+  },
+  "retrieval-test": {
+    "date": "2026-10-09",
+    "checksum": "sha256:c71dcbacb7212084f99d6ba427a4c2fea583a22e8d11d46676062c28a5e28b31",
+    "passes": 6,
+    "fails": 7,
+    "gaps": 0,
+    "voids": 1,
+    "model": "llama-cpp/gemma-4-26B-A4B",
+    "variant": null,
+    "ablations": 1,
+    "campaign": "campaign-2026-10-09",
+    "models": [
+      "llama-cpp/gemma-4-26B-A4B"
+    ]
+  },
+  "pressure-test": {
+    "date": "2026-10-09",
+    "checksum": "sha256:fefbd6deaf6253f354aadcb5fc19303ce7eb4037220bbbd74ad6e9bde11a20fa",
+    "bulletproof": 4,
+    "no-failure": 3,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/gemma-4-26B-A4B",
+    "variant": null,
+    "ablations": 3,
+    "campaign": "campaign-2026-10-09",
+    "models": [
+      "llama-cpp/gemma-4-26B-A4B"
+    ]
+  }
+}

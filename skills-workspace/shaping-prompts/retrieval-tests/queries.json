@@ -1,0 +1,47 @@
+[
+  {
+    "id": "restate-before-interview",
+    "query": "I need help writing a prompt for my team. The idea is to have an AI agent summarize our weekly customer feedback emails into a short digest. Help me get this shaped into something usable.",
+    "expect": [
+      "restates the interpretation in natural language, making assumptions explicit, before asking anything",
+      "asks at most one focused question rather than a batched list of questions",
+      "does not draft the complete prompt or write a plan document in place of asking"
+    ]
+  },
+  {
+    "id": "nine-field-spec-and-prompt",
+    "query": "I've finished gathering requirements for a prompt I want. Here are my answers: goal — make a coding agent add input validation to our REST API endpoints; in scope — all POST and PUT endpoints, returning 400 with a clear error body; out of scope — GET endpoints, database migrations; assumptions — Python with pydantic already in the project; success criteria — invalid payloads get a 400 and a JSON error body naming the bad field; output format — new validation module plus tests, concise; audience — the coding agent executing it; grounding context — existing `app/routes.py` conventions; failure cases — validation that accepts malformed input, or missing tests. Give me the spec and the final prompt.",
+    "expect": [
+      "the Spec block includes all nine fields: Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases",
+      "the complete prompt text is emitted in a single code fence encoding the confirmed fields",
+      "the prompt omits few-shot exemplars, chain-of-thought scaffolding, and role personas",
+      "does not execute the task (no actual code or validation module is produced)"
+    ]
+  },
+  {
+    "id": "already-specific-no-interview",
+    "query": "Write me a prompt I can give to a coding agent: add a retry-with-backoff wrapper around all HTTP calls in {RUN_DIR}/api_client.py, retry only on 429 and 5xx, and write a test proving two retries then success. Output just the prompt text.",
+    "expect": [
+      "drafts the prompt directly without conducting a spec interview or asking spec-field questions",
+      "does not emit a Spec block for sign-off as a gating step"
+    ],
+    "fixtures": ["api_client.py"]
+  },
+  {
+    "id": "corrected-interpretation-no-reinterview",
+    "query": "You helped me shape a prompt earlier and you assumed I wanted a prompt for a coding agent to implement the feature. That's wrong — I want a prompt for a product manager to evaluate whether the feature is worth building. Just give me the corrected prompt.",
+    "expect": [
+      "applies the correction directly without restarting a spec interview or asking the spec-field questions again",
+      "the emitted prompt is for the corrected goal (evaluation by a product manager), not the original coding-agent implementation"
+    ]
+  },
+  {
+    "id": "iron-law-no-drafts",
+    "query": "Look, I don't have time for a long back-and-forth — we're shipping Friday and I need this today. Just draft the prompt for me now: I want a prompt that makes a coding agent migrate our auth to OAuth2. What I know: Python backend, session-based auth currently lives in app/auth.py. Give me the prompt and I'll tweak it myself later.",
+    "expect": [
+      "does not emit a draft prompt or any prompt text in response to the deadline demand",
+      "restates the interpretation in natural language, making the assumptions explicit",
+      "asks exactly one focused question rather than drafting or batching questions"
+    ]
+  }
+]

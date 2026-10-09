@@ -1,0 +1,96 @@
+{
+  "skill": "shaping-prompts",
+  "generated": "2026-10-07",
+  "facts": [
+    {
+      "id": "F-process-01",
+      "section": "Process",
+      "statement": "Before asking anything, ground in context — scan the environment for patterns, integration points, and unstated constraints; never ask a question the codebase already answers — then restate the interpretation in natural language with assumptions explicit before drafting",
+      "entries": [
+        "restate-before-interview"
+      ]
+    },
+    {
+      "id": "F-process-02",
+      "section": "Process",
+      "statement": "Interview with a single focused question per turn until every Spec field is answered; never batch questions into one message; ask clarifying questions rather than writing a plan document",
+      "entries": [
+        "restate-before-interview"
+      ]
+    },
+    {
+      "id": "F-spec-block-01",
+      "section": "Spec Block",
+      "statement": "The Spec block has exactly nine fields — Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases; skip a field only when the user explicitly waives it",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ]
+    },
+    {
+      "id": "F-process-03",
+      "section": "Process",
+      "statement": "Once every Spec field has an answer — whether elicited one question at a time or supplied up front by the user — present the filled Spec block and ask the user to confirm or correct it; never draft the prompt in the same turn as the spec",
+      "entries": [
+        "nine-field-spec-and-prompt",
+        "already-specific-no-interview"
+      ]
+    },
+    {
+      "id": "F-process-04",
+      "section": "Process",
+      "statement": "On confirmation, write the complete prompt text in a single code fence encoding every Spec field; the deliverable is the prompt artifact itself — do not execute the task the prompt describes",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ]
+    },
+    {
+      "id": "F-process-05",
+      "section": "Process",
+      "statement": "Keep the prompt model-agnostic: omit few-shot exemplars, chain-of-thought scaffolding, and role personas; add a prompting technique only when the user explicitly requests it",
+      "entries": [
+        "nine-field-spec-and-prompt"
+      ]
+    },
+    {
+      "id": "F-process-06",
+      "section": "Process",
+      "statement": "Iron Law: no drafts before sign-off — no exceptions; a deadline, deploy window, 'we'll fix it later,' or a demand to 'just draft something' does not waive the interview, and the compliant response to resistance is exactly the standard one: restate the interpretation and ask the single most important open question; listing assumptions at the top of a draft is still a draft — a field is answered only when the user has confirmed or corrected it",
+      "entries": [
+        "iron-law-no-drafts"
+      ]
+    },
+    {
+      "id": "F-when-not-to-apply-01",
+      "section": "When NOT to Apply",
+      "statement": "Do not shape when the request is already specific (names files, behavior, success criteria) — draft the prompt directly; when it is purely informational — nothing to scope; when the user already corrected a previous interpretation — apply the correction, don't re-interview; a request to skip the interview, a deadline, impatience, or 'we'll fix it later' is a complaint about process, not a correction of interpretation, and does not waive the interview or permit drafting early",
+      "entries": [
+        "already-specific-no-interview",
+        "corrected-interpretation-no-reinterview"
+      ],
+      "status": "ablation",
+      "ablation_streak": 1
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-frontmatter-01",
+      "section": "frontmatter",
+      "reason": "frontmatter-convention guidance is always out of scope"
+    },
+    {
+      "id": "F-example-01",
+      "section": "Example",
+      "reason": "illustrative example dialogue; mined for query material"
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "reason": "restatements of kept facts (announce-instead-of-ask, batching, emit-after-signoff, explicit-waiver)"
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "restatements of kept facts"
+    }
+  ]
+}

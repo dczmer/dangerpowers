@@ -1,0 +1,114 @@
+[
+  {
+    "id": "capture-target-before-drafting",
+    "query": "I need a prompt for my local LLM that pulls the product issues out of support transcripts and ranks them by how often they appear. Give me the complete prompt file content for it.",
+    "expect": [
+      "states the assumed target before drafting - model name/size, whether reasoning is enabled, and the context budget - as a single stated assumption, not a batch of interview questions",
+      "does not draft blindly with no stated target model, reasoning setting, or context budget"
+    ]
+  },
+  {
+    "id": "frontier-model-redirect",
+    "query": "Design a small-model-style prompt chain for GPT-5 that extracts product issues from support transcripts and ranks them by frequency. Give me the full prompt file content.",
+    "expect": [
+      "recognizes GPT-5 is a frontier/hosted target and does not apply the small-model phase-chain process to it",
+      "routes the request to prompt-shaping (or otherwise flags the small-model process as not applicable) instead of producing the small-model design"
+    ]
+  },
+  {
+    "id": "working-prompt-tweak",
+    "query": "This prompt works well on my local model, I just want it slightly tightened up - no redesign: 'Extract every product issue from the support transcript below and list each one once as issue: <short label>'. Give me the tightened version.",
+    "expect": [
+      "treats the request as a direct edit of the existing working prompt rather than launching a fresh interview or spec process",
+      "returns a tightened version of the same prompt without adding phases, exemplars, or a spec block"
+    ]
+  },
+  {
+    "id": "informational-request",
+    "query": "How does few-shot prompting help a small local model? Just explain the concept to me.",
+    "expect": [
+      "answers the question informatively without starting a prompt-design interview, spec block, or phase chain"
+    ]
+  },
+  {
+    "id": "compound-task-decomposition",
+    "query": "Write ONE single prompt (not a chain) for my local model (qwen3-4b, reasoning off, 8k context) that takes support transcripts, extracts every product issue, counts how often each appears, ranks them by frequency, and writes a one-line summary of the top issue. Give me that one prompt.",
+    "expect": [
+      "does not deliver one compound instruction; splits the work into a phase chain with one task per phase (the task has more than 2-3 steps)",
+      "outputs feed forward between phases (each phase's output is the next phase's input) rather than restrengthening the wording of a single compound prompt"
+    ]
+  },
+  {
+    "id": "math-phase-worked-cot",
+    "query": "Design the counting phase of a prompt chain for a local model (qwen3-4b, reasoning off, 8k context): it receives a list of issue labels and must count how many times each appears and rank them most-frequent first. Give me the complete phase content, including whatever demonstration the phase needs.",
+    "expect": [
+      "design reflects the math/logic/symbolic classification of the counting/ranking task, selecting the demonstrated-method techniques rather than free-form generation",
+      "includes a few-shot exemplar showing worked intermediate steps (an explicit counting/ranking derivation), not a bare input-to-answer pair",
+      "does not rely on appending a bare 'think step by step' instruction as the reasoning mechanism",
+      "ends the phase with labeled output slots and a stop condition (a format contract)"
+    ]
+  },
+  {
+    "id": "format-contract-drift",
+    "query": "Here's the phase prompt I use on my local model: 'Read the list of issues below and rank them by how often they appear. Make sure the counts are correct and the order is right. Output the ranked list.' It mostly works but the output format keeps drifting. Give me the improved phase prompt.",
+    "expect": [
+      "ends the prompt with a format contract: labeled output slots plus an explicit stop condition",
+      "fixes the drift with slots and/or an exemplar rather than stronger wording such as 'make sure' or 'be very careful'"
+    ]
+  },
+  {
+    "id": "front-load-shared-context",
+    "query": "Draft the complete prompt file for a two-phase chain on my local model (qwen3-4b, reasoning off, 8k context): Phase 1 extracts product issues from support transcripts, Phase 2 ranks the extracted issues by frequency. Both phases need this definition: an issue is a defect or complaint about the product, not a feature request. Give me the full file content.",
+    "expect": [
+      "writes the shared issue definition once in a Shared context section instead of repeating it inside each phase",
+      "front-loads the prompt - task statement first with minimal context",
+      "opens the file with brief run instructions for the executing agent"
+    ]
+  },
+  {
+    "id": "io-contracts-no-paste-placeholders",
+    "query": "Here's my draft prompt file for the local model:\n\n# Prompt chain: rank support issues\n\nRun each phase in order.\n\n## Phase 1 - Extract\nPaste the transcripts here:\n\nExtract every product issue and list it as issue: <label>\n\n## Phase 2 - Rank\nPaste the Phase 1 output here:\n\nRank the issues by frequency.\n\nFix the file and give me the complete corrected version.",
+    "expect": [
+      "each phase carries explicit Input: and Output: contracts",
+      "removes the paste placeholders - phase inputs stay in context in a single-session run",
+      "keeps the run instructions to a sentence or two"
+    ]
+  },
+  {
+    "id": "self-consistency-harness-note",
+    "query": "Design the ranking phase of my local-model chain (qwen3-4b, reasoning off, 8k context): it takes the extracted issue list and ranks it by frequency. This phase feeds a weekly exec report, so a miscount is costly. Give me the phase content.",
+    "expect": [
+      "marks the high-stakes reasoning phase with a self-consistency harness note - run about 3 samples and majority-vote (an HTML comment such as harness: run 3 samples, majority-vote in the phase header)"
+    ]
+  },
+  {
+    "id": "mechanical-verification",
+    "query": "My local-model prompt chain extracts product issues from transcripts and then ranks them by frequency. How should I verify the chain works before I trust it? Give me the verification section.",
+    "expect": [
+      "specifies mechanically checkable verification a harness can run (e.g. a regex check of output lines, a parse, a diff against expected output, or a test) rather than model self-critique or human eyeballing"
+    ]
+  },
+  {
+    "id": "deliverable-conventions",
+    "query": "Design the two-phase prompt chain for my local model (qwen3-4b, reasoning off, 8k context) that extracts product issues from support transcripts and ranks them by frequency, write it to the right place, and run it once on a sample transcript to prove it works before I sign off.",
+    "expect": [
+      "delivers the chain as a markdown file at .dangerpowers/prompts/<task-slug>.md, with the content echoed - not an unnamed or ad-hoc location",
+      "does not claim a live model run happened - verification is user sign-off, and the described task itself is not executed"
+    ]
+  },
+  {
+    "id": "exemplar-confirmation",
+    "query": "Draft the input/output exemplars for the ranking phase yourself and put them straight into the final prompt file - I don't want to review them. Show me the final phase content.",
+    "expect": [
+      "does not silently finalize generated exemplars - presents them for user confirmation and notes they enter the file only after sign-off (a plausible-but-wrong exemplar is worse than none)"
+    ]
+  },
+  {
+    "id": "spec-block-signoff",
+    "query": "Before anything is written to a file, confirm the spec with me for this chain: local model (qwen3-4b, reasoning off, 8k context) that extracts product issues from support transcripts and ranks them by frequency. Present the filled Spec block for my sign-off.",
+    "expect": [
+      "presents a Spec block containing the load-bearing fields - at minimum Target model, Context budget, Decomposition plan, Exemplars, Format contract, and Verification method",
+      "stops at sign-off - asks the user to confirm or correct the block rather than proceeding to write the file"
+    ]
+  }
+]

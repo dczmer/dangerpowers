@@ -1,0 +1,157 @@
+{
+  "skill": "shaping-small-model-prompts",
+  "generated": "2026-10-17",
+  "facts": [
+    {
+      "id": "F-process-01",
+      "section": "Process",
+      "statement": "Before any drafting, capture the target: model name/size, context budget, and whether reasoning is enabled.",
+      "entries": [
+        "capture-target-before-drafting"
+      ]
+    },
+    {
+      "id": "F-process-02",
+      "section": "Process",
+      "statement": "Interview one focused question per turn until every Spec field is answered; ask clarifying questions rather than writing a plan document.",
+      "entries": [
+        "capture-target-before-drafting",
+        "spec-block-signoff"
+      ]
+    },
+    {
+      "id": "F-process-03",
+      "section": "Process",
+      "statement": "Present the filled Spec block for user sign-off before writing the prompt file; generated exemplars enter the file only after user confirmation.",
+      "entries": [
+        "exemplar-confirmation",
+        "spec-block-signoff"
+      ]
+    },
+    {
+      "id": "F-process-04",
+      "section": "Process",
+      "statement": "The deliverable is a markdown prompt file at .dangerpowers/prompts/<task-slug>.md, echoed in chat; do not execute the task the prompts describe; verification is user sign-off, not a live model run.",
+      "entries": [
+        "deliverable-conventions"
+      ]
+    },
+    {
+      "id": "F-process-05",
+      "section": "Process",
+      "statement": "Classify the task as extraction/classification, math/logic/symbolic, generation, or multi-step reasoning; the classification selects the techniques.",
+      "entries": [
+        "math-phase-worked-cot"
+      ]
+    },
+    {
+      "id": "F-process-06",
+      "section": "Process",
+      "statement": "Decompose any task with more than 2-3 steps into a phase chain, one task per phase; never emit compound instructions - split the phase instead of strengthening the wording.",
+      "entries": [
+        "compound-task-decomposition"
+      ]
+    },
+    {
+      "id": "F-when-not-to-apply-01",
+      "section": "When NOT to Apply",
+      "statement": "Do not apply to a frontier or hosted model target (use prompt-shaping instead), a small tweak of a working prompt (edit it directly), or a purely informational request (nothing to design).",
+      "entries": [
+        "frontier-model-redirect",
+        "working-prompt-tweak",
+        "informational-request"
+      ]
+    },
+    {
+      "id": "F-technique-rules-01",
+      "section": "Technique Rules",
+      "statement": "When the output must match a format, tone, or task structure, add 1-3 drafted few-shot input/output exemplar pairs, confirmed by the user.",
+      "entries": [
+        "math-phase-worked-cot"
+      ]
+    },
+    {
+      "id": "F-technique-rules-02",
+      "section": "Technique Rules",
+      "statement": "For math/logic/symbolic tasks, exemplars show worked chains-of-thought - the method is demonstration, not appending 'think step by step'.",
+      "entries": [
+        "math-phase-worked-cot"
+      ]
+    },
+    {
+      "id": "F-technique-rules-03",
+      "section": "Technique Rules",
+      "statement": "Always end every prompt with a format contract - labeled output slots and a stop condition; fix format drift with slots and exemplars, not stronger wording.",
+      "entries": [
+        "math-phase-worked-cot",
+        "format-contract-drift"
+      ]
+    },
+    {
+      "id": "F-technique-rules-04",
+      "section": "Technique Rules",
+      "statement": "Front-load every prompt - task statement first, minimal context; shared material is written once in the file's Shared context section and never repeated inside a phase.",
+      "entries": [
+        "front-load-shared-context",
+        "io-contracts-no-paste-placeholders"
+      ]
+    },
+    {
+      "id": "F-technique-rules-05",
+      "section": "Technique Rules",
+      "statement": "For a high-stakes reasoning phase, add a self-consistency harness note (`<!-- harness: run 3 samples, majority-vote -->`) in the phase header.",
+      "entries": [
+        "self-consistency-harness-note"
+      ]
+    },
+    {
+      "id": "F-technique-rules-06",
+      "section": "Technique Rules",
+      "statement": "The verification method must be mechanically checkable by a harness (regex, parse, diff, test); small models self-critique poorly.",
+      "entries": [
+        "mechanical-verification"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-prompt-file-template-01",
+      "section": "Prompt File Template",
+      "statement": "The file opens with one-or-two-sentence run instructions for the executing agent; each phase carries Input:/Output: contracts; phase inputs stay in context in a single-session run - never add paste placeholders.",
+      "entries": [
+        "front-load-shared-context",
+        "io-contracts-no-paste-placeholders"
+      ]
+    },
+    {
+      "id": "F-spec-block-01",
+      "section": "Spec Block",
+      "statement": "The Spec block elicits each field explicitly: Goal, In scope, Out of scope, Assumptions, Success criteria, Output format, Audience, Grounding context, Failure cases, Target model, Context budget, Decomposition plan, Exemplars, Format contract, Verification method.",
+      "entries": [
+        "spec-block-signoff"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-intro-01",
+      "section": "intro",
+      "reason": "motivation only - 'succeeds through demonstrated pattern and narrow scope'; prescribes nothing an agent could get wrong"
+    },
+    {
+      "id": "F-example-01",
+      "section": "Example",
+      "reason": "worked example illustrating already-kept facts; mined for query material (support-transcript scenario) instead of listed as a fact"
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "restatement of the kept facts; adds no new testable content"
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "reason": "remaining items are rationale clauses for kept rules (context-window cost, schema drift); the rules themselves are covered by facts 4, 8-11, and 14"
+    }
+  ]
+}
