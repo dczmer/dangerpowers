@@ -1,6 +1,6 @@
 ---
 name: shaping-small-model-prompts
-description: Use when writing or refining a prompt that will run on a small or local language model with weak or disabled reasoning. Covers interview-driven prompt design with decomposition, few-shot exemplars, and format contracts.
+description: Use when writing or refining a prompt that will run on a small or local language model with weak or disabled reasoning. Covers interview-driven prompt design with decomposition, few-shot exemplars, format contracts, and agentic-coding seam and verification rules.
 disable-model-invocation: true
 metadata.opencode/slash: true
 metadata.opencode/autoinvoke: false
@@ -12,7 +12,7 @@ This skill applies only to small or local models. For a frontier or hosted targe
 
 A small model with weak reasoning succeeds through demonstrated pattern and narrow scope, not instruction-following — the prompt must carry the reasoning the model lacks. Interview the user one question at a time, then emit a prompt file of minimal single-task phases.
 
-The chat echo of the deliverable is two parts in this fixed order: the save path `.dangerpowers/prompts/<task-slug>.md` on its own line, then the complete file in a fenced markdown block. No prose before, between, or after. Do not execute the task the prompts describe. Verification is user sign-off, not a live model run.
+The chat echo of the deliverable is two parts in this fixed order: the save path `.dangerpowers/prompts/<task-slug>.md` on its own line, then the complete file in a fenced markdown block. No prose before, between, or after. Close the loop empirically after sign-off: run the prompt, review the output, fold the findings back in as new hard rules, re-run from scratch.
 
 ## When NOT to Apply
 
@@ -25,7 +25,7 @@ The chat echo of the deliverable is two parts in this fixed order: the save path
 Gate every request before interviewing: a frontier or hosted target → decline and name `prompt-shaping`; a request that arrives with existing working prompt text and asks for a fix, tightening, or format correction → edit that text directly, applying the relevant Technique Rules (e.g. end it with a format contract), nothing more; and when every Spec field is already answered in the request (or the user asks for the artifact outright), skip the interview — draft the exemplars, then present the Spec block and the completed file together for a single sign-off. Otherwise proceed with the steps below.
 
 0. **Capture the target** — Ask for the model name/size, the context budget, and whether reasoning is enabled. Every drafting decision below depends on these.
-1. **Classify the task** — extraction/classification, math/logic/symbolic, generation, or multi-step reasoning. The classification selects techniques from the rules below.
+1. **Classify the task** — extraction/classification, math/logic/symbolic, generation, multi-step reasoning, or agentic coding. The classification selects techniques from the rules below; agentic coding adds the Coding Rules.
 2. **Decompose** — Split any task with more than 2–3 steps into a phase chain, one task per phase. Never emit compound instructions.
 3. **Interview one question at a time** — Ask a single focused question per turn until every Spec field is answered. Ask clarifying questions rather than writing a plan document. Elicit each field explicitly:
    - **Goal** — what should the model do?
@@ -46,6 +46,7 @@ Gate every request before interviewing: a frontier or hosted target → decline 
 4. **Draft the exemplars** — For each phase that needs few-shot demonstration, draft 1–3 input/output pairs. Give reasoning phases worked chains-of-thought, not bare answers. Present the exemplars inside the Spec block.
 5. **Emit the Spec block for sign-off** — Present the filled Spec block and ask the user to confirm or correct it. The interview converges on user sign-off, not on your confidence.
 6. **Write the prompt file** — On confirmation, write `.dangerpowers/prompts/<task-slug>.md` following the template below and echo its full content in chat.
+7. **Close the loop** — Run the prompt on the target model, review the output, fold the findings back into the prompt as new hard rules, and re-run from scratch. Iterate as measurement, not faith.
 
 ## Technique Rules
 
@@ -56,6 +57,17 @@ Gate every request before interviewing: a frontier or hosted target → decline 
 - **Front-load every prompt** — task statement first, minimal context; shared material lives once in the file's Shared context section.
 - **Add a self-consistency harness note** when a phase is high-stakes reasoning — put `<!-- harness: run 3 samples, majority-vote -->` directly under that phase's heading so the runner samples and votes; routine phases get no note.
 - Every file's last section is `## Verification` with runnable checks — regex, diff, or parse plus count. Subjective review is not verification.
+
+## Coding Rules
+
+Apply these when step 1 classifies the task as agentic coding. Agentic coding binds on behavioral verification and interface contracts, not output format — these rules pin the seams and make every gate adversarial.
+
+- **Pin the seams** — every data structure crossing a phase boundary gets exactly one definition, verbatim in Shared context; small models drift at interfaces, not within functions. Do not store what you cannot yet process: a deferred feature gets a pinned storage format or stays out of scope.
+- **Name one architectural constraint** — one sentence (e.g. "simulation core fully decoupled from rendering so game logic runs headless") outweighs pages of design detail. Always include the standing rule: importing any module must not open a window, init a display, or start the main loop — init happens inside `main()`.
+- **Verify behavior, not state** — a phase's verification is insufficient if it would still pass with the phase's feature removed; drive the feature through the public API and assert state changes.
+- **Gate with named commands** — gates are the exact commands in `## Verification`, run as-is; never generated verification scripts, and create only the files each phase names — no helper, debug, or scratch scripts.
+- **Exemplar code artifacts** — tests, module skeletons, and phase reports must match a structure; exemplar them and forbid import-only tests, `hasattr`-only assertions, and `try/except: fail` wrappers.
+- **Add a static gate** — lint cleanliness (e.g. `ruff check`) is mechanical and costs the model no reasoning; add it to the phase gates.
 
 ## Spec Block
 
@@ -193,6 +205,7 @@ Phase 1 line count.
 - Fix format drift with slots and exemplars, not with stronger wording.
 - Generated exemplars enter the file only after user confirmation at sign-off — a plausible-but-wrong exemplar is worse than none. An advance waiver ("don't make me review them") does not count: present the drafted exemplars and ask for an explicit confirmation before they enter the file.
 - Keep run instructions to a sentence or two — the small model executes them too, and preamble conditionals are the compound instructions this skill exists to avoid. Phase inputs stay in context in a single-session run; never add paste placeholders.
+- Tag each observed failure as prompt-fixable or model-floor before iterating — don't tune the prompt for problems it can't solve.
 
 ## Checklist
 
@@ -204,6 +217,10 @@ Phase 1 line count.
 - [ ] Every phase carries `Input:`/`Output:` contracts
 - [ ] Every prompt is front-loaded and ends with a format contract and stop condition
 - [ ] Verification method is mechanically checkable
+- [ ] Coding tasks: seams pinned verbatim in Shared context; no storage without processing
+- [ ] Coding tasks: one architectural constraint; no import-time display or loop init
+- [ ] Coding tasks: behavioral gates that fail with the feature removed; gates are named commands, not scripts
 - [ ] Spec block confirmed by the user before writing the file
 - [ ] File opens with run instructions for the executing agent
 - [ ] File written to `.dangerpowers/prompts/<task-slug>.md` and echoed in chat
+- [ ] Prompt run on target, output reviewed, findings folded back as hard rules
