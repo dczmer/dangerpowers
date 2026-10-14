@@ -1,6 +1,6 @@
 ## New Skill Placement
 
-Unless explicitly stated by the user, newly created skills should be created under skills/ and NOT as per-project skills that would reside under `.opencode/skills` or `.pi/skills`, for example.
+Unless explicitly stated by the user, newly created skills should be created under skills/ (library skills distributed by this project) and NOT as per-project skills that would reside under `.opencode/skills` or `.pi/skills`. Exception: skills meant only for developing this repo itself go in `.agents/skills/`.
 
 ## Operational Rules
 
@@ -33,7 +33,10 @@ dangerpowers/
 │       ├── scripts/           # helper scripts (some skills)
 │       ├── references/        # reference docs (some skills)
 │       └── agents/            # supporting agent configs/schemas (some skills)
-├── skills-workspace/          # per-skill test artifacts (e.g. trigger-tests/queries.json);
+├── .agents/skills/            # repo-local skills, auto-discovered by pi/opencode when
+│                              # working in this repo (development/maintenance tasks only)
+├── skills-workspace/          # per-skill test artifacts for skills/ (library skills);
+│                              # .agents/skills-workspace/ mirrors this for .agents/skills/
 ├── tools/test-harness/        # shared headless eval-harness scripts for the
 │                              # trigger/retrieval/shape/pressure testing skills
 ├── docs/                      # documentation and deep-dives (index: docs/README.md)
