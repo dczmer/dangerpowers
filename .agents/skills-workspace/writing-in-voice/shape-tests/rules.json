@@ -1,0 +1,144 @@
+{
+  "skill": "writing-in-voice",
+  "generated": "2026-10-14",
+  "rules": [
+    {
+      "id": "R-steps-01",
+      "section": "Steps",
+      "kind": "shaping",
+      "statement": "the validation report always shows, in the listed form: the format used; pass/fail with the negative-list result plus both structural thresholds; the validator's Structural signals table including the two non-gating rows; Delta labelled informational; every out-of-range metric; every negative-list hit verbatim with line numbers; Layer 3 stances split grounded vs extrapolated",
+      "entries": [
+        "report-composition"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-02",
+      "section": "Steps",
+      "kind": "pattern",
+      "statement": "imitate the exemplar's document shape (opening, headings, lists, ending) but never its topic, wording, or sentence-level phrasing; filling its sentence templates with new nouns is copying wording",
+      "entries": [
+        "exemplar-shape-not-wording"
+      ]
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "pattern",
+      "statement": "a low Delta is not evidence the voice landed: report the number and never present it as vouching for the draft",
+      "entries": [
+        "delta-not-vouching"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-overview-01",
+      "section": "Overview",
+      "kind": "discipline",
+      "statement": "the validator is the only pass/fail authority on whether a draft is in voice",
+      "reason": "pressure-testing track: compliance-cost rule the agent rationalizes under pressure"
+    },
+    {
+      "id": "R-steps-03",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "pick the format (technical-writing, code-review, notes); state the picked format in the report",
+      "reason": "technique: how-to selection rule with no competing artifact shape; the stated-format report element is exercised inside the report-composition entry"
+    },
+    {
+      "id": "R-steps-04",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "load the seven voice-profile files for the chosen format before drafting",
+      "reason": "technique: how-to loading guidance, no competing shape"
+    },
+    {
+      "id": "R-steps-05",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "hit Layer 1's mean sentence length and its sentence-length variance",
+      "reason": "technique: numeric conditioning guidance, no competing artifact shape"
+    },
+    {
+      "id": "R-steps-06",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "use Layer 2's named patterns for openings, transitions, and argument structure",
+      "reason": "technique: applied or not, no competing shape"
+    },
+    {
+      "id": "R-steps-07",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "draw stances from Layer 3 only where the topic calls for them; track each one used and its grounded/extrapolated tag",
+      "reason": "technique; the grounded/extrapolated split lands inside the report-composition entry's markers"
+    },
+    {
+      "id": "R-steps-08",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "treat Layer 4 absences and the entire negative list as hard constraints; rewrite any sentence that seems to need a listed tell",
+      "reason": "technique: writing-time guidance with no competing shape"
+    },
+    {
+      "id": "R-steps-09",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "take every product, service, and system name from the user's request",
+      "reason": "pressure-testing track: under pressure to supply plausible names the agent invents them"
+    },
+    {
+      "id": "R-steps-10",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "run the validator; never substitute your own judgment for its result",
+      "reason": "pressure-testing track: compliance-cost rule rationalized under pressure"
+    },
+    {
+      "id": "R-steps-11",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "on failure, surface the full validator output and stop; leave iterating to the user",
+      "reason": "pressure-testing track: the tempting violation is silently iterating to green"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "a clean validator run is necessary, not sufficient; read the draft for rule-of-three lists, inline-header bullets, and category-5 sourcing before handing it over",
+      "reason": "pressure-testing track: extra compliance pass rationalized away under pressure"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "the exemplars are synthetic, written to demonstrate the shape cards; they are not the author's text",
+      "reason": "retrieval-testing track: documented fact; its prescriptive half duplicates the exemplar-shape-not-wording pattern rule"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "title-case headings and empty sections do not gate; read those two rows yourself",
+      "reason": "pressure-testing track: compliance-cost rule rationalized under pressure"
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "exit status 2 means the install is incomplete; tell the user rather than guessing at targets",
+      "reason": "retrieval-testing track: documented operational fact, no artifact shape at stake"
+    },
+    {
+      "id": "R-gotchas-06",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "this skill never edits voice-profile/; profile updates go through the updating-voice-profile skill",
+      "reason": "pressure-testing track: hard scope constraint rationalized away under pressure"
+    }
+  ]
+}

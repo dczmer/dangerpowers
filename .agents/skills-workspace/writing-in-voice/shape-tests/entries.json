@@ -1,0 +1,77 @@
+[
+ {
+  "id": "report-composition",
+  "rule": "R-steps-01",
+  "kind": "shaping",
+  "section": "5. **Report.** Always show:\n   - the format used\n   - pass/fail -- the negative-list result plus the two gating structural thresholds\n   - the validator's `Structural signals` table, including the two non-gating rows\n   - Delta, labelled informational\n   - every metric flagged out of range\n   - every negative-list hit, verbatim with line numbers\n   - the Layer 3 stances used, split `grounded` vs `extrapolated`",
+  "fixtures": {
+   "application": "You maintain a house writing voice for engineering documents. A teammate asked for a short code-review comment in that voice on this topic: approving PR #4821 for the fictional ledger-reconcile service, which adds an idempotency key to the retry path.\n\nThe validator has already been run against the draft, and it printed exactly this:\n\n```\nformat: code-review\npass/fail: FAIL (negative-list: 2 hits; structural gates: pass)\nStructural signals:\n  metric                    value    z       gate\n  sentence length mean      14.2     -0.8    -\n  sentence length variance  16.7     +2.6    -\n  table density             0.00     -0.2    pass\n  rhetorical-boldface       0.00     -0.1    pass\n  title-case headings       0        -0.4    (non-gating)\n  empty sections            0        -0.1    (non-gating)\nDelta: 0.31\nOut of range: sentence length variance (z +2.6, target band +/-2.0)\nNegative-list hits:\n  L4: \"moreover\" (transition tell)\n  L9: \"It is worth noting that\" (filler opener)\nLayer 3 stances available in the profile: 'ship small deltas' (grounded), 'prefer boring solutions' (grounded), 'performance is a feature' (extrapolated)\n```\n\nThe draft the validator scored is:\n\n```\nSolid work. It is worth noting that the retry path now carries an idempotency key, which removes the double-post window. Moreover, the tests cover the new branch. Approving.\n```\n\nSend the teammate your validation report for this draft."
+  },
+  "markers": {
+   "delta-as-evidence": "(?i)(delta|0\\.31)[^\\n]{0,120}(show|indicat|suggest|evidence|confirm|demonstrat|strong|close match|good match)|(show|indicat|suggest|evidence|confirm)[^\\n]{0,120}(delta|0\\.31)",
+   "in-voice-claim": "(?i)(draft|comment)[^\\n]{0,60}\\bis\\b[^\\n]{0,40}(in voice|in the (author's|profiled) voice)|matches the (voice|profile)",
+   "format-stated": "(?i)format[:\\s][^\\n]{0,40}(code-review|technical-writing|notes)",
+   "structural-signals-table": "(?i)structural signals",
+   "delta-labelled-informational": "(?i)delta[^\\n]{0,60}informational|informational[^\\n]{0,60}delta",
+   "hits-with-line-numbers": "(?i)(L\\d+|line \\d+)[^\\n]{0,120}(moreover|worth noting)|(moreover|worth noting)[^\\n]{0,120}(L\\d+|line \\d+)",
+   "stances-split": "(?i)grounded[^\\n]{0,200}extrapolated|extrapolated[^\\n]{0,200}grounded",
+   "out-of-range-listed": "(?i)out of range|sentence length variance"
+  },
+  "variants": {
+   "v1": "5. **Report.** Use exactly this skeleton, in this order:\n   - `Format: <format>`\n   - `Pass/fail: <negative-list result; both structural thresholds>`\n   - the validator's `Structural signals` table copied in full, including the two non-gating rows\n   - `Delta: <value> (informational)`\n   - `Out of range: <each flagged metric and its z-value, one per line>`\n   - `Negative-list hits: <each hit quoted verbatim with its line number>`\n   - `Stances used -- grounded: <each stance>` and `Stances used -- extrapolated: <each stance>`\n   Add no verdict or assessment prose beyond these parts.",
+   "v2": "5. **Report.** Build the report like a lab result, not a review. In order: the format used; pass/fail with the negative-list result and both structural thresholds; the validator's `Structural signals` table in full, including the two non-gating rows; the Delta number marked informational; every out-of-range metric with its z-value; every negative-list hit quoted verbatim with its line number; the Layer 3 stances used, listed under `grounded` and under `extrapolated`. Do not add an overall verdict, quality assessment, or match summary.",
+   "v3": "5. **Report.** Always show:\n   - the format used\n   - pass/fail -- the negative-list result plus the two gating structural thresholds\n   - the validator's `Structural signals` table, including the two non-gating rows\n   - Delta, labelled informational\n   - every metric flagged out of range\n   - every negative-list hit, verbatim with line numbers\n   - the Layer 3 stances used, split `grounded` vs `extrapolated`\n   Never summarize these results into prose, and never call the draft in voice or a match in the report."
+  }
+ },
+ {
+  "id": "exemplar-shape-not-wording",
+  "rule": "R-steps-02",
+  "kind": "pattern",
+  "section": "   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's document shape -- its opening, headings, lists, and ending -- never its topic, wording, or sentence-level phrasing. Filling its sentence templates with new nouns is copying wording.",
+  "fixtures": {
+   "application": "You maintain a house writing voice for long-form engineering documents. The profile's synthetic exemplar for the technical-writing format is below; it demonstrates the target document shape.\n\n---\n# Exemplar: Adding Circuit Breakers to the Payment Path\n\nEvery outage teaches the same lesson twice. We learn it when the pager fires, and again when we write the postmortem.\n\n## Why now\n\n- The payment path retries every failure, so one slow dependency becomes a queue of them.\n- The dashboard already tells us which dependency is melting; we just never wired it to a breaker.\n\n## The change\n\nWe add a breaker around the retry loop. It counts consecutive failures and opens after five.\n\n## What we are not doing\n\n- No new deploy tooling. The breaker ships as a library change.\n- No automatic rollback. A human still closes the loop.\n\nNone of this is exotic. It is a counter with a policy attached.\n---\n\nWrite a new technical-writing document in this voice for a different topic: introducing a read replica for the fictional catalog-api service so reporting queries stop hitting the primary. The only names available are the ones in this request.",
+   "counter-example": "You maintain a house writing voice for long-form engineering documents. The profile's synthetic exemplar for the technical-writing format is below; it demonstrates the target document shape.\n\n---\n# Exemplar: Adding Circuit Breakers to the Payment Path\n\nEvery outage teaches the same lesson twice. We learn it when the pager fires, and again when we write the postmortem.\n\n## Why now\n\n- The payment path retries every failure, so one slow dependency becomes a queue of them.\n- The dashboard already tells us which dependency is melting; we just never wired it to a breaker.\n\n## The change\n\nWe add a breaker around the retry loop. It counts consecutive failures and opens after five.\n\n## What we are not doing\n\n- No new deploy tooling. The breaker ships as a library change.\n- No automatic rollback. A human still closes the loop.\n\nNone of this is exotic. It is a counter with a policy attached.\n---\n\nWrite the team-channel status note for a different piece of work, in this voice: the fictional catalog-api read-replica cutover finished last night, reporting queries now run against the replica, and nobody needs to do anything. Keep it to two or three sentences with no section headings \u2014 it is a chat message, not a document."
+  },
+  "markers": {
+   "skel-lesson": "teaches the same lesson twice",
+   "skel-not-exotic": "(?i)none of this is exotic",
+   "skel-policy": "with a policy attached",
+   "skel-pager": "(?i)when the pager fires",
+   "shape-headings": "(?i)^#{1,3}\\s*(why now|the change|what we are not doing)",
+   "uses-request-name": "catalog-api"
+  },
+  "restraint_markers": {
+   "forced-headings": "(?i)^#{1,3}\\s*(why now|the change|what we are not doing)",
+   "forced-skeleton": "teaches the same lesson twice|none of this is exotic|with a policy attached|when the pager fires"
+  },
+  "variants": {
+   "v1": "   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's document shape -- its opening, headings, lists, and ending -- and write every sentence from scratch. Before delivering, check each draft sentence against the exemplar: if it maps onto an exemplar sentence with only the nouns swapped, delete it and write a different sentence.",
+   "v2": "   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's document shape -- its opening, headings, lists, and ending -- never its topic, wording, or sentence-level phrasing. After drafting, diff the draft against the exemplar line by line: any sentence whose structure mirrors an exemplar sentence gets rewritten, even if every word is different.",
+   "v3": "   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's document shape -- its opening, headings, lists, and ending -- never its topic, wording, or sentence-level phrasing. Filling its sentence templates with new nouns is copying wording. Never reuse an exemplar's sentence structure, even with different nouns."
+  }
+ },
+ {
+  "id": "delta-not-vouching",
+  "rule": "R-gotchas-01",
+  "kind": "pattern",
+  "section": "- **A low Delta is not evidence the voice landed.** Genuine in-voice docs and a deliberately AI-flavored control measure in the same Delta band. Report the number and never present it as vouching for the draft.",
+  "fixtures": {
+   "application": "You maintain a house writing voice for engineering documents. A teammate asked whether their draft comment is ready to send. The validator output for the draft is below.\n\n```\nformat: code-review\npass/fail: PASS (negative-list: 0 hits; structural gates: pass)\nStructural signals:\n  metric                    value    z       gate\n  sentence length mean      11.8     -0.3    -\n  sentence length variance  8.4      +0.1    -\n  table density             0.00     -0.2    pass\n  rhetorical-boldface       0.00     -0.1    pass\n  title-case headings       0        -0.4    (non-gating)\n  empty sections            0        -0.1    (non-gating)\nDelta: 0.08\n```\n\nThe draft reads: \"Clean change. The retry path now carries an idempotency key, so a retried request cannot double-post. Tests cover the new branch. Ship it.\"\n\nSend the teammate your validation report for this draft.",
+   "counter-example": "A teammate messages you: \"Did my draft pass the validator? Just tell me yes or no \u2014 I already have the full validator output in front of me, so don't repeat any of the numbers.\"\n\nYou can see the validator output on their screen: pass/fail FAIL, one negative-list hit (a rhetorical question on L6). Reply to the teammate."
+  },
+  "markers": {
+   "delta-as-vouching": "(?i)(delta|0\\.08)[^\\n]{0,100}(strong|clear|convincing|compelling|excellent|decisive|solid)[ -](match|signal|indicator|evidence)|(strong|clear|convincing|compelling|excellent|decisive|solid)[ -](match|signal|indicator|evidence)[^\\n]{0,100}(delta|0\\.08)",
+   "in-voice-verdict": "(?i)(draft|comment|it)('s| is| reads| sounds)[^\\n]{0,50}(in voice|in the (author's|profiled) voice)|indistinguishable from",
+   "delta-labelled-informational": "(?i)delta[^\\n]{0,60}informational|informational[^\\n]{0,60}delta"
+  },
+  "restraint_markers": {
+   "delta-repeated-despite-opt-out": "(?i)delta|informational|0\\.08",
+   "rule-lecture": "(?i)i can('t|not)|i must|the (rules|conventions) require"
+  },
+  "variants": {
+   "v1": "- **A low Delta is not evidence the voice landed.** Genuine in-voice docs and a deliberately AI-flavored control measure in the same Delta band. When the report includes the Delta number, label it `informational` and stop there: no match-quality adjective, and no clause where the Delta number is the reason the draft counts as in voice.",
+   "v2": "- **A low Delta is not evidence the voice landed.** Genuine in-voice docs and a deliberately AI-flavored control measure in the same Delta band. Report the number and never present it as vouching for the draft: if a sentence says or implies that the Delta value shows, indicates, or suggests the draft matches the voice, cut that clause before delivering.",
+   "v3": "- **A low Delta is not evidence the voice landed.** Genuine in-voice docs and a deliberately AI-flavored control measure in the same Delta band. Report the number and never present it as vouching for the draft. Never write `strong match`, `convincingly in voice`, `essentially in voice`, or `indistinguishable from the author` about a Delta value."
+  }
+ }
+]

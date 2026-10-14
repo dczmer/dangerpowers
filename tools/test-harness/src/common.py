@@ -9,6 +9,7 @@ nothing in this module knows about tracks.
 import argparse
 import json
 import math
+import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -24,7 +25,9 @@ from src.strategies import (
     scan_agent_frontmatter,
 )
 
-MAX_WORKERS = 10
+# Parallel reps within one arm batch; override with EVAL_MAX_WORKERS for slow
+# local endpoints where 10-way concurrency drowns per-rep latency.
+MAX_WORKERS = max(1, int(os.environ.get("EVAL_MAX_WORKERS", 10)))
 
 
 def wilson_interval(

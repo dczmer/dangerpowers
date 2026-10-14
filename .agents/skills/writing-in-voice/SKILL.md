@@ -29,7 +29,7 @@ All paths below are relative to this skill's directory.
    - `voice-profile/negative-list.md` -- shared hard constraints
 
 3. **Write the draft.** Condition on everything at once:
-   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's document shape -- its opening, headings, lists, and ending -- never its topic, wording, or sentence-level phrasing. Filling its sentence templates with new nouns is copying wording.
+   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's document shape -- its opening, headings, lists, and ending -- never its topic, wording, or sentence-level phrasing. After drafting, diff the draft against the exemplar line by line: any sentence whose structure mirrors an exemplar sentence gets rewritten, even if every word is different.
    - Hit Layer 1's mean sentence length and its sentence-length *variance* -- uniform sentence length is itself a tell.
    - Use Layer 2's named patterns for openings, transitions, and argument structure.
    - Draw stances from Layer 3 only where the topic calls for them. Track each one you use and its `grounded` / `extrapolated` tag.
