@@ -1,0 +1,139 @@
+{
+  "skill": "writing-in-voice",
+  "generated": "2026-10-14",
+  "facts": [
+    {
+      "id": "F-steps-01",
+      "section": "Steps",
+      "statement": "three formats (technical-writing, code-review, notes); use the named format, else infer and state the pick in the report",
+      "entries": [
+        "format-selection-and-names"
+      ]
+    },
+    {
+      "id": "F-steps-02",
+      "section": "Steps",
+      "statement": "imitate the exemplar's shape, never its topic or wording",
+      "entries": [
+        "exemplar-is-synthetic"
+      ]
+    },
+    {
+      "id": "F-steps-03",
+      "section": "Steps",
+      "statement": "Layer 4 positives are suggestions; absences and the negative list are hard constraints — rewrite the sentence when a tell seems needed",
+      "entries": [
+        "negative-list-rewrite"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "F-steps-04",
+      "section": "Steps",
+      "statement": "take every product, service, and system name from the user's request; invent none",
+      "entries": [
+        "format-selection-and-names"
+      ]
+    },
+    {
+      "id": "F-steps-05",
+      "section": "Steps",
+      "statement": "the validator is the only pass/fail authority; never substitute your own judgment for its result",
+      "entries": [
+        "validator-is-the-authority"
+      ]
+    },
+    {
+      "id": "F-steps-06",
+      "section": "Steps",
+      "statement": "report shows format, pass/fail, Structural signals table incl. non-gating rows, Delta labeled informational, out-of-range metrics, negative-list hits verbatim with line numbers, Layer 3 stances split grounded/extrapolated",
+      "entries": [
+        "report-structure-and-delta-v2"
+      ]
+    },
+    {
+      "id": "F-steps-07",
+      "section": "Steps",
+      "statement": "on validator failure, report the full output and stop; leave iterating to the user",
+      "entries": [
+        "failure-surface-and-stop"
+      ]
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "statement": "a clean validator run is necessary, not sufficient — manually check rule-of-three lists, inline-header bullets, category-5 sourcing",
+      "entries": [
+        "post-pass-manual-checks"
+      ]
+    },
+    {
+      "id": "F-gotchas-02",
+      "section": "Gotchas",
+      "statement": "exemplars are synthetic; copying their phrasing produces a model imitating a model",
+      "entries": [
+        "exemplar-is-synthetic"
+      ]
+    },
+    {
+      "id": "F-gotchas-03",
+      "section": "Gotchas",
+      "statement": "a low Delta is not evidence the voice landed; report the number, never present it as vouching",
+      "entries": [
+        "report-structure-and-delta-v2"
+      ]
+    },
+    {
+      "id": "F-gotchas-04",
+      "section": "Gotchas",
+      "statement": "title-case headings and empty sections do not gate; read those two rows yourself",
+      "entries": [
+        "post-pass-manual-checks"
+      ]
+    },
+    {
+      "id": "F-gotchas-05",
+      "section": "Gotchas",
+      "statement": "exit status 2 means the install is incomplete, usually a missing layer1 JSON; tell the user rather than guessing at targets",
+      "entries": [
+        "exit-2-setup-problem"
+      ]
+    },
+    {
+      "id": "F-gotchas-06",
+      "section": "Gotchas",
+      "statement": "this skill never edits voice-profile/; profile updates go through the updating-voice-profile skill",
+      "entries": [
+        "profile-update-routing"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-overview-01",
+      "section": "Overview",
+      "reason": "personal-prose scope statement prescribes no behavior for out-of-scope asks; not scorable from answer_text"
+    },
+    {
+      "id": "F-steps-08",
+      "section": "Steps",
+      "reason": "sentence-length mean/variance fact is observable only by running the validator; eval agents deny bash"
+    },
+    {
+      "id": "F-shapes-01",
+      "section": "Shapes",
+      "reason": "per-format layout rules are profile data; prose conformance not bullet-scorable from answer_text; indirectly exercised via style bullets"
+    },
+    {
+      "id": "F-negative-list-01",
+      "section": "Negative list",
+      "reason": "catalog internals are profile data; exercised via negative-list-rewrite entry"
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "restates facts already inventoried from Steps and Gotchas"
+    }
+  ]
+}

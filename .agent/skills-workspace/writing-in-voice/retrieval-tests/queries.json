@@ -1,0 +1,81 @@
+[
+  {
+    "id": "format-selection-and-names",
+    "query": "Draft feedback in my voice for a PR on the checkout service that adds a retry loop around the payment webhook call. The logic looks right to me, but the backoff is hardcoded to 5 seconds and I want the author to reconsider.",
+    "expect": [
+      "identifies code-review as the format",
+      "states which format it picked",
+      "uses only product or system names given in the request and invents none",
+      "review prose matches the profiled inline-comment style (lowercase start, hedge opener, concrete suggestion)"
+    ]
+  },
+  {
+    "id": "validator-is-the-authority",
+    "query": "I drafted this PR description myself: 'This PR not only adds caching to the session store, but also serves as a foundation for future performance work, highlighting our commitment to reliability.' Reads in-voice to me — give it a quick look and confirm it's good to ship.",
+    "expect": [
+      "declines to vouch for the draft from its own read",
+      "names the validator as the only pass/fail authority on whether a draft is in voice"
+    ]
+  },
+  {
+    "id": "report-structure-and-delta-v2",
+    "query": "My design-doc draft just came back from the voice validator. Write up the results for me. Full output below.\n\n# Voice validation -- technical-writing\n\nResult: **PASS** (0 negative-list hits, 0 structural hits -- together the only failure condition)\n\n## Informational (not pass/fail)\n\nDelta: 0.900 -- inside the 1.3 band that real corpus docs occupy. Delta does not separate this author's writing from generic AI prose (calibration finding 1), so treat it as context, not evidence the voice landed.\nOverall score: 0.812\n\nAll Layer 1 metrics within +/-2.0 stdev of target.\n\n## Structural signals (category 3)\n\n| Signal | Measured | Gates? |\n|---|---|---|\n| tables | 1 (1.43/1k words) | yes, above 2/1k |\n| rhetorical boldface | 2 (2.86/1k words) | yes, above 5/1k |\n| title-case headings | 1 of 4 (25%) | no -- real docs reach 62%, eyeball it |\n| empty sections | 0 | no -- no separation from real docs, eyeball it |\n\nTitle-case headings: `Results And Discussion`\n\n## The gate -- negative list plus calibrated structural thresholds\n\nNo negative-list or structural hits.",
+    "expect": [
+      "report names the format and the pass/fail result",
+      "includes the Structural signals table including the non-gating rows",
+      "labels Delta as informational",
+      "does not present the low Delta as evidence the voice landed"
+    ]
+  },
+  {
+    "id": "failure-surface-and-stop",
+    "query": "The voice validator failed my journal-notes draft with two negative-list hits. Iterate on it quietly until it passes and just hand me the final text.",
+    "expect": [
+      "reports the full validator output instead of iterating silently",
+      "stops after the first failure and leaves iterating to the user"
+    ]
+  },
+  {
+    "id": "post-pass-manual-checks",
+    "query": "My RFC draft just passed the voice validator clean. Anything left to check before I send it out?",
+    "expect": [
+      "states a clean validator run is necessary but not sufficient",
+      "names manual checks for rule-of-three lists and inline-header bullet lists",
+      "names category-5 sourcing as a remaining manual check",
+      "notes that title-case headings and empty sections do not gate"
+    ]
+  },
+  {
+    "id": "exemplar-is-synthetic",
+    "query": "There's an exemplar in the voice profile for technical writing. Use its wording as the base for the intro of a design doc about our cache-invalidation rework, in my voice.",
+    "expect": [
+      "imitates the exemplar's shape only, not its topic or wording",
+      "does not copy the exemplar's phrasing into the output"
+    ]
+  },
+  {
+    "id": "profile-update-routing",
+    "query": "I've got three recent design docs I wrote under ~/docs/. Update my voice profile from them.",
+    "expect": [
+      "states this skill never edits the voice profile",
+      "routes the work to the updating-voice-profile skill"
+    ]
+  },
+  {
+    "id": "negative-list-rewrite",
+    "query": "This sentence in my RFC draft needs to land harder: 'The new queue serves as the backbone of the ingestion pipeline, highlighting our commitment to reliability.' Punch it up in my voice.",
+    "expect": [
+      "rewrites the sentence rather than keeping the listed tells",
+      "output contains neither 'serves as' nor 'highlighting'"
+    ]
+  },
+  {
+    "id": "exit-2-setup-problem",
+    "query": "I ran the voice validator on my draft and it exited with status 2. What sentence-length target should I write to instead?",
+    "expect": [
+      "treats exit status 2 as a setup problem, not a draft failure",
+      "names the missing layer1 profile JSON as the likely cause",
+      "refuses to guess at numeric targets"
+    ]
+  }
+]

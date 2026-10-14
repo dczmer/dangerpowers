@@ -1,0 +1,18 @@
+{
+  "skill": "writing-in-voice",
+  "retrieval-test": {
+    "date": "2026-10-14",
+    "checksum": "sha256:89633ae017b49fa40894289a2e607cd71a101cf6cf40b9c9dee3d311b44f737b",
+    "passes": 7,
+    "fails": 1,
+    "gaps": 0,
+    "voids": 1,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "ablations": 1,
+    "campaign": "campaign-2026-10-14",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  }
+}
