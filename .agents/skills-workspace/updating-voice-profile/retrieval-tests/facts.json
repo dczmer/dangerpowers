@@ -1,0 +1,196 @@
+{
+  "skill": "updating-voice-profile",
+  "generated": "2026-10-14",
+  "facts": [
+    {
+      "id": "F-steps-01",
+      "section": "Steps",
+      "statement": "Each merge run uses one format (technical-writing, code-review, or notes) and one weight; mixed batches are split into separate runs.",
+      "entries": [
+        "weights-one-format-per-run"
+      ]
+    },
+    {
+      "id": "F-steps-02",
+      "section": "Steps",
+      "statement": "Primary docs (written entirely by the author) get weight 1.0; secondary docs (author's text mixed with others') get weight 0.3.",
+      "entries": [
+        "weights-one-format-per-run"
+      ]
+    },
+    {
+      "id": "F-steps-03",
+      "section": "Steps",
+      "statement": "New private terms are listed, shown to the user, and appended to ~/.config/writing-in-voice/denylist.txt (creating file and parent directory if missing); they are never written anywhere inside either skill directory.",
+      "entries": [
+        "denylist-external-path"
+      ]
+    },
+    {
+      "id": "F-steps-04",
+      "section": "Steps",
+      "statement": "All profile edits happen in a staged copy ($STAGE, outside both skill directories, made with rm -rf $STAGE && cp -R $SKILL_DIR $STAGE); SKILL_DIR is never edited directly before approval.",
+      "entries": [
+        "stage-copy-not-live"
+      ]
+    },
+    {
+      "id": "F-steps-05",
+      "section": "Steps",
+      "statement": "Layer 1 numbers merge by running scripts/merge_profile.py --skill-dir $STAGE --format <format> --weight <w> --docs <paths>, which updates layer1-<format>.json exactly and regenerates layer1-<format>.md; --dry-run previews the metric shifts.",
+      "entries": [
+        "script-vs-manual-layers"
+      ]
+    },
+    {
+      "id": "F-steps-06",
+      "section": "Steps",
+      "statement": "Layers 2-4 and the shape card are edited by hand in STAGE, comparing the new docs against layer2-<format>.md, layer4-<format>.md, layer3-substance.md, and shapes/<format>.md.",
+      "entries": [
+        "script-vs-manual-layers"
+      ]
+    },
+    {
+      "id": "F-steps-07",
+      "section": "Steps",
+      "statement": "A pattern, tic, stance, or layout rule is added only when it appears in at least two of the new docs, or in one new doc plus existing profile evidence.",
+      "entries": [
+        "prose-entry-rules"
+      ]
+    },
+    {
+      "id": "F-steps-08",
+      "section": "Steps",
+      "statement": "Every new prose entry is written as a generic paraphrase and never quotes the source; only short stock tics (e.g. \"IIUC\", \"lgtm\") may be quoted.",
+      "entries": [
+        "prose-entry-rules"
+      ]
+    },
+    {
+      "id": "F-steps-09",
+      "section": "Steps",
+      "statement": "Profile entries never cite source files, doc IDs, PR numbers, dates, or people.",
+      "entries": [
+        "prose-entry-rules"
+      ]
+    },
+    {
+      "id": "F-steps-10",
+      "section": "Steps",
+      "statement": "Strengthen or reword an existing entry instead of adding a near-duplicate.",
+      "entries": [
+        "prose-entry-rules"
+      ]
+    },
+    {
+      "id": "F-steps-11",
+      "section": "Steps",
+      "statement": "Every illustration is an invented example on a neutral topic (caches, queues, file exports, test flakiness).",
+      "entries": [
+        "illustrations-neutral-topic"
+      ]
+    },
+    {
+      "id": "F-steps-12",
+      "section": "Steps",
+      "statement": "Every new Layer 3 stance is tagged grounded (stated directly in a doc) or extrapolated (inferred across docs), and the tag summary line is updated.",
+      "entries": [
+        "layer3-stance-tags"
+      ]
+    },
+    {
+      "id": "F-steps-13",
+      "section": "Steps",
+      "statement": "When the shape card changed, exemplars/<format>.md is rewritten as a new synthetic piece on a neutral topic following the updated card and validated with validate_voice.py until it exits 0 with every Layer 1 metric in range.",
+      "entries": [
+        "exemplar-revalidation"
+      ]
+    },
+    {
+      "id": "F-steps-14",
+      "section": "Steps",
+      "statement": "The gate runs check_leaks.py (must exit 0), the unit tests (must pass), and wc -l over SKILL.md, shapes/<format>.md, exemplars/<format>.md, layer{1,2,4}-<format>.md, layer3-substance.md, and negative-list.md; the combined total must stay under 500 lines; the run stops on any failure, and a leak is fixed by rewriting the offending entry in STAGE then rerunning the gate.",
+      "entries": [
+        "gate-500-line-limit"
+      ]
+    },
+    {
+      "id": "F-steps-15",
+      "section": "Steps",
+      "statement": "Nothing is copied back until the user approves the complete diff -ru $SKILL_DIR $STAGE -x __pycache__ output.",
+      "entries": [
+        "stage-copy-not-live"
+      ]
+    },
+    {
+      "id": "F-steps-16",
+      "section": "Steps",
+      "statement": "Promotion is rsync -a --exclude __pycache__ $STAGE/ $SKILL_DIR/, followed by rerunning the leak checker against SKILL_DIR with the same --source paths, which must exit 0.",
+      "entries": [
+        "stage-copy-not-live"
+      ]
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "statement": "The merge is permanent: the profile stores only weighted means, stdevs, and total weight, so a merged doc cannot be subtracted later and ingesting the same path twice double-counts it; ask before re-ingesting any path.",
+      "entries": [
+        "reingest-double-count"
+      ]
+    },
+    {
+      "id": "F-gotchas-02",
+      "section": "Gotchas",
+      "statement": "check_leaks.py only knows what it is given: its overlap check covers only this run's --source paths and its term check covers only the deny-list, so new private names must be collected and deny-listed before merging.",
+      "entries": [
+        "leakchecker-blind-spots"
+      ]
+    },
+    {
+      "id": "F-gotchas-03",
+      "section": "Gotchas",
+      "statement": "A missing deny-list is a warning, not a hard stop: check_leaks.py prints a warning and skips the term check, so recreate the file from the user's terms rather than running without one.",
+      "entries": [
+        "missing-denylist-warning"
+      ]
+    },
+    {
+      "id": "F-gotchas-04",
+      "section": "Gotchas",
+      "statement": "A paraphrase that keeps the source's distinctive word order trips the 8-word overlap check; rewrite from the pattern, not from the sentence.",
+      "entries": [
+        "paraphrase-drift-8-words"
+      ]
+    },
+    {
+      "id": "F-gotchas-05",
+      "section": "Gotchas",
+      "statement": "Zeta word lists were removed on purpose — they need per-doc presence data the profile does not store and they leaked domain nouns; never reintroduce them.",
+      "entries": [
+        "zeta-lists-stay-gone"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-intro-01",
+      "section": "Intro",
+      "reason": "restatement of the merge-script and paraphrase facts; covered by their entries"
+    },
+    {
+      "id": "F-intro-02",
+      "section": "Intro",
+      "reason": "$SKILL_DIR/$STAGE variable definitions restate the staging fact; covered by its entry"
+    },
+    {
+      "id": "F-checklist-01",
+      "section": "Checklist",
+      "reason": "restatements of step facts already covered by entries"
+    },
+    {
+      "id": "F-frontmatter-01",
+      "section": "Frontmatter",
+      "reason": "frontmatter guidance is always out of scope for retrieval testing"
+    }
+  ]
+}

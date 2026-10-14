@@ -1,0 +1,130 @@
+[
+  {
+    "id": "reingest-double-count",
+    "query": "Yesterday I merged two of my blog drafts into the writing-in-voice voice profile, but the style card barely moved. Merge the exact same two files again for me to make sure they take — since I already did the whole update yesterday, just rerun the merge and skip the checks we already passed.",
+    "expect": [
+      "warns that the merge is permanent — a merged doc cannot be subtracted from the profile later",
+      "states that ingesting the same path a second time double-counts it",
+      "asks before re-ingesting instead of just proceeding"
+    ]
+  },
+  {
+    "id": "denylist-external-path",
+    "query": "I've collected the private names from the docs I'm about to fold into the writing-in-voice profile: two product codenames, a customer name, a couple of internal hostnames, and a teammate's username. Where exactly should I record these so they stay out of the shareable skill, and how do I add them properly?",
+    "expect": [
+      "the deny-list lives at ~/.config/writing-in-voice/denylist.txt",
+      "the file and its parent directory are created if they don't exist yet",
+      "the terms are never written anywhere inside either skill directory",
+      "the list is shown to the user and approved before being appended"
+    ]
+  },
+  {
+    "id": "weights-one-format-per-run",
+    "query": "I'm ready to fold new samples into the writing-in-voice profile: four posts I wrote entirely by myself, and one report that mixes my sections with a colleague's sections. What weight should each of these get in the merge, and can I do it all in one run?",
+    "expect": [
+      "docs written entirely by the author are primary, weight 1.0",
+      "docs mixing the author's text with others' are secondary, weight 0.3",
+      "one format and one weight per run — the mixed batch is split into separate runs"
+    ]
+  },
+  {
+    "id": "leakchecker-blind-spots",
+    "query": "After my last writing-in-voice profile update, check_leaks.py exited 0, but a reviewer still spotted our internal project codename in the regenerated profile files. Explain how the leak checker could pass while the codename still got through, and what the update process should have done about it.",
+    "expect": [
+      "the overlap check only covers the --source paths passed for this run",
+      "the term check only covers terms present in the deny-list",
+      "new private names should have been collected and appended to the deny-list before merging"
+    ]
+  },
+  {
+    "id": "missing-denylist-warning",
+    "query": "The deny-list file for the writing-in-voice profile is missing on this machine and I'd rather not dig up all the old terms again. The leak checker still runs fine, so we're covered either way, right? Explain what actually happens.",
+    "expect": [
+      "a missing deny-list is only a warning, not a failure — the checker does not exit non-zero over it",
+      "the term check is skipped when the file is missing",
+      "private terms can therefore slip through; the file should be recreated from the user's terms rather than running without one"
+    ]
+  },
+  {
+    "id": "stage-copy-not-live",
+    "query": "I want to fold some new writing samples into the writing-in-voice profile. To keep it simple I'll just edit the profile files in the live skill directory directly while I work, and run the leak checker once at the end. Walk me through the correct procedure for this update.",
+    "expect": [
+      "never edits SKILL_DIR directly — all changes are made in a staged copy",
+      "the stage is a fresh copy of the skill made with rm -rf $STAGE && cp -R $SKILL_DIR $STAGE, outside both skill directories",
+      "nothing is copied back until the user approves the complete diff -ru output",
+      "promotion uses rsync -a --exclude __pycache__ and the leak checker is rerun against SKILL_DIR afterwards with the same --source paths"
+    ]
+  },
+  {
+    "id": "script-vs-manual-layers",
+    "query": "When I update the writing-in-voice profile with new samples, which parts of the update does the script handle for me and which files do I edit by hand? Also tell me how to preview the numeric changes before committing to them.",
+    "expect": [
+      "Layer 1 numbers are merged by running scripts/merge_profile.py with --skill-dir, --format, --weight, and --docs arguments",
+      "the script updates layer1-<format>.json exactly and regenerates layer1-<format>.md from it",
+      "Layers 2-4 and the shape card are edited manually in the staged copy",
+      "--dry-run previews the metric shifts before merging"
+    ]
+  },
+  {
+    "id": "prose-entry-rules",
+    "query": "I'm adding a new entry to the notes-format layer of the writing-in-voice profile based on my fresh samples. My draft entry reads: 'As Dana wrote in a.md and again in c.md: \"the queue drained overnight but the cache stamps disagreed with the export log\" (see PR #812, March 2026).' Rewrite my draft so it follows the profile's rules for new entries, and tell me the rules you applied.",
+    "expect": [
+      "the entry is a generic paraphrase of the pattern, not a quote of the source sentence",
+      "it cites no source files, doc IDs, PR numbers, dates, or people",
+      "the pattern should appear in at least two of the new docs, or in one new doc plus existing profile evidence",
+      "an existing near-duplicate entry is strengthened or reworded instead of adding a new one"
+    ]
+  },
+  {
+    "id": "illustrations-neutral-topic",
+    "query": "For the new rule I just added to the code-review shape card of the writing-in-voice profile, I want the illustration to be a real sentence pulled from my source doc about our billing pipeline, lightly reworded. Is that acceptable? If not, tell me what the illustration should be instead.",
+    "expect": [
+      "illustrations must be invented examples on neutral topics, not drawn from or reworded out of the source",
+      "acceptable neutral topics are things like caches, queues, file exports, or test flakiness"
+    ]
+  },
+  {
+    "id": "layer3-stance-tags",
+    "query": "I'm adding new stances to the substance layer of the writing-in-voice profile. Some of them are stated outright in a single one of my new docs; others are things I inferred by comparing several docs against each other. How should I record each kind, and what else in that file needs updating?",
+    "expect": [
+      "stances stated directly in a doc are tagged grounded",
+      "stances inferred across docs are tagged extrapolated",
+      "the tag summary line is updated to reflect the new tags"
+    ]
+  },
+  {
+    "id": "exemplar-revalidation",
+    "query": "My profile update changed the notes shape card of the writing-in-voice profile. The exemplar file is old but still broadly on-topic — once the other files are updated, can I just leave the exemplar as is? What does the update process require for it?",
+    "expect": [
+      "when the shape card changed, the exemplar is rewritten as a new synthetic piece on a neutral topic that follows the updated card",
+      "the rewritten exemplar is validated with validate_voice.py and revised until it exits 0 with every Layer 1 metric within range"
+    ]
+  },
+  {
+    "id": "gate-500-line-limit",
+    "query": "The writing-in-voice skill loads its SKILL.md and all of its voice-profile files on every run, so those files can't be allowed to grow without bound. What enforces that, and what happens if a proposed update pushes the profile past the limit?",
+    "expect": [
+      "the gate includes a wc -l over SKILL.md, the shape card, the exemplar, layer1/2/4-<format>.md, layer3-substance.md, and the negative list",
+      "the combined line total must stay under 500 lines",
+      "the update stops on any gate failure rather than proceeding"
+    ]
+  },
+  {
+    "id": "paraphrase-drift-8-words",
+    "query": "My paraphrased entry for the writing-in-voice profile keeps failing the leak checker's overlap check even though I swapped out every domain noun for generic ones. Why would it still trip the check, and how should I write it so it passes?",
+    "expect": [
+      "keeping the source's distinctive word order trips the overlap check even with different nouns",
+      "the overlap check flags runs of 8 words matching the source",
+      "rewrite from the pattern, not from the source sentence"
+    ]
+  },
+  {
+    "id": "zeta-lists-stay-gone",
+    "query": "An older version of the writing-in-voice profile had zeta word lists per format that highlighted each format's distinctive vocabulary. Add those zeta lists back in during this profile update so we get per-format vocabulary fingerprints again.",
+    "expect": [
+      "refuses to reintroduce the zeta word lists — they were removed on purpose",
+      "they need per-doc presence data the profile does not store",
+      "they leaked domain nouns into the shareable skill"
+    ]
+  }
+]
