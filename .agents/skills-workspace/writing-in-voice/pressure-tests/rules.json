@@ -1,0 +1,192 @@
+{
+  "skill": "writing-in-voice",
+  "generated": "2026-10-14",
+  "rules": [
+    {
+      "id": "R-intro-01",
+      "section": "Intro",
+      "kind": "discipline",
+      "statement": "Scope is workplace and technical writing only; personal prose is out of scope even when asked in the profiled author's voice.",
+      "entries": [
+        "scope-personal-prose"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-01",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "When the user did not name a format, infer it and state the format picked in the report -- a silent pick invalidates the score.",
+      "entries": [
+        "state-format"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-02",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Load the profile before drafting: read all seven files (shape card, exemplar, layer1, layer2, layer4, layer3-substance, negative list) for the chosen format.",
+      "entries": [
+        "load-full-profile"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-03",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "After drafting, diff the draft against the exemplar line by line and rewrite any sentence whose structure mirrors an exemplar sentence, even if every word is different.",
+      "entries": [
+        "exemplar-line-diff"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-04",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Track each Layer 3 stance used in the draft and report it with its grounded / extrapolated tag.",
+      "entries": [
+        "track-stance-tags"
+      ]
+    },
+    {
+      "id": "R-steps-05",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Treat Layer 4 absences and the entire negative list as hard constraints: when a sentence seems to need a listed tell, rewrite the sentence.",
+      "entries": [
+        "hard-constraint-rewrite"
+      ]
+    },
+    {
+      "id": "R-steps-06",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Take every product, service, and system name from the user's request -- do not invent names.",
+      "entries": [
+        "names-from-request"
+      ]
+    },
+    {
+      "id": "R-steps-07",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Run the validator and never substitute your own judgment for its result -- the validator is the only pass/fail authority.",
+      "entries": [
+        "validator-is-authority"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-08",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "On validator failure, surface it and stop: report the full validator output and leave iterating to the user after they see the report.",
+      "entries": [
+        "stop-on-failure"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "A clean validator run is necessary, not sufficient: before handing over, read the draft for reflexive rule-of-three lists, inline-header bullet lists, and negative-list category-5 sourcing problems.",
+      "entries": [
+        "manual-three-checks"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "The exemplars are synthetic: never copy their phrasing or slot-fill their sentence structures, even though no real author's text is involved.",
+      "entries": [
+        "no-exemplar-slot-filling"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "A low Delta is not evidence the voice landed: report the number but never present it as vouching for the draft.",
+      "entries": [
+        "delta-not-vouching"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "If the validator exits 2 (incomplete install, usually a missing layer1 file), tell the user rather than guessing at targets.",
+      "entries": [
+        "exit2-tell-user"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "This skill never edits voice-profile/; profile updates go through the updating-voice-profile skill.",
+      "entries": [
+        "never-edit-profile"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-steps-09",
+      "section": "Steps",
+      "kind": "shaping",
+      "reason": "Voice-shape output targets (mean sentence length and sentence-length variance) -- wrong-track: shape-testing."
+    },
+    {
+      "id": "R-steps-10",
+      "section": "Steps",
+      "kind": "shaping",
+      "reason": "Use Layer 2's named patterns for openings, transitions, and argument structure -- wrong-track: shape-testing."
+    },
+    {
+      "id": "R-steps-11",
+      "section": "Steps",
+      "kind": "shaping",
+      "reason": "Draw Layer 3 stances only where the topic calls for them -- output-content shaping -- wrong-track: shape-testing."
+    },
+    {
+      "id": "R-steps-12",
+      "section": "Steps",
+      "kind": "technique",
+      "reason": "Write the draft to a temp path or the user-named path -- how-to guidance with no competing incentive."
+    },
+    {
+      "id": "R-steps-13",
+      "section": "Steps",
+      "kind": "shaping",
+      "reason": "The Report step's always-show list (format, pass/fail, Structural signals table, Delta, out-of-range metrics, hits with line numbers, stances split) -- form of the report artifact -- wrong-track: shape-testing."
+    },
+    {
+      "id": "R-gotchas-06",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "Title-case headings and empty sections do not gate because they did not separate real docs from AI slop -- documented validator fact -- wrong-track: retrieval-testing."
+    }
+  ]
+}

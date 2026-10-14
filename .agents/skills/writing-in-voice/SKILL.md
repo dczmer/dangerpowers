@@ -34,6 +34,10 @@ All paths below are relative to this skill's directory.
    - Use Layer 2's named patterns for openings, transitions, and argument structure.
    - Draw stances from Layer 3 only where the topic calls for them. Track each one you use and its `grounded` / `extrapolated` tag.
    - Treat Layer 4's positive list as suggestions. Treat Layer 4's absences and the entire negative list as hard constraints: when a sentence seems to need a listed tell, rewrite the sentence.
+     **Iron Law: every negative-list hit is resolved by rewriting the sentence before the report is written -- never by keeping the sentence and documenting the violation.** "Hard constraint" means no one can waive it -- not a deadline, not a user preference, not an explicit "don't touch it," not a note in the report. No exceptions:
+     - "The user asked to keep it" -> rewrite it anyway; record the user's objection in the report alongside the rewrite, quoting the original phrasing. You do not restore the tell.
+     - "Surface it and stop covers this" -> no: step 6's stop governs iteration on out-of-range *metrics* (voice distance the user may want to judge themselves). A negative-list hit is binary and fixable -- rewrite it, re-validate, and report a passing run. Reporting against a non-zero exit for a fixable tell is itself the violation.
+     - "Flag it as an intentional exception" -> there are no intentional exceptions. A shipped tell is a failure, noted or not.
    - Take every product, service, and system name from the user's request.
 
    Write the draft to a temp path (e.g. `/tmp/draft.md` or `$TMPDIR/draft.md`), or to the path the user names.
@@ -55,7 +59,7 @@ All paths below are relative to this skill's directory.
    - every negative-list hit, verbatim with line numbers
    - the Layer 3 stances used, split `grounded` vs `extrapolated`
 
-6. **On failure, surface it and stop.** Report the full validator output. Leave iterating to the user after they see the report, so the first attempt's distance from the voice stays visible.
+6. **On failure, surface it and stop.** Report the full validator output. Leave iterating to the user after they see the report, so the first attempt's distance from the voice stays visible. (Negative-list hits are never left for the user: they are binary, they are always fixed by rewriting the sentence -- see step 3 -- and the report is written only against a passing validator run on the final text.)
 
 ## Gotchas
 
