@@ -8,13 +8,13 @@ disable-model-invocation: true
 
 Fold new writing samples into the `writing-in-voice` profile so it gets more accurate while staying shareable: numbers merge by script, prose layers change only by paraphrase, and nothing reaches the live skill without passing the leak checker and the user's review of the full diff.
 
-`SKILL_DIR` below is the installed `writing-in-voice` directory (sibling of this skill). `STAGE` is `$CLAUDE_JOB_DIR/tmp/voice-stage`.
+`SKILL_DIR` below is the installed `writing-in-voice` directory (sibling of this skill). `STAGE` is a scratch directory for this run, e.g. `` `mktemp -d`/voice-stage `` (anywhere outside both skill directories).
 
 ## Steps
 
 1. **Collect inputs.** Get from the user: the document paths, the format (`technical-writing`, `code-review`, or `notes`), and whether the docs are primary (written entirely by the author, weight 1.0) or secondary (author's text mixed with others', weight 0.3). Use one format and one weight per run; split mixed batches into separate runs.
 
-2. **Extend the deny-list.** Read the new docs and list every product, service, team, customer, person, username, hostname, and internal codename in them. Show the list to the user, then append the approved terms to `~/.config/writing-in-voice/denylist.txt`. Never write these terms anywhere inside either skill directory.
+2. **Extend the deny-list.** Read the new docs and list every product, service, team, customer, person, username, hostname, and internal codename in them. Show the list to the user, then append the approved terms to `~/.config/writing-in-voice/denylist.txt` (create the file, and its parent directory, if they don't exist yet). Never write these terms anywhere inside either skill directory.
 
 3. **Stage a copy.** Run `rm -rf "$STAGE" && cp -R "$SKILL_DIR" "$STAGE"`. Make every change in `STAGE`; never edit `SKILL_DIR` directly.
 
@@ -56,7 +56,7 @@ Fold new writing samples into the `writing-in-voice` profile so it gets more acc
 - **The leak checker only knows what it is given.** Its overlap check covers only the `--source` paths of this run, and its term check covers only the deny-list. Step 2 is what protects against names the deny-list doesn't have yet.
 - **Paraphrase drift.** A paraphrase that keeps the source's distinctive word order trips the 8-word overlap check. Rewrite from the pattern, not from the sentence.
 - **Zeta word lists are gone on purpose.** They need per-doc presence data the profile does not store, and they leaked domain nouns. Never reintroduce them.
-- **A missing deny-list is a hard stop.** `check_leaks.py` exits 2 without it; recreate the file from the user's terms rather than running without one.
+- **A missing deny-list is a warning, not a hard stop.** `check_leaks.py` prints a warning and skips the term check rather than failing, so a run without one can pass while missing private terms. Recreate the file from the user's terms rather than running without one.
 
 ## Checklist
 

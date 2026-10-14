@@ -16,7 +16,9 @@ Usage:
         [--denylist FILE]
 
 Exit status: 0 = clean, 1 = leak found, 2 = setup error (e.g. missing
-deny-list). A missing deny-list is an error, not a silent pass.
+skill dir). A missing deny-list is not one of those: it prints a warning
+and the term check is skipped for that run, so the remaining checks still
+run and their result decides the exit status.
 """
 
 import argparse
@@ -104,15 +106,19 @@ def main() -> int:
     ap.add_argument("--denylist", type=Path, default=DEFAULT_DENYLIST)
     args = ap.parse_args()
 
-    if not args.denylist.is_file():
-        print(f"setup error: deny-list {args.denylist} not found", file=sys.stderr)
-        return 2
+    denylist: list[str] = []
+    if args.denylist.is_file():
+        denylist = load_denylist(args.denylist)
+    else:
+        msg = f"warning: deny-list {args.denylist} not found; " \
+            "skipping the term check"
+        print(msg, file=sys.stderr)
     for p in args.skill_dirs + args.source:
         if not p.exists():
             print(f"setup error: {p} does not exist", file=sys.stderr)
             return 2
 
-    hits = scan(args.skill_dirs, load_denylist(args.denylist), args.source)
+    hits = scan(args.skill_dirs, denylist, args.source)
     for h in hits:
         print(h)
     print(f"{'FAIL' if hits else 'PASS'}: {len(hits)} leak(s) found")

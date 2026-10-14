@@ -36,12 +36,12 @@ All paths below are relative to this skill's directory.
    - Treat Layer 4's positive list as suggestions. Treat Layer 4's absences and the entire negative list as hard constraints: when a sentence seems to need a listed tell, rewrite the sentence.
    - Take every product, service, and system name from the user's request.
 
-   Write the draft to `$CLAUDE_JOB_DIR/tmp/draft.md`, or to the path the user names.
+   Write the draft to a temp path (e.g. `/tmp/draft.md` or `$TMPDIR/draft.md`), or to the path the user names.
 
 4. **Validate.** Run from this skill's directory:
 
    ```
-   python3 scripts/validate_voice.py --format <format> --file $CLAUDE_JOB_DIR/tmp/draft.md
+   python3 scripts/validate_voice.py --format <format> --file /tmp/draft.md
    ```
 
    The validator regex-scans for the mechanically checkable negative-list tells, gates on table density and rhetorical-boldface density, prints title-case headings and empty sections without gating, and reports Delta plus per-metric z-distances as information. Exit 0 = pass, 1 = fail, 2 = setup problem. Never substitute your own judgment for its result.
