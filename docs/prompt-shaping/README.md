@@ -1,3 +1,8 @@
+---
+author: dczmer
+date:   2026-10-10
+---
+
 # Proompting
 
 A presentation of common prompt-engineering conventions and advice, how they map to the concepts we covered when [writing and bulletproofing skills](../writing-skills/part-3/README.md), and analysis of the current state of prompt engineering.
@@ -54,7 +59,7 @@ Specifics include, but are not limited to:
 
 > "Feed the model the context it needs, when it needs it - and anchor it in verified facts, not its weights."
 
-Context engineering is a critical part of learning to apply agentic coding effectively. The model has a limited amount of context it can hold, which is usually far less than what would be required to keep your entire project and all documentation in context at once. Even if you could, the model can't use all of that context effectively (recency bias) [[B]](#ref-b) and contradictions and similar-but-distinct facts in that context cause additional problems.
+Context engineering is a critical part of learning to apply agentic coding effectively. The model has a limited amount of context it can hold, which is usually far less than what would be required to keep your entire project and all documentation in context at once. Even if you could, the model can't use all of that context effectively (recency bias / "lost in the middle" [[P]](#ref-p); Chroma's context-rot study measures the effect across a wider range of tasks [[B]](#ref-b)) and contradictions and similar-but-distinct facts in that context cause additional problems.
 
 Context engineering deserves its own dedicated article, but it's all about feeding the model the context that it needs, when it needs it (progressive disclosure), while minimizing the amount of info in the context window that is not actually required at the time. Think of the context window as a workbench, not a warehouse: the warehouse holds everything you might ever need, but only what fits on the bench is actually usable, and a cluttered bench slows the work.
 
@@ -98,7 +103,7 @@ flowchart LR
   C --> D
 ```
 
-Like a lot of prompt-engineering techniques, decomposition (and delegation using subagents) is something that is now commonly built into the high-end frontier models. Once gains from inference-time scaling started to slow, much focus has moved towards implementing these techniques at the model-level, to make using the AI feel more intuitive or automatic.
+Like a lot of prompt-engineering techniques, decomposition (and delegation using subagents) is something that is now commonly built into the high-end frontier models. My read - speculation on my part, not a sourced claim - is that once gains from inference-time scaling started to slow, much focus moved towards implementing these techniques at the model-level, to make using the AI feel more intuitive or automatic.
 
 The need for decomposition might be proportional to the power and reasoning capabilities of the model you use. For a large frontier model, I'm still a fan of decomposition to produce smaller, more focused PRs with fewer moving parts. Creating a detailed implementation plan and "slicing" it into discrete phases is one easy way to do this.
 
@@ -159,6 +164,8 @@ A verification loop is the prompt-engineering version of our skill-writing best 
 
 > "The 'obsolete' tricks are the small-model toolkit."
 
+One caveat before the toolkit: for agentic coding specifically, model choice and harness design are bigger levers than anything in this section. Benchmarks like Aider's show large spreads between models of similar size, and weak models do dramatically better with whole-file edit formats than with diffs [[Q]](#ref-q), [[R]](#ref-r) - those are gains from shaping the environment, not the prompt. The techniques below are real, but they sit on top of model and harness choices; they don't replace them.
+
 #### Few-Shot Examples for Small Models
 
 > "Small models don't infer the pattern - you have to show it."
@@ -169,7 +176,7 @@ Frontier models follow instructions, often without needing examples (zero-shot).
 
 > "Write the reasoning out, and a small model will follow it."
 
-Frontier models now do this natively via proprietary reasoning pipelines. The explicit prompting technique is obsolete for them but measurably lifts small models with reasoning disabled (per the CoT paper: arithmetic, symbolic, and commonsense tasks) [[H]](#ref-h). More on this topic later in the document.
+Frontier models now do this natively via proprietary reasoning pipelines, so the explicit prompting technique is obsolete for them. For small models the picture is more nuanced than the folklore suggests: the original CoT paper found CoT was an emergent ability of scale - it helped only at roughly 100B+ parameters, and it hurt or did nothing for smaller models, which wrote fluent but illogical chains [[H]](#ref-h). Modern 7-30B instruct models do benefit, but largely because they were post-trained on CoT data (often traces distilled from RL-trained reasoning models like DeepSeek-R1 [[S]](#ref-s)), and the gains concentrate on math and symbolic-logic tasks rather than general work [[T]](#ref-t). More on this topic later in the document.
 
 #### Aggressive Decomposition / Prompt Chaining
 
@@ -181,13 +188,13 @@ Small models fail on compound instructions. Decompose into one task per prompt, 
 
 > "Show the model exactly what the output looks like."
 
-Small models drift from schemas, while frontier models mostly don’t. A well-specified template in the prompt shows the model exactly what the output is supposed to look like.
+Small models drift from schemas, while frontier models mostly don’t. A well-specified template in the prompt shows the model exactly what the output is supposed to look like. For local models, an even stronger option is constrained decoding - llama.cpp grammars or JSON-schema modes enforce the structure deterministically at sampling time, so the model can't drift from the schema in the first place [[U]](#ref-u).
 
 #### Self-Consistency (N Rollouts + Majority Vote)
 
 > "Run it N times and let the majority vote."
 
-Compensate for unreliable single-pass reasoning by having the model run multiple applications and vote on a winner. For example, asking the agent to sample and classify data multiple times and then have a judge pick the winner.
+Compensate for unreliable single-pass reasoning by sampling multiple runs and taking a majority vote [[V]](#ref-v). Note this only works for tasks with discrete answers (classification, extraction, math) - there is no meaningful "majority" of open-ended outputs like code. For code, use the verification-loop pattern instead: tests or a deterministic check act as the judge, with LLM-as-judge as the fallback for properties that can't be checked mechanically.
 
 #### Front-Loaded, Minimal Context
 
@@ -209,7 +216,7 @@ Modern frontier models don't really need the persona framing now. They determine
 
 > "Magic words stop working once the capability is no longer hidden."
 
-Instructions like "Think step by step about how to solve the problem", which attempt to coax the model into demonstrating some hidden capabilities that only surface when you use the right magic words. Frontier models reason natively regardless of such triggers (see above), and for models without reasoning capabilities, few-shot exemplars are far more effective at inducing chain-of-thought than a bare trigger phrase.
+Instructions like "Think step by step about how to solve the problem", which attempt to coax the model into demonstrating some hidden capabilities that only surface when you use the right magic words. Frontier models reason natively regardless of such triggers (see above), and for models without reasoning capabilities, few-shot exemplars have traditionally been considered far more effective at inducing chain-of-thought than a bare trigger phrase. Though even that gap is shakier than the 2022-era wisdom suggests: zero-shot "let's think step by step" proved surprisingly competitive on many tasks [[W]](#ref-w), and recent work finds that for modern instruct models around 7B and up, CoT exemplars mostly fix the output format rather than improve the reasoning - zero-shot can even be stronger [[X]](#ref-x).
 
 ## Chain of Thought and Reasoning
 
@@ -229,7 +236,7 @@ Chain of thought prompting is a technique that was [first published in 2022](#re
 
 *Why it works: the exemplar demonstrates the decompose-and-convert pattern, which the model copies onto the new problem.*
 
-So if this is built into modern frontier models, is it still a useful technique to know about? Actually, yes. If you run a local model with reasoning disabled, you can simulate the reasoning process of a modern frontier model with just a prompt input. If you combine this with our prompt/skill optimization strategies, you can produce high-quality output rivaling what the frontier model can do.
+So if this is built into modern frontier models, is it still a useful technique to know about? Yes - with a big caveat. If you run a local model with reasoning disabled, you can make it show its steps with just a prompt input, and combined with our prompt/skill optimization strategies that can approach frontier quality on narrow, optimized tasks (classification, extraction, fixed transforms). But a prompt can only elicit capability the weights already have - it can't add knowledge or reasoning ability. Reasoning models trained with reinforcement learning (o1, DeepSeek-R1 [[S]](#ref-s)) beat CoT-prompted versions of the same base models by wide margins; if prompting could close that gap, the labs wouldn't spend so much on that training. On open-ended agentic coding, CoT prompting does not substitute for trained reasoning.
 
 I have observed one particular downside to the reasoning in frontier models (besides occasionally getting stuck in a loop): It seems to lead to new ways for the model to disregard your rules. While testing the skills in this repository against different models, the weaker local models needed careful wording to make the rules trigger/apply, while the frontier models mostly just worked, but had a tendency to occasionally reason their way out of loading a skill even when the trigger conditions clearly matched.
 
@@ -237,11 +244,13 @@ I have observed one particular downside to the reasoning in frontier models (bes
 
 > "The encrypted thinking trace is the frontier model's diary - and its cheaper siblings can read it aloud."
 
-Recently, the topic of [distillation attacks](#ref-i) has been prevalent. Distillation is the process of extracting the proprietary "reasoning" steps out of frontier models so they can be used to train other models or to copy that proprietary reasoning implementation. Anthropic and OpenAI have accused several prominent Chinese AI labs of stealing their data through distillation ([[J]](#ref-j), [[K]](#ref-k)).
+Recently, the topic of [distillation attacks](#ref-i) has been prevalent. Distillation, properly, means training a student model on a teacher model's outputs - and stealing proprietary "reasoning" traces is one way to gather the training data for it. Anthropic and OpenAI have accused several prominent Chinese AI labs of stealing their data through distillation ([[J]](#ref-j), [[K]](#ref-k)).
 
 CoT reasoning traces from frontier models are encrypted, and the client just hands the encrypted blocks back, along with the rest of the message, on each turn. What you read in the 'thinking' output is heavily summarized or redacted output that comes along with the response, separate from the encrypted blocks.
 
-The flaw: these encrypted blocks are fully compatible and interchangeable across sessions, users, and even different models from the same provider ecosystem. By extracting the thinking trace signatures from Opus to Haiku, and asking it to output its own reasoning, Haiku will effectively decode and print the encrypted thinking traces.
+The flaw, per the paper: the encrypted blocks are reported to be fully compatible and interchangeable across sessions, users, and even different models from the same provider ecosystem, and a weaker, less-guarded sibling model will print a stronger model's trace as plaintext when handed one of its blocks. So by extracting the thinking trace signatures from Opus to Haiku, and asking it to output its own reasoning, Haiku will effectively decode and print the encrypted thinking traces.
+
+Two caveats on the specifics: the paper's abstract doesn't name model pairs, so Opus→Haiku and the "GPT-5.6 Luna" mention below are illustrative rather than verified specifics; and the paper mentions responsible disclosure and proposed mitigations, so whether any provider has since patched this is unclear. Treat the attack as demonstrated-in-principle, not necessarily currently working.
 
 ```mermaid
 sequenceDiagram
@@ -253,9 +262,9 @@ sequenceDiagram
   W-->>C: frontier trace decoded as plaintext
 ```
 
-This mostly works because models like Haiku or GPT-5.6 Luna are designed as fast, cost-effective tools and they do not have all the safeguards and refusal mechanics that the large models have (so probably this won't last forever).
+This mostly works because the smaller sibling models are designed as fast, cost-effective tools and they do not have all the safeguards and refusal mechanics that the large models have (so even if it works as described, it probably won't last forever).
 
-It is also something of a security concern, because someone could get a hold of your session data and use the encrypted blocks to read traces of your proprietary data.
+It is also something of a security concern, because someone could get a hold of your session data and use the encrypted blocks to read traces of your proprietary data. This part is not hypothetical: the paper found 182 credentials and 367 PII artifacts in 315,320 thinking blocks scraped from public repos.
 
 ## Prompt "Shaping"
 
@@ -276,7 +285,7 @@ My idea here is to write a simple skill that will work much like the [brainstorm
 - A convergence artifact. The dialogue terminates in a copyable spec (goal / scope / assumptions / success criteria) that downstream artifacts can quote verbatim, or a markdown file on disk that can be read in a new session.
 - Executable verification. Success criteria resolve to a concrete check (test, command, or assertion), and the loop terminates when the check passes.
 - Technique-to-model matching. Specificity, few-shot, CoT, decomposition are not universally good; they have context/latency costs and are model-specific. A good system selects techniques conditionally.
-- Iteration as measurement, not faith. You can’t reason your way to the right phrasing - prompts are brittle (word order, example ordering swing accuracy by tens of points) [[M]](#ref-m), so shaping is a design loop with a control group, not a one-shot edit.
+- Iteration as measurement, not faith. You can’t reason your way to the right phrasing - prompts are brittle (word order, example ordering, and formatting choices swing accuracy by tens of points [[M]](#ref-m), [[Y]](#ref-y) - and smaller models are the most sensitive, which cuts both ways for the local-model techniques above), so shaping is a design loop with a control group, not a one-shot edit.
 
 I decided to implement two specific versions of this:
 
@@ -342,7 +351,7 @@ As an example, here is my hand-rolled "prompt fragments" extension for [pi](http
 
 Prompt engineering is a complex, moving target. What was true today probably won't be true in 6 months. The only way to know what is effective is to experiment and test with every model you intend to use, and to do it all over again when those models release brand new versions. If we're lucky, that means we'll be able to do less prompt engineering.
 
-Carefully crafting and optimizing prompts (and skills) to specifically target a local or small open-weight model is a cost-effective way to get consistent, quality results from a model that may seem useless to people who haven't gone down this rabbit hole.
+Carefully crafting and optimizing prompts (and skills) to specifically target a local or small open-weight model is a cost-effective way to get consistent, quality results on narrow, well-scoped tasks - classification, extraction, templated transforms, mechanical edits gated by tests - from a model that may seem useless to people who haven't gone down this rabbit hole. For open-ended agentic coding, the bigger levers are model choice and harness design (edit format, verification gates, retries) [[Q]](#ref-q), [[R]](#ref-r); prompt shaping sits on top of those, it doesn't replace them.
 
 Look for ways to compose, generate, and optimize your prompts. Composition and generation can save a lot of time for day-to-day work, and optimization helps keep consistent and accurate results.
 
@@ -363,3 +372,13 @@ Look for ways to compose, generate, and optimize your prompts. Composition and g
 - <a id="ref-m"></a>**[M]** [Lu et al. - Fantastically Ordered Prompts and Where to Find Them](https://arxiv.org/abs/2104.08786)
 - <a id="ref-n"></a>**[N]** [Vapi - AI Prompt Composer](https://vapi.ai/blog/vapi-ai-prompt-composer)
 - <a id="ref-o"></a>**[O]** [SnapLogic - Prompt Composer](https://docs.snaplogic.com/agentcreator/prompt-composer/agentcreator-promptcomposer-about.html)
+- <a id="ref-p"></a>**[P]** [Liu et al. - Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172)
+- <a id="ref-q"></a>**[Q]** [Aider - LLM Leaderboards](https://aider.chat/docs/leaderboards/)
+- <a id="ref-r"></a>**[R]** [Aider - Edit Formats](https://aider.chat/docs/more/edit-formats.html)
+- <a id="ref-s"></a>**[S]** [DeepSeek-AI - DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948)
+- <a id="ref-t"></a>**[T]** [Sprague et al. - To CoT or not to CoT? Chain-of-thought helps mainly on math and symbolic reasoning](https://arxiv.org/abs/2409.12183)
+- <a id="ref-u"></a>**[U]** [llama.cpp - GBNF Grammars](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md)
+- <a id="ref-v"></a>**[V]** [Wang et al. - Self-Consistency Improves Chain of Thought Reasoning in Language Models](https://arxiv.org/abs/2203.11171)
+- <a id="ref-w"></a>**[W]** [Kojima et al. - Large Language Models are Zero-Shot Reasoners](https://arxiv.org/abs/2205.11916)
+- <a id="ref-x"></a>**[X]** [Cheng et al. - Revisiting Chain-of-Thought Prompting: Zero-shot Can Be Stronger than Few-shot](https://arxiv.org/abs/2506.14641)
+- <a id="ref-y"></a>**[Y]** [Sclar et al. - Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design](https://arxiv.org/abs/2310.11324)

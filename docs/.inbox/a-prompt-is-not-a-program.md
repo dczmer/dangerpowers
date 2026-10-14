@@ -1,1 +1,0 @@
-inference != imperative program instructions
