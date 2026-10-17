@@ -13,6 +13,8 @@ import argparse
 import io
 import json
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -129,6 +131,45 @@ class RunRepBatchedTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             runs = run_rep_batched(run_one, 3, " x ")
         self.assertEqual(runs, [{"rep": 1}, {"rep": 2}, {"rep": 3}])
+
+    def _peaking_run_one(self, state):
+        """A run_one tracking peak in-flight reps via a shared dict."""
+
+        def run_one(n):
+            with state["lock"]:
+                state["in_flight"] += 1
+                state["peak"] = max(state["peak"], state["in_flight"])
+            time.sleep(0.02)
+            with state["lock"]:
+                state["in_flight"] -= 1
+            return {"rep": n}
+
+        return run_one
+
+    def test_num_workers_caps_batch_width(self):
+        state = {"lock": threading.Lock(), "in_flight": 0, "peak": 0}
+        with redirect_stdout(io.StringIO()):
+            runs = run_rep_batched(
+                self._peaking_run_one(state), 6, " x ", num_workers=2
+            )
+        self.assertEqual(len(runs), 6)
+        self.assertEqual(state["peak"], 2)
+
+    def test_num_workers_one_runs_sequentially(self):
+        state = {"lock": threading.Lock(), "in_flight": 0, "peak": 0}
+        with redirect_stdout(io.StringIO()):
+            run_rep_batched(
+                self._peaking_run_one(state), 4, " x ", num_workers=1
+            )
+        self.assertEqual(state["peak"], 1)
+
+    def test_num_workers_omitted_keeps_default_ceiling(self):
+        """Absent num_workers falls back to the MAX_WORKERS batch:
+        reps 2..11 run as one batch of 10 in flight."""
+        state = {"lock": threading.Lock(), "in_flight": 0, "peak": 0}
+        with redirect_stdout(io.StringIO()):
+            run_rep_batched(self._peaking_run_one(state), 11, " x ")
+        self.assertEqual(state["peak"], 10)
 
 
 class RepLabelTests(unittest.TestCase):

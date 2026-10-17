@@ -88,7 +88,11 @@ Collect all inputs before starting. Prompt the user for any that are missing.
 - **Model / variant** — optional passthroughs, and the only model-selection
   path (the agent pins nothing).
 - **Reps** — runs per arm; default 5. **Timeout** — per-run abort, seconds;
-  default 300.
+  default 300. **num_workers** — optional; concurrent eval runs (reps)
+  within a suite. When the user gives no num_workers, pass no
+  `--num-workers` flag — the harness default (10) applies. When given,
+  pass the same `--num-workers n` on every suite invocation of the
+  campaign, including green-arm re-runs and refactor rounds.
 
 ## Rule inventory
 
@@ -331,7 +335,7 @@ evaluator.py suite --track pressure-test --harness <h> --skill <s> \
   --scenarios $CAMP/scenario-<rule>.json --arm red \
   --manifest <root>/skills-workspace/<s>/pressure-tests/rules.json \
   --out $CAMP/results-red-<rule>.json [--model m] [--variant v] \
-  [--reps 5] [--timeout 300]
+  [--reps 5] [--timeout 300] [--num-workers n]
 
 # GREEN — original snapshotted body injected
 evaluator.py suite --track pressure-test ... --arm green \
@@ -360,7 +364,7 @@ invocation): harness CLI on PATH; agent file exists, frontmatter `name:`
 matches `pressure-evaluator`, no model-config pins; `--arm` is `red` or
 `green`; `--skill-file` required exactly with `--arm green`, forbidden with
 `--arm red`, and non-empty; scenarios-file schema validation; `--reps`/
-`--timeout` ≥ 1; out directory exists; and the **contamination gate** (a
+`--timeout` ≥ 1; `--num-workers` ≥ 1 when given; out directory exists; and the **contamination gate** (a
 synced skill in the workspace fails with "recreate the workspace, never
 sync").
 
@@ -738,7 +742,8 @@ act only with user confirmation:
 ## Checklist
 
 - [ ] Inputs collected (skill, source root, harness, model/variant, reps,
-  timeout); inventory built fresh, every rule classified, manifest diffed;
+  timeout, num_workers when set); inventory built fresh, every rule
+  classified, manifest diffed;
   no discipline rules → stopped with routings reported
 - [ ] Every excluded rule recorded with a routing reason; frontmatter rules
   never proposed as entries

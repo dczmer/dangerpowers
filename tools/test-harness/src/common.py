@@ -124,14 +124,19 @@ def validate_eval_agent(
 
 
 def run_rep_batched(
-    run_one: Callable[[int], Any], reps: int, tag: str | None
+    run_one: Callable[[int], Any],
+    reps: int,
+    tag: str | None,
+    num_workers: int | None = None,
 ) -> list[Any]:
     """Smoke rep alone, then reps 2..N in parallel batches of at most
-    MAX_WORKERS. A timeout is a record, never an abort; a
+    MAX_WORKERS (num_workers when given). A timeout is a record, never
+    an abort; a
     HarnessExecutionError in the smoke rep or any batch aborts with an
     exact stderr message and exit 1. Shared by all four tracks. tag is
     the [tag] prefix on error lines; None (trigger) omits the prefix."""
     prefix = f"[{tag}] " if tag else ""
+    workers = num_workers or MAX_WORKERS
     runs: dict[int, Any] = {}
 
     try:
@@ -145,9 +150,9 @@ def run_rep_batched(
         sys.exit(1)
 
     remaining = list(range(2, reps + 1))
-    for i in range(0, len(remaining), MAX_WORKERS):
-        group = remaining[i : i + MAX_WORKERS]
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+    for i in range(0, len(remaining), workers):
+        group = remaining[i : i + workers]
+        with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(run_one, n): n for n in group}
             first_error: tuple[int, Any] | None = None
             for fut, n in futures.items():

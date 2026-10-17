@@ -886,6 +886,30 @@ class ShapePreSpendGateTests(unittest.TestCase):
                         evaluator.run_suite(TRACKS["shape-test"], args)
         self.assertEqual(cm.exception.code, 1)
 
+    def test_num_workers_below_one_exits_1(self):
+        with self.assertRaises(SystemExit) as cm:
+            args = argparse.Namespace(
+                harness="opencode",
+                skill="demo-skill",
+                agents_dir=str(self.agents_dir),
+                workspace=str(self.ws),
+                entries=str(self.entries_path),
+                skill_file=str(self.skill_body),
+                arms="v0",
+                out=str(self.out),
+                fixture_key="application",
+                model=None,
+                variant=None,
+                reps=1,
+                timeout=120,
+                num_workers=0,
+            )
+            with mock_check_and_resolve(None):
+                with redirect_stdout(io.StringIO()):
+                    with redirect_stderr(io.StringIO()):
+                        evaluator.run_suite(TRACKS["shape-test"], args)
+        self.assertEqual(cm.exception.code, 1)
+
 
 class ShapeManifestSuiteTests(unittest.TestCase):
     """suite --manifest: ablation/removed entries run the v0 control

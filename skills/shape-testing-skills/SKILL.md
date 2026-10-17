@@ -98,6 +98,10 @@ Collect all inputs before starting. Prompt the user for any that are missing.
   production, at default temperature.
 - **Reps** — runs per entry per arm; default 5.
 - **Timeout** — per-run abort, in seconds; default 300.
+- **num_workers** — optional; concurrent eval runs (reps) within a suite.
+  When the user gives no num_workers, pass no `--num-workers` flag — the
+  harness default (10) applies. When given, pass the same
+  `--num-workers n` on every suite invocation of the campaign.
 
 Run with the model that will consume the skill in production, at default temperature.
 Re-check adopted phrasings on model upgrades via the ablation track (rules whose control
@@ -272,7 +276,7 @@ retrieval track.)
 8. **Spend confirmation #1**: rules × 5 control reps — phase 1 covers ALL rules
    and is never skipped. Name the ablation/removed entries (they run
    control-only, whatever `--arms` says) and the resulting reduced run count.
-9. `evaluator.py suite --track shape-test --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --manifest <canonical rules.json> --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 300]` — with `--manifest`, an entry whose rule carries a status runs the v0 control only (v0 IS the control; for a removed entry the assembled body is unchanged, the span already gone): the suite emits `note: entry <id> is ablation/removed; running v0 only` and the results record carries only the v0 arm.
+9. `evaluator.py suite --track shape-test --harness <h> --skill <s> --agents-dir <shape-skill-dir>/agents --workspace $WS --entries <entries> --skill-file $CAMP/skill-body.txt --manifest <canonical rules.json> --arms v0 --out $CAMP/results-control.json [--model m] [--variant v] [--reps 5] [--timeout 300] [--num-workers n]` — with `--manifest`, an entry whose rule carries a status runs the v0 control only (v0 IS the control; for a removed entry the assembled body is unchanged, the span already gone): the suite emits `note: entry <id> is ablation/removed; running v0 only` and the results record carries only the v0 arm.
 10. Score controls via `evidence --track shape-test`. Rules whose control never exhibits the failure
     → `no-failure` + ablation flag; **stop those rules, author nothing**.
 11. **Spend confirmation #2**: failing rules × variants × 5 reps — only rules

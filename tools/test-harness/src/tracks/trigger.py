@@ -359,7 +359,9 @@ class TriggerTrack(Track):
                 n,
             )
 
-        verdicts = common.run_rep_batched(run_one, args.reps, None)
+        verdicts = common.run_rep_batched(
+            run_one, args.reps, None, getattr(args, "num_workers", None)
+        )
         return self._score_query(case, verdicts)
 
     def pre_spend_gates(
@@ -394,6 +396,9 @@ class TriggerTrack(Track):
             return 1
         if args.timeout < 1:
             print("error: --timeout must be >= 1", file=sys.stderr)
+            return 1
+        if (nw := getattr(args, "num_workers", None)) is not None and nw < 1:
+            print("error: --num-workers must be >= 1", file=sys.stderr)
             return 1
         self._harness_preflight(args.harness, strategy_cls, args.model)
         cases = load_queries(args.queries)

@@ -211,7 +211,9 @@ def run_records_batch(
         emit(line)
         return record
 
-    return run_rep_batched(run_rep, args.reps, tag)
+    return run_rep_batched(
+        run_rep, args.reps, tag, getattr(args, "num_workers", None)
+    )
 
 
 def _retrieval_union_hook(path: Path, e: dict, extras: dict) -> str | None:
@@ -290,6 +292,8 @@ class RetrievalTrack(Track):
             return _err("--reps must be >= 1")
         if args.timeout < 1:
             return _err("--timeout must be >= 1")
+        if (nw := getattr(args, "num_workers", None)) is not None and nw < 1:
+            return _err("--num-workers must be >= 1")
         skill_dest = skill_dest_root(args.harness)
         if not (skill_ws / skill_dest / args.skill).is_dir():
             _fail(

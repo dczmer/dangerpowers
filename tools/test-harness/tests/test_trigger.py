@@ -534,6 +534,32 @@ class SuiteTests(HarnessWorkspaceMixin, unittest.TestCase):
         self.assertEqual(q["failures"], [])
         self.assertEqual(q["voids"], [])
 
+    def test_num_workers_below_one_returns_1(self):
+        """The --num-workers >= 1 gate fires pre-spend (before harness
+        preflight), prints the exact message, and writes no results."""
+        args = argparse.Namespace(
+            harness="opencode",
+            skill=SKILL,
+            agents_dir=str(self.agents_dir),
+            workspace=str(self.workspace),
+            queries=str(self.queries),
+            out=str(self.out),
+            model=None,
+            variant=None,
+            reps=1,
+            timeout=30,
+            num_workers=0,
+        )
+        stderr = io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(stderr),
+        ):
+            rc = evaluator.run_suite(TRACKS["trigger-test"], args)
+        self.assertEqual(rc, 1)
+        self.assertIn("--num-workers must be >= 1", stderr.getvalue())
+        self.assertFalse(self.out.exists())
+
 
 class AbortSessionTests(HarnessWorkspaceMixin, unittest.TestCase):
     def _run_args(self, reps: int) -> argparse.Namespace:

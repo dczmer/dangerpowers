@@ -1657,6 +1657,11 @@ def main() -> int:
     # do not "restore" a single value here.
     suite.add_argument("--reps", type=int)
     suite.add_argument("--timeout", type=int)
+    # No parser default, like --reps/--timeout: absent means the suite
+    # falls back to common.MAX_WORKERS (10). The driving skill omits
+    # the flag entirely when the user gave no num_workers, so the
+    # harness keeps its own default.
+    suite.add_argument("--num-workers", type=int, dest="num_workers")
     # per-track flags (Q7a: historical names kept); required status is
     # enforced per track inside pre_spend_gates
     suite.add_argument("--workspace")  # trigger, shape, pressure

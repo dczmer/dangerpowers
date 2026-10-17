@@ -222,7 +222,9 @@ def run_pressure_rep_batch(
         emit(line)
         return record
 
-    return run_rep_batched(run_rep, args.reps, tag)
+    return run_rep_batched(
+        run_rep, args.reps, tag, getattr(args, "num_workers", None)
+    )
 
 
 def _pressure_union_hook(path: Path, e: dict, extras: dict) -> str | None:
@@ -338,6 +340,8 @@ class PressureTrack(Track):
             _fail("--reps must be >= 1")
         if args.timeout < 1:
             _fail("--timeout must be >= 1")
+        if (nw := getattr(args, "num_workers", None)) is not None and nw < 1:
+            _fail("--num-workers must be >= 1")
         out = Path(args.out)
         if not out.parent.is_dir():
             _fail(f"output directory does not exist: {out.parent}")

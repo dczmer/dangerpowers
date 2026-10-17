@@ -32,6 +32,10 @@ Collect all inputs before starting. Prompt the user for any that are missing.
 - **Model / variant** — optional passthroughs to the harness run, and the only model-selection path: the eval agents pin no model config, so sweeps measure what they claim.
 - **Reps** — runs per entry per arm; default 1.
 - **Timeout** — per-run abort, in seconds; default 300.
+- **num_workers** — optional; concurrent eval runs (reps) within a suite.
+  When the user gives no num_workers, pass no `--num-workers` flag — the
+  harness default (10) applies. When given, pass the same
+  `--num-workers n` on every suite invocation of the campaign.
 
 After resolving the source root, read the skill under test fully and build the fact inventory fresh from the current doc (see Fact inventory) — the manifest is a diff baseline, never a cache. If the inventory is empty — the skill documents no facts — stop: retrieval testing is not required. Otherwise diff the inventory against the manifest (see Fact inventory for the diff rules) and present a proposal for whatever the diff requires (see Proposal format). With the user's approval, apply the changes to the queries file — creating any fixtures new entries reference under `fixtures/` and regenerating `facts.json` via `inventory-mint --carry` at the same time — and explain each generated entry: the documented fact it covers, why you chose that query, and why you chose those expectations.
 
@@ -181,7 +185,7 @@ scripts the agent cannot run.
    --skill-workspace <skill-ws> --control-workspace <control-ws> \
    --queries <queries> --out <campaign>/results.json \
    [--manifest <canonical facts.json>] \
-   [--model m] [--variant v] [--reps r] [--timeout t]`
+   [--model m] [--variant v] [--reps r] [--timeout t] [--num-workers n]`
    With `--manifest`, ablation/removed queries run the CONTROL ARM ONLY
    (sequentially, no skill arm) and their results records carry only
    `control_arm` (no `skill_arm` key); the evidence printer tolerates

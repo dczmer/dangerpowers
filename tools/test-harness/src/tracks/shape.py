@@ -349,7 +349,9 @@ def run_shape_rep_batch(
         emit(line)
         return record
 
-    return run_rep_batched(run_rep, args.reps, tag)
+    return run_rep_batched(
+        run_rep, args.reps, tag, getattr(args, "num_workers", None)
+    )
 
 
 def marker_triage_counts(answer: str, markers: dict) -> dict:
@@ -738,6 +740,8 @@ class ShapeTrack(Track):
             _fail("--reps must be >= 1")
         if args.timeout < 1:
             _fail("--timeout must be >= 1")
+        if (nw := getattr(args, "num_workers", None)) is not None and nw < 1:
+            _fail("--num-workers must be >= 1")
 
         skill_file = Path(args.skill_file)
         if not skill_file.is_file():

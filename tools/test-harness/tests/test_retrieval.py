@@ -687,6 +687,19 @@ class ControlPurityTests(unittest.TestCase):
         self.assertEqual(cm.exception.code, 1)
         self.assertFalse(self.out.exists())
 
+    def test_num_workers_below_one_returns_1(self):
+        """The --num-workers >= 1 gate fires pre-spend with the exact
+        message; retrieval's gates return _err (exit 1), not SystemExit."""
+        args = self._args()
+        args.num_workers = 0
+        stderr = io.StringIO()
+        with mock.patch.object(evaluator, "check_harness", lambda *a: None):
+            with redirect_stderr(stderr):
+                rc = evaluator.run_suite(TRACKS["retrieval-test"], args)
+        self.assertEqual(rc, 1)
+        self.assertIn("--num-workers must be >= 1", stderr.getvalue())
+        self.assertFalse(self.out.exists())
+
 
 class ParallelArmTests(unittest.TestCase):
     """RetrievalTrack.run_entry runs the skill and control arms of an entry

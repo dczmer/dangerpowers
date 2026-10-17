@@ -516,6 +516,9 @@ class PressurePreSpendGateTests(unittest.TestCase):
     def test_timeout_below_one_exits_1(self):
         self._assert_blocked(timeout=0)
 
+    def test_num_workers_below_one_exits_1(self):
+        self._assert_blocked(num_workers=0)
+
     def test_missing_out_parent_exits_1(self):
         self._assert_blocked(out=str(self.root / "no-dir" / "r.json"))
 
