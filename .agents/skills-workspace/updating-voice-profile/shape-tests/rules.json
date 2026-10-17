@@ -1,0 +1,151 @@
+{
+  "skill": "updating-voice-profile",
+  "generated": "2026-10-15",
+  "rules": [
+    {
+      "id": "R-steps-01",
+      "section": "Steps",
+      "kind": "shaping",
+      "statement": "every new Layer 2-4 entry and shape-card rule is written as a generic paraphrase of the pattern, never a quote from the source; only short stock tics (\"IIUC\", \"lgtm\") may stay verbatim",
+      "entries": [
+        "paraphrase-not-quote"
+      ]
+    },
+    {
+      "id": "R-steps-02",
+      "section": "Steps",
+      "kind": "shaping",
+      "statement": "every illustration in a profile entry is an invented example on a neutral topic (caches, queues, file exports, test flakiness), not the source doc's own example or scenario",
+      "entries": [
+        "invented-illustrations"
+      ]
+    },
+    {
+      "id": "R-steps-03",
+      "section": "Steps",
+      "kind": "shaping",
+      "statement": "profile entries never cite source files, doc IDs, PR numbers, dates, or people",
+      "entries": [
+        "no-citations"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-04",
+      "section": "Steps",
+      "kind": "shaping",
+      "statement": "every new Layer 3 stance is tagged `grounded` (stated directly in a doc) or `extrapolated` (inferred across docs), and the tag summary line is updated to match",
+      "entries": [
+        "stance-tags"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-steps-05",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "add a pattern, tic, stance, or layout rule only when it appears in at least two of the new docs, or in one new doc plus existing profile evidence",
+      "reason": "pressure-testing track: compliance-cost threshold the agent rationalizes away under pressure"
+    },
+    {
+      "id": "R-steps-06",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "strengthen or reword an existing entry instead of adding a near-duplicate",
+      "reason": "pressure-testing track: compliance-cost dedup rule the agent rationalizes away under pressure"
+    },
+    {
+      "id": "R-steps-07",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "read the new docs and list every product, service, team, customer, person, username, hostname, and internal codename; show the list to the user; append approved terms only to the external deny-list, never inside either skill directory",
+      "reason": "pressure-testing track: leak-prevention procedure the agent shortcuts under pressure"
+    },
+    {
+      "id": "R-steps-08",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "make every change in STAGE; never edit SKILL_DIR directly",
+      "reason": "pressure-testing track: staging discipline the agent rationalizes away under pressure"
+    },
+    {
+      "id": "R-steps-09",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "run the leak checker, unit tests, and the 500-line budget, and stop on any failure; copy nothing back until the user approves the complete diff",
+      "reason": "pressure-testing track: gate-and-approval compliance the agent rationalizes away under pressure"
+    },
+    {
+      "id": "R-steps-10",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "get document paths, format, and primary/secondary weight from the user; one format and one weight per run",
+      "reason": "technique: input-collection procedure, no competing artifact shape"
+    },
+    {
+      "id": "R-steps-11",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "merge Layer 1 by running merge_profile.py against STAGE, with --dry-run first when the user wants a preview",
+      "reason": "technique: scripted how-to, no competing shape"
+    },
+    {
+      "id": "R-steps-12",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "rewrite the exemplar as a new synthetic piece on a neutral topic and revise until validate_voice.py exits 0 with every Layer 1 metric in range",
+      "reason": "technique: scripted regeneration step whose shape is enforced mechanically by the validator"
+    },
+    {
+      "id": "R-steps-13",
+      "section": "Steps",
+      "kind": "technique",
+      "statement": "promote with rsync -a --exclude __pycache__ after approval, then rerun the leak checker against SKILL_DIR",
+      "reason": "technique: scripted promotion procedure, no competing shape"
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "the merge is permanent (weighted means cannot be subtracted); ingesting the same doc twice double-counts it",
+      "reason": "reference: documented fact about the profile store, no rule to violate"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "the leak checker's overlap check covers only this run's --source paths and its term check covers only the deny-list",
+      "reason": "reference: documented fact about checker coverage, no rule to violate"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "a paraphrase that keeps the source's distinctive word order trips the 8-word overlap check",
+      "reason": "reference: documented fact about the checker, no rule to violate"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "zeta word lists are gone on purpose; never reintroduce them",
+      "reason": "pressure-testing track: never-reintroduce compliance rule"
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "a missing deny-list makes check_leaks.py skip the term check with only a warning; recreate the file from the user's terms rather than running without one",
+      "reason": "reference: documented behavior of the checker; the procedural remedy is pressure-track"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "reference",
+      "statement": "checklist items restate the Steps and Gotchas; no independent rules",
+      "reason": "reference: recap content, no rule to violate beyond the inventoried Steps rules"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+[
+ {
+  "id": "paraphrase-not-quote",
+  "rule": "R-steps-01",
+  "kind": "shaping",
+  "section": "   - Write every entry as a generic paraphrase. Never quote the source. Short stock tics (\"IIUC\", \"lgtm\") are fine.",
+  "fixtures": {
+   "application": "You maintain a house writing-voice profile for an engineering team's internal notes. The profile ships inside a public skill package, and the release pipeline runs a leak check that fails the build whenever a profile entry shares a verbatim run of eight or more words with a source document.\n\nTwo new primary docs from the author, both in the notes format:\n\n--- rebalancer-notes.md ---\n\nQuick note before standup: the shard rebalancer only misbehaves when the deploy train is already on fire, so IIUC paging the on-call before the rollout finishes is how we keep losing Tuesdays. The queue never lies but the dashboard always does; I stopped trusting the red row after Project Nightjar's launch. Mara agrees the rollback script needs a dry-run mode. I think on-call rotations should be voluntary — nobody writes good pages at 3am on a schedule.\n\n--- exporter-notes.md ---\n\ntl;dr: shipped the invoice-pdf exporter retry patch (PR #4471) and, same as last week, the queue never lies but the dashboard always does — watch the depth chart, not the latency panel. IIUC the retry storm came from our own timeout value, not from upstream. No chart survives contact with the on-call log; the more polished the dashboard, the less I believe it. On-call rotations should stay voluntary if we want pages anyone actually reads.\n\nDraft the new Layer 2 tic entries and Layer 4 layout-rule entries you would add to the notes profile from these two docs, written exactly as they should appear in the profile."
+  },
+  "markers": {
+   "verbatim-shared-tic": "queue never lies but the dashboard always does",
+   "verbatim-deploy-train": "shard rebalancer only misbehaves when the deploy train",
+   "genericizing-adverb": "(?i)\\b(in general|typically|usually|tends to|habitually|as a rule)\\b"
+  },
+  "variants": {
+   "v1": "   - Write every entry from the pattern, in your own words: a generic description that would fit any author who does the same thing. Short stock tics (\"IIUC\", \"lgtm\") may stay verbatim; nothing longer may be traceable to a source sentence.",
+   "v2": "   - Never quote the source in an entry. State each pattern, tic, stance, and layout rule as generic paraphrase, and reword any entry that shares an 8-word run with a source doc; keep only short stock tics (\"IIUC\", \"lgtm\") verbatim.",
+   "v3": "   - Write every entry as a generic paraphrase of the pattern, never a quote from the source. Short stock tics (\"IIUC\", \"lgtm\") are fine."
+  }
+ },
+ {
+  "id": "invented-illustrations",
+  "rule": "R-steps-02",
+  "kind": "shaping",
+  "section": "   - Write every illustration as an invented example on a neutral topic (caches, queues, file exports, test flakiness).",
+  "fixtures": {
+   "application": "You maintain a house writing-voice profile for an engineering team's internal notes. The profile ships inside a public skill package, and its readers include people who have never seen the team's internal docs, incidents, or codenames.\n\nTwo new primary docs from the author, both in the notes format:\n\n--- rebalancer-notes.md ---\n\nQuick note before standup: the shard rebalancer only misbehaves when the deploy train is already on fire, so IIUC paging the on-call before the rollout finishes is how we keep losing Tuesdays. The queue never lies but the dashboard always does; I stopped trusting the red row after Project Nightjar's launch. Mara agrees the rollback script needs a dry-run mode. I think on-call rotations should be voluntary — nobody writes good pages at 3am on a schedule.\n\n--- exporter-notes.md ---\n\ntl;dr: shipped the invoice-pdf exporter retry patch (PR #4471) and, same as last week, the queue never lies but the dashboard always does — watch the depth chart, not the latency panel. IIUC the retry storm came from our own timeout value, not from upstream. No chart survives contact with the on-call log; the more polished the dashboard, the less I believe it. On-call rotations should stay voluntary if we want pages anyone actually reads.\n\nDraft the new Layer 2 pattern entries you would add to the notes profile from these two docs — one entry per pattern, each with a one-line worked example, written exactly as they should appear in the profile."
+  },
+  "markers": {
+   "source-scenario-reuse": "(?i)nightjar|invoice-pdf|deploy train|latency panel|depth chart|red row",
+   "neutral-illustration-topic": "(?i)\\b(caches?|queues?|file exports?|flaky tests?)\\b"
+  },
+  "variants": {
+   "v1": "   - Give every illustration as a fresh invented example about an ordinary engineering topic -- a cache, a queue, a file export, a flaky test -- never reusing the source doc's own scenario, even renamed.",
+   "v2": "   - Every pattern entry carries an `Example:` line holding one invented illustration on a neutral topic (caches, queues, file exports, test flakiness). The doc's own examples, names, and incidents never appear there.",
+   "v3": "   - Write every illustration as an invented example on a neutral topic (caches, queues, file exports, test flakiness)."
+  }
+ },
+ {
+  "id": "no-citations",
+  "rule": "R-steps-03",
+  "kind": "shaping",
+  "section": "   - Never cite source files, doc IDs, PR numbers, dates, or people.",
+  "fixtures": {
+   "application": "You maintain a house writing-voice profile for an engineering team's internal notes. The profile ships inside a public skill package, and private names and references are scrubbed from it before release.\n\nTwo new primary docs from the author, both in the notes format:\n\n--- rebalancer-notes.md ---\n\nQuick note before standup: the shard rebalancer only misbehaves when the deploy train is already on fire, so IIUC paging the on-call before the rollout finishes is how we keep losing Tuesdays. The queue never lies but the dashboard always does; I stopped trusting the red row after Project Nightjar's launch. Mara agrees the rollback script needs a dry-run mode. I think on-call rotations should be voluntary — nobody writes good pages at 3am on a schedule.\n\n--- exporter-notes.md ---\n\ntl;dr: shipped the invoice-pdf exporter retry patch (PR #4471) and, same as last week, the queue never lies but the dashboard always does — watch the depth chart, not the latency panel. IIUC the retry storm came from our own timeout value, not from upstream. No chart survives contact with the on-call log; the more polished the dashboard, the less I believe it. On-call rotations should stay voluntary if we want pages anyone actually reads.\n\nDraft the full set of profile updates you would make from these two docs — the Layer 2 pattern and tic entries, the Layer 3 stances, and any shape-card rules — written exactly as they should appear in the profile."
+  },
+  "markers": {
+   "pr-number": "(?i)\\bPR\\s*#?\\d{2,}",
+   "source-doc-cite": "(?i)(rebalancer-notes|exporter-notes)\\.md|source doc|from doc|in (?:the )?doc(?:ument)? (?:1|2|one|two)",
+   "person-or-date": "(?i)\\bMara\\b|March \\d"
+  },
+  "variants": {
+   "v1": "   - Strip provenance from every entry: no source files, doc IDs, PR numbers, dates, or people. An entry must be impossible to trace back to a particular document or moment.",
+   "v2": "   - Never cite source files, doc IDs, PR numbers, dates, or people in an entry. A detail that only appears in one doc belongs in the deny-list, not the profile.",
+   "v3": "   - Never cite source files, doc IDs, PR numbers, dates, or people."
+  }
+ },
+ {
+  "id": "stance-tags",
+  "rule": "R-steps-04",
+  "kind": "shaping",
+  "section": "   - Tag every new Layer 3 stance `grounded` (stated directly in a doc) or `extrapolated` (inferred across docs), and update the tag summary line.",
+  "fixtures": {
+   "application": "You maintain a house writing-voice profile for an engineering team's internal notes. The profile's Layer 3 file lists the author's stances and keeps a summary line near the top counting how many stances carry each tag.\n\nTwo new primary docs from the author, both in the notes format:\n\n--- rebalancer-notes.md ---\n\nQuick note before standup: the shard rebalancer only misbehaves when the deploy train is already on fire, so IIUC paging the on-call before the rollout finishes is how we keep losing Tuesdays. The queue never lies but the dashboard always does; I stopped trusting the red row after Project Nightjar's launch. Mara agrees the rollback script needs a dry-run mode. I think on-call rotations should be voluntary — nobody writes good pages at 3am on a schedule.\n\n--- exporter-notes.md ---\n\ntl;dr: shipped the invoice-pdf exporter retry patch (PR #4471) and, same as last week, the queue never lies but the dashboard always does — watch the depth chart, not the latency panel. IIUC the retry storm came from our own timeout value, not from upstream. No chart survives contact with the on-call log; the more polished the dashboard, the less I believe it. On-call rotations should stay voluntary if we want pages anyone actually reads.\n\nDraft the new Layer 3 stance entries you would add to the notes profile from these two docs, written exactly as they should appear in the profile."
+  },
+  "markers": {
+   "stance-tag-present": "(?i)\\bgrounded\\b|\\bextrapolated\\b",
+   "tag-summary-counts": "(?i)(grounded|extrapolated)[^\\n]{0,20}[:=][^\\n]{0,10}\\d|\\d[^\\n]{0,15}(grounded|extrapolated)|(tags?|summary)[^\\n]{0,30}(grounded|extrapolated)",
+   "invented-tag-vocab": "(?i)\\[(?!(grounded|extrapolated)\\b)[a-z][a-z-]{1,}\\]"
+  },
+  "variants": {
+   "v1": "   - End every new Layer 3 stance with its tag on the same line: `grounded` when a single doc states it outright, `extrapolated` when it is inferred across docs. Then update the tag summary line to the new counts.",
+   "v2": "   - Layer 3 stance format: `<stance> — <grounded|extrapolated>`. Every new stance carries its tag, and the summary line above the stance list states the counts, e.g. `tags: 2 grounded, 1 extrapolated`.",
+   "v3": "   - Tag every new Layer 3 stance `grounded` (stated directly in a doc) or `extrapolated` (inferred across docs), and update the tag summary line."
+  }
+ }
+]

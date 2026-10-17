@@ -28,8 +28,8 @@ Fold new writing samples into the `writing-in-voice` profile so it gets more acc
 
 5. **Update Layers 2-4 and the shape card.** Compare the new docs against `STAGE/voice-profile/layer2-<format>.md`, `layer4-<format>.md`, `layer3-substance.md`, and `shapes/<format>.md`. Then edit those files in `STAGE`:
    - Add a pattern, tic, stance, or layout rule only when it appears in at least two of the new docs, or in one new doc plus existing profile evidence.
-   - Write every entry as a generic paraphrase. Never quote the source. Short stock tics ("IIUC", "lgtm") are fine.
-   - Write every illustration as an invented example on a neutral topic (caches, queues, file exports, test flakiness).
+   - Write every entry and its example from scratch, in your own words. A source sentence never appears anywhere in the profile — not in the pattern description, not inside an example or illustration; short stock tics ("IIUC", "lgtm") are the only verbatim carry-over.
+   - Give every illustration as a fresh invented example about an ordinary engineering topic -- a cache, a queue, a file export, a flaky test -- never reusing the source doc's own scenario, even renamed.
    - Never cite source files, doc IDs, PR numbers, dates, or people.
    - Tag every new Layer 3 stance `grounded` (stated directly in a doc) or `extrapolated` (inferred across docs), and update the tag summary line.
    - Strengthen or reword an existing entry instead of adding a near-duplicate.
