@@ -29,7 +29,7 @@ All paths below are relative to this skill's directory.
    - `voice-profile/negative-list.md` -- shared hard constraints
 
 3. **Write the draft.** Condition on everything at once:
-   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's shape, never its topic or wording.
+   - Follow the shape card's opening, heading, list, and ending rules. Imitate the exemplar's document shape -- its opening, headings, lists, and ending -- never its topic, wording, or sentence-level phrasing. After drafting, diff the draft against the exemplar line by line: any sentence whose structure mirrors an exemplar sentence gets rewritten, even if every word is different.
    - Hit Layer 1's mean sentence length and its sentence-length *variance* -- uniform sentence length is itself a tell.
    - Use Layer 2's named patterns for openings, transitions, and argument structure.
    - Draw stances from Layer 3 only where the topic calls for them. Track each one you use and its `grounded` / `extrapolated` tag.
@@ -60,7 +60,7 @@ All paths below are relative to this skill's directory.
 ## Gotchas
 
 - **A clean validator run is necessary, not sufficient.** The validator does not check reflexive rule-of-three lists, inline-header bullet lists, or sourcing problems (negative-list category 5). Read the draft for those three before handing it over.
-- **The exemplars are synthetic.** They were written to demonstrate the shape cards and validated against Layer 1; they are not the author's text. Copying their phrasing produces a model imitating a model.
+- **The exemplars are synthetic.** They were written to demonstrate the shape cards and validated against Layer 1; they are not the author's text. Copying their phrasing -- including slot-filling their sentence structures -- produces a model imitating a model.
 - **A low Delta is not evidence the voice landed.** Genuine in-voice docs and a deliberately AI-flavored control measure in the same Delta band. Report the number and never present it as vouching for the draft.
 - **Title-case headings and empty sections do not gate** because they did not separate real docs from AI slop. Read those two rows yourself.
 - **Exit status 2 means the install is incomplete**, usually a missing `voice-profile/layer1-<format>.json`. Tell the user rather than guessing at targets.

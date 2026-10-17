@@ -1,0 +1,48 @@
+{
+  "skill": "writing-in-voice",
+  "retrieval-test": {
+    "date": "2026-10-14",
+    "checksum": "sha256:89633ae017b49fa40894289a2e607cd71a101cf6cf40b9c9dee3d311b44f737b",
+    "passes": 7,
+    "fails": 1,
+    "gaps": 0,
+    "voids": 1,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "ablations": 1,
+    "campaign": "campaign-2026-10-14",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  },
+  "shape-test": {
+    "date": "2026-10-14",
+    "checksum": "sha256:fb4e73012b6cbdde9ae45c92ea0e3bbef1ffe160a4c7f32deacf3f280649b8f3",
+    "adopted": 1,
+    "no-failure": 2,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "ablations": 2,
+    "campaign": "campaign-2026-10-14",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  },
+  "pressure-test": {
+    "date": "2026-10-14",
+    "checksum": "sha256:20403f8ff5a59eb16c8ebbea0585a007b548b8bcc9dbc66b53f96d144ca507ab",
+    "bulletproof": 3,
+    "no-failure": 11,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "ablations": 11,
+    "campaign": "campaign-2026-10-14",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  }
+}
