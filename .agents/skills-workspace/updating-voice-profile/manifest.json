@@ -29,5 +29,20 @@
     "models": [
       "llama-cpp/qwen3.8-27B-GSQ-RCO"
     ]
+  },
+  "pressure-test": {
+    "date": "2026-10-17",
+    "checksum": "sha256:dc308a32b4e618cfb232bf97f551d32ddd7992373329b485a10ed159fda91861",
+    "bulletproof": 2,
+    "no-failure": 12,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "ablations": 12,
+    "campaign": "campaign-2026-10-17",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
   }
 }

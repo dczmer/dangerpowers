@@ -1,0 +1,194 @@
+{
+  "skill": "updating-voice-profile",
+  "generated": "2026-10-15",
+  "rules": [
+    {
+      "id": "R-steps-01",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Use one format and one weight per run; split mixed batches into separate runs.",
+      "entries": [
+        "one-format-per-run"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-02",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Show the deny-list of private terms to the user, then append only the approved terms to the external deny-list file.",
+      "entries": [
+        "denylist-approval"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-03",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Never write private terms anywhere inside either skill directory.",
+      "entries": [
+        "terms-outside-skill"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-04",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Make every change in STAGE; never edit SKILL_DIR directly.",
+      "entries": [
+        "stage-only-edits"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-05",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Add a pattern, tic, stance, or layout rule only when it appears in at least two of the new docs, or in one new doc plus existing profile evidence.",
+      "entries": [
+        "two-instance-threshold"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-06",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Write every entry and its example from scratch, in your own words; a source sentence never appears anywhere in the profile (short stock tics are the only verbatim carry-over).",
+      "entries": [
+        "paraphrase-only-entries"
+      ]
+    },
+    {
+      "id": "R-steps-07",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Give every illustration as a fresh invented example about an ordinary engineering topic; never reuse the source doc's own scenario, even renamed.",
+      "entries": [
+        "fresh-illustrations"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-08",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Never cite source files, doc IDs, PR numbers, dates, or people in the profile.",
+      "entries": [
+        "no-source-citations"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-09",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Tag every new Layer 3 stance grounded or extrapolated, and update the tag summary line.",
+      "entries": [
+        "stance-tags"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-10",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Gate the stage: leak checker exit 0, unit tests pass, loaded-file line count under 500; stop on any failure and fix in STAGE before rerunning.",
+      "entries": [
+        "gate-line-budget"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-steps-11",
+      "section": "Steps",
+      "kind": "discipline",
+      "statement": "Copy nothing back until the user approves the exact complete diff.",
+      "entries": [
+        "diff-approval-before-promote"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "The merge is permanent: a merged doc cannot be subtracted later and re-ingesting double-counts; ask before re-ingesting any path.",
+      "entries": [
+        "ask-before-reingest"
+      ]
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Never reintroduce zeta word lists.",
+      "entries": [
+        "no-zeta-word-lists"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "A missing deny-list is a warning, not a hard stop: recreate the file from the user's terms rather than running without one.",
+      "entries": [
+        "denylist-missing"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-steps-12",
+      "section": "Steps",
+      "kind": "shaping",
+      "reason": "Rule about the form of the profile artifact (near-duplicate entries); expected failure is wrong-shaped output, not rationalized non-compliance. Route: shape-testing track."
+    },
+    {
+      "id": "R-steps-13",
+      "section": "Steps",
+      "kind": "technique",
+      "reason": "Mechanical procedure: exemplar rewrite and validate_voice.py loop. No competing incentive; compliance is the only path. Route: none."
+    },
+    {
+      "id": "R-steps-14",
+      "section": "Steps",
+      "kind": "technique",
+      "reason": "Mechanical procedure: merge_profile.py invocation with documented flags. No competing incentive. Route: none."
+    },
+    {
+      "id": "R-steps-15",
+      "section": "Steps",
+      "kind": "technique",
+      "reason": "Mechanical procedure: rsync promotion and leak-checker rerun after approval. No competing incentive. Route: none."
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "Documented fact about the leak checker's coverage limits; no rule to violate. Route: retrieval-testing track for fact recall."
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "technique",
+      "reason": "How-to guidance for paraphrasing (rewrite from the pattern, not the sentence). No competing incentive. Route: none."
+    }
+  ]
+}
