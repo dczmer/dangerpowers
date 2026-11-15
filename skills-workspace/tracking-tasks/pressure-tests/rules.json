@@ -11,7 +11,7 @@
         "invalidation-reason-mandatory"
       ],
       "status": "ablation",
-      "ablation_streak": 0
+      "ablation_streak": 1
     },
     {
       "id": "R-using-the-cli-01",
@@ -22,7 +22,7 @@
         "cli-only-state-changes"
       ],
       "status": "ablation",
-      "ablation_streak": 0
+      "ablation_streak": 1
     },
     {
       "id": "R-writing-tasks-grounding-01",
@@ -42,7 +42,7 @@
         "verify-claims-open-questions-draft"
       ],
       "status": "ablation",
-      "ablation_streak": 0
+      "ablation_streak": 1
     },
     {
       "id": "R-writing-tasks-task-quality-01",
@@ -51,7 +51,9 @@
       "statement": "A title containing \"and\" (or a definition of done needing more than three bullets) means two chunks of work: file two tickets or a parent with subtasks, even when asked for a single ticket",
       "entries": [
         "split-and-titles"
-      ]
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
     },
     {
       "id": "R-writing-tasks-linking-01",
@@ -73,7 +75,7 @@
         "validate-after-bulk-edits"
       ],
       "status": "ablation",
-      "ablation_streak": 0
+      "ablation_streak": 1
     },
     {
       "id": "R-gotchas-02",
@@ -84,7 +86,7 @@
         "no-backdating-updated"
       ],
       "status": "ablation",
-      "ablation_streak": 0
+      "ablation_streak": 1
     }
   ],
   "excluded": [

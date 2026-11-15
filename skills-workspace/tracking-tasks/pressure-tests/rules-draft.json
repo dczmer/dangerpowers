@@ -6,49 +6,49 @@
       "section": "Lifecycle rules",
       "kind": "discipline",
       "statement": "Invalidating a task requires a mandatory free-text --reason via set-state, recorded in the task's reason frontmatter field",
-      "entries": []
+      "entries": ["invalidation-reason-mandatory"]
     },
     {
       "section": "Using the CLI",
       "kind": "discipline",
       "statement": "Change state, updated, created, or parent only through the CLI (new, set, set-state); never hand-edit these frontmatter fields",
-      "entries": []
+      "entries": ["cli-only-state-changes"]
     },
     {
       "section": "Writing tasks > Grounding",
       "kind": "discipline",
       "statement": "Scan the project (relevant code and docs, git log, list and grep over existing tasks) before writing anything; never ask the user a question the repository can answer",
-      "entries": []
+      "entries": ["grounding-scan-before-writing"]
     },
     {
       "section": "Writing tasks > Verification",
       "kind": "discipline",
       "statement": "Verify the request's claims against the code and reproduce the bug when possible; put anything unverifiable in ## Open Questions and leave the task in draft until resolved",
-      "entries": []
+      "entries": ["verify-claims-open-questions-draft"]
     },
     {
       "section": "Writing tasks > Task quality",
       "kind": "discipline",
       "statement": "A title containing \"and\" (or a definition of done needing more than three bullets) means two chunks of work: file two tickets or a parent with subtasks, even when asked for a single ticket",
-      "entries": []
+      "entries": ["split-and-titles"]
     },
     {
       "section": "Writing tasks > Linking",
       "kind": "discipline",
       "statement": "Grep the corpus for existing duplicates and related work before creating a new task or bug",
-      "entries": []
+      "entries": ["grep-before-filing"]
     },
     {
       "section": "Gotchas",
       "kind": "discipline",
       "statement": "Run validate after bulk edits (renames, scripted changes, manual frontmatter fixes) to catch dangling link targets and stray files",
-      "entries": []
+      "entries": ["validate-after-bulk-edits"]
     },
     {
       "section": "Gotchas",
       "kind": "discipline",
       "statement": "Use set <id> updated <date> only to repair a stale timestamp; decline backdating to make a task look touched for a report and offer the real updated value instead",
-      "entries": []
+      "entries": ["no-backdating-updated"]
     }
   ],
   "excluded": [
