@@ -3,9 +3,8 @@ name: tracking-tasks
 description: Use when the user asks to create, list, update, link, or review
   project tasks, bugs, or subtasks, or to run the task tracker. Covers task
   lifecycle rules and how to write well-grounded tasks and bug reports.
-disable-model-invocation: true
 metadata.opencode/slash: true
-metadata.opencode/autoinvoke: false
+metadata.opencode/autoinvoke: true
 ---
 
 # Tracking Tasks

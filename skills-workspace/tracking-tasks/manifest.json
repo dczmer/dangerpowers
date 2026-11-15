@@ -1,0 +1,14 @@
+{
+  "skill": "tracking-tasks",
+  "trigger-test": {
+    "date": "2026-11-14",
+    "checksum": "sha256:c13f4b41e52513e07139fb719bd9a5ae37d1ae2367ef0441daa8f4711775f659",
+    "score": 0.7718981569447083,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "campaign": "campaign-2026-11-14-2",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  }
+}

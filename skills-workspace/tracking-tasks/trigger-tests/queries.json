@@ -1,0 +1,50 @@
+[
+  {
+    "query": "file a task to add a --dry-run flag to the deploy script so we can see what it would change before it touches prod",
+    "shouldTrigger": true
+  },
+  {
+    "query": "look for bugs with how our retry logic handles connection resets — the importer just spins forever when the socket drops, so write one bug report per issue you find",
+    "shouldTrigger": true
+  },
+  {
+    "query": "create subtasks to break down the OAuth migration — login, token refresh, and forced logout each need their own ticket under the migration task",
+    "shouldTrigger": true
+  },
+  {
+    "query": "we keep losing track of who's doing what on this project — set up a task tracker for the repo and put the payment-refund rework in as the first open ticket",
+    "shouldTrigger": true
+  },
+  {
+    "query": "write up a bug report for the checkout flow double-charging people when they double-click the pay button, and link it to the payments task if one exists",
+    "shouldTrigger": true
+  },
+  {
+    "query": "can you put tickets in for the three Q3 roadmap items — rate limiter first, then the audit-log export, then the billing email redesign? mark the rate limiter as in progress since sam started it",
+    "shouldTrigger": true
+  },
+  {
+    "query": "check whether there's already a ticket about the flaky websocket reconnects before you open a new one, and if there is, add a note that it's getting worse",
+    "shouldTrigger": true
+  },
+  {
+    "query": "the dark-mode toggle shipped yesterday — find its ticket and mark it complete, and while you're in there show me everything still sitting in draft",
+    "shouldTrigger": true
+  },
+  {
+    "query": "track down why memory usage climbs every time the importer runs — profile it and find the leak, I just want the analysis in your reply",
+    "shouldTrigger": false
+  },
+  {
+    "query": "give me a plain markdown checklist for the release in your reply — rollback steps, feature flags, comms — but don't bother managing tickets for it",
+    "shouldTrigger": false
+  },
+  {
+    "query": "file the quarterly TPS report under docs/reports/ and add a link to it from the index page so finance can find it",
+    "shouldTrigger": false
+  },
+  {
+    "query": "update the CHANGELOG with last sprint's fixes and link each entry to its commit so reviewers can trace them",
+    "shouldTrigger": false
+  }
+]
