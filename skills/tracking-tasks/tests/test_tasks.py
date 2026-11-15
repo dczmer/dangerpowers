@@ -1,8 +1,10 @@
-"""Phase 1 tests for skills/tracking-tasks/scripts/tasks.py.
+"""Tests for skills/tracking-tasks/scripts/tasks.py (phases 1-3).
 
 Covers the internal machinery: YAML subset parser/emitter, config
 discovery, author resolution, slug generation, next-number computation,
-ID resolution, template fidelity, and the CLI skeleton (-h, stubs).
+ID resolution, template fidelity, the CLI skeleton (-h, stubs), and
+the read/create (init/new/list/show/next-id) and mutation
+(set-state/set) commands.
 """
 
 # The tasks module is loaded via sys.path below (no installed package).
@@ -466,7 +468,8 @@ class TestCliSkeleton(ProjectFixture):
         self.assertIn("usage:", err)
 
     def test_stub_command_not_implemented(self):
-        code, out, err = self.run_cli("set-state", "001", "open")
+        # `validate`/`links`/`grep` remain stubs until phase 4.
+        code, out, err = self.run_cli("validate")
         self.assertEqual(code, 1)
         self.assertEqual(out, "")
         self.assertIn("tasks.py: error:", err)
@@ -803,6 +806,337 @@ class TestShow(ProjectFixture):
         code, _, err = self.run_cli("show", "001")
         self.assertEqual(code, 1)
         self.assertIn("init", err)
+
+
+class TestSetState(ProjectFixture):
+    def setUp(self):
+        super().setUp()
+        self.run_cli("init", "--author", "Ada")
+        self.run_cli("new", "task", "Alpha")
+        self.path = self.project / "tasks" / "001_alpha.md"
+
+    def _read(self):
+        return tasks.read_task(self.path)
+
+    def _age_updated(self):
+        """Set updated to the past so a refresh is observable."""
+        fields, body = self._read()
+        fields["updated"] = "2020-01-01"
+        self.path.write_text(tasks.render_task(fields, body), encoding="utf-8")
+
+    def test_any_to_any_transitions_allowed(self):
+        for state in (
+            "open",
+            "in-progress",
+            "complete",
+            "draft",
+            "invalid",
+            "open",
+        ):
+            code, _, err = self.run_cli("set-state", "001", state)
+            self.assertEqual(code, 0, err)
+        self.assertEqual(self._read()[0]["state"], "open")
+
+    def test_updated_refreshed(self):
+        self._age_updated()
+        code, _, err = self.run_cli("set-state", "001", "open")
+        self.assertEqual((code, err), (0, ""))
+        fields, _ = self._read()
+        today = datetime.date.today().isoformat()  # noqa: DTZ011
+        self.assertEqual(fields["updated"], today)
+        self.assertEqual(fields["created"], today)
+
+    def test_invalid_without_reason_warns_but_succeeds(self):
+        code, _, err = self.run_cli("set-state", "001", "invalid")
+        self.assertEqual(code, 0)
+        self.assertIn("tasks.py: warning:", err)
+        self.assertIn("reason", err)
+        self.assertEqual(self._read()[0]["state"], "invalid")
+
+    def test_invalid_with_reason_records_reason(self):
+        code, _, err = self.run_cli(
+            "set-state", "001", "invalid", "--reason", "superseded"
+        )
+        self.assertEqual((code, err), (0, ""))
+        fields, _ = self._read()
+        self.assertEqual(fields["reason"], "superseded")
+
+    def test_reason_set_on_non_invalid_state(self):
+        code, _, err = self.run_cli(
+            "set-state", "001", "open", "--reason", "extra context"
+        )
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(self._read()[0]["reason"], "extra context")
+
+    def test_invalid_state_value_rejected(self):
+        code, _, err = self.run_cli("set-state", "001", "bogus")
+        self.assertEqual(code, 1)
+        self.assertIn("invalid choice", err)
+
+    def test_unknown_id_is_error(self):
+        code, _, err = self.run_cli("set-state", "099", "open")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+
+    def test_missing_dir_suggests_init(self):
+        import shutil
+
+        shutil.rmtree(self.project / "tasks")
+        code, _, err = self.run_cli("set-state", "001", "open")
+        self.assertEqual(code, 1)
+        self.assertIn("init", err)
+
+    def test_body_preserved_byte_for_byte(self):
+        with self.path.open("a", encoding="utf-8") as fh:
+            fh.write(
+                "\nHand-written notes.\n"
+                "---\n"
+                "tricky: line that looks like frontmatter\n"
+                "- DEPENDS ON: 002_other.md\n"
+                "## Links\n"
+            )
+        before_body = tasks.parse_task(
+            self.path.read_text(encoding="utf-8"), "x"
+        )[1]
+        code, _, err = self.run_cli("set-state", "001", "in-progress")
+        self.assertEqual((code, err), (0, ""))
+        after = self.path.read_text(encoding="utf-8")
+        self.assertEqual(tasks.parse_task(after, "x")[1], before_body)
+
+    def test_same_state_mutation_is_byte_identical(self):
+        before = self.path.read_text(encoding="utf-8")
+        code, _, err = self.run_cli("set-state", "001", "draft")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(self.path.read_text(encoding="utf-8"), before)
+
+
+class TestSet(ProjectFixture):
+    def setUp(self):
+        super().setUp()
+        self.run_cli("init", "--author", "Ada")
+        self.run_cli("new", "task", "Alpha")
+        self.path = self.project / "tasks" / "001_alpha.md"
+
+    def _read(self):
+        return tasks.read_task(self.path)
+
+    def _age_updated(self):
+        fields, body = self._read()
+        fields["updated"] = "2020-01-01"
+        self.path.write_text(tasks.render_task(fields, body), encoding="utf-8")
+
+    def test_set_title(self):
+        code, _, err = self.run_cli("set", "001", "title", "New: Title")
+        self.assertEqual((code, err), (0, ""))
+        fields, _ = self._read()
+        self.assertEqual(fields["title"], "New: Title")
+        self.assertIn('title: "New: Title"\n', self.path.read_text())
+
+    def test_set_title_empty_rejected(self):
+        code, _, err = self.run_cli("set", "001", "title", "   ")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("non-empty", err)
+
+    def test_set_author(self):
+        code, _, _ = self.run_cli("set", "001", "author", "Grace")
+        self.assertEqual(code, 0)
+        self.assertEqual(self._read()[0]["author"], "Grace")
+
+    def test_set_author_empty_rejected(self):
+        code, _, err = self.run_cli("set", "001", "author", "")
+        self.assertEqual(code, 1)
+        self.assertIn("non-empty", err)
+
+    def test_set_created_rejected(self):
+        code, _, err = self.run_cli("set", "001", "created", "2020-01-01")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("created", err)
+
+    def test_unknown_field_rejected_with_list(self):
+        code, _, err = self.run_cli("set", "001", "bogus", "x")
+        self.assertEqual(code, 1)
+        self.assertIn("unknown field", err)
+        self.assertIn("title", err)
+
+    def test_set_state_enum_and_warning(self):
+        code, _, err = self.run_cli("set", "001", "state", "bogus")
+        self.assertEqual(code, 1)
+        self.assertIn("state must be one of", err)
+        code, _, err = self.run_cli("set", "001", "state", "complete")
+        self.assertEqual((code, err), (0, ""))
+        code, _, err = self.run_cli("set", "001", "state", "invalid")
+        self.assertEqual(code, 0)
+        self.assertIn("tasks.py: warning:", err)
+        self.assertEqual(self._read()[0]["state"], "invalid")
+
+    def test_set_priority_enum(self):
+        code, _, err = self.run_cli("set", "001", "priority", "urgent")
+        self.assertEqual(code, 1)
+        self.assertIn("priority must be one of", err)
+        code, _, err = self.run_cli("set", "001", "priority", "high")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(self._read()[0]["priority"], "high")
+
+    def test_set_type_enum(self):
+        code, _, err = self.run_cli("set", "001", "type", "chore")
+        self.assertEqual(code, 1)
+        self.assertIn("type must be one of", err)
+
+    def test_set_type_subtask_without_parent_is_error(self):
+        code, _, err = self.run_cli("set", "001", "type", "subtask")
+        self.assertEqual(code, 1)
+        self.assertIn("parent", err)
+
+    def test_set_type_subtask_with_valid_parent(self):
+        # A file can carry a parent without being a subtask (e.g. after a
+        # bulk edit); `set type subtask` validates the parent and fixes it.
+        self.run_cli("new", "task", "Child")
+        child = self.project / "tasks" / "002_child.md"
+        fields, body = tasks.read_task(child)
+        fields["parent"] = "001_alpha.md"
+        child.write_text(tasks.render_task(fields, body), encoding="utf-8")
+        code, _, err = self.run_cli("set", "002", "type", "subtask")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(tasks.read_task(child)[0]["type"], "subtask")
+
+    def test_set_type_subtask_with_missing_parent_file(self):
+        self.run_cli("new", "task", "Child")
+        child = self.project / "tasks" / "002_child.md"
+        fields, body = tasks.read_task(child)
+        fields["parent"] = "099_nope.md"
+        child.write_text(tasks.render_task(fields, body), encoding="utf-8")
+        code, _, err = self.run_cli("set", "002", "type", "subtask")
+        self.assertEqual(code, 1)
+        self.assertIn("parent file not found", err)
+
+    def test_set_type_away_from_subtask_with_parent_is_error(self):
+        self.run_cli("new", "subtask", "Child", "--parent", "001_alpha.md")
+        code, _, err = self.run_cli("set", "002", "type", "task")
+        self.assertEqual(code, 1)
+        self.assertIn("parent", err)
+        self.assertIn("non-subtask", err)
+
+    def test_set_parent_on_non_subtask_is_error(self):
+        code, _, err = self.run_cli("set", "001", "parent", "002_beta.md")
+        self.assertEqual(code, 1)
+        self.assertIn("subtasks", err)
+
+    def test_set_parent_on_subtask_success(self):
+        self.run_cli("new", "bug", "Beta")
+        self.run_cli("new", "subtask", "Child", "--parent", "001_alpha.md")
+        code, _, err = self.run_cli("set", "003", "parent", "002")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(self._read_sub()["parent"], "002_beta.md")
+
+    def _read_sub(self):
+        fields, _ = tasks.read_task(self.project / "tasks" / "003_child.md")
+        return fields
+
+    def test_set_parent_to_subtask_rejected(self):
+        self.run_cli("new", "subtask", "Child", "--parent", "001_alpha.md")
+        self.run_cli("new", "subtask", "Other", "--parent", "001_alpha.md")
+        code, _, err = self.run_cli("set", "002", "parent", "003_other.md")
+        self.assertEqual(code, 1)
+        self.assertIn("task or bug", err)
+
+    def test_set_parent_nonexistent_rejected(self):
+        self.run_cli("new", "subtask", "Child", "--parent", "001_alpha.md")
+        code, _, err = self.run_cli("set", "002", "parent", "099_nope.md")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+
+    def test_set_tags_comma_separated(self):
+        code, _, err = self.run_cli("set", "001", "tags", "cli, auth")
+        self.assertEqual((code, err), (0, ""))
+        fields, _ = self._read()
+        self.assertEqual(fields["tags"], ["cli", "auth"])
+        code, _, err = self.run_cli("set", "001", "tags", "")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(self._read()[0]["tags"], [])
+
+    def test_set_updated_valid_date_not_refreshed(self):
+        self._age_updated()
+        code, _, err = self.run_cli("set", "001", "updated", "2021-12-31")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(self._read()[0]["updated"], "2021-12-31")
+
+    def test_set_updated_invalid_rejected(self):
+        for bad in ("12/31/2021", "2021-13-40", "2021-02-30", "tomorrow"):
+            with self.subTest(bad=bad):
+                code, _, err = self.run_cli("set", "001", "updated", bad)
+                self.assertEqual(code, 1)
+                self.assertIn("tasks.py: error:", err)
+
+    def test_updated_refreshed_on_other_sets(self):
+        self._age_updated()
+        code, _, err = self.run_cli("set", "001", "priority", "low")
+        self.assertEqual((code, err), (0, ""))
+        today = datetime.date.today().isoformat()  # noqa: DTZ011
+        self.assertEqual(self._read()[0]["updated"], today)
+
+    def test_created_never_modified(self):
+        self._age_updated()
+        created_before = self._read()[0]["created"]
+        for argv in (
+            ("set", "001", "title", "X"),
+            ("set", "001", "state", "open"),
+            ("set", "001", "tags", "a"),
+            ("set-state", "001", "complete"),
+        ):
+            code, _, err = self.run_cli(*argv)
+            self.assertEqual(code, 0, err)
+        self.assertEqual(self._read()[0]["created"], created_before)
+
+    def test_set_reason(self):
+        code, _, err = self.run_cli("set", "001", "reason", "why not")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(self._read()[0]["reason"], "why not")
+
+    def test_set_reason_empty_rejected(self):
+        code, _, err = self.run_cli("set", "001", "reason", "")
+        self.assertEqual(code, 1)
+        self.assertIn("non-empty", err)
+
+    def test_body_preserved_on_set(self):
+        with self.path.open("a", encoding="utf-8") as fh:
+            fh.write(
+                "\nNotes with: colons and # hashes\n"
+                "---\n"
+                "RELATED TO: 002_beta.md\n"
+            )
+        before_body = tasks.parse_task(
+            self.path.read_text(encoding="utf-8"), "x"
+        )[1]
+        code, _, err = self.run_cli("set", "001", "priority", "high")
+        self.assertEqual((code, err), (0, ""))
+        after = self.path.read_text(encoding="utf-8")
+        self.assertEqual(tasks.parse_task(after, "x")[1], before_body)
+
+    def test_key_order_canonical_after_set(self):
+        self._age_updated()
+        self.run_cli("set", "001", "priority", "high")
+        self.run_cli("set", "001", "reason", "because")
+        keys = [
+            line.split(":", 1)[0]
+            for line in self.path.read_text(encoding="utf-8")
+            .split("---\n")[1]
+            .splitlines()
+        ]
+        self.assertEqual(
+            keys,
+            [
+                "title",
+                "type",
+                "state",
+                "author",
+                "created",
+                "updated",
+                "reason",
+                "priority",
+            ],
+        )
 
 
 class TestNextId(ProjectFixture):

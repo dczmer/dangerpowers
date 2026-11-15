@@ -409,6 +409,13 @@ TYPES = ("task", "bug", "subtask")
 PARENT_TYPES = ("task", "bug")
 PRIORITIES = ("low", "medium", "high")
 
+# Shared by `new`, `set-state`, `set`, and (Phase 4) `validate` so the
+# warning wording matches across all paths.
+WARNING_INVALID_NO_REASON = "state is 'invalid' but no reason given"
+
+_FIELD_ENUMS = {"type": TYPES, "state": STATES, "priority": PRIORITIES}
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 
@@ -421,6 +428,35 @@ def _today() -> str:
 
 def _warn(message: str) -> None:
     print(f"tasks.py: warning: {message}", file=sys.stderr)
+
+
+def _validate_date(field: str, value: str) -> None:
+    """Dates are YYYY-MM-DD and must be real calendar dates (§4)."""
+    if _DATE_RE.fullmatch(value) is None:
+        raise TasksError(f"{field} must be a date in YYYY-MM-DD form")
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        raise TasksError(f"{field} is not a valid date: {value}") from None
+
+
+def _validate_parent_file(artifacts_dir: Path, parent_name: str) -> None:
+    """A parent must exist and be a task or bug, not a subtask (§4)."""
+    parent_path = artifacts_dir / parent_name
+    if not parent_path.is_file():
+        raise TasksError(f"parent file not found: {parent_name}")
+    parent_fields, _ = read_task(parent_path)
+    parent_type = parent_fields.get("type")
+    if parent_type not in PARENT_TYPES:
+        raise TasksError(
+            f"parent {parent_name} has type {parent_type!r}; "
+            "parents must be task or bug"
+        )
+
+
+def _warn_if_invalid_without_reason(fields: dict) -> None:
+    if fields.get("state") == "invalid" and not fields.get("reason"):
+        _warn(WARNING_INVALID_NO_REASON)
 
 
 def parse_task(text: str, name: str):
@@ -542,8 +578,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         ]
     if args.reason:
         fields["reason"] = args.reason
-    if fields["state"] == "invalid" and not fields.get("reason"):
-        _warn("state is 'invalid' but no reason given")
+    _warn_if_invalid_without_reason(fields)
     if args.slug:
         slug = args.slug
         if re.fullmatch(r"[A-Za-z0-9\-_]+", slug) is None:
@@ -609,6 +644,89 @@ def cmd_next_id(args: argparse.Namespace) -> int:
     """Print the next task number, e.g. `017` (§8)."""
     artifacts_dir = _require_artifacts_dir(_load_config(args))
     print(f"{next_number(artifacts_dir):03d}")
+    return 0
+
+
+def cmd_set_state(args: argparse.Namespace) -> int:
+    """Change a task's state (any→any, no workflow enforcement); the
+    ``reason`` field is set when given; ``updated`` is refreshed (§5/§8)."""
+    artifacts_dir = _require_artifacts_dir(_load_config(args))
+    path = resolve_id(artifacts_dir, args.id)
+    fields, body = read_task(path)
+    fields["state"] = args.state
+    if args.reason is not None:
+        fields["reason"] = args.reason
+    fields["updated"] = _today()
+    _warn_if_invalid_without_reason(fields)
+    path.write_text(render_task(fields, body), encoding="utf-8")
+    print(path)
+    return 0
+
+
+def cmd_set(args: argparse.Namespace) -> int:
+    """Generic validated frontmatter edit; every field except ``created``
+    is settable (locked decision), each with per-field validation (§4/§8).
+    ``updated`` is refreshed unless it is the field being set."""
+    artifacts_dir = _require_artifacts_dir(_load_config(args))
+    path = resolve_id(artifacts_dir, args.id)
+    field, value = args.field, args.value
+    if field == "created":
+        raise TasksError(
+            "'created' cannot be set; it is fixed at creation time"
+        )
+    if field not in CANONICAL_ORDER:
+        settable = ", ".join(
+            name for name in CANONICAL_ORDER if name != "created"
+        )
+        raise TasksError(f"unknown field {field!r}; settable: {settable}")
+    fields, body = read_task(path)
+    if field == "tags":
+        fields["tags"] = [
+            item.strip() for item in value.split(",") if item.strip()
+        ]
+    elif field == "parent":
+        if fields.get("type") != "subtask":
+            raise TasksError(
+                "'parent' is only allowed on subtasks; use "
+                "`new subtask --parent` to create one"
+            )
+        parent_path = resolve_id(artifacts_dir, value)
+        _validate_parent_file(artifacts_dir, parent_path.name)
+        fields["parent"] = parent_path.name
+    elif field == "type":
+        if value not in TYPES:
+            raise TasksError(f"type must be one of: {', '.join(TYPES)}")
+        if value != "subtask" and fields.get("parent"):
+            raise TasksError(
+                f"cannot set type to {value!r}: 'parent' is set and "
+                "parent is forbidden on non-subtasks"
+            )
+        fields["type"] = value
+        if value == "subtask":
+            parent_name = fields.get("parent")
+            if not parent_name:
+                raise TasksError(
+                    "subtask requires a parent; create it with "
+                    "`new subtask --parent` instead"
+                )
+            _validate_parent_file(artifacts_dir, parent_name)
+    elif field == "updated":
+        _validate_date("updated", value)
+        fields["updated"] = value
+    elif field in ("title", "author", "reason"):
+        if not value.strip():
+            raise TasksError(f"{field} must be non-empty")
+        fields[field] = value
+    else:  # state / priority, validated against their enums
+        valid = _FIELD_ENUMS[field]
+        if value not in valid:
+            raise TasksError(f"{field} must be one of: {', '.join(valid)}")
+        fields[field] = value
+    if field != "updated":
+        fields["updated"] = _today()
+    _warn_if_invalid_without_reason(fields)
+    path.write_text(render_task(fields, body), encoding="utf-8")
+    print(path)
     return 0
 
 
@@ -680,15 +798,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.set_defaults(command="show", func=cmd_show)
 
-    p = stub("set-state", "change a task's state")
+    p = sub.add_parser("set-state", help="change a task's state")
+    _add_global(p)
     p.add_argument("id")
-    p.add_argument("state")
+    p.add_argument("state", choices=STATES)
     p.add_argument("--reason")
+    p.set_defaults(command="set-state", func=cmd_set_state)
 
-    p = stub("set", "edit a frontmatter field")
+    p = sub.add_parser("set", help="edit a frontmatter field")
+    _add_global(p)
     p.add_argument("id")
     p.add_argument("field")
     p.add_argument("value")
+    p.set_defaults(command="set", func=cmd_set)
 
     stub("validate", "check tasks against the schema").add_argument(
         "id", nargs="*"
