@@ -1,0 +1,117 @@
+---
+name: tracking-tasks
+description: Use when the user asks to create, list, update, link, or review
+  project tasks, bugs, or subtasks, or to run the task tracker. Covers task
+  lifecycle rules and how to write well-grounded tasks and bug reports.
+disable-model-invocation: true
+metadata.opencode/slash: true
+metadata.opencode/autoinvoke: false
+---
+
+# Tracking Tasks
+
+## Overview
+
+Track project work as plain markdown files with YAML frontmatter, one file per
+task, managed by a small CLI. The CLI is the only writer of frontmatter;
+ripgrep (`tasks.py grep`) is the query layer over the task corpus.
+
+## Setup
+
+1. Locate the CLI at `scripts/tasks.py` relative to this skill directory.
+2. Check for a `.tasks.yaml` config in the project (walk up from the working
+   directory). Run `init` in the project root when there is none — this
+   creates the config and the artifacts directory that holds task files.
+3. Resolve the author once with `new --author`, the config `author` field,
+   `git config user.name`, or `$USER` — the CLI picks the first that works.
+
+## Using the CLI
+
+- Run `python3 scripts/tasks.py -h` and the per-subcommand `-h` for the full
+  command and flag reference. The CLI owns the flag documentation; do not
+  document flags here.
+- Change `state`, `updated`, `created`, or `parent` only through the CLI
+  (`new`, `set`, `set-state`), so `updated` stays correct. Edit the body
+  (descriptions, checklists, `## Links` lines, `## Open Questions`) with
+  normal file tools.
+- Use `show` to read a task, `list` with filters to survey the corpus, and
+  `grep` to search bodies with ripgrep syntax.
+
+## Lifecycle rules
+
+- States are `draft`, `open`, `in-progress`, `complete`, plus `invalid`. The
+  chain `draft → open → in-progress → complete` is descriptive only: any state
+  may transition to any other via `set-state`.
+- Mark a task `invalid` when it will never be done (superseded, wrong
+  premise, duplicate). Always pass `--reason` with a free-text explanation;
+  `set-state <id> invalid --reason "..."` records it in the `reason`
+  frontmatter field.
+- Create a subtask with `new subtask --parent <id>`. The parent must exist
+  and be a `task` or `bug` — subtasks cannot have subtasks.
+
+## Writing tasks
+
+### Grounding
+
+Scan the project before writing anything: read the relevant code and docs,
+check `git log`, and run `list` and `grep` over existing tasks. Never ask the
+user a question the repository can answer.
+
+### Verification
+
+Verify the request's claims against the code: confirm the referenced files,
+functions, and endpoints exist, and reproduce the bug when possible. Put
+anything unverifiable in `## Open Questions` and leave the task in `draft`
+until it is resolved.
+
+### Task quality
+
+- Answer why, how, and definition-of-done — the template's `## Why`,
+  `## How`, and `## Definition of Done` sections.
+- Write the definition of done as a checkable bullet list.
+- Split the work when the title contains "and" or the definition of done needs
+  more than three bullets. One ticket is one chunk of work.
+
+### Bug quality
+
+- Write the title as the symptom, not the suspected cause.
+- Number the minimal reproduction steps and start each from a known state.
+- Keep expected behavior and actual behavior as separate sections.
+- Quote error messages verbatim, including the full traceback when there is
+  one.
+- Record the environment where the bug reproduced.
+- File one bug per ticket.
+
+### Linking
+
+Record relationships in the `## Links` section with the four tokens:
+`RELATED TO:`, `DEPENDS ON:`, `DUPLICATES:`, `INVALIDATES:`, each followed by
+comma- or space-separated task filenames. Grep the corpus for existing
+duplicates and related work before creating a new task or bug. Link semantics
+are informational — `DEPENDS ON` does not block completion.
+
+## Gotchas
+
+- Task numbers come from a global per-project sequence and are never reused;
+  a deleted task leaves a permanent gap.
+- Change state only through `set-state` — hand-editing `state` leaves
+  `updated` stale and breaks the audit trail.
+- Match link tokens exactly: uppercase, with the colon. `Depends on:` or a
+  missing colon is invisible to `links` and `validate`.
+- Run `validate` after bulk edits (renames, scripted changes, manual
+  frontmatter fixes) to catch dangling link targets and stray files.
+
+## Checklist
+
+Run after creating or substantially editing a task:
+
+- [ ] Grounded: scanned the code, docs, git log, and existing tasks first.
+- [ ] Verified: every claim in the task checked against the code; the rest
+      lives in `## Open Questions` and the state is `draft`.
+- [ ] Sections complete per template: why/how/definition-of-done for tasks;
+      repro steps, expected vs actual, evidence, environment for bugs.
+- [ ] Definition of done is a checkable bullet list; one chunk of work per
+      ticket.
+- [ ] Links greppable: exact tokens, real target filenames, duplicates
+      checked with `grep` before filing.
+- [ ] `python3 scripts/tasks.py validate` reports no errors.
