@@ -272,7 +272,7 @@ class TestDiscoverConfig(ProjectFixture):
         nested.mkdir(parents=True)
         cfg = tasks.discover_config(None, None, nested)
         self.assertEqual(cfg.path, self.project / ".tasks.yaml")
-        # Resolved relative to the config file's dir (§2).
+        # Resolved relative to the config file's dir.
         self.assertEqual(cfg.artifacts_dir, self.project / "issues")
 
     def test_flag_beats_walk(self):
@@ -596,7 +596,7 @@ class TestNew(ProjectFixture):
     def test_slug_collision_is_error(self):
         self._new("task", "First", "--slug", "same")
         # Numbers are unique, so force a filename collision by reusing the
-        # number the CLI would otherwise assign (§8 concurrent-new check).
+        # number the CLI would otherwise assign (concurrent-new check).
         with mock.patch.object(tasks, "next_number", return_value=1):
             code, _, err = self._new("task", "Second", "--slug", "same")
         self.assertEqual(code, 1)

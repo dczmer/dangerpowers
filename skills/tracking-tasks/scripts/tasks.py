@@ -3,8 +3,7 @@
 
 Single file, Python 3 standard library only. Tasks live as flat markdown
 files with YAML frontmatter in a project-local artifacts dir; this script
-is the only writer of frontmatter. Design: .tmp/task-tracker-design.md in
-the skills repo (sections referenced as §N in comments below).
+is the only writer of frontmatter.
 """
 
 from __future__ import annotations
@@ -30,7 +29,7 @@ _SLUG_RUN_RE = re.compile(r"[^a-z0-9\-_]+")
 _KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9\-_]*):(.*)$")
 _ESCAPES = {"\\": "\\", '"': '"', "n": "\n", "t": "\t"}
 
-# Canonical frontmatter key order (§4): required fields first, then optionals.
+# Canonical frontmatter key order: required fields first, then optionals.
 CANONICAL_ORDER = (
     "title",
     "type",
@@ -54,7 +53,7 @@ class YamlError(TasksError):
 
 
 # --------------------------------------------------------------------- #
-# Flat YAML subset parser/emitter (§8)                                  #
+# Flat YAML subset parser/emitter                                 #
 # --------------------------------------------------------------------- #
 
 
@@ -83,7 +82,7 @@ def _strip_comment(line: str) -> str:
 
 
 def parse_yaml_subset(text: str) -> dict:
-    """Parse flat ``key: value`` pairs (§8 subset).
+    """Parse flat ``key: value`` pairs (flat YAML subset).
 
     Supports plain/single/double-quoted scalars, inline lists, and ``#``
     comments outside quotes. Rejects nesting, indented lines, duplicate
@@ -234,7 +233,7 @@ def emit_yaml(fields: dict) -> str:
 
 
 # --------------------------------------------------------------------- #
-# Config discovery (§2)                                                 #
+# Config discovery                                                #
 # --------------------------------------------------------------------- #
 
 
@@ -252,7 +251,7 @@ def discover_config(
     dir_flag: Optional[str],
     cwd: Path,
 ) -> Config:
-    """Resolve config: flag → upward walk for .tasks.yaml → defaults (§2)."""
+    """Resolve config: flag → upward walk for .tasks.yaml → defaults."""
     cfg_path: Optional[Path] = None
     base = cwd
     if config_flag is not None:
@@ -292,7 +291,7 @@ def discover_config(
 
 
 # --------------------------------------------------------------------- #
-# Author resolution (§4)                                                #
+# Author resolution                                               #
 # --------------------------------------------------------------------- #
 
 
@@ -317,7 +316,7 @@ def resolve_author(
     cfg_author: Optional[str],
     cwd: Path,
 ) -> str:
-    """Author chain: --author → config author → git config → $USER (§4)."""
+    """Author chain: --author → config author → git config → $USER."""
     if flag_author and flag_author.strip():
         return flag_author.strip()
     if cfg_author:
@@ -332,7 +331,7 @@ def resolve_author(
 
 
 # --------------------------------------------------------------------- #
-# Slug + numbering (§3)                                                 #
+# Slug + numbering                                                #
 # --------------------------------------------------------------------- #
 
 
@@ -342,7 +341,7 @@ def slugify(title: str) -> str:
 
 
 def task_numbers(artifacts_dir: Path) -> list:
-    """Numbers of files matching NNN_slug.md; missing dir → empty (§3)."""
+    """Numbers of files matching NNN_slug.md; missing dir → empty."""
     if not artifacts_dir.is_dir():
         return []
     numbers = []
@@ -354,7 +353,7 @@ def task_numbers(artifacts_dir: Path) -> list:
 
 
 def next_number(artifacts_dir: Path) -> int:
-    """Max existing number + 1; gaps are never backfilled (§3)."""
+    """Max existing number + 1; gaps are never backfilled."""
     number = max(task_numbers(artifacts_dir), default=0) + 1
     if number > MAX_TASK_NUMBER:
         raise TasksError(
@@ -365,7 +364,7 @@ def next_number(artifacts_dir: Path) -> int:
 
 
 # --------------------------------------------------------------------- #
-# ID resolution (§8)                                                    #
+# ID resolution                                                   #
 # --------------------------------------------------------------------- #
 
 
@@ -401,7 +400,7 @@ def resolve_id(artifacts_dir: Path, arg: str) -> Path:
 
 
 # --------------------------------------------------------------------- #
-# Task file IO: frontmatter + verbatim body (§4, §8)                    #
+# Task file IO: frontmatter + verbatim body                           #
 # --------------------------------------------------------------------- #
 
 STATES = ("draft", "open", "in-progress", "complete", "invalid")
@@ -427,7 +426,7 @@ TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 
 def _today() -> str:
-    """Local date, YYYY-MM-DD (§4)."""
+    """Local date, YYYY-MM-DD."""
     # Spec requires the *local* date; a tz-aware UTC date could differ near
     # midnight, so naive local is intentional here.
     return datetime.date.today().isoformat()  # noqa: DTZ011
@@ -449,7 +448,7 @@ def _is_date(value: object) -> bool:
 
 
 def _validate_date(field: str, value: str) -> None:
-    """Dates are YYYY-MM-DD and must be real calendar dates (§4)."""
+    """Dates are YYYY-MM-DD and must be real calendar dates."""
     if _DATE_RE.fullmatch(value) is None:
         raise TasksError(f"{field} must be a date in YYYY-MM-DD form")
     try:
@@ -479,7 +478,7 @@ def scan_links(body: str) -> list:
 
 
 def _validate_parent_file(artifacts_dir: Path, parent_name: str) -> None:
-    """A parent must exist and be a task or bug, not a subtask (§4)."""
+    """A parent must exist and be a task or bug, not a subtask."""
     parent_path = artifacts_dir / parent_name
     if not parent_path.is_file():
         raise TasksError(f"parent file not found: {parent_name}")
@@ -524,7 +523,7 @@ def _load_config(args: argparse.Namespace) -> Config:
 
 
 def _require_artifacts_dir(cfg: Config) -> Path:
-    """Read commands fail clearly when the artifacts dir is missing (§8)."""
+    """Read commands fail clearly when the artifacts dir is missing."""
     if not cfg.artifacts_dir.is_dir():
         raise TasksError(
             f"artifacts dir not found: {cfg.artifacts_dir} "
@@ -534,12 +533,12 @@ def _require_artifacts_dir(cfg: Config) -> Path:
 
 
 # --------------------------------------------------------------------- #
-# Commands (§8)                                                         #
+# Commands                                                        #
 # --------------------------------------------------------------------- #
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    """Create .tasks.yaml in cwd plus the artifacts dir; idempotent (§8)."""
+    """Create .tasks.yaml in cwd plus the artifacts dir; idempotent."""
     if args.config:
         config_path = Path(args.config)
         base = config_path.resolve().parent
@@ -568,13 +567,13 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_new(args: argparse.Namespace) -> int:
-    """Clone a template, fill frontmatter, assign the next number (§7/§8)."""
+    """Clone a template, fill frontmatter, assign the next number."""
     cfg = _load_config(args)
     artifacts_dir = cfg.artifacts_dir
     author = resolve_author(args.author, cfg.author, args.cwd)
     if args.parent and args.kind != "subtask":
         raise TasksError("--parent is only valid for subtask")
-    # Create the artifacts dir up front so parent resolution can scan it (§2).
+    # Create the artifacts dir up front so parent resolution can scan it.
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     parent_name = None
     if args.parent:
@@ -633,7 +632,7 @@ def cmd_new(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
-    """One line per task: `ID  state  type  title` (§8)."""
+    """One line per task: `ID  state  type  title`."""
     artifacts_dir = _require_artifacts_dir(_load_config(args))
     rows = []
     for path in sorted(artifacts_dir.iterdir()):
@@ -663,7 +662,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def cmd_show(args: argparse.Namespace) -> int:
-    """Print the task file verbatim (§8)."""
+    """Print the task file verbatim."""
     cfg = _load_config(args)
     path = resolve_id(cfg.artifacts_dir, args.id)
     sys.stdout.write(path.read_text(encoding="utf-8"))
@@ -671,7 +670,7 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 
 def cmd_next_id(args: argparse.Namespace) -> int:
-    """Print the next task number, e.g. `017` (§8)."""
+    """Print the next task number, e.g. `017`."""
     artifacts_dir = _require_artifacts_dir(_load_config(args))
     print(f"{next_number(artifacts_dir):03d}")
     return 0
@@ -679,7 +678,7 @@ def cmd_next_id(args: argparse.Namespace) -> int:
 
 def cmd_set_state(args: argparse.Namespace) -> int:
     """Change a task's state (any→any, no workflow enforcement); the
-    ``reason`` field is set when given; ``updated`` is refreshed (§5/§8)."""
+    ``reason`` field is set when given; ``updated`` is refreshed."""
     artifacts_dir = _require_artifacts_dir(_load_config(args))
     path = resolve_id(artifacts_dir, args.id)
     fields, body = read_task(path)
@@ -695,7 +694,7 @@ def cmd_set_state(args: argparse.Namespace) -> int:
 
 def cmd_set(args: argparse.Namespace) -> int:
     """Generic validated frontmatter edit; every field except ``created``
-    is settable (locked decision), each with per-field validation (§4/§8).
+    is settable, each with per-field validation.
     ``updated`` is refreshed unless it is the field being set."""
     artifacts_dir = _require_artifacts_dir(_load_config(args))
     path = resolve_id(artifacts_dir, args.id)
@@ -932,7 +931,7 @@ def cmd_grep(args: argparse.Namespace) -> int:
 
 
 class _Parser(argparse.ArgumentParser):
-    """ArgumentParser that exits 1 (not 2) on usage errors (§8 exit codes)."""
+    """ArgumentParser that exits 1 (not 2) on usage errors."""
 
     def error(self, message: str) -> NoReturn:
         self.exit(1, f"{self.prog}: error: {message}\n")
