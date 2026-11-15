@@ -409,12 +409,19 @@ TYPES = ("task", "bug", "subtask")
 PARENT_TYPES = ("task", "bug")
 PRIORITIES = ("low", "medium", "high")
 
-# Shared by `new`, `set-state`, `set`, and (Phase 4) `validate` so the
-# warning wording matches across all paths.
+# Shared by `new`, `set-state`, `set`, and `validate` so the warning
+# wording matches across all paths.
 WARNING_INVALID_NO_REASON = "state is 'invalid' but no reason given"
 
 _FIELD_ENUMS = {"type": TYPES, "state": STATES, "priority": PRIORITIES}
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+# Link tokens are exact, uppercase, with a colon, at line start or after
+# a markdown list bullet; targets are comma- or space-separated filenames.
+LINK_TOKENS = ("RELATED TO", "DEPENDS ON", "DUPLICATES", "INVALIDATES")
+_LINK_LINE_RE = re.compile(
+    r"^\s*(?:[-*]\s+)?(RELATED TO|DEPENDS ON|DUPLICATES|INVALIDATES):(.*)$"
+)
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
@@ -430,6 +437,17 @@ def _warn(message: str) -> None:
     print(f"tasks.py: warning: {message}", file=sys.stderr)
 
 
+def _is_date(value: object) -> bool:
+    """True for real calendar dates in YYYY-MM-DD form (string only)."""
+    if not isinstance(value, str) or _DATE_RE.fullmatch(value) is None:
+        return False
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def _validate_date(field: str, value: str) -> None:
     """Dates are YYYY-MM-DD and must be real calendar dates (§4)."""
     if _DATE_RE.fullmatch(value) is None:
@@ -438,6 +456,26 @@ def _validate_date(field: str, value: str) -> None:
         datetime.date.fromisoformat(value)
     except ValueError:
         raise TasksError(f"{field} is not a valid date: {value}") from None
+
+
+def scan_links(body: str) -> list:
+    """Find link relationships in a task body.
+
+    Returns ``[(token, [targets])]`` for each matching line; a trailing
+    ``#`` comment on the line is ignored (filenames cannot contain it).
+    """
+    found = []
+    for line in body.splitlines():
+        match = _LINK_LINE_RE.match(line)
+        if match is None:
+            continue
+        targets = []
+        for token in re.split(r"[\s,]+", match.group(2).strip()):
+            if not token or token.startswith("#"):
+                break
+            targets.append(token)
+        found.append((match.group(1), targets))
+    return found
 
 
 def _validate_parent_file(artifacts_dir: Path, parent_name: str) -> None:
@@ -498,14 +536,6 @@ def _require_artifacts_dir(cfg: Config) -> Path:
 # --------------------------------------------------------------------- #
 # Commands (§8)                                                         #
 # --------------------------------------------------------------------- #
-
-
-def _not_implemented(args: argparse.Namespace) -> int:
-    print(
-        f"tasks.py: error: {args.command}: not implemented yet",
-        file=sys.stderr,
-    )
-    return 1
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -730,6 +760,177 @@ def cmd_set(args: argparse.Namespace) -> int:
     return 0
 
 
+def _validate_file(path: Path, artifacts_dir: Path) -> list:
+    """Check one file against the schema; returns ``[(level, message)]``
+    where level is ``"error"`` or ``"warning"``. Never raises for file
+    content problems; parse failures become errors."""
+    name = path.name
+    issues = []
+    if _TASK_FILE_RE.match(name) is None:
+        issues.append(
+            ("error", f"{name}: filename does not match NNN_slug.md")
+        )
+        return issues
+    try:
+        fields, body = read_task(path)
+    except TasksError as exc:
+        issues.append(("error", f"{name}: {exc}"))
+        return issues
+    issues.extend(_field_issues(name, fields, artifacts_dir))
+    for token, targets in scan_links(body):
+        for target in targets:
+            if not (artifacts_dir / target).is_file():
+                issues.append(("error", f"{name}: dangling {token}: {target}"))
+    return issues
+
+
+def _field_issues(name: str, fields: dict, artifacts_dir: Path) -> list:
+    """Schema checks for one parsed frontmatter."""
+    issues = []
+
+    def err(message: str) -> None:
+        issues.append(("error", f"{name}: {message}"))
+
+    def warn(message: str) -> None:
+        issues.append(("warning", f"{name}: {message}"))
+
+    for field in ("title", "type", "state", "author", "created", "updated"):
+        if field not in fields:
+            err(f"missing required field '{field}'")
+    for field in ("title", "author"):
+        if field in fields and (
+            not isinstance(fields[field], str) or not fields[field].strip()
+        ):
+            err(f"{field} must be a non-empty string")
+    for field, valid in _FIELD_ENUMS.items():
+        value = fields.get(field)
+        if field in fields and (
+            not isinstance(value, str) or value not in valid
+        ):
+            err(f"{field} {value!r} is not one of: {', '.join(valid)}")
+    for field in ("created", "updated"):
+        if field in fields and not _is_date(fields[field]):
+            err(f"{field} must be a date in YYYY-MM-DD form")
+
+    type_value = fields.get("type")
+    parent = fields.get("parent")
+    if type_value == "subtask":
+        if not isinstance(parent, str) or not parent:
+            err("subtask is missing required field 'parent'")
+        else:
+            parent_path = artifacts_dir / parent
+            if not parent_path.is_file():
+                err(f"parent file not found: {parent}")
+            else:
+                try:
+                    parent_fields, _ = read_task(parent_path)
+                except TasksError as exc:
+                    err(f"parent {parent}: {exc}")
+                else:
+                    if parent_fields.get("type") not in PARENT_TYPES:
+                        err(
+                            f"parent {parent} has type "
+                            f"{parent_fields.get('type')!r}; parents must "
+                            "be task or bug"
+                        )
+    elif parent:
+        err(
+            f"'parent' is forbidden on non-subtask "
+            f"(type is {type_value!r})"
+        )
+
+    if fields.get("state") == "invalid" and not fields.get("reason"):
+        warn(WARNING_INVALID_NO_REASON)
+    reason = fields.get("reason")
+    if reason is not None and (
+        not isinstance(reason, str) or not reason.strip()
+    ):
+        err("reason must be a non-empty string")
+    tags = fields.get("tags")
+    if tags is not None:
+        if not isinstance(tags, list):
+            err("tags must be an inline list, e.g. [cli, auth]")
+        elif any(not isinstance(item, str) or not item for item in tags):
+            err("tags items must be non-empty strings")
+    for key in sorted(k for k in fields if k not in CANONICAL_ORDER):
+        warn(f"unknown frontmatter key '{key}'")
+    return issues
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Run every schema check on the given tasks (or all of them).
+
+    Errors exit 2; warnings-only still exits 0, with all issues listed on
+    stdout as ``error: <file>: ...`` / ``warning: <file>: ...`` lines.
+    Any file in the artifacts dir not matching ``NNN_slug.md`` is an error.
+    """
+    cfg = _load_config(args)
+    if args.id:
+        paths = [resolve_id(cfg.artifacts_dir, arg) for arg in args.id]
+        artifacts_dir = cfg.artifacts_dir
+    else:
+        artifacts_dir = _require_artifacts_dir(cfg)
+        paths = sorted(p for p in artifacts_dir.iterdir() if p.is_file())
+    issues = []
+    for path in paths:
+        issues.extend(_validate_file(path, artifacts_dir))
+    for level, message in issues:
+        print(f"{level}: {message}")
+    return 2 if any(level == "error" for level, _ in issues) else 0
+
+
+def cmd_links(args: argparse.Namespace) -> int:
+    """Print outbound and inbound link relationships for a task.
+    Dangling targets are flagged but do not change the exit code."""
+    artifacts_dir = _require_artifacts_dir(_load_config(args))
+    path = resolve_id(artifacts_dir, args.id)
+    _, body = read_task(path)
+    name = path.name
+    print(name)
+    print("outbound:")
+    outbound = scan_links(body)
+    if not outbound:
+        print("  (none)")
+    for token, targets in outbound:
+        for target in targets:
+            if (artifacts_dir / target).is_file():
+                dangling = ""
+            else:
+                dangling = " (dangling)"
+            print(f"  {token}: {target}{dangling}")
+    print("inbound:")
+    inbound = []
+    for other in sorted(artifacts_dir.iterdir()):
+        if other.name == name or _TASK_FILE_RE.match(other.name) is None:
+            continue
+        try:
+            _, other_body = read_task(other)
+        except TasksError:
+            continue
+        for token, targets in scan_links(other_body):
+            if name in targets:
+                inbound.append((other.name, token))
+    if not inbound:
+        print("  (none)")
+    for source, token in inbound:
+        print(f"  {source} ({token})")
+    return 0
+
+
+def cmd_grep(args: argparse.Namespace) -> int:
+    """Pass-through: ``rg <args> <artifacts_dir>``; exit code propagated."""
+    artifacts_dir = _require_artifacts_dir(_load_config(args))
+    try:
+        proc = subprocess.run(
+            ["rg", *args.rg_args, str(artifacts_dir)], check=False
+        )
+    except FileNotFoundError:
+        raise TasksError(
+            "rg (ripgrep) not found in PATH; install it to use grep"
+        ) from None
+    return proc.returncode
+
+
 class _Parser(argparse.ArgumentParser):
     """ArgumentParser that exits 1 (not 2) on usage errors (§8 exit codes)."""
 
@@ -757,12 +958,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_global(parser)
     sub = parser.add_subparsers(dest="command", metavar="command")
-
-    def stub(name: str, help_text: str) -> argparse.ArgumentParser:
-        cmd = sub.add_parser(name, help=help_text)
-        _add_global(cmd)
-        cmd.set_defaults(command=name, func=_not_implemented)
-        return cmd
 
     p = sub.add_parser("init", help="create .tasks.yaml and the artifacts dir")
     _add_global(p)
@@ -812,20 +1007,49 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("value")
     p.set_defaults(command="set", func=cmd_set)
 
-    stub("validate", "check tasks against the schema").add_argument(
-        "id", nargs="*"
-    )
+    p = sub.add_parser("validate", help="check tasks against the schema")
+    _add_global(p)
+    p.add_argument("id", nargs="*")
+    p.set_defaults(command="validate", func=cmd_validate)
 
-    stub("links", "show outbound/inbound links").add_argument("id")
+    p = sub.add_parser("links", help="show outbound/inbound links")
+    _add_global(p)
+    p.add_argument("id")
+    p.set_defaults(command="links", func=cmd_links)
 
-    stub("grep", "pass-through to rg over the artifacts dir").add_argument(
-        "rg_args", nargs=argparse.REMAINDER
+    # `grep` takes no parsed flags: everything after the subcommand is
+    # passed to rg verbatim (see _split_grep_argv).
+    p = sub.add_parser(
+        "grep", help="pass-through to rg over the artifacts dir"
     )
+    p.set_defaults(command="grep", func=cmd_grep)
 
     p = sub.add_parser("next-id", help="print the next task number")
     _add_global(p)
     p.set_defaults(command="next-id", func=cmd_next_id)
     return parser
+
+
+def _split_grep_argv(argv: list) -> tuple:
+    """Split argv into (parseable prefix, grep tail).
+
+    Everything after the ``grep`` subcommand is passed to rg verbatim,
+    including tokens that look like options, so argparse never sees them.
+    Global flags and their values before the subcommand stay parseable.
+    """
+    prefix = []
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        prefix.append(token)
+        if token == "grep":
+            return prefix, argv[i + 1 :]
+        if token in ("--config", "--dir") and i + 1 < len(argv):
+            prefix.append(argv[i + 1])
+            i += 2
+            continue
+        i += 1
+    return prefix, []
 
 
 def main(
@@ -834,12 +1058,20 @@ def main(
 ) -> int:
     root = Path(cwd) if cwd is not None else Path.cwd()
     root = root.resolve()
+    raw = [str(a) for a in argv] if argv is not None else sys.argv[1:]
+    parse_argv, grep_tail = _split_grep_argv(raw)
+    if grep_tail == ["-h"]:
+        # Standard CLI help, not rg's own -h.
+        parse_argv.append("-h")
+        grep_tail = []
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(parse_argv)
     if not hasattr(args, "func"):
         parser.print_usage(sys.stderr)
         return 1
     args.cwd = root
+    if args.command == "grep":
+        args.rg_args = grep_tail
     try:
         return int(args.func(args) or 0)
     except TasksError as exc:

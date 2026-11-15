@@ -1,10 +1,10 @@
-"""Tests for skills/tracking-tasks/scripts/tasks.py (phases 1-3).
+"""Tests for skills/tracking-tasks/scripts/tasks.py.
 
 Covers the internal machinery: YAML subset parser/emitter, config
 discovery, author resolution, slug generation, next-number computation,
-ID resolution, template fidelity, the CLI skeleton (-h, stubs), and
-the read/create (init/new/list/show/next-id) and mutation
-(set-state/set) commands.
+ID resolution, template fidelity, the CLI skeleton (-h), and the
+commands: init/new/list/show/next-id, set-state/set, and
+validate/links/grep.
 """
 
 # The tasks module is loaded via sys.path below (no installed package).
@@ -467,15 +467,7 @@ class TestCliSkeleton(ProjectFixture):
         self.assertEqual(out, "")
         self.assertIn("usage:", err)
 
-    def test_stub_command_not_implemented(self):
-        # `validate`/`links`/`grep` remain stubs until phase 4.
-        code, out, err = self.run_cli("validate")
-        self.assertEqual(code, 1)
-        self.assertEqual(out, "")
-        self.assertIn("tasks.py: error:", err)
-        self.assertIn("not implemented", err)
-
-    def test_stub_error_goes_to_stderr(self):
+    def test_error_goes_to_stderr(self):
         _, out, err = self.run_cli("show", "001_x.md")
         self.assertEqual(out, "")
         self.assertTrue(err.startswith("tasks.py: error:"))
@@ -1159,6 +1151,355 @@ class TestNextId(ProjectFixture):
         code, out, _ = self.run_cli("next-id")
         self.assertEqual(code, 0)
         self.assertEqual(out, "002\n")
+
+
+def _valid_fields(**overrides):
+    """A minimal schema-valid frontmatter."""
+    fields = {
+        "title": "T",
+        "type": "task",
+        "state": "draft",
+        "author": "Ada",
+        "created": "2024-01-01",
+        "updated": "2024-01-02",
+    }
+    fields.update(overrides)
+    return fields
+
+
+class TestValidate(ProjectFixture):
+    def setUp(self):
+        super().setUp()
+        self.tasks_dir = self.project / "tasks"
+        self.tasks_dir.mkdir()
+
+    def _write(self, name, fields=None, body="", raw=None):
+        path = self.tasks_dir / name
+        if raw is not None:
+            path.write_text(raw, encoding="utf-8")
+        else:
+            path.write_text(tasks.render_task(fields, body), encoding="utf-8")
+        return path
+
+    def _validate(self, *argv):
+        return self.run_cli("validate", *argv)
+
+    def test_valid_corpus_is_clean(self):
+        self._write("001_a.md", _valid_fields())
+        self._write("002_b.md", _valid_fields(type="bug"))
+        self._write(
+            "003_c.md",
+            _valid_fields(type="subtask", parent="001_a.md"),
+        )
+        code, out, err = self._validate()
+        self.assertEqual((code, out, err), (0, "", ""))
+
+    def test_missing_required_field(self):
+        fields = _valid_fields()
+        del fields["author"]
+        self._write("001_a.md", fields)
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("001_a.md", out)
+        self.assertIn("missing required field", out)
+        self.assertIn("author", out)
+
+    def test_empty_title_and_author_rejected(self):
+        self._write("001_a.md", _valid_fields(title="  "))
+        self._write("002_b.md", _valid_fields(author=""))
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("title must be a non-empty string", out)
+        self.assertIn("author must be a non-empty string", out)
+
+    def test_bad_enums(self):
+        self._write("001_a.md", _valid_fields(state="bogus"))
+        self._write("002_b.md", _valid_fields(type="chore"))
+        self._write("003_c.md", _valid_fields(priority="urgent"))
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("'bogus' is not one of", out)
+        self.assertIn("'chore' is not one of", out)
+        self.assertIn("'urgent' is not one of", out)
+
+    def test_bad_dates(self):
+        self._write("001_a.md", _valid_fields(created="2024-13-40"))
+        self._write("002_b.md", _valid_fields(updated="31/12/2024"))
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("created must be a date", out)
+        self.assertIn("updated must be a date", out)
+
+    def test_parent_forbidden_on_non_subtask(self):
+        self._write("001_a.md", _valid_fields(parent="002_b.md"))
+        self._write("002_b.md", _valid_fields())
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("'parent' is forbidden on non-subtask", out)
+
+    def test_subtask_requires_parent(self):
+        self._write("001_a.md", _valid_fields(type="subtask"))
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("parent", out)
+
+    def test_subtask_parent_must_exist(self):
+        self._write(
+            "001_a.md", _valid_fields(type="subtask", parent="099_nope.md")
+        )
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("parent file not found", out)
+
+    def test_subtask_parent_cannot_be_subtask(self):
+        self._write("001_a.md", _valid_fields())
+        self._write(
+            "002_b.md", _valid_fields(type="subtask", parent="001_a.md")
+        )
+        self._write(
+            "003_c.md", _valid_fields(type="subtask", parent="002_b.md")
+        )
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("parents must be task or bug", out)
+
+    def test_invalid_state_without_reason_warns_but_exits_0(self):
+        self._write("001_a.md", _valid_fields(state="invalid"))
+        code, out, err = self._validate()
+        self.assertEqual(code, 0)
+        self.assertIn("warning:", out)
+        self.assertIn(tasks.WARNING_INVALID_NO_REASON, out)
+        self.assertEqual(err, "")
+
+    def test_unknown_key_warns_but_exits_0(self):
+        self._write("001_a.md", _valid_fields(zzz="1"))
+        code, out, _ = self._validate()
+        self.assertEqual(code, 0)
+        self.assertIn("unknown frontmatter key 'zzz'", out)
+
+    def test_stray_files_are_errors(self):
+        self._write("001_a.md", _valid_fields())
+        (self.tasks_dir / "notes.txt").write_text("x", encoding="utf-8")
+        (self.tasks_dir / ".DS_Store").write_text("x", encoding="utf-8")
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("notes.txt", out)
+        self.assertIn(".DS_Store", out)
+        self.assertIn("filename does not match", out)
+
+    def test_dangling_link_target_is_error(self):
+        self._write(
+            "001_a.md", _valid_fields(), body="DEPENDS ON: 099_nope.md\n"
+        )
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("dangling", out)
+        self.assertIn("099_nope.md", out)
+
+    def test_existing_link_target_is_clean(self):
+        self._write("001_a.md", _valid_fields(), body="RELATED TO: 002_b.md\n")
+        self._write("002_b.md", _valid_fields())
+        self.assertEqual(self._validate()[0], 0)
+
+    def test_links_after_bullets_are_checked(self):
+        self._write(
+            "001_a.md", _valid_fields(), body="- DEPENDS ON: 099_nope.md\n"
+        )
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("dangling", out)
+
+    def test_lowercase_token_is_not_a_link(self):
+        self._write(
+            "001_a.md", _valid_fields(), body="depends on: 099_nope.md\n"
+        )
+        code, out, _ = self._validate()
+        self.assertEqual((code, out), (0, ""))
+
+    def test_specific_ids_skip_stray_files(self):
+        self._write("001_a.md", _valid_fields())
+        (self.tasks_dir / "notes.txt").write_text("x", encoding="utf-8")
+        code, out, _ = self._validate("001")
+        self.assertEqual((code, out), (0, ""))
+
+    def test_unparseable_frontmatter_is_error(self):
+        self._write("001_a.md", raw="---\ntitle: [broken\n---\n\nbody\n")
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("001_a.md", out)
+
+    def test_bad_filename_pattern_is_error(self):
+        path = self.tasks_dir / "01_a.md"  # two digits
+        path.write_text(
+            tasks.render_task(_valid_fields(), ""), encoding="utf-8"
+        )
+        code, out, _ = self._validate("01_a.md")
+        self.assertEqual(code, 2)
+        self.assertIn("filename does not match", out)
+
+    def test_tags_must_be_an_inline_list(self):
+        self._write("001_a.md", _valid_fields(tags="cli"))
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("tags must be an inline list", out)
+
+    def test_missing_dir_suggests_init(self):
+        import shutil
+
+        shutil.rmtree(self.tasks_dir)
+        code, out, err = self._validate()
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("init", err)
+
+    def test_errors_and_warnings_reported_together(self):
+        self._write("001_a.md", _valid_fields(state="invalid", zzz="1"))
+        self._write("002_b.md", _valid_fields(author=""))
+        code, out, _ = self._validate()
+        self.assertEqual(code, 2)
+        self.assertIn("warning:", out)
+        self.assertIn("error:", out)
+
+
+class TestLinks(ProjectFixture):
+    def setUp(self):
+        super().setUp()
+        self.tasks_dir = self.project / "tasks"
+        self.tasks_dir.mkdir()
+        self._write(
+            "001_a.md",
+            "DEPENDS ON: 002_b.md, 003_c.md\n"
+            "RELATED TO: 099_missing.md\n"
+            "- DUPLICATES: 004_d.md\n",
+        )
+        self._write("002_b.md", "RELATED TO: 001_a.md\n")
+        self._write("003_c.md")
+        self._write("004_d.md", "depends on: 001_a.md\nDEPENDS ON 001_a.md\n")
+        self._write("005_e.md")
+
+    def _write(self, name, body=""):
+        (self.tasks_dir / name).write_text(
+            tasks.render_task(_valid_fields(), body), encoding="utf-8"
+        )
+
+    def test_outbound_and_inbound(self):
+        code, out, err = self.run_cli("links", "001")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("outbound:", out)
+        self.assertIn("inbound:", out)
+        self.assertIn("DEPENDS ON: 002_b.md", out)
+        self.assertIn("DEPENDS ON: 003_c.md", out)
+        self.assertIn("RELATED TO: 099_missing.md (dangling)", out)
+        self.assertIn("DUPLICATES: 004_d.md", out)
+        self.assertIn("002_b.md (RELATED TO)", out)
+
+    def test_inbound_via_bullet_token(self):
+        _, out, _ = self.run_cli("links", "003")
+        self.assertIn("001_a.md (DEPENDS ON)", out)
+
+    def test_task_with_no_links(self):
+        _, out, _ = self.run_cli("links", "005")
+        self.assertIn("outbound:\n  (none)", out)
+        self.assertIn("inbound:\n  (none)", out)
+
+    def test_token_match_is_exact(self):
+        # 004's lowercase / colon-less lines must not be recognized.
+        _, out, _ = self.run_cli("links", "004")
+        self.assertIn("(none)", out)
+        _, out, _ = self.run_cli("links", "001")
+        self.assertNotIn("004_d.md (", out)
+
+    def test_unknown_id_is_error(self):
+        code, out, err = self.run_cli("links", "099")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("tasks.py: error:", err)
+
+    def test_missing_dir_suggests_init(self):
+        import shutil
+
+        shutil.rmtree(self.tasks_dir)
+        code, _, err = self.run_cli("links", "001")
+        self.assertEqual(code, 1)
+        self.assertIn("init", err)
+
+
+class TestGrep(ProjectFixture):
+    def _fake_rg(self, exit_code=0):
+        """A stub `rg` on PATH that echoes its args and exits with a
+        fixed code, so passthrough and exit-code propagation are testable
+        without a real ripgrep install."""
+        bin_dir = self.project / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        # The stub logs its argv to a file: subprocess output goes to the
+        # real fd 1, which redirect_stdout in run_cli cannot capture.
+        self.rg_log = self.project / "rg.log"
+        script = bin_dir / "rg"
+        script.write_text(
+            "#!/bin/sh\n"
+            f"printf 'rg:%s\\n' \"$*\" >> {self.rg_log}\n"
+            f"exit {exit_code}\n",
+            encoding="utf-8",
+        )
+        script.chmod(0o755)
+        return mock.patch.dict(os.environ, {"PATH": str(bin_dir)})
+
+    def _rg_log_text(self):
+        return self.rg_log.read_text(encoding="utf-8")
+
+    def test_args_passed_through_verbatim(self):
+        self.run_cli("init")
+        with self._fake_rg(0):
+            code, out, err = self.run_cli("grep", "-n", "pattern")
+        self.assertEqual((code, out, err), (0, "", ""))
+        logged = self._rg_log_text()
+        self.assertIn("-n pattern", logged)
+        self.assertIn(str(self.project / "tasks"), logged)
+
+    def test_option_like_args_are_not_eaten_by_argparse(self):
+        self.run_cli("init")
+        with self._fake_rg(0):
+            code, out, _ = self.run_cli("grep", "--files-with-matches", "bug")
+        self.assertEqual(code, 0)
+        self.assertIn("--files-with-matches bug", self._rg_log_text())
+
+    def test_exit_code_1_propagated(self):
+        self.run_cli("init")
+        with self._fake_rg(1):
+            code, _, _ = self.run_cli("grep", "pattern")
+        self.assertEqual(code, 1)
+
+    def test_exit_code_2_propagated(self):
+        self.run_cli("init")
+        with self._fake_rg(2):
+            code, _, _ = self.run_cli("grep", "--bad-flag")
+        self.assertEqual(code, 2)
+
+    def test_missing_rg_is_clear_error(self):
+        self.run_cli("init")
+        empty_bin = self.project / "empty-bin"
+        empty_bin.mkdir()
+        with mock.patch.dict(os.environ, {"PATH": str(empty_bin)}):
+            code, out, err = self.run_cli("grep", "pattern")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("rg", err)
+
+    def test_help_is_tasks_help_not_rg_help(self):
+        code, out, _ = self.run_cli("grep", "-h")
+        self.assertEqual(code, 0)
+        self.assertIn("usage:", out)
+
+    def test_missing_dir_suggests_init(self):
+        empty_bin = self.project / "bin"
+        empty_bin.mkdir()
+        with mock.patch.dict(os.environ, {"PATH": str(empty_bin)}):
+            code, out, err = self.run_cli("grep", "pattern")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("init", err)
 
 
 if __name__ == "__main__":
