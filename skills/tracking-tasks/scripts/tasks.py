@@ -10,6 +10,7 @@ the skills repo (sections referenced as §N in comments below).
 from __future__ import annotations
 
 import argparse
+import datetime
 import os
 import re
 import subprocess
@@ -400,7 +401,66 @@ def resolve_id(artifacts_dir: Path, arg: str) -> Path:
 
 
 # --------------------------------------------------------------------- #
-# CLI skeleton (§8): stubs for phases 2–4                               #
+# Task file IO: frontmatter + verbatim body (§4, §8)                    #
+# --------------------------------------------------------------------- #
+
+STATES = ("draft", "open", "in-progress", "complete", "invalid")
+TYPES = ("task", "bug", "subtask")
+PARENT_TYPES = ("task", "bug")
+PRIORITIES = ("low", "medium", "high")
+
+TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
+
+
+def _today() -> str:
+    """Local date, YYYY-MM-DD (§4)."""
+    # Spec requires the *local* date; a tz-aware UTC date could differ near
+    # midnight, so naive local is intentional here.
+    return datetime.date.today().isoformat()  # noqa: DTZ011
+
+
+def _warn(message: str) -> None:
+    print(f"tasks.py: warning: {message}", file=sys.stderr)
+
+
+def parse_task(text: str, name: str):
+    """Split a task file into (fields, body); body is preserved verbatim."""
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        raise TasksError(f"{name}: missing frontmatter opening '---'")
+    try:
+        end = lines.index("---", 1)
+    except ValueError:
+        raise TasksError(f"{name}: missing frontmatter closing '---'")
+    fields = parse_yaml_subset("\n".join(lines[1:end]))
+    body = "\n".join(lines[end + 1 :])
+    return fields, body
+
+
+def render_task(fields: dict, body: str) -> str:
+    return "---\n" + emit_yaml(fields) + "---\n" + body
+
+
+def read_task(path: Path):
+    return parse_task(path.read_text(encoding="utf-8"), path.name)
+
+
+def _load_config(args: argparse.Namespace) -> Config:
+    return discover_config(args.config, args.dir, args.cwd)
+
+
+def _require_artifacts_dir(cfg: Config) -> Path:
+    """Read commands fail clearly when the artifacts dir is missing (§8)."""
+    if not cfg.artifacts_dir.is_dir():
+        raise TasksError(
+            f"artifacts dir not found: {cfg.artifacts_dir} "
+            "(run 'tasks.py init'?)"
+        )
+    return cfg.artifacts_dir
+
+
+# --------------------------------------------------------------------- #
+# Commands (§8)                                                         #
 # --------------------------------------------------------------------- #
 
 
@@ -410,6 +470,146 @@ def _not_implemented(args: argparse.Namespace) -> int:
         file=sys.stderr,
     )
     return 1
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Create .tasks.yaml in cwd plus the artifacts dir; idempotent (§8)."""
+    if args.config:
+        config_path = Path(args.config)
+        base = config_path.resolve().parent
+    else:
+        config_path = args.cwd / CONFIG_NAME
+        base = args.cwd
+    if config_path.exists():
+        print(f"{config_path} already exists; leaving it unchanged")
+        existing = parse_yaml_subset(config_path.read_text(encoding="utf-8"))
+        artifacts_value = args.dir or existing.get(
+            "artifacts_dir", DEFAULT_ARTIFACTS_DIR
+        )
+    else:
+        artifacts_value = args.dir or DEFAULT_ARTIFACTS_DIR
+        lines = [f"artifacts_dir: {_quote(artifacts_value)}"]
+        if args.author:
+            lines.append(f"author: {_quote(args.author)}")
+        config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"created {config_path}")
+    artifacts_dir = Path(artifacts_value)
+    if not artifacts_dir.is_absolute():
+        artifacts_dir = base / artifacts_dir
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    print(f"artifacts dir ready: {artifacts_dir}")
+    return 0
+
+
+def cmd_new(args: argparse.Namespace) -> int:
+    """Clone a template, fill frontmatter, assign the next number (§7/§8)."""
+    cfg = _load_config(args)
+    artifacts_dir = cfg.artifacts_dir
+    author = resolve_author(args.author, cfg.author, args.cwd)
+    if args.parent and args.kind != "subtask":
+        raise TasksError("--parent is only valid for subtask")
+    # Create the artifacts dir up front so parent resolution can scan it (§2).
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    parent_name = None
+    if args.parent:
+        parent_path = resolve_id(artifacts_dir, args.parent)
+        parent_fields, _ = read_task(parent_path)
+        if parent_fields.get("type") not in PARENT_TYPES:
+            raise TasksError(
+                f"parent {parent_path.name} has type "
+                f"{parent_fields.get('type')!r}; parents must be task or bug"
+            )
+        parent_name = parent_path.name
+    if args.kind == "subtask" and parent_name is None:
+        raise TasksError("subtask requires --parent FILE")
+    template_path = TEMPLATE_DIR / f"{args.kind}.md"
+    template = template_path.read_text(encoding="utf-8")
+    filled = (
+        template.replace("{{title}}", args.title)
+        .replace("{{author}}", author)
+        .replace("{{date}}", _today())
+        .replace("{{parent}}", parent_name or "")
+    )
+    fields, body = parse_task(filled, template_path.name)
+    if parent_name is not None:
+        fields["parent"] = parent_name
+    fields["state"] = args.state or "draft"
+    if args.priority:
+        fields["priority"] = args.priority
+    if args.tags is not None:
+        fields["tags"] = [
+            item.strip() for item in args.tags.split(",") if item.strip()
+        ]
+    if args.reason:
+        fields["reason"] = args.reason
+    if fields["state"] == "invalid" and not fields.get("reason"):
+        _warn("state is 'invalid' but no reason given")
+    if args.slug:
+        slug = args.slug
+        if re.fullmatch(r"[A-Za-z0-9\-_]+", slug) is None:
+            raise TasksError(
+                f"invalid slug {slug!r}: allowed characters are "
+                "[a-zA-Z0-9-_]"
+            )
+    else:
+        slug = slugify(args.title)
+        if not slug:
+            raise TasksError(
+                "could not derive a slug from the title; pass --slug SLUG"
+            )
+    # Best-effort concurrency: re-scan right before write, fail on collision.
+    number = next_number(artifacts_dir)
+    path = artifacts_dir / f"{number:03d}_{slug}.md"
+    if path.exists():
+        raise TasksError(f"filename collision: {path.name} already exists")
+    path.write_text(render_task(fields, body), encoding="utf-8")
+    print(path)
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    """One line per task: `ID  state  type  title` (§8)."""
+    artifacts_dir = _require_artifacts_dir(_load_config(args))
+    rows = []
+    for path in sorted(artifacts_dir.iterdir()):
+        match = _TASK_FILE_RE.match(path.name)
+        if match is None:
+            continue
+        fields, _ = read_task(path)
+        rows.append((int(match.group(1)), fields))
+    if args.state:
+        wanted = set(args.state)
+        rows = [row for row in rows if row[1].get("state") in wanted]
+    if args.type:
+        wanted = set(args.type)
+        rows = [row for row in rows if row[1].get("type") in wanted]
+    if args.author:
+        wanted = set(args.author)
+        rows = [row for row in rows if row[1].get("author") in wanted]
+    if args.tag:
+        wanted = set(args.tag)
+        rows = [row for row in rows if wanted & set(row[1].get("tags") or [])]
+    for number, fields in rows:
+        print(
+            f"{number:03d}  {fields.get('state', '')}  "
+            f"{fields.get('type', '')}  {fields.get('title', '')}"
+        )
+    return 0
+
+
+def cmd_show(args: argparse.Namespace) -> int:
+    """Print the task file verbatim (§8)."""
+    cfg = _load_config(args)
+    path = resolve_id(cfg.artifacts_dir, args.id)
+    sys.stdout.write(path.read_text(encoding="utf-8"))
+    return 0
+
+
+def cmd_next_id(args: argparse.Namespace) -> int:
+    """Print the next task number, e.g. `017` (§8)."""
+    artifacts_dir = _require_artifacts_dir(_load_config(args))
+    print(f"{next_number(artifacts_dir):03d}")
+    return 0
 
 
 class _Parser(argparse.ArgumentParser):
@@ -446,10 +646,13 @@ def build_parser() -> argparse.ArgumentParser:
         cmd.set_defaults(command=name, func=_not_implemented)
         return cmd
 
-    p = stub("init", "create .tasks.yaml and the artifacts dir")
+    p = sub.add_parser("init", help="create .tasks.yaml and the artifacts dir")
+    _add_global(p)
     p.add_argument("--author", metavar="NAME")
+    p.set_defaults(command="init", func=cmd_init)
 
-    p = stub("new", "create a task/bug/subtask from a template")
+    p = sub.add_parser("new", help="create a task/bug/subtask from a template")
+    _add_global(p)
     p.add_argument("kind", choices=["task", "bug", "subtask"])
     p.add_argument("title")
     p.add_argument("--parent", metavar="FILE")
@@ -461,14 +664,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--state",
         choices=["draft", "open", "in-progress", "complete", "invalid"],
     )
+    p.add_argument("--reason")
+    p.set_defaults(command="new", func=cmd_new)
 
-    p = stub("list", "list tasks, one per line")
+    p = sub.add_parser("list", help="list tasks, one per line")
+    _add_global(p)
     p.add_argument("--state", action="append")
     p.add_argument("--type", action="append")
     p.add_argument("--tag", action="append")
     p.add_argument("--author", action="append")
+    p.set_defaults(command="list", func=cmd_list)
 
-    stub("show", "print a task file verbatim").add_argument("id")
+    p = sub.add_parser("show", help="print a task file verbatim")
+    _add_global(p)
+    p.add_argument("id")
+    p.set_defaults(command="show", func=cmd_show)
 
     p = stub("set-state", "change a task's state")
     p.add_argument("id")
@@ -490,9 +700,9 @@ def build_parser() -> argparse.ArgumentParser:
         "rg_args", nargs=argparse.REMAINDER
     )
 
-    sub.add_parser("next-id", help="print the next task number").set_defaults(
-        command="next-id", func=_not_implemented
-    )
+    p = sub.add_parser("next-id", help="print the next task number")
+    _add_global(p)
+    p.set_defaults(command="next-id", func=cmd_next_id)
     return parser
 
 

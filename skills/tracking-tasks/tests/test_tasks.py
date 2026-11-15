@@ -8,6 +8,7 @@ ID resolution, template fidelity, and the CLI skeleton (-h, stubs).
 # The tasks module is loaded via sys.path below (no installed package).
 # pyright: reportMissingImports=false
 
+import datetime
 import io
 import os
 import sys
@@ -465,7 +466,7 @@ class TestCliSkeleton(ProjectFixture):
         self.assertIn("usage:", err)
 
     def test_stub_command_not_implemented(self):
-        code, out, err = self.run_cli("next-id")
+        code, out, err = self.run_cli("set-state", "001", "open")
         self.assertEqual(code, 1)
         self.assertEqual(out, "")
         self.assertIn("tasks.py: error:", err)
@@ -475,6 +476,355 @@ class TestCliSkeleton(ProjectFixture):
         _, out, err = self.run_cli("show", "001_x.md")
         self.assertEqual(out, "")
         self.assertTrue(err.startswith("tasks.py: error:"))
+
+
+class TestInit(ProjectFixture):
+    def test_creates_config_and_artifacts_dir(self):
+        code, out, err = self.run_cli("init")
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+        config = self.project / ".tasks.yaml"
+        self.assertTrue(config.is_file())
+        self.assertTrue((self.project / "tasks").is_dir())
+        data = tasks.parse_yaml_subset(config.read_text(encoding="utf-8"))
+        self.assertEqual(data, {"artifacts_dir": "tasks"})
+
+    def test_second_run_is_noop_success(self):
+        self.assertEqual(self.run_cli("init")[0], 0)
+        first = (self.project / ".tasks.yaml").read_text(encoding="utf-8")
+        code, out, err = self.run_cli("init")
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+        self.assertEqual(
+            (self.project / ".tasks.yaml").read_text(encoding="utf-8"),
+            first,
+        )
+
+    def test_author_and_dir_flags(self):
+        code, _, _ = self.run_cli(
+            "init", "--author", "Ada Lovelace", "--dir", "issues"
+        )
+        self.assertEqual(code, 0)
+        data = tasks.parse_yaml_subset(
+            (self.project / ".tasks.yaml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(data["author"], "Ada Lovelace")
+        self.assertEqual(data["artifacts_dir"], "issues")
+        self.assertTrue((self.project / "issues").is_dir())
+
+    def test_existing_config_not_overwritten(self):
+        (self.project / ".tasks.yaml").write_text(
+            "artifacts_dir: custom\n", encoding="utf-8"
+        )
+        code, _, _ = self.run_cli("init", "--author", "Ada")
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            (self.project / ".tasks.yaml").read_text(encoding="utf-8"),
+            "artifacts_dir: custom\n",
+        )
+        self.assertTrue((self.project / "custom").is_dir())
+
+
+class TestNew(ProjectFixture):
+    def setUp(self):
+        super().setUp()
+        code, _, err = self.run_cli("init", "--author", "Ada")
+        self.assertEqual((code, err), (0, ""))
+
+    def _new(self, *argv) -> tuple:
+        """Returns (code, created-path-or-placeholder, stderr)."""
+        code, out, err = self.run_cli("new", *argv)
+        # On failure stdout is empty; the placeholder is never used there.
+        return code, Path(out.strip()), err
+
+    def test_new_task_fills_template(self):
+        code, path, err = self._new("task", "Fix: Login Redirect!")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(path.name, "001_fix-login-redirect.md")
+        self.assertTrue(path.is_file())
+        fields, body = tasks.read_task(path)
+        self.assertEqual(fields["title"], "Fix: Login Redirect!")
+        self.assertEqual(fields["type"], "task")
+        self.assertEqual(fields["state"], "draft")
+        self.assertEqual(fields["author"], "Ada")
+        today = datetime.date.today().isoformat()  # noqa: DTZ011
+        self.assertEqual(fields["created"], today)
+        self.assertEqual(fields["updated"], today)
+        self.assertIn("\n# Fix: Login Redirect!\n", body)
+        for section in ("## Why", "## How", "## Definition of Done"):
+            self.assertIn(section, body)
+
+    def test_global_numbering_across_types(self):
+        _, first, _ = self._new("task", "Alpha")
+        _, second, _ = self._new("bug", "Beta")
+        _, third, _ = self._new("subtask", "Gamma", "--parent", first.name)
+        self.assertEqual(
+            (first.name, second.name, third.name),
+            ("001_alpha.md", "002_beta.md", "003_gamma.md"),
+        )
+        fields, _ = tasks.read_task(third)
+        self.assertEqual(fields["type"], "subtask")
+        self.assertEqual(fields["parent"], "001_alpha.md")
+
+    def test_subtask_requires_parent(self):
+        code, _, err = self._new("subtask", "Orphan")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("--parent", err)
+
+    def test_subtask_parent_must_exist(self):
+        code, _, err = self._new("subtask", "X", "--parent", "099_nope.md")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+
+    def test_subtask_parent_cannot_be_subtask(self):
+        _, task_path, _ = self._new("task", "Real")
+        _, sub_path, _ = self._new(
+            "subtask", "Child", "--parent", task_path.name
+        )
+        code, _, err = self._new(
+            "subtask", "Grandchild", "--parent", sub_path.name
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("task or bug", err)
+
+    def test_parent_rejected_for_task(self):
+        code, _, err = self._new("task", "X", "--parent", "001_a.md")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+
+    def test_slug_flag_bypasses_generation(self):
+        _, path, _ = self._new("task", "Weird Title!", "--slug", "my-slug")
+        self.assertEqual(path.name, "001_my-slug.md")
+
+    def test_slug_collision_is_error(self):
+        self._new("task", "First", "--slug", "same")
+        # Numbers are unique, so force a filename collision by reusing the
+        # number the CLI would otherwise assign (§8 concurrent-new check).
+        with mock.patch.object(tasks, "next_number", return_value=1):
+            code, _, err = self._new("task", "Second", "--slug", "same")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("collision", err)
+
+    def test_same_slug_different_numbers_is_allowed(self):
+        _, first, _ = self._new("task", "First", "--slug", "same")
+        _, second, _ = self._new("task", "Second", "--slug", "same")
+        self.assertEqual(
+            (first.name, second.name), ("001_same.md", "002_same.md")
+        )
+
+    def test_invalid_slug_rejected(self):
+        code, _, err = self._new("task", "X", "--slug", "bad slug!")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+
+    def test_unslugifiable_title_requires_slug(self):
+        code, _, err = self._new("task", "!!!")
+        self.assertEqual(code, 1)
+        self.assertIn("--slug", err)
+
+    def test_tags_emitted_as_inline_list(self):
+        _, path, _ = self._new("task", "T", "--tags", "cli, auth")
+        fields, _ = tasks.read_task(path)
+        self.assertEqual(fields["tags"], ["cli", "auth"])
+        self.assertIn("tags: [cli, auth]\n", path.read_text(encoding="utf-8"))
+
+    def test_priority_flag(self):
+        _, path, _ = self._new("task", "T", "--priority", "high")
+        self.assertEqual(tasks.read_task(path)[0]["priority"], "high")
+
+    def test_invalid_priority_rejected(self):
+        code, _, err = self._new("task", "T", "--priority", "urgent")
+        self.assertEqual(code, 1)
+        self.assertIn("invalid choice", err)
+
+    def test_state_flag(self):
+        _, path, _ = self._new("task", "T", "--state", "open")
+        self.assertEqual(tasks.read_task(path)[0]["state"], "open")
+
+    def test_state_invalid_without_reason_warns(self):
+        code, path, err = self._new("task", "T", "--state", "invalid")
+        self.assertEqual(code, 0)
+        self.assertIn("tasks.py: warning:", err)
+        self.assertIn("reason", err)
+        fields, _ = tasks.read_task(path)
+        self.assertEqual(fields["state"], "invalid")
+        self.assertNotIn("reason", fields)
+
+    def test_state_invalid_with_reason_records_it(self):
+        _, path, err = self._new(
+            "task", "T", "--state", "invalid", "--reason", "wrong premise"
+        )
+        self.assertEqual(err, "")
+        fields, _ = tasks.read_task(path)
+        self.assertEqual(fields["reason"], "wrong premise")
+
+    def test_author_flag_beats_config(self):
+        _, path, _ = self._new("task", "T", "--author", "Bob")
+        self.assertEqual(tasks.read_task(path)[0]["author"], "Bob")
+
+    def test_creates_missing_artifacts_dir(self):
+        import shutil
+
+        shutil.rmtree(self.project / "tasks")
+        code, path, err = self._new("task", "T")
+        self.assertEqual((code, err), (0, ""))
+        self.assertTrue(path.is_file())
+
+    def test_numbers_never_reused(self):
+        _, first, _ = self._new("task", "A")
+        self._new("task", "B")
+        first.unlink()
+        _, third, _ = self._new("task", "C")
+        self.assertEqual(third.name, "003_c.md")
+
+    def test_new_after_999_is_error(self):
+        tasks_dir = self.project / "tasks"
+        (tasks_dir / "999_last.md").write_text("", encoding="utf-8")
+        code, _, err = self._new("task", "Too many")
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("999", err)
+
+
+class TestList(ProjectFixture):
+    def setUp(self):
+        super().setUp()
+        self.run_cli("init", "--author", "Ada")
+        self.run_cli("new", "task", "Alpha")
+        self.run_cli("new", "bug", "Beta", "--tags", "cli, auth")
+        self.run_cli(
+            "new",
+            "task",
+            "Gamma",
+            "--state",
+            "open",
+            "--author",
+            "Bob",
+            "--tags",
+            "cli",
+        )
+
+    def _lines(self, *argv):
+        code, out, err = self.run_cli("list", *argv)
+        self.assertEqual((code, err), (0, ""))
+        return out.splitlines()
+
+    def test_lists_all_sorted_by_number(self):
+        lines = self._lines()
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(
+            lines,
+            [
+                "001  draft  task  Alpha",
+                "002  draft  bug  Beta",
+                "003  open  task  Gamma",
+            ],
+        )
+
+    def test_filter_state(self):
+        self.assertEqual(
+            self._lines("--state", "open"),
+            [
+                "003  open  task  Gamma",
+            ],
+        )
+
+    def test_filter_state_repeatable_is_or(self):
+        lines = self._lines("--state", "draft", "--state", "open")
+        self.assertEqual(len(lines), 3)
+
+    def test_filter_type(self):
+        self.assertEqual(
+            self._lines("--type", "bug"), ["002  draft  bug  Beta"]
+        )
+
+    def test_filter_tag(self):
+        self.assertEqual(
+            self._lines("--tag", "auth"), ["002  draft  bug  Beta"]
+        )
+
+    def test_filter_author(self):
+        self.assertEqual(
+            self._lines("--author", "Bob"), ["003  open  task  Gamma"]
+        )
+
+    def test_filters_combine_with_and(self):
+        self.assertEqual(
+            self._lines("--state", "open", "--tag", "cli"),
+            ["003  open  task  Gamma"],
+        )
+        # AND across flag types: Beta is draft but not authored by Bob.
+        self.assertEqual(
+            self._lines("--author", "Bob", "--state", "draft"), []
+        )
+
+    def test_missing_dir_suggests_init(self):
+        import shutil
+
+        shutil.rmtree(self.project / "tasks")
+        code, out, err = self.run_cli("list")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("init", err)
+
+
+class TestShow(ProjectFixture):
+    def setUp(self):
+        super().setUp()
+        self.run_cli("init", "--author", "Ada")
+        self.run_cli("new", "task", "Alpha")
+
+    def test_show_by_filename_is_verbatim(self):
+        path = self.project / "tasks" / "001_alpha.md"
+        code, out, err = self.run_cli("show", "001_alpha.md")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(out, path.read_text(encoding="utf-8"))
+
+    def test_show_by_number(self):
+        path = self.project / "tasks" / "001_alpha.md"
+        code, out, _ = self.run_cli("show", "001")
+        self.assertEqual(code, 0)
+        self.assertEqual(out, path.read_text(encoding="utf-8"))
+
+    def test_unknown_id_is_error(self):
+        code, out, err = self.run_cli("show", "099")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("tasks.py: error:", err)
+
+    def test_missing_dir_suggests_init(self):
+        import shutil
+
+        shutil.rmtree(self.project / "tasks")
+        code, _, err = self.run_cli("show", "001")
+        self.assertEqual(code, 1)
+        self.assertIn("init", err)
+
+
+class TestNextId(ProjectFixture):
+    def test_missing_dir_suggests_init(self):
+        code, out, err = self.run_cli("next-id")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("init", err)
+
+    def test_first_number_is_001(self):
+        self.run_cli("init")
+        code, out, err = self.run_cli("next-id")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(out, "001\n")
+
+    def test_increments_after_create(self):
+        self.run_cli("init", "--author", "Ada")
+        self.run_cli("new", "task", "Alpha")
+        code, out, _ = self.run_cli("next-id")
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "002\n")
 
 
 if __name__ == "__main__":
