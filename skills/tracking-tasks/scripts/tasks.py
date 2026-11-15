@@ -556,6 +556,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         lines = [f"artifacts_dir: {_quote(artifacts_value)}"]
         if args.author:
             lines.append(f"author: {_quote(args.author)}")
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"created {config_path}")
     artifacts_dir = Path(artifacts_value)
@@ -632,14 +633,22 @@ def cmd_new(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
-    """One line per task: `ID  state  type  title`."""
+    """One line per task: `ID  state  type  title`.
+
+    Unparseable files are skipped with a stderr warning so one corrupt
+    file cannot take down the survey of the whole corpus.
+    """
     artifacts_dir = _require_artifacts_dir(_load_config(args))
     rows = []
     for path in sorted(artifacts_dir.iterdir()):
         match = _TASK_FILE_RE.match(path.name)
         if match is None:
             continue
-        fields, _ = read_task(path)
+        try:
+            fields, _ = read_task(path)
+        except TasksError as exc:
+            _warn(f"skipping {path.name}: {exc}")
+            continue
         rows.append((int(match.group(1)), fields))
     if args.state:
         wanted = set(args.state)

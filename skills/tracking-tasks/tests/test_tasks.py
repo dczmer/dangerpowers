@@ -519,6 +519,13 @@ class TestInit(ProjectFixture):
         )
         self.assertTrue((self.project / "custom").is_dir())
 
+    def test_config_flag_creates_parent_dirs(self):
+        nested = self.project / "nested" / "dir" / ".tasks.yaml"
+        code, _, err = self.run_cli("init", "--config", str(nested))
+        self.assertEqual((code, err), (0, ""))
+        self.assertTrue(nested.is_file())
+        self.assertTrue((self.project / "nested" / "dir" / "tasks").is_dir())
+
 
 class TestNew(ProjectFixture):
     def setUp(self):
@@ -755,6 +762,24 @@ class TestList(ProjectFixture):
         self.assertEqual(
             self._lines("--author", "Bob", "--state", "draft"), []
         )
+
+    def test_skips_unparseable_file_with_warning(self):
+        tasks_dir = self.project / "tasks"
+        tasks_dir.joinpath("009_broken.md").write_text(
+            "no frontmatter at all\n", encoding="utf-8"
+        )
+        code, out, err = self.run_cli("list")
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            out.splitlines(),
+            [
+                "001  draft  task  Alpha",
+                "002  draft  bug  Beta",
+                "003  open  task  Gamma",
+            ],
+        )
+        self.assertIn("tasks.py: warning:", err)
+        self.assertIn("009_broken.md", err)
 
     def test_missing_dir_suggests_init(self):
         import shutil

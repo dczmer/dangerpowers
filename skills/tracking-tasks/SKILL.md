@@ -43,9 +43,9 @@ ripgrep (`tasks.py grep`) is the query layer over the task corpus.
   chain `draft → open → in-progress → complete` is descriptive only: any state
   may transition to any other via `set-state`.
 - Mark a task `invalid` when it will never be done (superseded, wrong
-  premise, duplicate). Always pass `--reason` with a free-text explanation;
-  `set-state <id> invalid --reason "..."` records it in the `reason`
-  frontmatter field.
+  premise, duplicate), and always pass `--reason` with a free-text
+  explanation; `set-state <id> invalid --reason "..."` records it in the
+  `reason` frontmatter field.
 - Create a subtask with `new subtask --parent <id>`. The parent must exist
   and be a `task` or `bug` — subtasks cannot have subtasks.
 
@@ -90,6 +90,41 @@ comma- or space-separated task filenames. Grep the corpus for existing
 duplicates and related work before creating a new task or bug. Link semantics
 are informational — `DEPENDS ON` does not block completion.
 
+### Example
+
+A grounded, well-formed task looks like this:
+
+```markdown
+---
+title: "queue: redrive messages after consumer crash"
+type: task
+state: open
+author: "ada"
+created: 2025-06-11
+updated: 2025-06-11
+tags: [queue, reliability]
+---
+
+# queue: redrive messages after consumer crash
+
+## Why
+`consumer.py:retry()` drops messages when the process dies mid-retry
+(see 014_crash-loop-on-poison-message.md). Redrive recovers them.
+
+## How
+Add a `redrive` subcommand that scans the dead-letter table and
+re-enqueues rows younger than 7 days.
+
+## Definition of Done
+- [ ] `queue redrive --dry-run` prints the affected message IDs
+- [ ] Redriven messages are consumed exactly once in the staging test
+- [ ] The docs mention the new subcommand
+
+## Links
+DEPENDS ON: 014_crash-loop-on-poison-message.md
+RELATED TO: 007_monitor-dead-letter-depth.md
+```
+
 ## Gotchas
 
 - Task numbers come from a global per-project sequence and are never reused;
@@ -100,6 +135,9 @@ are informational — `DEPENDS ON` does not block completion.
   missing colon is invisible to `links` and `validate`.
 - Run `validate` after bulk edits (renames, scripted changes, manual
   frontmatter fixes) to catch dangling link targets and stray files.
+- Use `set <id> updated <date>` only to repair a stale timestamp; every
+  CLI write refreshes `updated` automatically, so a backdated `updated`
+  signals a manual repair.
 
 ## Checklist
 
