@@ -1,0 +1,126 @@
+{
+  "skill": "tracking-tasks",
+  "generated": "2026-11-15",
+  "rules": [
+    {
+      "section": "Lifecycle rules",
+      "kind": "discipline",
+      "statement": "Invalidating a task requires a mandatory free-text --reason via set-state, recorded in the task's reason frontmatter field",
+      "entries": []
+    },
+    {
+      "section": "Using the CLI",
+      "kind": "discipline",
+      "statement": "Change state, updated, created, or parent only through the CLI (new, set, set-state); never hand-edit these frontmatter fields",
+      "entries": []
+    },
+    {
+      "section": "Writing tasks > Grounding",
+      "kind": "discipline",
+      "statement": "Scan the project (relevant code and docs, git log, list and grep over existing tasks) before writing anything; never ask the user a question the repository can answer",
+      "entries": []
+    },
+    {
+      "section": "Writing tasks > Verification",
+      "kind": "discipline",
+      "statement": "Verify the request's claims against the code and reproduce the bug when possible; put anything unverifiable in ## Open Questions and leave the task in draft until resolved",
+      "entries": []
+    },
+    {
+      "section": "Writing tasks > Task quality",
+      "kind": "discipline",
+      "statement": "A title containing \"and\" (or a definition of done needing more than three bullets) means two chunks of work: file two tickets or a parent with subtasks, even when asked for a single ticket",
+      "entries": []
+    },
+    {
+      "section": "Writing tasks > Linking",
+      "kind": "discipline",
+      "statement": "Grep the corpus for existing duplicates and related work before creating a new task or bug",
+      "entries": []
+    },
+    {
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Run validate after bulk edits (renames, scripted changes, manual frontmatter fixes) to catch dangling link targets and stray files",
+      "entries": []
+    },
+    {
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Use set <id> updated <date> only to repair a stale timestamp; decline backdating to make a task look touched for a report and offer the real updated value instead",
+      "entries": []
+    }
+  ],
+  "excluded": [
+    {
+      "section": "Setup",
+      "kind": "technique",
+      "reason": "Setup how-to with no competing incentive: locating the CLI, initializing config, resolving the author are mechanical prerequisites, not rationalizable compliance costs"
+    },
+    {
+      "section": "Using the CLI",
+      "kind": "technique",
+      "reason": "The CLI owns flag documentation (do not document flags in the skill): guidance about maintaining the skill doc, no task-time compliance cost"
+    },
+    {
+      "section": "Lifecycle rules",
+      "kind": "reference",
+      "reason": "State chain draft -> open -> in-progress -> complete is descriptive only, any transition allowed: a documented fact, not a rule to violate"
+    },
+    {
+      "section": "Lifecycle rules",
+      "kind": "technique",
+      "reason": "Subtasks require an existing task/bug parent and cannot nest: enforced mechanically by the CLI (new subtask --parent), nothing to rationalize"
+    },
+    {
+      "section": "Using the CLI",
+      "kind": "technique",
+      "reason": "Use show/list/grep to read tasks and edit bodies with normal file tools: operating guidance with no competing incentive"
+    },
+    {
+      "section": "Writing tasks > Task quality",
+      "kind": "shaping",
+      "reason": "Answer why/how/definition-of-done and write DoD as checkable bullets: rules about the form of the artifact — wrong track (shape-testing), failure mode is wrong-shaped output, not rationalized non-compliance"
+    },
+    {
+      "section": "Writing tasks > Bug quality",
+      "kind": "shaping",
+      "reason": "Symptom-as-title, numbered repro steps, separate expected/actual sections, verbatim error quotes, environment recorded, one bug per ticket: all form-of-artifact rules — shape-testing track"
+    },
+    {
+      "section": "Writing tasks > Linking",
+      "kind": "shaping",
+      "reason": "Link tokens must be exact uppercase with colon: form-of-artifact rule whose failure is a malformed link, not rationalized non-compliance — shape-testing track"
+    },
+    {
+      "section": "Writing tasks > Linking",
+      "kind": "reference",
+      "reason": "Link semantics are informational and DEPENDS ON does not block completion: a documented fact with no rule to violate"
+    },
+    {
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "Task numbers come from a global sequence and are never reused: a documented property of the system, not an agent-discipline rule"
+    },
+    {
+      "section": "Gotchas",
+      "kind": "reference",
+      "reason": "The body is the only part edited by hand (descriptions, checklists, Links lines, Open Questions): the positive half of the CLI-only rule already inventoried; restating it adds no new discipline"
+    },
+    {
+      "section": "Writing tasks > Example",
+      "kind": "reference",
+      "reason": "Worked example of a well-formed task: reference material, no rule to violate"
+    },
+    {
+      "section": "Checklist",
+      "kind": "shaping",
+      "reason": "Post-edit checklist restates grounding/verification/shape rules already classified; as a form checklist it belongs to shape-testing"
+    },
+    {
+      "section": "Overview",
+      "kind": "reference",
+      "reason": "One-file-per-task, CLI-writes-frontmatter, ripgrep-query architecture description: reference context, no rule"
+    }
+  ]
+}

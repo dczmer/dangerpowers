@@ -40,5 +40,20 @@
     "models": [
       "kimi-coding/kimi-for-coding"
     ]
+  },
+  "pressure-test": {
+    "date": "2026-11-15",
+    "checksum": "sha256:2eb944a00415b9da95cb09cad6e9f22ed583c75684312265369bf4cb2d42bf3e",
+    "bulletproof": 2,
+    "no-failure": 6,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "kimi-coding/kimi-for-coding",
+    "variant": null,
+    "ablations": 6,
+    "campaign": "campaign-2026-11-15",
+    "models": [
+      "kimi-coding/kimi-for-coding"
+    ]
   }
 }
