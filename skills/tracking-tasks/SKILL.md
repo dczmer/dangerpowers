@@ -30,9 +30,9 @@ ripgrep (`tasks.py grep`) is the query layer over the task corpus.
   command and flag reference. The CLI owns the flag documentation; do not
   document flags here.
 - Change `state`, `updated`, `created`, or `parent` only through the CLI
-  (`new`, `set`, `set-state`), so `updated` stays correct. Edit the body
-  (descriptions, checklists, `## Links` lines, `## Open Questions`) with
-  normal file tools.
+  (`new`, `set`, `set-state`), so `updated` stays correct.
+- Edit the body (descriptions, checklists, `## Links` lines, `## Open
+  Questions`) with normal file tools.
 - Use `show` to read a task, `list` with filters to survey the corpus, and
   `grep` to search bodies with ripgrep syntax.
 
@@ -68,8 +68,10 @@ until it is resolved.
 - Answer why, how, and definition-of-done — the template's `## Why`,
   `## How`, and `## Definition of Done` sections.
 - Write the definition of done as a checkable bullet list.
-- Split the work when the title contains "and" or the definition of done needs
-  more than three bullets. One ticket is one chunk of work.
+- A title containing "and" means two chunks of work: file two tickets (or a
+  parent task with subtasks), even when asked for a single ticket. The same
+  applies when the definition of done needs more than three bullets. One
+  ticket is one chunk of work.
 
 ### Bug quality
 
@@ -129,14 +131,17 @@ RELATED TO: 007_monitor-dead-letter-depth.md
 - Task numbers come from a global per-project sequence and are never reused;
   a deleted task leaves a permanent gap.
 - Change state only through `set-state` — hand-editing `state` leaves
-  `updated` stale and breaks the audit trail.
+  `updated` stale and breaks the audit trail. The body is the only part
+  you edit by hand: descriptions, checklists, `## Links` lines, `## Open
+  Questions`.
 - Match link tokens exactly: uppercase, with the colon. `Depends on:` or a
   missing colon is invisible to `links` and `validate`.
 - Run `validate` after bulk edits (renames, scripted changes, manual
   frontmatter fixes) to catch dangling link targets and stray files.
 - Use `set <id> updated <date>` only to repair a stale timestamp; every
   CLI write refreshes `updated` automatically, so a backdated `updated`
-  signals a manual repair.
+  signals a manual repair. Backdating to make a task look touched for a
+  report is not a repair — decline and offer the real `updated` instead.
 
 ## Checklist
 

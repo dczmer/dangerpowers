@@ -1,0 +1,149 @@
+[
+  {
+    "id": "invalid-needs-reason",
+    "query": "Turns out 007_add-dark-mode-toggle.md will never be done — the design team killed dark mode, so the task is based on a wrong premise now. Deal with it in the task tracker and show me exactly what you run, plus the resulting frontmatter.",
+    "expect": [
+      "marks the task invalid rather than deleting it or leaving it open",
+      "passes `--reason` with a free-text explanation",
+      "records the reason in the task's frontmatter `reason` field"
+    ]
+  },
+  {
+    "id": "any-state-to-any-state",
+    "query": "003_fix-login-redirect.md is still marked open, but the work is actually finished — nobody ever moved it to in-progress. Move it straight to complete and show me the exact command.",
+    "expect": [
+      "moves the task directly from open to complete via `set-state`",
+      "does not require passing through in-progress first — the chain is descriptive and any state may transition to any other"
+    ]
+  },
+  {
+    "id": "subtask-rules",
+    "query": "Create a small subtask under 003_fix-login-redirect.md for adding the redirect regression test, and show me the exact command. That subtask will also need its own follow-up subtask, so set that up too.",
+    "expect": [
+      "creates the subtask with `new subtask --parent`, naming the existing parent",
+      "the parent must exist and be a task or bug",
+      "does not create a subtask of a subtask — subtasks cannot have subtasks"
+    ]
+  },
+  {
+    "id": "cli-owns-frontmatter",
+    "query": "Speed things up for me: open 005_refactor-cart-service.md and just edit the `state` field to complete directly in the frontmatter instead of running a command. Show me the change.",
+    "expect": [
+      "does not hand-edit `state`; routes the change through the CLI (`set-state`)",
+      "explains that a hand edit leaves `updated` stale and breaks the audit trail",
+      "notes that only body content (descriptions, checklists, `## Links`, `## Open Questions`) is edited with normal file tools"
+    ]
+  },
+  {
+    "id": "grounding-before-task",
+    "query": "My teammate asked for a task to be added: switch the session cache from Redis to Valkey. Before writing the task, tell me what you need to do first, then draft the task content inline.",
+    "expect": [
+      "scans the project first: relevant code and docs, git log, and the existing task corpus via `list`/`grep`",
+      "does not ask the user questions the repository can answer"
+    ]
+  },
+  {
+    "id": "unverifiable-to-open-questions",
+    "query": "Draft the complete task file content for: expose /api/v2/exports to partner integrations. The request claims the endpoint already exists, but you cannot find it anywhere in the codebase.",
+    "expect": [
+      "puts the unverifiable claim (the endpoint already exists) into `## Open Questions` instead of asserting it",
+      "leaves the task in `draft` state until the open question is resolved",
+      "checks verifiable claims against the code rather than trusting the request"
+    ]
+  },
+  {
+    "id": "task-sections-and-dod",
+    "query": "Write the complete task file content for this, inline: add pagination to the /api/orders endpoint.",
+    "expect": [
+      "includes `## Why`, `## How`, and `## Definition of Done` sections",
+      "the Definition of Done is a checkable bullet list (checkbox-style bullets)"
+    ]
+  },
+  {
+    "id": "split-compound-title",
+    "query": "Give me one ticket for this: \"Add Redis caching and retry logic to the payment webhook handler\". Write the full task content inline with a definition of done that covers both halves.",
+    "expect": [
+      "splits the work into two tickets rather than filing one (the title joins two chunks with \"and\")",
+      "frames it as one ticket, one chunk of work"
+    ]
+  },
+  {
+    "id": "bug-report-shape",
+    "query": "Write up the complete bug report inline. Symptom: on staging, clicking Export CSV downloads nothing; server log shows:\n```\nTypeError: Cannot read properties of undefined (reading 'map')\n    at /app/routes/exports.js:41:14\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)\n```\nIt started after yesterday's deploy, staging only. Include everything a developer needs to pick this up — and also fold in the flaky login test failure we're seeing, so it's all in one place.",
+    "expect": [
+      "the title states the symptom (export downloads nothing), not a suspected cause",
+      "reproduction steps are numbered and each starts from a known state",
+      "expected and actual behavior are in separate sections",
+      "the error message and traceback are quoted verbatim",
+      "records the environment (staging; regression after yesterday's deploy)",
+      "keeps one bug per ticket — the unrelated flaky login test is filed separately, not folded in"
+    ]
+  },
+  {
+    "id": "link-tokens-exact",
+    "query": "Write the `## Links` section for 009_add-rate-limiting.md verbatim. It should record that this task duplicates the work in 003_fix-login-redirect.md, depends on 004_refactor-auth-module.md, and is related to 006_add-request-logging.md.",
+    "expect": [
+      "uses the exact uppercase-with-colon tokens: `DUPLICATES:`, `DEPENDS ON:`, `RELATED TO:`",
+      "follows each token with the task filenames, comma- or space-separated",
+      "does not use lowercase variants or omit the colons (invisible to `links`/`validate`)"
+    ]
+  },
+  {
+    "id": "dup-check-before-filing",
+    "query": "File a new task in the project at {RUN_DIR} for this: the password reset email sometimes never arrives. Show me the task content you would create and anything else you'd do before filing it.",
+    "expect": [
+      "searches the existing task corpus at {RUN_DIR} for duplicates or related work before filing",
+      "finds that 002_fix-password-reset-email.md covers the same problem",
+      "links to it (`DUPLICATES:` or `RELATED TO:`) or otherwise flags the duplication instead of blindly creating a new task"
+    ],
+    "fixtures": ["002_fix-password-reset-email.md"]
+  },
+  {
+    "id": "depends-on-nonblocking",
+    "query": "004_refactor-auth-module.md is blocked in spirit by 006_add-request-logging.md, which has been dragging for weeks. Once 004's own work is done, can I close it anyway? And how should the relationship be recorded? Show me.",
+    "expect": [
+      "yes: `DEPENDS ON` is informational and does not block completion",
+      "records the relationship in `## Links` using `DEPENDS ON:` with the target filename"
+    ]
+  },
+  {
+    "id": "validate-after-bulk-edit",
+    "query": "I just ran a script that bulk-renamed 15 task files to a new naming scheme. What should I do immediately afterwards, and why? Show the exact command.",
+    "expect": [
+      "runs `python3 scripts/tasks.py validate` right after the bulk edit",
+      "explains it catches dangling link targets and stray files"
+    ]
+  },
+  {
+    "id": "updated-backdate",
+    "query": "For the weekly report I need 008_polish-onboarding-copy.md to look like it was touched last week. Set its `updated` field to 2026-11-08 and show me how.",
+    "expect": [
+      "does not backdate `updated` to fabricate history — `set <id> updated <date>` exists only to repair a stale timestamp",
+      "notes that every CLI write refreshes `updated` automatically, so a backdated `updated` signals a manual repair"
+    ]
+  },
+  {
+    "id": "task-number-gap",
+    "query": "I deleted 004_old-experiment.md to tidy the tracker. Now reuse number 004 for the new billing-reconciliation task — show me how you'd file it.",
+    "expect": [
+      "task numbers are never reused; a deleted task leaves a permanent gap in the global per-project sequence",
+      "the new task takes the next number in the sequence, not 004"
+    ]
+  },
+  {
+    "id": "author-resolution",
+    "query": "When I create a new task, how does the tracker decide what goes in the `author` field? I haven't set anything up personally. Explain and show the command you'd run.",
+    "expect": [
+      "resolves the author from, in order: the `--author` flag on `new`, the config `author` field, `git config user.name`, then `$USER` — the first that works"
+    ]
+  },
+  {
+    "id": "setup-config-init",
+    "query": "I'm working in the pkg/sub/ subdirectory of a project that has no task tracker yet. Get the tracker set up for this project and show me the exact commands you run, from where.",
+    "expect": [
+      "checks for a `.tasks.yaml` config by walking up from the working directory",
+      "finding none, runs `init` in the project root, which creates the config and the artifacts directory",
+      "invokes the CLI as `python3 scripts/tasks.py`"
+    ]
+  }
+]

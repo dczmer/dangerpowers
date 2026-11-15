@@ -10,5 +10,20 @@
     "models": [
       "llama-cpp/qwen3.8-27B-GSQ-RCO"
     ]
+  },
+  "retrieval-test": {
+    "date": "2026-11-15",
+    "checksum": "sha256:30b9f55dc23956ea3ef85582f486f8343632b823bf24d690f4a382b3eb25f3a3",
+    "passes": 14,
+    "fails": 3,
+    "gaps": 0,
+    "voids": 0,
+    "model": "kimi-coding/kimi-for-coding",
+    "variant": null,
+    "ablations": 0,
+    "campaign": "campaign-2026-11-15",
+    "models": [
+      "kimi-coding/kimi-for-coding"
+    ]
   }
 }
