@@ -1,0 +1,247 @@
+[
+  {
+    "id": "invalid-needs-reason",
+    "rule": "R-lifecycle-rules-01",
+    "kind": "shaping",
+    "section": "- Mark a task `invalid` when it will never be done (superseded, wrong\n  premise, duplicate), and always pass `--reason` with a free-text\n  explanation; `set-state <id> invalid --reason \"...\"` records it in the\n  `reason` frontmatter field.",
+    "fixtures": {
+      "application": "A teammate messages you: \"Can you kill task 023? The whole premise is wrong \u2014\nwe wrote it to extend the metrics pipeline, but that pipeline was retired last\nquarter, so this work will never happen. Just make sure whoever looks at it\nlater can see why it died; the retro agenda pulls that up.\" Task 023 exists in\nthe task corpus. Handle the request using the project conventions."
+    },
+    "markers": {
+      "invalid_transition_cmd": "set-state\\s+\\S+\\s+invalid",
+      "reason_flag": "--reason",
+      "reason_field": "^reason:"
+    },
+    "variants": {
+      "v1": "- Invalidate a task with `set-state <id> invalid --reason \"<free-text why>\"`. The reason is mandatory \u2014 superseded, wrong premise, and duplicate invalidations all get one \u2014 and lands in the task's `reason` frontmatter field for the record.",
+      "v2": "- Invalid tasks carry a reason. Run `set-state <id> invalid --reason \"...\"` so the `reason` frontmatter field records why the work died; an invalidation without a reason leaves a gap the retro cannot explain."
+    }
+  },
+  {
+    "id": "task-why-how-dod",
+    "rule": "R-task-quality-01",
+    "kind": "shaping",
+    "section": "- Answer why, how, and definition-of-done \u2014 the template's `## Why`,\n  `## How`, and `## Definition of Done` sections.",
+    "fixtures": {
+      "application": "A teammate asks you to add a task to the corpus for the checkout service:\nshoppers abandon their carts when a coupon code is rejected with no\nexplanation \u2014 support gets about thirty tickets a week asking why a code\n\"didn't work\". The sponsor's proposed approach is to print the rejection\nreason inline under the coupon field; the change is expected to touch the\ncoupon validation module and the checkout page template. The team runs\ngrooming weekly: first the group debates whether a problem is worth solving\nat all, and only then argues about the approach. Create the task."
+    },
+    "markers": {
+      "why_section": "^## Why",
+      "how_section": "^## How",
+      "dod_section": "^## Definition of Done"
+    },
+    "variants": {
+      "v1": "- Every task body has three sections, in order: `## Why` (the problem and what it costs), `## How` (the approach), and `## Definition of Done` (checkable acceptance criteria). A task missing any of the three is not done.",
+      "v2": "- Tasks follow the three-section template \u2014 why first, how second, definition of done third. A freeform description is not a substitute for the sections."
+    }
+  },
+  {
+    "id": "dod-checkable-bullets",
+    "rule": "R-task-quality-02",
+    "kind": "shaping",
+    "section": "- Write the definition of done as a checkable bullet list.",
+    "fixtures": {
+      "application": "A teammate asks you to file a task for adding usage quotas to the API\ngateway: each API key gets 10,000 requests per day, over-limit requests get\na 429 with a Retry-After header, and quota status is visible on the key's\nsettings page. QA signs off by walking the sponsor's criteria one at a time\nand marking each one off as it passes in the staging environment. Create the\ntask."
+    },
+    "markers": {
+      "dod_section": "^## Definition of Done",
+      "checkbox_item": "^- \\[[ xX]\\]"
+    },
+    "variants": {
+      "v1": "- The `## Definition of Done` section is `- [ ]` checkbox items, one criterion per line, each independently verifiable.",
+      "v2": "- Definition-of-done criteria are a checkable list: every criterion its own `- [ ]` item so reviewers can tick them off one by one."
+    }
+  },
+  {
+    "id": "one-chunk-per-ticket",
+    "rule": "R-task-quality-03",
+    "kind": "pattern",
+    "section": "- A title containing \"and\" means two chunks of work: file two tickets (or a\n  parent task with subtasks), even when asked for a single ticket. The same\n  applies when the definition of done needs more than three bullets. One\n  ticket is one chunk of work.",
+    "fixtures": {
+      "application": "A teammate asks for a ticket for the export feature: \"We need CSV export for\nthe reports page \u2014 pick a range, download a file \u2014 AND a PDF export of the\nsame data with the company header. Backend does CSV, frontend does the PDF\nlayout, and they'll land in different sprints with different reviewers. Can\nyou put that in as one ticket for tracking?\" Create the task(s).",
+      "counter-example": "A teammate asks for a ticket: \"The nightly sync job needs to retry failed\nrows and log each retry attempt to the audit table \u2014 one coherent change;\nthe retry wrapper and its logging ship together. Definition of done: failed\nrows retry up to 3 times, each attempt is logged with the row id, and the\njob still exits nonzero when rows fail permanently.\" It is clearly one\nchunk of work. Create the task."
+    },
+    "markers": {
+      "title_blocks": "^title:",
+      "split_signal": "(?i)parent task|subtask|two tickets"
+    },
+    "variants": {
+      "v1": "- Split before filing: a request that is really two chunks of work \u2014 an \"and\" joining two deliverables in the title, or more than three definition-of-done bullets \u2014 becomes two tickets, or a parent task with subtasks, even when asked for a single ticket.",
+      "v2": "- When the title names two deliverables or the acceptance criteria exceed three bullets, file a parent task with one subtask per chunk instead of one combined ticket."
+    },
+    "restraint_markers": {
+      "multi_title_triage": "^title:",
+      "split_signal": "(?i)parent task|subtask|two tickets"
+    }
+  },
+  {
+    "id": "repro-steps-numbered",
+    "rule": "R-bug-quality-01",
+    "kind": "shaping",
+    "section": "- Number the minimal reproduction steps and start each from a known state.",
+    "fixtures": {
+      "application": "A teammate reports a bug in the reporting service: \"Sometimes the Export\nbutton gives me an empty CSV. I sign in as an analyst, open the sales\ndashboard, choose last month as the range, and click Export \u2014 the download\nfinishes but the file has no rows. It worked fine last week.\" When the fix\nlands, support will send the customer the exact steps to verify on their own\naccount before the release ships. File the bug."
+    },
+    "markers": {
+      "numbered_step": "^\\s*\\d+\\.\\s+\\S",
+      "repro_section": "(?i)^##+ .*repro"
+    },
+    "variants": {
+      "v1": "- Bug reports carry a numbered reproduction: 1., 2., 3., \u2026 with one action per step, and each step starts from a state the reader can reach on their own.",
+      "v2": "- Write the reproduction steps as a numbered list \u2014 minimal steps, each beginning from a named, reachable state \u2014 so anyone can re-run them verbatim."
+    }
+  },
+  {
+    "id": "expected-actual-separate",
+    "rule": "R-bug-quality-02",
+    "kind": "shaping",
+    "section": "- Keep expected behavior and actual behavior as separate sections.",
+    "fixtures": {
+      "application": "A teammate reports: \"On the inventory page, when I set the date filter to a\nrange with no shipments, the table shows rows from last month instead of an\nempty table. I'd expect an empty table with a 'no shipments' message \u2014 the\nempty-state spec says so \u2014 but I get stale rows mixed with a 'no shipments'\nbanner, which is worse than either.\" Their message interleaves what they\nexpected with what they saw throughout. File the bug so the two can be\nevaluated independently \u2014 triage assigns the expectation check and the\nbehavior capture to different people."
+    },
+    "markers": {
+      "expected_section": "(?i)^##+ .*expected",
+      "actual_section": "(?i)^##+ .*actual"
+    },
+    "variants": {
+      "v1": "- A bug report states what the behavior should be and what it actually is in two separate sections; never merge them into one narrative.",
+      "v2": "- Keep the expected behavior and the observed behavior apart: one section for each, so the expectation can be checked against the spec while the observation is captured as-is."
+    }
+  },
+  {
+    "id": "errors-verbatim",
+    "rule": "R-bug-quality-03",
+    "kind": "shaping",
+    "section": "- Quote error messages verbatim, including the full traceback when there is",
+    "fixtures": {
+      "application": "A teammate pasted this into chat and asked you to file it:\n\n```\nTraceback (most recent call last):\n  File \"jobs/nightly_sync.py\", line 88, in run\n    push_metrics(collector)\n  File \"jobs/nightly_sync.py\", line 51, in push_metrics\n    raise_for_status(resp)\nValueError: rate 3.7 outside window [0.0, 1.0]\n```\n\n\"That's the nightly metrics sync dying. The on-call wants the ticket to\ncarry the raw text exactly \u2014 their log tool keys off the literal error line\nto match future occurrences.\" The job started failing after last Thursday's\ndeploy. File the bug."
+    },
+    "markers": {
+      "traceback_verbatim": "Traceback \\(most recent call last\\)",
+      "error_line_verbatim": "ValueError: rate 3\\.7 outside window \\[0\\.0, 1\\.0\\]",
+      "paraphrase_triage": "(?i)throws|raises an|an error about"
+    },
+    "variants": {
+      "v1": "- Paste error output into the bug report exactly as it appeared: the message and the full traceback, character for character. Do not paraphrase, summarize, or truncate.",
+      "v2": "- Error evidence is quoted verbatim \u2014 complete traceback included \u2014 so log tools and future searches match the literal text."
+    }
+  },
+  {
+    "id": "environment-recorded",
+    "rule": "R-bug-quality-04",
+    "kind": "shaping",
+    "section": "- Record the environment where the bug reproduced.",
+    "fixtures": {
+      "application": "A teammate reports: \"The webhook retry loop is broken \u2014 retries fire every\nsecond instead of backing off. It reproduces on the staging deployment\n(app v2.3.1, postgres 14) but I cannot reproduce it on my laptop. Staging\nruns the same code as production.\" Ops will redeploy the fix first to the\nenvironment where the bug reproduces. File the bug."
+    },
+    "markers": {
+      "environment_section": "(?i)^##+ .*environment",
+      "env_facts_present": "v2\\.3\\.1|postgres 14|staging"
+    },
+    "variants": {
+      "v1": "- Every bug report names the environment where it reproduced \u2014 deployment, versions, and anything that differs from a developer machine \u2014 in its own section.",
+      "v2": "- Record the reproduction environment in the bug: where it ran and the relevant versions. A bug without its environment cannot be reproduced on purpose."
+    }
+  },
+  {
+    "id": "symptom-not-cause-title",
+    "rule": "R-bug-quality-05",
+    "kind": "pattern",
+    "section": "- Write the title as the symptom, not the suspected cause.",
+    "fixtures": {
+      "application": "A teammate reports: \"I'm pretty sure the listing page cache is going stale \u2014\nafter the nightly sync runs, the prices on the listing page still show\nyesterday's values until I force-refresh. Can you file that?\" They have not\nconfirmed the cache is the cause; the sync log shows no errors. File the\nbug.",
+      "counter-example": "A teammate asks: \"File a maintenance task: our TLS certificate for the\npublic API expires in three weeks and renewal is still manual \u2014 automate\nthe renewal through the cert manager before expiry. Nothing is broken; this\nis preventive.\" Create the task."
+    },
+    "markers": {
+      "cause_word_in_title": "(?i)^title:.*cache",
+      "title_present": "^title:"
+    },
+    "variants": {
+      "v1": "- Title the bug with the observable symptom \u2014 what a user sees \u2014 and keep the suspected cause in the body, even when the reporter volunteers a theory.",
+      "v2": "- The bug title answers \"what's wrong?\" from the user's point of view; the suspected cause answers \"why?\" and belongs in the body."
+    },
+    "restraint_markers": {
+      "fabricated_symptom_triage": "(?i)^title:.*(error|fail|broken|shows|wrong)"
+    }
+  },
+  {
+    "id": "one-bug-per-ticket",
+    "rule": "R-bug-quality-06",
+    "kind": "pattern",
+    "section": "- File one bug per ticket.",
+    "fixtures": {
+      "application": "A teammate reports two things from the export feature: \"First, the Export\nbutton sometimes downloads an empty CSV. Second \u2014 separate issue \u2014 the\ndownloaded file is always named export_1970-01-01.csv no matter what range\nI pick. The empty-CSV fix is backend work; the filename fix is in the\nfrontend download code. Can you file what I found?\" File the report(s).",
+      "counter-example": "A teammate reports: \"Saving the profile form shows an error toast and the\nchanges are lost \u2014 but it's one defect: the save endpoint rejects the\npayload, so the toast and the data loss are the same failure seen twice.\nThe endpoint returns 422 because the phone field is sent as a number.\"\nFile the bug report(s)."
+    },
+    "markers": {
+      "bug_blocks": "^type: bug",
+      "split_signal": "(?i)two (bugs|tickets)|separate (bug|ticket)"
+    },
+    "variants": {
+      "v1": "- Each defect gets its own bug ticket. When one report bundles two failures, file one ticket per failure and cross-link them \u2014 a mixed ticket can never be verified or closed cleanly.",
+      "v2": "- One bug per ticket, always: split a multi-defect report into separate tickets so each ships, is assigned, and is verified on its own."
+    },
+    "restraint_markers": {
+      "multi_bug_triage": "^type: bug",
+      "split_signal": "(?i)two (bugs|tickets)"
+    }
+  },
+  {
+    "id": "unverifiable-to-open-questions",
+    "rule": "R-verification-01",
+    "kind": "pattern",
+    "section": "Verify the request's claims against the code: confirm the referenced files,\nfunctions, and endpoints exist, and reproduce the bug when possible. Put\nanything unverifiable in `## Open Questions` and leave the task in `draft`\nuntil it is resolved.",
+    "fixtures": {
+      "application": "A teammate sends you a bug report via chat: \"The pricing page sometimes shows\nthe wrong tier price after the nightly sync. I think src/pricing/tiers.py is\nreading a stale cache, and the /api/v2/prices endpoint returns 200 with stale\ndata.\" You only have what's in this message \u2014 their environment, logs, and\ncheckout are not available to you. Create the bug report from what you have.",
+      "counter-example": "A teammate reports, with everything self-contained: \"The nightly sync fails\nevery run. Here is the full log:\n\n```\nTraceback (most recent call last):\n  File \"jobs/nightly_sync.py\", line 88, in run\n    push_metrics(collector)\nValueError: rate 3.7 outside window [0.0, 1.0]\n```\n\nThis started after last Thursday's deploy of v2.4.0 to production, and it\nfails identically on staging (also v2.4.0) \u2014 I re-ran it there just now.\"\nThe evidence is complete and internally consistent; nothing in it needs\noutside confirmation. File the bug."
+    },
+    "markers": {
+      "open_questions_section": "^## Open Questions",
+      "state_draft": "^state: draft",
+      "state_open": "^state: open"
+    },
+    "variants": {
+      "v1": "- Before filing, check the report's claims against the code: referenced files, functions, and endpoints must exist. Anything you cannot verify goes in `## Open Questions`, and the task stays in `draft` until those questions resolve.",
+      "v2": "- Filing an unverified claim as fact is the failure to avoid: confirmed claims go in the body; unconfirmed claims go in `## Open Questions` with the task left in `draft`."
+    },
+    "restraint_markers": {
+      "open_questions_section": "^## Open Questions",
+      "state_draft": "^state: draft"
+    }
+  },
+  {
+    "id": "links-tokens",
+    "rule": "R-linking-01",
+    "kind": "shaping",
+    "section": "Record relationships in the `## Links` section with the four tokens:\n`RELATED TO:`, `DEPENDS ON:`, `DUPLICATES:`, `INVALIDATES:`, each followed by\ncomma- or space-separated task filenames. Grep the corpus for existing",
+    "fixtures": {
+      "application": "A teammate asks you to file a bug for the coupon rejection work: \"This is\nthe follow-up to 007_coupon-field-no-feedback.md \u2014 that task added the field\nbut left out the reason display. Also worth linking 014_price-recalc-timeout.md\nsince the fix touches the same module.\" The links tooling discovers\nrelationships by scanning the corpus for link tokens, and the weekly report\ncounts linked follow-ups automatically. File the bug."
+    },
+    "markers": {
+      "links_section": "^## Links",
+      "link_token": "^(RELATED TO|DEPENDS ON|DUPLICATES|INVALIDATES):",
+      "prose_reference_triage": "(?i)follow-up to|related to task|see task"
+    },
+    "variants": {
+      "v1": "- Ticket relationships go in the task's `## Links` section, one per line, as `RELATED TO:`, `DEPENDS ON:`, `DUPLICATES:`, or `INVALIDATES:` followed by the task filenames.",
+      "v2": "- A task with relationships ends with a `## Links` section listing each related task filename after one of the four link tokens."
+    }
+  },
+  {
+    "id": "link-token-exactness",
+    "rule": "R-gotchas-01",
+    "kind": "shaping",
+    "section": "- Match link tokens exactly: uppercase, with the colon. `Depends on:` or a\n  missing colon is invisible to `links` and `validate`.",
+    "fixtures": {
+      "application": "Task 021 in the corpus turned out to be a duplicate of\n008_export-csv-empty-file.md. Record that on 021 so the links tooling picks\nit up and the weekly report counts it. Handle the request using the project\nconventions."
+    },
+    "markers": {
+      "token_exact": "^(RELATED TO|DEPENDS ON|DUPLICATES|INVALIDATES):",
+      "token_malformed_triage": "(?i)depends on:|related to:"
+    },
+    "variants": {
+      "v1": "- The four link tokens are `RELATED TO:`, `DEPENDS ON:`, `DUPLICATES:`, `INVALIDATES:` \u2014 uppercase, colon included. The links tooling misses any other form.",
+      "v2": "- Write link tokens exactly: all caps, trailing colon. `Depends on:` or a missing colon is invisible to `links` and `validate`."
+    }
+  }
+]

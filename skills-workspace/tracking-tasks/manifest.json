@@ -25,5 +25,20 @@
     "models": [
       "kimi-coding/kimi-for-coding"
     ]
+  },
+  "shape-test": {
+    "date": "2026-11-15",
+    "checksum": "sha256:ec488eb60027910eb8b10ebc7127065d89da91f328f40324fdfc5f1484258f69",
+    "adopted": 1,
+    "no-failure": 12,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "kimi-coding/kimi-for-coding",
+    "variant": null,
+    "ablations": 12,
+    "campaign": "campaign-2026-11-15",
+    "models": [
+      "kimi-coding/kimi-for-coding"
+    ]
   }
 }

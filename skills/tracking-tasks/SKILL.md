@@ -41,10 +41,10 @@ ripgrep (`tasks.py grep`) is the query layer over the task corpus.
 - States are `draft`, `open`, `in-progress`, `complete`, plus `invalid`. The
   chain `draft → open → in-progress → complete` is descriptive only: any state
   may transition to any other via `set-state`.
-- Mark a task `invalid` when it will never be done (superseded, wrong
-  premise, duplicate), and always pass `--reason` with a free-text
-  explanation; `set-state <id> invalid --reason "..."` records it in the
-  `reason` frontmatter field.
+- Invalidate a task with `set-state <id> invalid --reason "<free-text why>"`.
+  The reason is mandatory — superseded, wrong premise, and duplicate
+  invalidations all get one — and lands in the task's `reason` frontmatter
+  field for the record.
 - Create a subtask with `new subtask --parent <id>`. The parent must exist
   and be a `task` or `bug` — subtasks cannot have subtasks.
 
