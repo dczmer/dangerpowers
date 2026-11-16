@@ -13,6 +13,7 @@ validate/links/grep.
 import datetime
 import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -267,19 +268,24 @@ class TestDiscoverConfig(ProjectFixture):
         self.assertIsNone(cfg.author)
 
     def test_upward_walk_finds_config(self):
-        (self.project / ".tasks.yaml").write_text("artifacts_dir: issues\n")
+        tasks_dir = self.project / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "tasks.yaml").write_text("artifacts_dir: issues\n")
         nested = self.project / "sub" / "dir"
         nested.mkdir(parents=True)
         cfg = tasks.discover_config(None, None, nested)
-        self.assertEqual(cfg.path, self.project / ".tasks.yaml")
-        # Resolved relative to the config file's dir.
+        self.assertEqual(cfg.path, tasks_dir / "tasks.yaml")
+        # Resolved relative to the project root (the config's grandparent),
+        # not the config file's dir.
         self.assertEqual(cfg.artifacts_dir, self.project / "issues")
 
     def test_flag_beats_walk(self):
-        (self.project / ".tasks.yaml").write_text("artifacts_dir: walked\n")
+        tasks_dir = self.project / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "tasks.yaml").write_text("artifacts_dir: walked\n")
         other = self.project / "other"
         other.mkdir()
-        flagged = other / ".tasks.yaml"
+        flagged = other / "tasks.yaml"
         flagged.write_text("artifacts_dir: flagged\n")
         cfg = tasks.discover_config(str(flagged), None, self.project)
         self.assertEqual(cfg.path, flagged)
@@ -292,7 +298,9 @@ class TestDiscoverConfig(ProjectFixture):
             )
 
     def test_dir_flag_overrides(self):
-        (self.project / ".tasks.yaml").write_text("artifacts_dir: issues\n")
+        tasks_dir = self.project / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "tasks.yaml").write_text("artifacts_dir: issues\n")
         cfg = tasks.discover_config(None, "elsewhere", self.project)
         self.assertEqual(cfg.artifacts_dir, self.project / "elsewhere")
         absolute = self.project / "abs-dir"
@@ -300,7 +308,9 @@ class TestDiscoverConfig(ProjectFixture):
         self.assertEqual(cfg.artifacts_dir, absolute)
 
     def test_config_author(self):
-        (self.project / ".tasks.yaml").write_text(
+        tasks_dir = self.project / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "tasks.yaml").write_text(
             "artifacts_dir: tasks\nauthor: Ada Lovelace\n"
         )
         cfg = tasks.discover_config(None, None, self.project)
@@ -359,6 +369,21 @@ class TestSlugify(unittest.TestCase):
 
     def test_only_invalid_chars(self):
         self.assertEqual(tasks.slugify("!!!"), "")
+
+    def test_slug_capped_at_30_characters(self):
+        slug = tasks.slugify("a" * 50)
+        self.assertEqual(slug, "a" * 30)
+
+    def test_exactly_30_chars_unchanged(self):
+        title = "a" * 28 + " b"
+        self.assertEqual(tasks.slugify(title), "a" * 28 + "-b")
+
+    def test_cap_trims_dangling_separator(self):
+        # 29 chars then a space: truncation lands on the collapsed '-',
+        # which must be stripped so the slug never ends with '-'.
+        slug = tasks.slugify("a" * 29 + " b" + "c" * 20)
+        self.assertEqual(slug, "a" * 29)
+        self.assertFalse(slug.endswith("-"))
 
 
 class TestNextNumber(ProjectFixture):
@@ -435,6 +460,21 @@ class TestResolveId(ProjectFixture):
             tasks.resolve_id(self.project / "absent", "001")
         self.assertIn("init", str(ctx.exception))
 
+    def test_installed_entries_are_not_task_ids(self):
+        # tasks.py, tasks.yaml, and the templates/ dir live in the
+        # artifacts dir but must never resolve as task references.
+        for name in ("tasks.py", "tasks.yaml"):
+            (self.tasks_dir / name).write_text("x", encoding="utf-8")
+        (self.tasks_dir / "templates").mkdir()
+        for arg in ("tasks.py", "tasks.yaml", "tasks"):
+            with self.subTest(arg=arg):
+                with self.assertRaises(tasks.TasksError):
+                    tasks.resolve_id(self.tasks_dir, arg)
+        # Real task references still resolve alongside the entries.
+        self.assertEqual(
+            tasks.resolve_id(self.tasks_dir, "001").name, "001_alpha.md"
+        )
+
 
 class TestCliSkeleton(ProjectFixture):
     def test_top_level_help(self):
@@ -478,22 +518,119 @@ class TestInit(ProjectFixture):
         code, out, err = self.run_cli("init")
         self.assertEqual(code, 0)
         self.assertEqual(err, "")
-        config = self.project / ".tasks.yaml"
+        config = self.project / "tasks" / "tasks.yaml"
         self.assertTrue(config.is_file())
         self.assertTrue((self.project / "tasks").is_dir())
         data = tasks.parse_yaml_subset(config.read_text(encoding="utf-8"))
         self.assertEqual(data, {"artifacts_dir": "tasks"})
 
+    def test_installs_script_and_templates(self):
+        code, out, err = self.run_cli("init")
+        self.assertEqual((code, err), (0, ""))
+        script = self.project / "tasks" / "tasks.py"
+        self.assertTrue(script.is_file())
+        # Byte-identical copy of the running script, made executable.
+        self.assertEqual(
+            script.read_bytes(),
+            Path(tasks.__file__).read_bytes(),
+        )
+        self.assertTrue(os.access(script, os.X_OK))
+        for name in ("task.md", "bug.md", "subtask.md"):
+            installed = self.project / "tasks" / "templates" / name
+            self.assertEqual(
+                installed.read_bytes(), (TEMPLATES_DIR / name).read_bytes()
+            )
+        self.assertIn("tasks/tasks.py -h", out)
+
     def test_second_run_is_noop_success(self):
         self.assertEqual(self.run_cli("init")[0], 0)
-        first = (self.project / ".tasks.yaml").read_text(encoding="utf-8")
+        first = (self.project / "tasks" / "tasks.yaml").read_text(
+            encoding="utf-8"
+        )
         code, out, err = self.run_cli("init")
         self.assertEqual(code, 0)
         self.assertEqual(err, "")
         self.assertEqual(
-            (self.project / ".tasks.yaml").read_text(encoding="utf-8"),
+            (self.project / "tasks" / "tasks.yaml").read_text(
+                encoding="utf-8"
+            ),
             first,
         )
+        self.assertIn("up to date", out)
+
+    def test_rerun_updates_tampered_install(self):
+        self.assertEqual(self.run_cli("init")[0], 0)
+        script = self.project / "tasks" / "tasks.py"
+        tampered = b"# tampered\n" + script.read_bytes()
+        script.write_bytes(tampered)
+        template = self.project / "tasks" / "templates" / "task.md"
+        template.write_text("tampered\n", encoding="utf-8")
+        code, out, err = self.run_cli("init")
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(
+            script.read_bytes(), Path(tasks.__file__).read_bytes()
+        )
+        self.assertEqual(
+            template.read_bytes(), (TEMPLATES_DIR / "task.md").read_bytes()
+        )
+        self.assertIn("installed", out)
+
+    def test_installed_copy_runs_standalone(self):
+        """The installed script works with no skill dir in the picture:
+        init, then new (templates resolve from the installed location)."""
+        self.assertEqual(self.run_cli("init", "--author", "Ada")[0], 0)
+        script = self.project / "tasks" / "tasks.py"
+        env = dict(os.environ, PYTHONPATH="")
+        proc = subprocess.run(
+            [sys.executable, str(script), "new", "task", "Standalone"],
+            cwd=self.project,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        created = self.project / "tasks" / "001_standalone.md"
+        self.assertTrue(created.is_file())
+        # Re-init from the installed copy: no self-copy, no error.
+        proc = subprocess.run(
+            [sys.executable, str(script), "init"],
+            cwd=self.project,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("already the running script", proc.stdout)
+
+    def test_legacy_config_is_moved(self):
+        legacy = self.project / ".tasks.yaml"
+        legacy.write_text("artifacts_dir: tasks\nauthor: Bob\n")
+        code, out, err = self.run_cli("init")
+        self.assertEqual((code, err), (0, ""))
+        config = self.project / "tasks" / "tasks.yaml"
+        self.assertFalse(legacy.exists())
+        self.assertEqual(
+            config.read_text(encoding="utf-8"),
+            "artifacts_dir: tasks\nauthor: Bob\n",
+        )
+        self.assertIn("moved", out)
+
+    def test_legacy_config_kept_when_new_config_exists(self):
+        legacy = self.project / ".tasks.yaml"
+        legacy.write_text("author: Old\n", encoding="utf-8")
+        tasks_dir = self.project / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "tasks.yaml").write_text("author: New\n")
+        code, out, err = self.run_cli("init")
+        self.assertEqual(code, 0)
+        self.assertTrue(legacy.exists())
+        self.assertEqual(
+            (tasks_dir / "tasks.yaml").read_text(encoding="utf-8"),
+            "author: New\n",
+        )
+        self.assertIn("still exists", err)
 
     def test_author_and_dir_flags(self):
         code, _, _ = self.run_cli(
@@ -501,26 +638,28 @@ class TestInit(ProjectFixture):
         )
         self.assertEqual(code, 0)
         data = tasks.parse_yaml_subset(
-            (self.project / ".tasks.yaml").read_text(encoding="utf-8")
+            (self.project / "tasks" / "tasks.yaml").read_text(encoding="utf-8")
         )
         self.assertEqual(data["author"], "Ada Lovelace")
         self.assertEqual(data["artifacts_dir"], "issues")
         self.assertTrue((self.project / "issues").is_dir())
 
     def test_existing_config_not_overwritten(self):
-        (self.project / ".tasks.yaml").write_text(
+        tasks_dir = self.project / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "tasks.yaml").write_text(
             "artifacts_dir: custom\n", encoding="utf-8"
         )
         code, _, _ = self.run_cli("init", "--author", "Ada")
         self.assertEqual(code, 0)
         self.assertEqual(
-            (self.project / ".tasks.yaml").read_text(encoding="utf-8"),
+            (tasks_dir / "tasks.yaml").read_text(encoding="utf-8"),
             "artifacts_dir: custom\n",
         )
         self.assertTrue((self.project / "custom").is_dir())
 
     def test_config_flag_creates_parent_dirs(self):
-        nested = self.project / "nested" / "dir" / ".tasks.yaml"
+        nested = self.project / "nested" / "dir" / "tasks.yaml"
         code, _, err = self.run_cli("init", "--config", str(nested))
         self.assertEqual((code, err), (0, ""))
         self.assertTrue(nested.is_file())
@@ -621,6 +760,21 @@ class TestNew(ProjectFixture):
         code, _, err = self._new("task", "X", "--slug", "bad slug!")
         self.assertEqual(code, 1)
         self.assertIn("tasks.py: error:", err)
+
+    def test_overlong_explicit_slug_rejected(self):
+        code, _, err = self._new("task", "X", "--slug", "a" * 31)
+        self.assertEqual(code, 1)
+        self.assertIn("tasks.py: error:", err)
+        self.assertIn("30", err)
+
+    def test_long_title_slug_capped_at_30(self):
+        _, path, _ = self._new("task", "word " * 20)
+        slug = path.name.removeprefix("001_").removesuffix(".md")
+        # 30-char prefix keeps 6 words and ends on the separator
+        # after them, which the cap strips: 29 chars.
+        self.assertEqual(slug, "word-word-word-word-word-word")
+        self.assertLessEqual(len(slug), 30)
+        self.assertFalse(slug.endswith("-"))
 
     def test_unslugifiable_title_requires_slug(self):
         code, _, err = self._new("task", "!!!")
@@ -1312,6 +1466,18 @@ class TestValidate(ProjectFixture):
         self.assertIn(".DS_Store", out)
         self.assertIn("filename does not match", out)
 
+    def test_installed_entries_are_not_stray_files(self):
+        self._write("001_a.md", _valid_fields())
+        (self.tasks_dir / "tasks.py").write_text("x", encoding="utf-8")
+        (self.tasks_dir / "tasks.yaml").write_text(
+            "artifacts_dir: tasks\n", encoding="utf-8"
+        )
+        templates = self.tasks_dir / "templates"
+        templates.mkdir()
+        (templates / "task.md").write_text("x", encoding="utf-8")
+        code, out, err = self._validate()
+        self.assertEqual((code, out, err), (0, "", ""))
+
     def test_dangling_link_target_is_error(self):
         self._write(
             "001_a.md", _valid_fields(), body="DEPENDS ON: 099_nope.md\n"
@@ -1481,6 +1647,16 @@ class TestGrep(ProjectFixture):
         logged = self._rg_log_text()
         self.assertIn("-n pattern", logged)
         self.assertIn(str(self.project / "tasks"), logged)
+
+    def test_installed_entries_are_excluded(self):
+        self.run_cli("init")
+        with self._fake_rg(0):
+            code, _, _ = self.run_cli("grep", "pattern")
+        self.assertEqual(code, 0)
+        logged = self._rg_log_text()
+        for glob in ("!tasks.py", "!tasks.yaml", "!templates"):
+            with self.subTest(glob=glob):
+                self.assertIn(glob, logged)
 
     def test_option_like_args_are_not_eaten_by_argparse(self):
         self.run_cli("init")

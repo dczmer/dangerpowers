@@ -17,18 +17,23 @@ ripgrep (`tasks.py grep`) is the query layer over the task corpus.
 
 ## Setup
 
-1. Locate the CLI at `scripts/tasks.py` relative to this skill directory.
-2. Check for a `.tasks.yaml` config in the project (walk up from the working
-   directory). Run `init` in the project root when there is none — this
-   creates the config and the artifacts directory that holds task files.
+1. Check for a `tasks/tasks.yaml` config in the project (walk up from the
+   working directory). Run `init` in the project root when there is none —
+   this creates the config, the artifacts directory that holds task files,
+   and installs the CLI plus templates into `tasks/`.
+2. After `init`, use the repo-installed `./tasks/tasks.py` for every
+   command; the copy at `scripts/tasks.py` relative to this skill
+   directory is only a fallback for projects not yet initialized. The
+   user can run `./tasks/tasks.py` directly — no agent needed.
 3. Resolve the author once with `new --author`, the config `author` field,
    `git config user.name`, or `$USER` — the CLI picks the first that works.
 
 ## Using the CLI
 
-- Run `python3 scripts/tasks.py -h` and the per-subcommand `-h` for the full
-  command and flag reference. The CLI owns the flag documentation; do not
-  document flags here.
+- Run `./tasks/tasks.py -h` (or `python3 scripts/tasks.py -h` before
+  init) and the per-subcommand `-h` for the full command and flag
+  reference. The CLI owns the flag documentation; do not document flags
+  here.
 - Change `state`, `updated`, `created`, or `parent` only through the CLI
   (`new`, `set`, `set-state`), so `updated` stays correct.
 - Edit the body (descriptions, checklists, `## Links` lines, `## Open
@@ -137,7 +142,10 @@ RELATED TO: 007_monitor-dead-letter-depth.md
 - Match link tokens exactly: uppercase, with the colon. `Depends on:` or a
   missing colon is invisible to `links` and `validate`.
 - Run `validate` after bulk edits (renames, scripted changes, manual
-  frontmatter fixes) to catch dangling link targets and stray files.
+  frontmatter fixes) to catch dangling link targets and unexpected files.
+  The installed tooling (`tasks.py`, `tasks.yaml`, `templates/`) lives in
+  the artifacts dir and is ignored by `validate` — anything else that is
+  not `NNN_slug.md` is an error.
 - Use `set <id> updated <date>` only to repair a stale timestamp; every
   CLI write refreshes `updated` automatically, so a backdated `updated`
   signals a manual repair. Backdating to make a task look touched for a
@@ -156,4 +164,4 @@ Run after creating or substantially editing a task:
       ticket.
 - [ ] Links greppable: exact tokens, real target filenames, duplicates
       checked with `grep` before filing.
-- [ ] `python3 scripts/tasks.py validate` reports no errors.
+- [ ] `./tasks/tasks.py validate` reports no errors.

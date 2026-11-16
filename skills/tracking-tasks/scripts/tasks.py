@@ -20,11 +20,20 @@ from typing import NoReturn, Optional, Union
 
 YamlValue = Union[str, list]
 
-CONFIG_NAME = ".tasks.yaml"
+# The config lives inside the default artifacts dir: tasks/tasks.yaml.
+CONFIG_NAME = "tasks.yaml"
+LEGACY_CONFIG_NAME = ".tasks.yaml"
 DEFAULT_ARTIFACTS_DIR = "tasks"
 MAX_TASK_NUMBER = 999
+# The number is the durable identifier, so the slug gets a sane cap.
+MAX_SLUG_LENGTH = 30
 
 _TASK_FILE_RE = re.compile(r"^(\d{3})_[A-Za-z0-9\-_]+\.md$")
+
+# Non-task entries allowed inside the artifacts dir: the installed CLI,
+# the config, and the bundled templates dir. `validate` ignores them;
+# ID resolution and grep never treat them as tasks.
+NON_TASK_ENTRIES = ("tasks.py", "tasks.yaml", "templates")
 _SLUG_RUN_RE = re.compile(r"[^a-z0-9\-_]+")
 _KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9\-_]*):(.*)$")
 _ESCAPES = {"\\": "\\", '"': '"', "n": "\n", "t": "\t"}
@@ -241,7 +250,8 @@ def emit_yaml(fields: dict) -> str:
 class Config:
     """Resolved runtime configuration."""
 
-    path: Optional[Path]  # .tasks.yaml location; None when defaults are used
+    # tasks/tasks.yaml location; None when defaults are used
+    path: Optional[Path]
     artifacts_dir: Path  # absolute
     author: Optional[str]  # from the config file only
 
@@ -261,7 +271,7 @@ def discover_config(
         base = cfg_path.resolve().parent
     else:
         for directory in (cwd, *cwd.parents):
-            candidate = directory / CONFIG_NAME
+            candidate = directory / DEFAULT_ARTIFACTS_DIR / CONFIG_NAME
             if candidate.is_file():
                 cfg_path = candidate
                 base = directory
@@ -336,8 +346,14 @@ def resolve_author(
 
 
 def slugify(title: str) -> str:
-    """Lowercase slug; runs outside [a-z0-9-_] collapse to one '-'."""
-    return _SLUG_RUN_RE.sub("-", title.lower()).strip("-")
+    """Lowercase slug, capped at MAX_SLUG_LENGTH chars.
+
+    Runs outside [a-z0-9-_] collapse to one '-'; the cap may cut a run,
+    and a trailing '-' left by truncation is stripped. The task number
+    is the durable identifier, so a long title never yields a long name.
+    """
+    slug = _SLUG_RUN_RE.sub("-", title.lower()).strip("-")
+    return slug[:MAX_SLUG_LENGTH].rstrip("-")
 
 
 def task_numbers(artifacts_dir: Path) -> list:
@@ -374,12 +390,16 @@ def resolve_id(artifacts_dir: Path, arg: str) -> Path:
     if not artifacts_dir.is_dir():
         raise TasksError(
             f"artifacts dir not found: {artifacts_dir} "
-            "(run 'tasks.py init'?)"
+            "(run './tasks/tasks.py init'?)"
         )
     direct = artifacts_dir / arg
-    if direct.is_file():
+    if direct.is_file() and direct.name not in NON_TASK_ENTRIES:
         return direct
-    names = sorted(p.name for p in artifacts_dir.iterdir() if p.is_file())
+    names = sorted(
+        p.name
+        for p in artifacts_dir.iterdir()
+        if p.is_file() and p.name not in NON_TASK_ENTRIES
+    )
     if re.fullmatch(r"\d{3}", arg):
         matches = [name for name in names if name.startswith(arg + "_")]
         if len(matches) == 1:
@@ -422,7 +442,26 @@ _LINK_LINE_RE = re.compile(
     r"^\s*(?:[-*]\s+)?(RELATED TO|DEPENDS ON|DUPLICATES|INVALIDATES):(.*)$"
 )
 
-TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
+
+def _load_template(artifacts_dir: Path, kind: str):
+    """Return ``(text, name)`` for a task template.
+
+    Lookup chain: ``templates/`` inside the artifacts dir (installed
+    layout), ``templates/`` bundled next to this script, then
+    ``templates/`` next to the skill copy (when run from ``scripts/``).
+    """
+    candidates = (
+        artifacts_dir / "templates" / f"{kind}.md",
+        Path(__file__).resolve().parent / "templates" / f"{kind}.md",
+        Path(__file__).resolve().parents[1] / "templates" / f"{kind}.md",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8"), candidate.name
+    raise TasksError(
+        f"template not found: {kind}.md (run './tasks/tasks.py init'?"
+        " to install the templates)"
+    )
 
 
 def _today() -> str:
@@ -527,7 +566,7 @@ def _require_artifacts_dir(cfg: Config) -> Path:
     if not cfg.artifacts_dir.is_dir():
         raise TasksError(
             f"artifacts dir not found: {cfg.artifacts_dir} "
-            "(run 'tasks.py init'?)"
+            "(run './tasks/tasks.py init'?)"
         )
     return cfg.artifacts_dir
 
@@ -538,13 +577,19 @@ def _require_artifacts_dir(cfg: Config) -> Path:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    """Create .tasks.yaml in cwd plus the artifacts dir; idempotent."""
+    """Create tasks/tasks.yaml and the artifacts dir; install the CLI
+    script and templates next to the config. Idempotent: re-running
+    installs missing files and updates any that differ.
+
+    A legacy repo-root ``.tasks.yaml`` is moved into ``tasks/``.
+    """
     if args.config:
         config_path = Path(args.config)
-        base = config_path.resolve().parent
+        root = config_path.resolve().parent
     else:
-        config_path = args.cwd / CONFIG_NAME
-        base = args.cwd
+        root = args.cwd
+        config_path = root / DEFAULT_ARTIFACTS_DIR / CONFIG_NAME
+        _migrate_legacy_config(root, config_path)
     if config_path.exists():
         print(f"{config_path} already exists; leaving it unchanged")
         existing = parse_yaml_subset(config_path.read_text(encoding="utf-8"))
@@ -561,10 +606,76 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"created {config_path}")
     artifacts_dir = Path(artifacts_value)
     if not artifacts_dir.is_absolute():
-        artifacts_dir = base / artifacts_dir
+        artifacts_dir = root / artifacts_dir
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     print(f"artifacts dir ready: {artifacts_dir}")
+    install_dir = config_path.resolve().parent
+    _install_tooling(install_dir)
+    print(f"CLI ready: {install_dir / 'tasks.py'} -h")
     return 0
+
+
+def _migrate_legacy_config(root: Path, config_path: Path) -> None:
+    """Move a repo-root .tasks.yaml into tasks/tasks.yaml (one-time).
+
+    When both files exist the legacy file is left in place untouched —
+    deleting user data silently is worse than a leftover file.
+    """
+    legacy = root / LEGACY_CONFIG_NAME
+    if not legacy.is_file():
+        return
+    if config_path.is_file():
+        _warn(
+            f"{LEGACY_CONFIG_NAME} still exists but {config_path} takes "
+            "precedence; remove the legacy file by hand if it is stale"
+        )
+        return
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy.replace(config_path)
+    print(f"moved {legacy} -> {config_path}")
+
+
+def _install_file(
+    source: Path, target: Path, executable: bool = False
+) -> None:
+    """Copy ``source`` onto ``target`` when missing or different.
+
+    Byte-identical targets are left untouched, so re-running ``init``
+    is a cheap no-op. ``target`` may be the running script itself.
+    """
+    data = source.read_bytes()
+    if target.is_file() and target.read_bytes() == data:
+        print(f"{target.name}: up to date")
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    if executable:
+        target.chmod(0o755)
+    print(f"installed {target}")
+
+
+def _install_tooling(install_dir: Path) -> None:
+    """Install (or update) the CLI script and templates in ``install_dir``.
+
+    The templates source is the ``templates/`` dir bundled next to the
+    running script — the installed copy's own dir when re-running from
+    the installed location, the skill's dir otherwise.
+    """
+    script_source = Path(__file__).resolve()
+    script_target = install_dir / "tasks.py"
+    if script_target == script_source:
+        # Running from the install location: the script is itself by
+        # definition; nothing to copy.
+        print(f"{script_target.name}: already the running script")
+    else:
+        _install_file(script_source, script_target, executable=True)
+    templates_source = script_source.parent / "templates"
+    if not templates_source.is_dir():
+        # Skill layout: script lives in scripts/, templates one up.
+        templates_source = script_source.parents[1] / "templates"
+    templates_target = install_dir / "templates"
+    for template in sorted(templates_source.glob("*.md")):
+        _install_file(template, templates_target / template.name)
 
 
 def cmd_new(args: argparse.Namespace) -> int:
@@ -588,15 +699,14 @@ def cmd_new(args: argparse.Namespace) -> int:
         parent_name = parent_path.name
     if args.kind == "subtask" and parent_name is None:
         raise TasksError("subtask requires --parent FILE")
-    template_path = TEMPLATE_DIR / f"{args.kind}.md"
-    template = template_path.read_text(encoding="utf-8")
+    template, template_name = _load_template(artifacts_dir, args.kind)
     filled = (
         template.replace("{{title}}", args.title)
         .replace("{{author}}", author)
         .replace("{{date}}", _today())
         .replace("{{parent}}", parent_name or "")
     )
-    fields, body = parse_task(filled, template_path.name)
+    fields, body = parse_task(filled, template_name)
     if parent_name is not None:
         fields["parent"] = parent_name
     fields["state"] = args.state or "draft"
@@ -615,6 +725,12 @@ def cmd_new(args: argparse.Namespace) -> int:
             raise TasksError(
                 f"invalid slug {slug!r}: allowed characters are "
                 "[a-zA-Z0-9-_]"
+            )
+        if len(slug) > MAX_SLUG_LENGTH:
+            raise TasksError(
+                f"slug is {len(slug)} characters; the maximum is "
+                f"{MAX_SLUG_LENGTH}. The task number is the durable "
+                "identifier — pick a shorter slug."
             )
     else:
         slug = slugify(args.title)
@@ -870,7 +986,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
     Errors exit 2; warnings-only still exits 0, with all issues listed on
     stdout as ``error: <file>: ...`` / ``warning: <file>: ...`` lines.
-    Any file in the artifacts dir not matching ``NNN_slug.md`` is an error.
+    Any file in the artifacts dir not matching ``NNN_slug.md`` is an
+    error, except the installed tooling (``tasks.py``, ``tasks.yaml``,
+    and the ``templates/`` dir), which is ignored.
     """
     cfg = _load_config(args)
     if args.id:
@@ -878,7 +996,11 @@ def cmd_validate(args: argparse.Namespace) -> int:
         artifacts_dir = cfg.artifacts_dir
     else:
         artifacts_dir = _require_artifacts_dir(cfg)
-        paths = sorted(p for p in artifacts_dir.iterdir() if p.is_file())
+        paths = sorted(
+            p
+            for p in artifacts_dir.iterdir()
+            if p.is_file() and p.name not in NON_TASK_ENTRIES
+        )
     issues = []
     for path in paths:
         issues.extend(_validate_file(path, artifacts_dir))
@@ -926,11 +1048,23 @@ def cmd_links(args: argparse.Namespace) -> int:
 
 
 def cmd_grep(args: argparse.Namespace) -> int:
-    """Pass-through: ``rg <args> <artifacts_dir>``; exit code propagated."""
+    """Pass-through: ``rg <args> <artifacts_dir>``; exit code propagated.
+
+    The installed tooling (tasks.py, tasks.yaml, templates/) is excluded
+    so hits are always task content.
+    """
     artifacts_dir = _require_artifacts_dir(_load_config(args))
+    excludes = [
+        "--glob",
+        "!tasks.py",
+        "--glob",
+        "!tasks.yaml",
+        "--glob",
+        "!templates",
+    ]
     try:
         proc = subprocess.run(
-            ["rg", *args.rg_args, str(artifacts_dir)], check=False
+            ["rg", *excludes, *args.rg_args, str(artifacts_dir)], check=False
         )
     except FileNotFoundError:
         raise TasksError(
@@ -950,7 +1084,10 @@ def _add_global(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--config",
         metavar="PATH",
-        help=f"path to {CONFIG_NAME} (default: walk upward from cwd)",
+        help=(
+            "path to the config file (default: walk upward from cwd for "
+            f"{DEFAULT_ARTIFACTS_DIR}/{CONFIG_NAME})"
+        ),
     )
     parser.add_argument(
         "--dir",
@@ -967,7 +1104,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_global(parser)
     sub = parser.add_subparsers(dest="command", metavar="command")
 
-    p = sub.add_parser("init", help="create .tasks.yaml and the artifacts dir")
+    p = sub.add_parser(
+        "init",
+        help=(
+            "create the config, artifacts dir, and install the CLI + "
+            "templates into tasks/"
+        ),
+    )
     _add_global(p)
     p.add_argument("--author", metavar="NAME")
     p.set_defaults(command="init", func=cmd_init)
