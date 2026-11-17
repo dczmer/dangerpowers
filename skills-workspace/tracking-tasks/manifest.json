@@ -1,0 +1,59 @@
+{
+  "skill": "tracking-tasks",
+  "trigger-test": {
+    "date": "2026-11-14",
+    "checksum": "sha256:c13f4b41e52513e07139fb719bd9a5ae37d1ae2367ef0441daa8f4711775f659",
+    "score": 0.7718981569447083,
+    "model": "llama-cpp/qwen3.8-27B-GSQ-RCO",
+    "variant": null,
+    "campaign": "campaign-2026-11-14-2",
+    "models": [
+      "llama-cpp/qwen3.8-27B-GSQ-RCO"
+    ]
+  },
+  "retrieval-test": {
+    "date": "2026-11-15",
+    "checksum": "sha256:30b9f55dc23956ea3ef85582f486f8343632b823bf24d690f4a382b3eb25f3a3",
+    "passes": 14,
+    "fails": 3,
+    "gaps": 0,
+    "voids": 0,
+    "model": "kimi-coding/kimi-for-coding",
+    "variant": null,
+    "ablations": 0,
+    "campaign": "campaign-2026-11-15",
+    "models": [
+      "kimi-coding/kimi-for-coding"
+    ]
+  },
+  "shape-test": {
+    "date": "2026-11-15",
+    "checksum": "sha256:ec488eb60027910eb8b10ebc7127065d89da91f328f40324fdfc5f1484258f69",
+    "adopted": 1,
+    "no-failure": 12,
+    "unresolved": 0,
+    "voids": 0,
+    "model": "kimi-coding/kimi-for-coding",
+    "variant": null,
+    "ablations": 12,
+    "campaign": "campaign-2026-11-15",
+    "models": [
+      "kimi-coding/kimi-for-coding"
+    ]
+  },
+  "pressure-test": {
+    "date": "2026-11-15",
+    "checksum": "sha256:2eb944a00415b9da95cb09cad6e9f22ed583c75684312265369bf4cb2d42bf3e",
+    "bulletproof": 1,
+    "no-failure": 6,
+    "unresolved": 0,
+    "voids": 1,
+    "model": "kimi-coding/kimi-for-coding",
+    "variant": null,
+    "ablations": 7,
+    "campaign": "campaign-2026-11-15-2",
+    "models": [
+      "kimi-coding/kimi-for-coding"
+    ]
+  }
+}

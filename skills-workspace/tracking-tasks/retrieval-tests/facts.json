@@ -1,0 +1,214 @@
+{
+  "skill": "tracking-tasks",
+  "generated": "2026-11-15",
+  "facts": [
+    {
+      "id": "F-setup-01",
+      "section": "Setup",
+      "statement": "The CLI is located at scripts/tasks.py relative to the skill directory.",
+      "entries": [
+        "setup-config-init"
+      ]
+    },
+    {
+      "id": "F-setup-02",
+      "section": "Setup",
+      "statement": "Look for a .tasks.yaml config by walking up from the working directory; when none exists, run init in the project root, which creates the config and the artifacts directory that holds task files.",
+      "entries": [
+        "setup-config-init"
+      ]
+    },
+    {
+      "id": "F-setup-03",
+      "section": "Setup",
+      "statement": "Resolve the author once from, in order: the new --author flag, the config author field, git config user.name, then $USER — the CLI picks the first that works.",
+      "entries": [
+        "author-resolution"
+      ]
+    },
+    {
+      "id": "F-using-the-cli-01",
+      "section": "Using the CLI",
+      "statement": "Change state, updated, created, or parent only through the CLI (new, set, set-state) so updated stays correct; edit the body (descriptions, checklists, ## Links lines, ## Open Questions) with normal file tools — the Gotchas restate it: the body is the only part you edit by hand.",
+      "entries": [
+        "cli-owns-frontmatter"
+      ]
+    },
+    {
+      "id": "F-lifecycle-rules-01",
+      "section": "Lifecycle rules",
+      "statement": "States are draft, open, in-progress, complete, plus invalid.",
+      "entries": [
+        "any-state-to-any-state"
+      ]
+    },
+    {
+      "id": "F-lifecycle-rules-02",
+      "section": "Lifecycle rules",
+      "statement": "The chain draft → open → in-progress → complete is descriptive only: any state may transition to any other via set-state.",
+      "entries": [
+        "any-state-to-any-state"
+      ]
+    },
+    {
+      "id": "F-lifecycle-rules-03",
+      "section": "Lifecycle rules",
+      "statement": "Mark a task invalid when it will never be done (superseded, wrong premise, duplicate), and always pass --reason with a free-text explanation; it is recorded in the reason frontmatter field.",
+      "entries": [
+        "invalid-needs-reason"
+      ]
+    },
+    {
+      "id": "F-lifecycle-rules-04",
+      "section": "Lifecycle rules",
+      "statement": "Create a subtask with new subtask --parent <id>; the parent must exist and be a task or bug — subtasks cannot have subtasks.",
+      "entries": [
+        "subtask-rules"
+      ]
+    },
+    {
+      "id": "F-grounding-01",
+      "section": "Grounding",
+      "statement": "Scan the project before writing: read the relevant code and docs, check git log, and run list and grep over existing tasks; never ask the user a question the repository can answer.",
+      "entries": [
+        "grounding-before-task"
+      ]
+    },
+    {
+      "id": "F-verification-01",
+      "section": "Verification",
+      "statement": "Verify the request's claims against the code — confirm referenced files, functions, and endpoints exist, and reproduce the bug when possible; put anything unverifiable in ## Open Questions and leave the task in draft until it is resolved.",
+      "entries": [
+        "unverifiable-to-open-questions"
+      ]
+    },
+    {
+      "id": "F-task-quality-01",
+      "section": "Task quality",
+      "statement": "Answer why, how, and definition-of-done — the template's ## Why, ## How, and ## Definition of Done sections.",
+      "entries": [
+        "task-sections-and-dod"
+      ]
+    },
+    {
+      "id": "F-task-quality-02",
+      "section": "Task quality",
+      "statement": "Write the definition of done as a checkable bullet list.",
+      "entries": [
+        "task-sections-and-dod"
+      ]
+    },
+    {
+      "id": "F-task-quality-03",
+      "section": "Task quality",
+      "statement": "A title containing \"and\" means two chunks of work: file two tickets (or a parent task with subtasks), even when asked for a single ticket; the same applies when the definition of done needs more than three bullets — one ticket is one chunk of work.",
+      "entries": [
+        "split-compound-title"
+      ]
+    },
+    {
+      "id": "F-bug-quality-01",
+      "section": "Bug quality",
+      "statement": "Write the title as the symptom, not the suspected cause.",
+      "entries": [
+        "bug-report-shape"
+      ]
+    },
+    {
+      "id": "F-bug-quality-02",
+      "section": "Bug quality",
+      "statement": "Number the minimal reproduction steps and start each from a known state.",
+      "entries": [
+        "bug-report-shape"
+      ]
+    },
+    {
+      "id": "F-bug-quality-03",
+      "section": "Bug quality",
+      "statement": "Keep expected behavior and actual behavior as separate sections.",
+      "entries": [
+        "bug-report-shape"
+      ]
+    },
+    {
+      "id": "F-bug-quality-04",
+      "section": "Bug quality",
+      "statement": "Quote error messages verbatim, including the full traceback when there is one.",
+      "entries": [
+        "bug-report-shape"
+      ]
+    },
+    {
+      "id": "F-bug-quality-05",
+      "section": "Bug quality",
+      "statement": "Record the environment where the bug reproduced.",
+      "entries": [
+        "bug-report-shape"
+      ]
+    },
+    {
+      "id": "F-bug-quality-06",
+      "section": "Bug quality",
+      "statement": "File one bug per ticket.",
+      "entries": [
+        "bug-report-shape"
+      ]
+    },
+    {
+      "id": "F-linking-01",
+      "section": "Linking",
+      "statement": "Record relationships in the ## Links section with exactly four tokens — RELATED TO:, DEPENDS ON:, DUPLICATES:, INVALIDATES: — each followed by comma- or space-separated task filenames; tokens must be uppercase with the colon, otherwise links and validate cannot see them.",
+      "entries": [
+        "link-tokens-exact"
+      ]
+    },
+    {
+      "id": "F-linking-02",
+      "section": "Linking",
+      "statement": "Grep the corpus for existing duplicates and related work before creating a new task or bug.",
+      "entries": [
+        "dup-check-before-filing"
+      ]
+    },
+    {
+      "id": "F-linking-03",
+      "section": "Linking",
+      "statement": "Link semantics are informational — DEPENDS ON does not block completion.",
+      "entries": [
+        "depends-on-nonblocking"
+      ]
+    },
+    {
+      "id": "F-gotchas-01",
+      "section": "Gotchas",
+      "statement": "Task numbers come from a global per-project sequence and are never reused; a deleted task leaves a permanent gap.",
+      "entries": [
+        "task-number-gap"
+      ]
+    },
+    {
+      "id": "F-gotchas-02",
+      "section": "Gotchas",
+      "statement": "Run validate after bulk edits (renames, scripted changes, manual frontmatter fixes) to catch dangling link targets and stray files.",
+      "entries": [
+        "validate-after-bulk-edit"
+      ]
+    },
+    {
+      "id": "F-gotchas-03",
+      "section": "Gotchas",
+      "statement": "Use set <id> updated <date> only to repair a stale timestamp; every CLI write refreshes updated automatically, so a backdated updated signals a manual repair; backdating to make a task look touched for a report is not a repair — decline and offer the real updated instead.",
+      "entries": [
+        "updated-backdate"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "F-using-the-cli-02",
+      "section": "Using the CLI",
+      "reason": "show/list/grep routing is baseline CLI discovery; the CLI's own -h is the documented source and a fresh agent finds subcommands without the skill",
+      "statement": "Use show to read a task, list with filters to survey the corpus, and grep to search bodies with ripgrep syntax."
+    }
+  ]
+}

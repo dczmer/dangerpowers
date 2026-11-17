@@ -1,0 +1,310 @@
+{
+  "skill": "tracking-tasks",
+  "generated": "2026-11-15",
+  "rules": [
+    {
+      "id": "R-lifecycle-rules-01",
+      "section": "Lifecycle rules",
+      "kind": "shaping",
+      "statement": "Mark a task invalid only with `set-state <id> invalid --reason \"...\"`; the free-text explanation is recorded in the `reason` frontmatter field.",
+      "entries": [
+        "invalid-needs-reason"
+      ]
+    },
+    {
+      "id": "R-task-quality-01",
+      "section": "Task quality",
+      "kind": "shaping",
+      "statement": "Task bodies answer why, how, and definition-of-done using the `## Why`, `## How`, and `## Definition of Done` sections.",
+      "entries": [
+        "task-why-how-dod"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-task-quality-02",
+      "section": "Task quality",
+      "kind": "shaping",
+      "statement": "The definition of done is written as a checkable bullet list.",
+      "entries": [
+        "dod-checkable-bullets"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-task-quality-03",
+      "section": "Task quality",
+      "kind": "pattern",
+      "statement": "A title containing \"and\" (or a definition of done needing more than three bullets) means two chunks of work: file two tickets or a parent task with subtasks, even when asked for a single ticket.",
+      "entries": [
+        "one-chunk-per-ticket"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-bug-quality-01",
+      "section": "Bug quality",
+      "kind": "shaping",
+      "statement": "Reproduction steps are numbered, minimal, and each starts from a known state.",
+      "entries": [
+        "repro-steps-numbered"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-bug-quality-02",
+      "section": "Bug quality",
+      "kind": "shaping",
+      "statement": "Expected behavior and actual behavior are kept as separate sections.",
+      "entries": [
+        "expected-actual-separate"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-bug-quality-03",
+      "section": "Bug quality",
+      "kind": "shaping",
+      "statement": "Error messages are quoted verbatim, including the full traceback when there is one.",
+      "entries": [
+        "errors-verbatim"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-bug-quality-04",
+      "section": "Bug quality",
+      "kind": "shaping",
+      "statement": "The environment where the bug reproduced is recorded.",
+      "entries": [
+        "environment-recorded"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-bug-quality-05",
+      "section": "Bug quality",
+      "kind": "pattern",
+      "statement": "The bug title is written as the symptom, not the suspected cause.",
+      "entries": [
+        "symptom-not-cause-title"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-bug-quality-06",
+      "section": "Bug quality",
+      "kind": "pattern",
+      "statement": "One bug is filed per ticket.",
+      "entries": [
+        "one-bug-per-ticket"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-verification-01",
+      "section": "Verification",
+      "kind": "pattern",
+      "statement": "Verify claims against the code; put anything unverifiable in `## Open Questions` and leave the task in `draft` until resolved.",
+      "entries": [
+        "unverifiable-to-open-questions"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-linking-01",
+      "section": "Linking",
+      "kind": "shaping",
+      "statement": "Relationships are recorded in the `## Links` section with the four tokens `RELATED TO:`, `DEPENDS ON:`, `DUPLICATES:`, `INVALIDATES:`, each followed by task filenames.",
+      "entries": [
+        "links-tokens"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    },
+    {
+      "id": "R-gotchas-01",
+      "section": "Gotchas",
+      "kind": "shaping",
+      "statement": "Link tokens must match exactly: uppercase, with the colon; other forms are invisible to `links` and `validate`.",
+      "entries": [
+        "link-token-exactness"
+      ],
+      "status": "ablation",
+      "ablation_streak": 0
+    }
+  ],
+  "excluded": [
+    {
+      "id": "R-setup-01",
+      "section": "Setup",
+      "kind": "technique",
+      "statement": "Locate the CLI at `scripts/tasks.py` relative to this skill directory.",
+      "reason": "tool-location fact plus how-to; no artifact shape — technique, not shaping"
+    },
+    {
+      "id": "R-setup-02",
+      "section": "Setup",
+      "kind": "technique",
+      "statement": "Check for a `.tasks.yaml` config and run `init` when there is none.",
+      "reason": "setup procedure; no competing output shape — technique"
+    },
+    {
+      "id": "R-setup-03",
+      "section": "Setup",
+      "kind": "technique",
+      "statement": "Resolve the author once from `new --author`, the config `author` field, `git config user.name`, or `$USER`.",
+      "reason": "configuration how-to; no artifact shape — technique"
+    },
+    {
+      "id": "R-using-the-cli-01",
+      "section": "Using the CLI",
+      "kind": "technique",
+      "statement": "Run `-h` for flag docs; the CLI owns flag documentation — do not document flags here.",
+      "reason": "points at CLI help as the reference and is a skill-maintenance note; no task-artifact shape — technique"
+    },
+    {
+      "id": "R-using-the-cli-02",
+      "section": "Using the CLI",
+      "kind": "discipline",
+      "statement": "Change `state`, `updated`, `created`, or `parent` only through the CLI.",
+      "reason": "compliance-cost rule the agent rationalizes away under pressure (hand-editing frontmatter) — pressure-testing track"
+    },
+    {
+      "id": "R-using-the-cli-03",
+      "section": "Using the CLI",
+      "kind": "technique",
+      "statement": "Edit the body (descriptions, checklists, `## Links` lines, `## Open Questions`) with normal file tools.",
+      "reason": "procedural how-to; no competing shape — technique"
+    },
+    {
+      "id": "R-using-the-cli-04",
+      "section": "Using the CLI",
+      "kind": "technique",
+      "statement": "Use `show` to read a task, `list` with filters to survey, `grep` to search bodies.",
+      "reason": "procedural how-to; no competing shape — technique"
+    },
+    {
+      "id": "R-lifecycle-rules-02",
+      "section": "Lifecycle rules",
+      "kind": "reference",
+      "statement": "States are `draft`, `open`, `in-progress`, `complete`, plus `invalid`; any state may transition to any other via `set-state`.",
+      "reason": "documented state-machine fact with nothing to violate — retrieval track"
+    },
+    {
+      "id": "R-lifecycle-rules-03",
+      "section": "Lifecycle rules",
+      "kind": "technique",
+      "statement": "Create a subtask with `new subtask --parent <id>`; parent must exist, be a `task` or `bug`, and subtasks cannot have subtasks.",
+      "reason": "command usage plus documented constraints; no artifact shape — technique/reference"
+    },
+    {
+      "id": "R-grounding-01",
+      "section": "Grounding",
+      "kind": "discipline",
+      "statement": "Scan the project before writing anything; never ask the user a question the repository can answer.",
+      "reason": "process-compliance cost rationalized away under pressure — pressure-testing track"
+    },
+    {
+      "id": "R-linking-02",
+      "section": "Linking",
+      "kind": "discipline",
+      "statement": "Grep the corpus for existing duplicates and related work before creating a new task or bug.",
+      "reason": "pre-write compliance step skipped under pressure — pressure-testing track"
+    },
+    {
+      "id": "R-linking-03",
+      "section": "Linking",
+      "kind": "reference",
+      "statement": "Link semantics are informational — `DEPENDS ON` does not block completion.",
+      "reason": "documented semantic fact; no rule to violate — retrieval track"
+    },
+    {
+      "id": "R-example-01",
+      "section": "Example",
+      "kind": "reference",
+      "statement": "A grounded, well-formed task looks like this: (worked example task).",
+      "reason": "worked example demonstrating already-inventoried rules; not itself a rule — reference"
+    },
+    {
+      "id": "R-gotchas-02",
+      "section": "Gotchas",
+      "kind": "reference",
+      "statement": "Task numbers come from a global per-project sequence and are never reused.",
+      "reason": "documented fact about ID allocation; nothing to violate — retrieval track"
+    },
+    {
+      "id": "R-gotchas-03",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Change state only through `set-state`; the body is the only part you edit by hand.",
+      "reason": "compliance-cost rule (restated from Using the CLI) — pressure-testing track"
+    },
+    {
+      "id": "R-gotchas-04",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Run `validate` after bulk edits to catch dangling link targets and stray files.",
+      "reason": "post-edit compliance step skipped under pressure — pressure-testing track"
+    },
+    {
+      "id": "R-gotchas-05",
+      "section": "Gotchas",
+      "kind": "discipline",
+      "statement": "Use `set <id> updated <date>` only to repair a stale timestamp; decline backdating for reports.",
+      "reason": "decline-under-pressure behavior — pressure-testing track"
+    },
+    {
+      "id": "R-checklist-01",
+      "section": "Checklist",
+      "kind": "discipline",
+      "statement": "Grounded: scanned the code, docs, git log, and existing tasks first.",
+      "reason": "restatement of the Grounding rule; tracked there"
+    },
+    {
+      "id": "R-checklist-02",
+      "section": "Checklist",
+      "kind": "pattern",
+      "statement": "Verified: every claim checked against the code; the rest lives in `## Open Questions` and the state is `draft`.",
+      "reason": "restatement of the Verification rule (unverifiable-to-open-questions); tracked there"
+    },
+    {
+      "id": "R-checklist-03",
+      "section": "Checklist",
+      "kind": "shaping",
+      "statement": "Sections complete per template: why/how/definition-of-done for tasks; repro steps, expected vs actual, evidence, environment for bugs.",
+      "reason": "composite restatement of the task/bug section rules (task-why-how-dod, dod-checkable-bullets, repro-steps-numbered, expected-actual-separate, errors-verbatim, environment-recorded); tracked there"
+    },
+    {
+      "id": "R-checklist-04",
+      "section": "Checklist",
+      "kind": "shaping",
+      "statement": "Definition of done is a checkable bullet list; one chunk of work per ticket.",
+      "reason": "restatement of dod-checkable-bullets and one-chunk-per-ticket; tracked there"
+    },
+    {
+      "id": "R-checklist-05",
+      "section": "Checklist",
+      "kind": "shaping",
+      "statement": "Links greppable: exact tokens, real target filenames, duplicates checked with `grep` before filing.",
+      "reason": "restatement of links-tokens / link-token-exactness; tracked there"
+    },
+    {
+      "id": "R-checklist-06",
+      "section": "Checklist",
+      "kind": "discipline",
+      "statement": "`python3 scripts/tasks.py validate` reports no errors.",
+      "reason": "restatement of the validate gotcha; tracked there"
+    }
+  ]
+}
