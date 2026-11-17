@@ -205,6 +205,16 @@ class TestTemplates(unittest.TestCase):
         for name in ("task.md", "bug.md", "subtask.md"):
             self.assertTrue((TEMPLATES_DIR / name).is_file(), name)
 
+    def test_embedded_templates_match_files(self):
+        # _BUNDLED_TEMPLATES is what `init` installs; the templates/
+        # files are the readable reference. They must stay identical.
+        for name in ("task.md", "bug.md", "subtask.md"):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    tasks._BUNDLED_TEMPLATES[name],
+                    self._read(name),
+                )
+
     def test_task_template(self):
         text = self._read("task.md")
         self.assertTrue(text.startswith("---\n"))
@@ -604,6 +614,35 @@ class TestInit(ProjectFixture):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("already the running script", proc.stdout)
 
+    def test_installed_copy_reinit_heals_tampered_templates(self):
+        """Re-init from the installed copy restores pristine templates.
+
+        The installed copy's own templates/ dir is the only on-disk
+        source there, so healing must come from the script itself —
+        e.g. after a formatter rewrites {{date}} to { { date } }.
+        """
+        self.assertEqual(self.run_cli("init")[0], 0)
+        script = self.project / "tasks" / "tasks.py"
+        template = self.project / "tasks" / "templates" / "task.md"
+        mangled = template.read_text(encoding="utf-8").replace(
+            "{{date}}", "{ { date } }"
+        )
+        template.write_text(mangled, encoding="utf-8")
+        env = dict(os.environ, PYTHONPATH="")
+        proc = subprocess.run(
+            [sys.executable, str(script), "init"],
+            cwd=self.project,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(
+            template.read_bytes(), (TEMPLATES_DIR / "task.md").read_bytes()
+        )
+        self.assertIn("installed", proc.stdout)
+
     def test_legacy_config_is_moved(self):
         legacy = self.project / ".tasks.yaml"
         legacy.write_text("artifacts_dir: tasks\nauthor: Bob\n")
@@ -694,6 +733,24 @@ class TestNew(ProjectFixture):
         self.assertIn("\n# Fix: Login Redirect!\n", body)
         for section in ("## Why", "## How", "## Definition of Done"):
             self.assertIn(section, body)
+
+    def test_new_fills_formatter_mangled_template(self):
+        """`new` still fills placeholders a formatter spaced out.
+
+        Prettier rewrites `{{date}}` in frontmatter to `{ { date } }`;
+        substitution must tolerate inner whitespace.
+        """
+        template = self.project / "tasks" / "templates" / "task.md"
+        mangled = template.read_text(encoding="utf-8").replace(
+            "{{date}}", "{ { date } }"
+        )
+        template.write_text(mangled, encoding="utf-8")
+        code, path, err = self._new("task", "Spaced Placeholders")
+        self.assertEqual((code, err), (0, ""))
+        fields, _ = tasks.read_task(path)
+        today = datetime.date.today().isoformat()  # noqa: DTZ011
+        self.assertEqual(fields["created"], today)
+        self.assertEqual(fields["updated"], today)
 
     def test_global_numbering_across_types(self):
         _, first, _ = self._new("task", "Alpha")

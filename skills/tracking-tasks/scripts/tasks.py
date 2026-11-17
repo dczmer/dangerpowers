@@ -37,6 +37,96 @@ NON_TASK_ENTRIES = ("tasks.py", "tasks.yaml", "templates")
 _SLUG_RUN_RE = re.compile(r"[^a-z0-9\-_]+")
 _KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9\-_]*):(.*)$")
 _ESCAPES = {"\\": "\\", '"': '"', "n": "\n", "t": "\t"}
+# Template placeholders, e.g. ``{{date}}``. Whitespace between the
+# braces and inside them is allowed so a formatter that rewrites
+# ``{{date}}`` to ``{ { date } }`` (prettier does this to frontmatter)
+# does not break filling.
+_PLACEHOLDER_RE = re.compile(r"\{\s*\{\s*(title|author|date|parent)\s*\}\s*\}")
+
+# Canonical task templates, embedded so an installed copy can restore
+# pristine templates even when run from the install location — there the
+# on-disk templates may be the only copy, and a formatter or hand edit
+# may have altered them. Kept in sync with templates/ by tests.
+_BUNDLED_TEMPLATES = {
+    "bug.md": """---
+title: "{{title}}"
+type: bug
+state: draft
+author: "{{author}}"
+created: {{date}}
+updated: {{date}}
+---
+
+# {{title}}
+
+## Summary
+<!-- 2–3 sentences: what is broken. Symptom-first, not a hypothesis. -->
+
+## Steps to Reproduce
+<!-- Numbered, one atomic action each, from a known state. Minimal. -->
+1.
+
+## Expected Behavior
+
+## Actual Behavior
+<!-- Exact error messages quoted verbatim, not paraphrased. -->
+
+## Environment
+<!-- Version/commit, OS, config, data condition — whatever could matter. -->
+
+## Evidence
+<!-- Logs, screenshots, request IDs. Omit section if none. -->
+
+## Open Questions
+<!-- Anything unverifiable. Omit section if none. -->
+
+## Links
+""",
+    "subtask.md": """---
+title: "{{title}}"
+type: subtask
+state: draft
+author: "{{author}}"
+created: {{date}}
+updated: {{date}}
+parent: "{{parent}}"
+---
+
+# {{title}}
+
+## Description
+<!-- One chunk of the parent's work. -->
+
+## Definition of Done
+- [ ]
+
+## Links
+""",
+    "task.md": """---
+title: "{{title}}"
+type: task
+state: draft
+author: "{{author}}"
+created: {{date}}
+updated: {{date}}
+---
+
+# {{title}}
+
+## Why
+<!-- Context: why this work, how it fits the bigger picture. -->
+
+## How
+<!-- Proposed approach: files, interfaces, alternatives considered. -->
+
+## Definition of Done
+<!-- Bulleted, checkable. >3 bullets → consider splitting the task. -->
+- [ ]
+
+## Links
+<!-- RELATED TO: / DUPLICATES: / DEPENDS ON: / INVALIDATES: + filenames -->
+""",
+}
 
 # Canonical frontmatter key order: required fields first, then optionals.
 CANONICAL_ORDER = (
@@ -657,9 +747,10 @@ def _install_file(
 def _install_tooling(install_dir: Path) -> None:
     """Install (or update) the CLI script and templates in ``install_dir``.
 
-    The templates source is the ``templates/`` dir bundled next to the
-    running script — the installed copy's own dir when re-running from
-    the installed location, the skill's dir otherwise.
+    Templates come from the ``_BUNDLED_TEMPLATES`` embedded in this
+    script, never from a ``templates/`` dir on disk: when re-running
+    from the installed location, the only on-disk templates are the
+    (possibly altered) install targets themselves.
     """
     script_source = Path(__file__).resolve()
     script_target = install_dir / "tasks.py"
@@ -669,13 +760,16 @@ def _install_tooling(install_dir: Path) -> None:
         print(f"{script_target.name}: already the running script")
     else:
         _install_file(script_source, script_target, executable=True)
-    templates_source = script_source.parent / "templates"
-    if not templates_source.is_dir():
-        # Skill layout: script lives in scripts/, templates one up.
-        templates_source = script_source.parents[1] / "templates"
     templates_target = install_dir / "templates"
-    for template in sorted(templates_source.glob("*.md")):
-        _install_file(template, templates_target / template.name)
+    for name in sorted(_BUNDLED_TEMPLATES):
+        data = _BUNDLED_TEMPLATES[name].encode("utf-8")
+        target = templates_target / name
+        if target.is_file() and target.read_bytes() == data:
+            print(f"{target.name}: up to date")
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        print(f"installed {target}")
 
 
 def cmd_new(args: argparse.Namespace) -> int:
@@ -700,12 +794,13 @@ def cmd_new(args: argparse.Namespace) -> int:
     if args.kind == "subtask" and parent_name is None:
         raise TasksError("subtask requires --parent FILE")
     template, template_name = _load_template(artifacts_dir, args.kind)
-    filled = (
-        template.replace("{{title}}", args.title)
-        .replace("{{author}}", author)
-        .replace("{{date}}", _today())
-        .replace("{{parent}}", parent_name or "")
-    )
+    values = {
+        "title": args.title,
+        "author": author,
+        "date": _today(),
+        "parent": parent_name or "",
+    }
+    filled = _PLACEHOLDER_RE.sub(lambda m: values[m.group(1)], template)
     fields, body = parse_task(filled, template_name)
     if parent_name is not None:
         fields["parent"] = parent_name
